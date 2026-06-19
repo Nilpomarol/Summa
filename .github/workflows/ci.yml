@@ -25,3 +25,6 @@ jobs:
 
       - name: Validate golden fixtures
         run: python3 tools/validate_golden.py
+
+      - name: Validate shared SQL
+        run: python3 tools/validate_shared_sql.py
