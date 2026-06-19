@@ -22,3 +22,6 @@ jobs:
           test -d shared/schema
           test -d shared/queries
           test -d shared/migrations
+
+      - name: Validate golden fixtures
+        run: python3 tools/validate_golden.py

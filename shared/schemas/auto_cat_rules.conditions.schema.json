@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gestor-finances.local/schemas/auto_cat_rules.conditions.schema.json",
+  "title": "auto_cat_rules.conditions",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "text_contains": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Case-insensitive substring matched against movement name plus payee."
+    },
+    "amount_min_cents": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "amount_max_cents": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "account_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "day_of_month_in": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 31
+      }
+    }
+  }
+}

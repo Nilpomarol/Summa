@@ -29,7 +29,7 @@ Design complete: spec (`00`), sync (`02`), architecture (`03`), data model (`04`
 - [x] **P0A-3** Extract `shared/schema/schema.sql` from `docs/04` — FK-ordered DDL (accounts, categories, people, trips, tags, templates, budgets, auto_cat_rules, import_batches, meta, movements, splits, split_lines), all indexes, PRAGMAs.
 - [x] **P0A-4** Seed `meta` (`schema_version=1`, `snapshot_version=0`) and a v1 baseline migration.
 - [x] **P0A-5** Extract the canonical views into `shared/queries/` (`v_movement_shared`, `v_account_flow`, `v_account_balance`, `v_actual_expense`, `v_actual_income`, `v_person_balance`).
-- [ ] **P0A-6** Add validation for `shared/golden/*.json` envelopes and document the JSON schemas for `templates.split_config` and `auto_cat_rules.conditions`.
+- [x] **P0A-6** Add validation for `shared/golden/*.json` envelopes and document the JSON schemas for `templates.split_config` and `auto_cat_rules.conditions`.
 - [ ] **P0A-7** Lock the sync protocol shape early in `docs/02`: snapshot file naming/format, version metadata, token marker, key derivation choice, and authenticated-encryption primitive. Implementation still waits until Phase 7.
 - [x] **P0A-8** Write the per-app internal-architecture note (`docs/08-app-architecture.md`): layering (data/domain/UI), state management (MVI/MVVM Android, MVVM WinUI), DI, how `shared/` is wired in.
 - [x] **P0A-9** Foundational UI/UX scaffold (`docs/07-ui-ux.md`): IA, navigation map, screen inventory + per-screen content blocks, core flows, string-catalog structure. **Structure only — visual style/aesthetics are a separate design pass.**
