@@ -25,7 +25,7 @@ Design complete: spec (`00`), sync (`02`), architecture (`03`), data model (`04`
 ### Phase 0A — Shared contract
 
 - [x] **P0A-1** Commit the baseline docs/agent/golden setup so future agent work has a clean diff.
-- [ ] **P0A-2** Create the repo layout: `/android`, `/windows`, `/shared` (with `schema/`, `queries/`, `golden/`), top-level build/CI config.
+- [x] **P0A-2** Create the repo layout: `/android`, `/windows`, `/shared` (with `schema/`, `queries/`, `golden/`), top-level build/CI config.
 - [ ] **P0A-3** Extract `shared/schema/schema.sql` from `docs/04` — FK-ordered DDL (accounts, categories, people, trips, tags, templates, budgets, auto_cat_rules, import_batches, meta, movements, splits, split_lines), all indexes, PRAGMAs.
 - [ ] **P0A-4** Seed `meta` (`schema_version=1`, `snapshot_version=0`) and a v1 baseline migration.
 - [ ] **P0A-5** Extract the canonical views into `shared/queries/` (`v_movement_shared`, `v_account_flow`, `v_account_balance`, `v_actual_expense`, `v_actual_income`, `v_person_balance`).
