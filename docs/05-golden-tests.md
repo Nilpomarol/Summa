@@ -13,11 +13,20 @@
 {
   "rule": "<rule-id>",
   "description": "<what this pins>",
+  "params": { "...": "optional rule-level constants" },
   "cases": [
     { "name": "<case>", "input": { ... }, "expected": { ... } }
   ]
 }
 ```
+
+Validate the shared fixture envelopes with:
+
+```bash
+python3 tools/validate_golden.py
+```
+
+The validator checks the common envelope, requires each `rule` to match its file name, enforces unique case names, and verifies `*_cents` fields are JSON integers.
 
 ## Global conventions
 
@@ -55,6 +64,8 @@ Conditions JSON (all present keys must match, AND-combined; empty = matches all)
   "amount_min_cents": 0, "amount_max_cents": 0,        // inclusive range; either optional
   "account_id": "<exact>", "day_of_month_in": [1,15] } // optional
 ```
+JSON Schema: `shared/schemas/auto_cat_rules.conditions.schema.json`.
+
 Action JSON: `{ "set_category_id": "<id>", "set_trip_id": "<id>" }` (either optional). Among **active** rules that match, the **highest `priority`** wins; on a tie, the **most recent `created_at`** wins. No match → no action (and a manually-set category is never overridden — enforced at apply time, not by the matcher).
 
 ### Duplicate detection (spec §4.6) — **[DECISION — tunable defaults]**
@@ -73,6 +84,8 @@ Pre-fill payload carried forward for a recurring **shared** expense (the real sp
   "payer": "user" | "<person_id>",
   "lines": [ { "party": "user" | "<person_id>", "owed_amount_cents": 0 } ] }
 ```
+
+JSON Schema: `shared/schemas/templates.split_config.schema.json`.
 
 ---
 
