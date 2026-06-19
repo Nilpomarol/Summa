@@ -15,7 +15,7 @@
 
 ## Current state ✅
 
-Design complete: spec (`00`), sync (`02`), architecture (`03`), data model (`04`), golden tests (`05`), roadmap (`06`), agent tooling (`AGENTS.md`, `CLAUDE.md`, `.claude/agents/`). No application code yet.
+Design complete: spec (`00`), sync (`02`), architecture (`03`), data model (`04`), golden tests (`05`), roadmap (`06`), agent tooling (`AGENTS.md`, `CLAUDE.md`, `.claude/agents/`). Phase 0A shared contract is extracted; Android has a minimal Gradle/Compose scaffold.
 
 ---
 
@@ -38,7 +38,7 @@ Design complete: spec (`00`), sync (`02`), architecture (`03`), data model (`04`
 
 ### Phase 0B — Android walking skeleton
 
-- [ ] **P0B-1** Scaffold the Android project (Gradle, Kotlin, Compose, SQLDelight).
+- [x] **P0B-1** Scaffold the Android project (Gradle, Kotlin, Compose, SQLDelight).
 - [ ] **P0B-2** Generate SQLDelight bindings from `shared/schema` and open the DB at runtime.
 - [ ] **P0B-3** Implement Android procedural money rules: split rounding, percentage/exact, recurring advancement, dedup, auto-cat matching.
 - [ ] **P0B-4** Golden-vector test harness on Android: load `shared/golden/*.json`, run, assert against `expected`.

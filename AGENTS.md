@@ -4,7 +4,7 @@ Canonical operating guide for AI coding agents. **OpenAI Codex** reads this file
 
 ## Project
 
-A personal finance app: offline-first, local-first. **Android (Kotlin/Compose)** is the primary surface and master DB; **Windows (C#/WinUI 3)** is the secondary surface. Single user, euros only, UI in **Catalan**. Currently **pre-implementation** — the design is complete in `docs/`; application code does not exist yet (see `docs/06-roadmap.md`).
+A personal finance app: offline-first, local-first. **Android (Kotlin/Compose)** is the primary surface and master DB; **Windows (C#/WinUI 3)** is the secondary surface. Single user, euros only, UI in **Catalan**. The shared contract exists under `shared/`; Android currently has a minimal Gradle/Compose scaffold (see `docs/06-roadmap.md`).
 
 ## Documents — read the relevant one before touching related work
 
@@ -54,9 +54,9 @@ Adopt the matching role for a task (Claude Code exposes these as subagents in `.
 
 ## Build / run / test
 
-*Scaffolding not created yet — Phase 0 of the roadmap. Fill in concrete commands once projects exist.*
+*Concrete commands should be filled in as each scaffold lands.*
 
-- Android: Gradle (`./gradlew …`), Kotlin, Jetpack Compose, SQLDelight.
+- Android: `.\gradlew.bat :android:app:assembleDebug` (Windows) / `./gradlew :android:app:assembleDebug` (Unix), Kotlin, Jetpack Compose. SQLDelight wiring starts in P0B-2.
 - Windows: .NET (`dotnet …`), WinUI 3 (Windows App SDK), Microsoft.Data.Sqlite + Dapper.
 - Shared tests: both runners load `shared/golden/*.json` and assert against `expected`.
 

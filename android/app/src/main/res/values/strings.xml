@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Gestor de finances</string>
+    <string name="home_scaffold_status">Esquelet inicial de l\'app Android.</string>
+</resources>
