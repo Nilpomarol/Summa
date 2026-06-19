@@ -1,4 +1,7 @@
 <resources>
     <string name="app_name">Gestor de finances</string>
     <string name="home_scaffold_status">Esquelet inicial de l\'app Android.</string>
+    <string name="home_database_checking">Obrint la base de dades...</string>
+    <string name="home_database_ready">Base de dades oberta. Esquema %1$s, instantània %2$s.</string>
+    <string name="home_database_failed">No s\'ha pogut obrir la base de dades: %1$s</string>
 </resources>

@@ -22,9 +22,61 @@ jobs:
           test -d shared/schema
           test -d shared/queries
           test -d shared/migrations
+          test -d shared/design/tokens
 
       - name: Validate golden fixtures
         run: python3 tools/validate_golden.py
 
       - name: Validate shared SQL
         run: python3 tools/validate_shared_sql.py
+
+      - name: Validate shared SQL parity wiring
+        run: python3 tools/validate_sql_parity.py
+
+      - name: Validate design tokens
+        run: python3 -m json.tool shared/design/tokens/design-tokens.json > /dev/null
+
+  android:
+    name: Android build and golden tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Install Android platform
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Build and test Android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :app:assembleDebug :app:testDebugUnitTest --no-daemon
+
+  windows:
+    name: Windows golden tests
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Test Windows shared contract harness
+        run: dotnet test .\windows\GestorFinances.Tests\GestorFinances.Tests.csproj --configuration Release

@@ -4,7 +4,7 @@ Canonical operating guide for AI coding agents. **OpenAI Codex** reads this file
 
 ## Project
 
-A personal finance app: offline-first, local-first. **Android (Kotlin/Compose)** is the primary surface and master DB; **Windows (C#/WinUI 3)** is the secondary surface. Single user, euros only, UI in **Catalan**. The shared contract exists under `shared/`; Android currently has a minimal Gradle/Compose scaffold (see `docs/06-roadmap.md`).
+A personal finance app: offline-first, local-first. **Android (Kotlin/Compose)** is the primary surface and master DB; **Windows (C#/WinUI 3)** is the secondary surface. Single user, euros only, UI in **Catalan**. The shared contract exists under `shared/`; Android opens the local DB, and both platform test harnesses validate the shared golden vectors (see `docs/06-roadmap.md`).
 
 ## Documents — read the relevant one before touching related work
 
@@ -14,7 +14,11 @@ A personal finance app: offline-first, local-first. **Android (Kotlin/Compose)**
 - `docs/04-data-model.md` — SQLite schema + canonical SQL (the cross-app contract).
 - `docs/05-golden-tests.md` + `shared/golden/*.json` — the executable money-rule contract.
 - `docs/06-roadmap.md` — phased plan.
-- `docs/09-manual-tests.md` — manual smoke checks for implemented slices.
+- `docs/07-ui-ux.md` — UI scaffold (IA, navigation, screen inventory, flows, strings; structure only).
+- `docs/08-design-system.md` — visual design system (tokens, typography, components, light/dark, mobile + desktop).
+- `docs/09-app-architecture.md` — per-app layering, state management, DI, and shared wiring.
+- `shared/design/tokens/design-tokens.json` — machine-readable visual tokens consumed by both native apps.
+- `shared/design/tokens/platform-mapping.md` — Compose and WinUI mapping for shared visual tokens.
 
 ## Non-negotiable invariants
 
@@ -38,8 +42,9 @@ Never violate these unless an explicit decision is recorded in `docs/`:
 - **Schema changes are atomic across artifacts:** update `shared/` DDL + a migration (bump `meta.schema_version`) + affected canonical SQL + affected golden vectors + both apps' bindings, together.
 - **Vertical slices:** prefer a thin end-to-end feature (DB → view → UI) over broad half-built layers.
 - **Tests gate behavior:** both apps run the golden vectors; never weaken a vector to make code pass.
-- **Manual checks stay current:** when a slice adds behavior the user can exercise, update `docs/09-manual-tests.md` with concrete steps and expected results.
+- **Manual checks stay current:** when a slice adds behavior the user can exercise, include concrete manual test steps and expected results in the final handoff.
 - **Stack discipline:** use the decided stack; don't add dependencies casually; justify any new one.
+- **Design-token discipline:** platform UI values come from `shared/design/tokens/design-tokens.json`; update `docs/08-design-system.md` and the shared token file together when a visual token changes.
 - **Simplicity is a requirement, not a nicety.** Write the simplest *correct* code that satisfies the spec and these invariants: no speculative abstraction, premature generalization, gold-plating, or unjustified dependencies; clarity over cleverness; match existing patterns. The golden vectors, derived SQL views, `CHECK` constraints, and the `shared/` contract are deliberate safety nets — keep them; simplicity is sought *within* them. `simplicity-guardian` reviews for this. **Definition of done:** a change is done only when it is *correct* (golden green + `spec-guardian` clean) **and** *simple* (`simplicity-guardian` clean).
 - **Small, scoped commits** referencing the relevant doc section. Branch off `main`; don't commit/push unless asked.
 
@@ -58,8 +63,8 @@ Adopt the matching role for a task (Claude Code exposes these as subagents in `.
 
 *Concrete commands should be filled in as each scaffold lands.*
 
-- Android: from `android/`, run `.\gradlew.bat :app:assembleDebug` (Windows) / `./gradlew :app:assembleDebug` (Unix), Kotlin, Jetpack Compose. SQLDelight wiring starts in P0B-2.
-- Windows: .NET (`dotnet …`), WinUI 3 (Windows App SDK), Microsoft.Data.Sqlite + Dapper.
+- Android: from `android/`, run `.\gradlew.bat :app:assembleDebug` and `.\gradlew.bat :app:testDebugUnitTest` (Windows) / `./gradlew :app:assembleDebug` and `./gradlew :app:testDebugUnitTest` (Unix). Kotlin, Jetpack Compose, SQLDelight, and the shared golden-vector JVM harness are wired under `android/`.
+- Windows: from the repo root, run `dotnet test .\windows\GestorFinances.Tests\GestorFinances.Tests.csproj` (Windows) / `dotnet test ./windows/GestorFinances.Tests/GestorFinances.Tests.csproj` (Unix). Phase 0C currently has a .NET shared-SQL and golden-vector harness using Microsoft.Data.Sqlite + Dapper; the WinUI 3 shell waits until Phase 6A.
 - Shared tests: both runners load `shared/golden/*.json` and assert against `expected`.
 
 ## Intended structure
