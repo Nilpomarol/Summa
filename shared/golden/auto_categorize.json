@@ -1,0 +1,60 @@
+{
+  "rule": "auto_categorize",
+  "description": "Pick the winning rule for a movement: among active rules whose conditions all match, highest priority wins; ties broken by most recent created_at (spec §3.15, §4.4). Text matched case-insensitively against name + ' ' + payee.",
+  "cases": [
+    {
+      "name": "tie on priority -> newer rule wins",
+      "input": {
+        "movement": { "name": "MERCADONA OZONO 123", "payee": null, "amount_cents": 4500, "date": "2026-03-10", "account_id": "acc-1" },
+        "rules": [
+          { "id": "r1", "priority": 10, "created_at": "2026-01-01T00:00:00Z", "active": 1, "conditions": { "text_contains": "mercadona" }, "action": { "set_category_id": "cat-groceries" } },
+          { "id": "r2", "priority": 10, "created_at": "2026-02-01T00:00:00Z", "active": 1, "conditions": { "text_contains": "merca" }, "action": { "set_category_id": "cat-food" } }
+        ]
+      },
+      "expected": { "winning_rule_id": "r2", "action": { "set_category_id": "cat-food" } }
+    },
+    {
+      "name": "higher priority beats newer",
+      "input": {
+        "movement": { "name": "MERCADONA OZONO 123", "payee": null, "amount_cents": 4500, "date": "2026-03-10", "account_id": "acc-1" },
+        "rules": [
+          { "id": "r1", "priority": 10, "created_at": "2026-01-01T00:00:00Z", "active": 1, "conditions": { "text_contains": "mercadona" }, "action": { "set_category_id": "cat-groceries" } },
+          { "id": "r2", "priority": 10, "created_at": "2026-02-01T00:00:00Z", "active": 1, "conditions": { "text_contains": "merca" }, "action": { "set_category_id": "cat-food" } },
+          { "id": "r3", "priority": 20, "created_at": "2026-01-15T00:00:00Z", "active": 1, "conditions": { "text_contains": "ozono" }, "action": { "set_category_id": "cat-special" } }
+        ]
+      },
+      "expected": { "winning_rule_id": "r3", "action": { "set_category_id": "cat-special" } }
+    },
+    {
+      "name": "amount range gate excludes a rule",
+      "input": {
+        "movement": { "name": "AMAZON EU", "payee": null, "amount_cents": 15000, "date": "2026-03-10", "account_id": "acc-1" },
+        "rules": [
+          { "id": "r4", "priority": 10, "created_at": "2026-01-01T00:00:00Z", "active": 1, "conditions": { "text_contains": "amazon", "amount_max_cents": 10000 }, "action": { "set_category_id": "cat-A" } },
+          { "id": "r5", "priority": 5, "created_at": "2026-01-01T00:00:00Z", "active": 1, "conditions": { "text_contains": "amazon" }, "action": { "set_category_id": "cat-B" } }
+        ]
+      },
+      "expected": { "winning_rule_id": "r5", "action": { "set_category_id": "cat-B" } }
+    },
+    {
+      "name": "inactive rule ignored",
+      "input": {
+        "movement": { "name": "MERCADONA", "payee": null, "amount_cents": 4500, "date": "2026-03-10", "account_id": "acc-1" },
+        "rules": [
+          { "id": "r1", "priority": 50, "created_at": "2026-01-01T00:00:00Z", "active": 0, "conditions": { "text_contains": "mercadona" }, "action": { "set_category_id": "cat-groceries" } }
+        ]
+      },
+      "expected": { "winning_rule_id": null, "action": null }
+    },
+    {
+      "name": "no match",
+      "input": {
+        "movement": { "name": "UNKNOWN SHOP", "payee": null, "amount_cents": 4500, "date": "2026-03-10", "account_id": "acc-1" },
+        "rules": [
+          { "id": "r1", "priority": 10, "created_at": "2026-01-01T00:00:00Z", "active": 1, "conditions": { "text_contains": "mercadona" }, "action": { "set_category_id": "cat-groceries" } }
+        ]
+      },
+      "expected": { "winning_rule_id": null, "action": null }
+    }
+  ]
+}

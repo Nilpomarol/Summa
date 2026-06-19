@@ -1,0 +1,21 @@
+{
+  "rule": "refund_actual",
+  "description": "A refund's effect on account flow vs. spending analysis (data-model §2; spec §3.3b, §4.2). Flow always gains the full cash inflow (amount_cents). Actual spending is reduced by COALESCE(actual_refund_cents, amount_cents) in the refund's own category/period.",
+  "cases": [
+    {
+      "name": "ordinary refund / actual_refund_cents null -> equals cash",
+      "input": { "amount_cents": 2000, "actual_refund_cents": null },
+      "expected": { "flow_delta_cents": 2000, "actual_reduction_cents": 2000 }
+    },
+    {
+      "name": "shared-expense refund / full bill to account, only user share reduces actual",
+      "input": { "amount_cents": 12000, "actual_refund_cents": 3000 },
+      "expected": { "flow_delta_cents": 12000, "actual_reduction_cents": 3000 }
+    },
+    {
+      "name": "shared-expense partial refund",
+      "input": { "amount_cents": 6000, "actual_refund_cents": 1500 },
+      "expected": { "flow_delta_cents": 6000, "actual_reduction_cents": 1500 }
+    }
+  ]
+}

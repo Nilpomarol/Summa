@@ -1,0 +1,46 @@
+{
+  "rule": "split_rounding",
+  "description": "Split a total into absolute cents per participant. Remainder cent(s) go to the payer (spec §3.7, §2.4). 'participants' is ordered; 'payer_index' identifies who absorbs the remainder.",
+  "cases": [
+    {
+      "name": "equal / divides evenly",
+      "input": { "method": "equal", "total_cents": 1000, "participant_count": 4, "payer_index": 0 },
+      "expected": { "shares_cents": [250, 250, 250, 250] }
+    },
+    {
+      "name": "equal / remainder 1 cent to payer (first)",
+      "input": { "method": "equal", "total_cents": 10000, "participant_count": 3, "payer_index": 0 },
+      "expected": { "shares_cents": [3334, 3333, 3333] }
+    },
+    {
+      "name": "equal / remainder 2 cents to payer (last)",
+      "input": { "method": "equal", "total_cents": 10001, "participant_count": 3, "payer_index": 2 },
+      "expected": { "shares_cents": [3333, 3333, 3335] }
+    },
+    {
+      "name": "equal / two parties, odd amount, payer second",
+      "input": { "method": "equal", "total_cents": 999, "participant_count": 2, "payer_index": 1 },
+      "expected": { "shares_cents": [499, 500] }
+    },
+    {
+      "name": "percentage / clean basis points",
+      "input": { "method": "percentage", "total_cents": 10000, "bps": [5000, 3000, 2000], "payer_index": 0 },
+      "expected": { "shares_cents": [5000, 3000, 2000] }
+    },
+    {
+      "name": "percentage / flooring leftover to payer",
+      "input": { "method": "percentage", "total_cents": 100, "bps": [3333, 3333, 3334], "payer_index": 0 },
+      "expected": { "shares_cents": [34, 33, 33] }
+    },
+    {
+      "name": "exact / reconciles",
+      "input": { "method": "exact", "total_cents": 10000, "amounts_cents": [4000, 3500, 2500] },
+      "expected": { "valid": true, "shares_cents": [4000, 3500, 2500] }
+    },
+    {
+      "name": "exact / does not reconcile -> rejected",
+      "input": { "method": "exact", "total_cents": 10000, "amounts_cents": [4000, 3500, 2000] },
+      "expected": { "valid": false, "reason": "sum 9500 != total 10000" }
+    }
+  ]
+}
