@@ -1,6 +1,6 @@
 # Personal Finance App - Per-App Architecture
 
-> P0A-8 internal architecture note. This narrows `docs/03-architecture.md` into the code shape each native app should use once scaffolding starts. It does not change the product rules in `docs/00-Full_Spec.md`, the sync model in `docs/02-synchronization.md`, or the data contract in `docs/04-data-model.md`.
+> P0A-10 internal architecture note. This narrows `docs/03-architecture.md` into the code shape each native app should use once scaffolding starts. It does not change the product rules in `docs/00-Full_Spec.md`, the sync model in `docs/02-synchronization.md`, or the data contract in `docs/04-data-model.md`.
 
 ---
 
@@ -54,8 +54,8 @@ The exact filenames may evolve, but the ownership rule does not: if SQL expresse
 
 ### 3.1 Build-Time Use
 
-- **Android:** Gradle copies or links `shared/schema`, `shared/migrations`, and `shared/queries` into the SQLDelight source set. SQLDelight generates Kotlin bindings from those copied inputs. Generated files are build output and must not be edited.
-- **Windows:** the .NET project includes the same `shared/schema`, `shared/migrations`, and `shared/queries` files as content or embedded resources. A small query loader reads those files and executes them through Microsoft.Data.Sqlite; Dapper maps result rows to simple DTOs.
+- **Android:** Gradle combines `shared/migrations/001_initial.sql` and `shared/queries` into the SQLDelight source set. `shared/schema` remains the DDL reference, but database creation uses the same baseline migration that seeds `meta`. Generated files are build output and must not be edited.
+- **Windows:** the .NET project includes the same `shared/migrations` and `shared/queries` files as content or embedded resources. `shared/schema` remains the DDL reference. A small query loader reads the migration and query files and executes them through Microsoft.Data.Sqlite; Dapper maps result rows to simple DTOs.
 - **Tests:** both test projects load `shared/golden/*.json` from the repository, not from duplicated app-local fixtures.
 
 ### 3.2 Parity Rules
@@ -97,7 +97,7 @@ Data
   SQLite connection, migrations, SQL bindings/query loader, repositories
 
 Shared Artifacts
-  shared/schema, shared/queries, shared/golden
+  shared/schema, shared/migrations, shared/queries, shared/golden
 ```
 
 Dependency direction is one-way: UI depends on use cases, use cases depend on domain and repositories, repositories depend on SQLite/shared SQL. Data code must not call UI code, and domain rules must not depend on SQLite.
@@ -220,7 +220,7 @@ Do not introduce Hilt or another DI framework in Phase 0/1. Revisit only if cons
 
 ### 5.4 Android Shared SQL Wiring
 
-- SQLDelight schema inputs come from the copied `shared/schema` and `shared/queries`.
+- SQLDelight schema inputs are generated from `shared/migrations/001_initial.sql` and `shared/queries`.
 - Type adapters convert SQLite `TEXT` dates/instants to Kotlin date types at repository boundaries.
 - Analysis and balance screens call generated bindings for the canonical views/queries.
 - Golden-vector unit tests live in the Android test source set and read the repository `shared/golden` files.
@@ -294,7 +294,7 @@ Do not resolve services from a global service locator inside ViewModels or repos
 
 ### 6.4 Windows Shared SQL Wiring
 
-- The project includes `shared/schema`, `shared/migrations`, and `shared/queries` as linked files, content, or embedded resources.
+- The project includes `shared/migrations` and `shared/queries` as linked files, content, or embedded resources. `shared/schema` remains the reviewed DDL reference.
 - `SharedSqlLoader` exposes named SQL text from those files.
 - `MigrationRunner` applies migrations in order and updates `meta.schema_version`.
 - Repositories execute canonical SQL through Microsoft.Data.Sqlite. Dapper is used only for lightweight row mapping.
@@ -358,7 +358,7 @@ There is no merge path. A snapshot is accepted only when the version rule allows
 
 Both apps must have tests that:
 
-- apply `shared/schema` and migrations to a fresh SQLite DB;
+- apply `shared/migrations/001_initial.sql` to a fresh SQLite DB;
 - create the canonical views from `shared/queries`;
 - load every `shared/golden/*.json`;
 - assert procedural rule outputs;
@@ -403,4 +403,3 @@ This keeps implementation aligned with the roadmap rule: DB to view to UI, one t
 - No generic repository or mediator framework.
 - No multi-user/auth/profile architecture.
 - No currency abstraction for v1.
-

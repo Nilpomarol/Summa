@@ -8,15 +8,15 @@
 - **Vertical slices:** DB → canonical SQL → UI per feature, not broad half-built layers.
 - **Golden vectors are the gate:** a money rule ships only when `shared/golden/` passes in both apps.
 - **`shared/` is the contract:** schema + canonical SQL are single-sourced, never forked.
-- **Foundational UI scaffold up front** (`docs/07-ui-ux.md`: IA, navigation, screen inventory, content blocks, flows, strings); **visual style/aesthetics are a separate design pass**; per-screen detail is refined just before building each phase.
+- **Foundational UI scaffold up front** (`docs/07-ui-ux.md`: IA, navigation, screen inventory, content blocks, flows, strings); **visual style lives in the design system** (`docs/08-design-system.md`); per-screen detail is refined just before building each phase.
 - **One writing agent at a time:** use roadmap task IDs in prompts/commits; let the other agent review rather than edit the same dirty tree.
 - **Simplest correct thing wins:** prefer the simplest implementation that satisfies the spec and the invariants — no speculative abstraction, premature generalization, or gold-plating. The deliberate safety nets (golden vectors, derived SQL views, `CHECK` constraints, the `shared/` contract) are *not* overengineering and stay.
 - **Definition of done (every task):** *correct* — golden suite green and `spec-guardian` clean — **and** *simple* — `simplicity-guardian` clean.
-- **Manual checks:** update `docs/09-manual-tests.md` whenever a completed slice adds behavior the user can exercise directly.
+- **Manual checks:** include concrete manual test steps in the final handoff whenever a completed slice adds behavior the user can exercise directly.
 
 ## Current state ✅
 
-Design complete: spec (`00`), sync (`02`), architecture (`03`), data model (`04`), golden tests (`05`), roadmap (`06`), manual tests (`09`), agent tooling (`AGENTS.md`, `CLAUDE.md`, `.claude/agents/`). Phase 0A shared contract is extracted; Android has a minimal Gradle/Compose scaffold.
+Design complete: spec (`00`), sync (`02`), architecture (`03`), data model (`04`), golden tests (`05`), roadmap (`06`), agent tooling (`AGENTS.md`, `CLAUDE.md`, `.claude/agents/`). Phase 0A shared contract is extracted; Android has a minimal Gradle/Compose/SQLDelight scaffold.
 
 ---
 
@@ -32,29 +32,32 @@ Design complete: spec (`00`), sync (`02`), architecture (`03`), data model (`04`
 - [x] **P0A-5** Extract the canonical views into `shared/queries/` (`v_movement_shared`, `v_account_flow`, `v_account_balance`, `v_actual_expense`, `v_actual_income`, `v_person_balance`).
 - [x] **P0A-6** Add validation for `shared/golden/*.json` envelopes and document the JSON schemas for `templates.split_config` and `auto_cat_rules.conditions`.
 - [x] **P0A-7** Lock the sync protocol shape early in `docs/02`: snapshot file naming/format, version metadata, token marker, key derivation choice, and authenticated-encryption primitive. Implementation still waits until Phase 7.
-- [x] **P0A-8** Write the per-app internal-architecture note (`docs/08-app-architecture.md`): layering (data/domain/UI), state management (MVI/MVVM Android, MVVM WinUI), DI, how `shared/` is wired in.
+- [x] **P0A-8** Visual design system (`docs/08-design-system.md`): tokens (incl. finance-semantic colour roles), typography (Geist + tabular mono, decimal-comma locale), spacing/radius/elevation, components, light/dark, mobile + desktop. Living visual reference in the `.dc.html` files.
 - [x] **P0A-9** Foundational UI/UX scaffold (`docs/07-ui-ux.md`): IA, navigation map, screen inventory + per-screen content blocks, core flows, string-catalog structure. **Structure only — visual style/aesthetics are a separate design pass.**
+
+- [x] **P0A-10** Per-app internal-architecture note (`docs/09-app-architecture.md`): layering (data/domain/UI), state management (MVI/MVVM Android, MVVM WinUI), DI, how `shared/` is wired in.
+- [x] **P0A-11** Extract the design tokens from `docs/08-design-system.md` into a shared, machine-consumable form (e.g. `shared/design/tokens`) + a Compose↔WinUI mapping, so both native UIs implement identical values without drift.
 
 **Exit:** `shared/` is the canonical contract and validates independently of either app.
 
 ### Phase 0B — Android walking skeleton
 
 - [x] **P0B-1** Scaffold the Android project (Gradle, Kotlin, Compose, SQLDelight).
-- [ ] **P0B-2** Generate SQLDelight bindings from `shared/schema` and open the DB at runtime.
-- [ ] **P0B-3** Implement Android procedural money rules: split rounding, percentage/exact, recurring advancement, dedup, auto-cat matching.
-- [ ] **P0B-4** Golden-vector test harness on Android: load `shared/golden/*.json`, run, assert against `expected`.
-- [ ] **P0B-5** CI: build Android and run Android unit tests + golden suite on every push.
+- [x] **P0B-2** Generate SQLDelight bindings from `shared/migrations/001_initial.sql` + `shared/queries` and open the DB at runtime.
+- [x] **P0B-3** Implement Android procedural money rules: split rounding, percentage/exact, recurring advancement, dedup, auto-cat matching.
+- [x] **P0B-4** Golden-vector test harness on Android: load `shared/golden/*.json`, run, assert against `expected`.
+- [x] **P0B-5** CI: build Android and run Android unit tests + golden suite on every push.
 
 **Exit:** Android launches, opens the DB, and passes the golden vectors.
 
 ### Phase 0C — Windows schema/golden smoke harness
 
-- [ ] **P0C-1** Create a minimal Windows/.NET test project using Microsoft.Data.Sqlite + Dapper; defer full WinUI shell to Phase 6A.
-- [ ] **P0C-2** Apply `shared/schema` and run `shared/queries/` verbatim against a test DB.
-- [ ] **P0C-3** Implement C# procedural money rules needed by the golden vectors.
-- [ ] **P0C-4** Golden-vector test harness on C#: load `shared/golden/*.json`, run, assert against `expected`.
-- [ ] **P0C-5** Add an automated schema/query parity check: Android SQLDelight inputs and Windows SQLite inputs come from the same `shared/` files.
-- [ ] **P0C-6** CI: build the Windows test project and run the C# golden suite on every push.
+- [x] **P0C-1** Create a minimal Windows/.NET test project using Microsoft.Data.Sqlite + Dapper; defer full WinUI shell to Phase 6A.
+- [x] **P0C-2** Apply `shared/migrations/001_initial.sql` and run `shared/queries/` verbatim against a test DB.
+- [x] **P0C-3** Implement C# procedural money rules needed by the golden vectors.
+- [x] **P0C-4** Golden-vector test harness on C#: load `shared/golden/*.json`, run, assert against `expected`.
+- [x] **P0C-5** Add an automated schema/query parity check: Android SQLDelight inputs and Windows SQLite inputs come from the same `shared/` files.
+- [x] **P0C-6** CI: build the Windows test project and run the C# golden suite on every push.
 
 **Exit:** both platforms validate the shared contract, but only Android has an app shell.
 

@@ -1,0 +1,245 @@
+{
+  "version": "0.1.0",
+  "source": "docs/08-design-system.md",
+  "description": "Shared design tokens for the Android and Windows finance apps. Values are intentionally platform-neutral.",
+  "colors": {
+    "neutral": {
+      "light": {
+        "N0": { "hex": "#FFFFFF", "use": "Surfaces, cards" },
+        "N50": { "hex": "#F7F8FA", "use": "App background, table headers" },
+        "N100": { "hex": "#F0F1F4", "use": "Track and fill backgrounds" },
+        "N150": { "hex": "#EAECEF", "use": "Hairline dividers" },
+        "N200": { "hex": "#E2E5EA", "use": "Default borders" },
+        "N300": { "hex": "#CDD2DA", "use": "Strong borders" },
+        "N400": { "hex": "#A4ABB7", "use": "Disabled text" },
+        "N500": { "hex": "#8A92A0", "use": "Secondary and muted text" },
+        "N700": { "hex": "#4A5160", "use": "Body labels" },
+        "N900": { "hex": "#0B0D12", "use": "Primary ink" }
+      },
+      "dark": {
+        "D0": { "hex": "#0E1014", "use": "App background" },
+        "D50": { "hex": "#16181E", "use": "Cards" },
+        "D100": { "hex": "#1E2128", "use": "Track and control backgrounds" },
+        "D150": { "hex": "#23262E", "use": "Dividers and borders" },
+        "D200": { "hex": "#2C303A", "use": "Strong borders and active segment" },
+        "D300": { "hex": "#3A3F4B", "use": "Dark neutral" },
+        "D400": { "hex": "#565E6C", "use": "Dark neutral" },
+        "D500": { "hex": "#7C8494", "use": "Secondary text" },
+        "D700": { "hex": "#AEB6C4", "use": "Body labels" },
+        "D900": { "hex": "#F2F4F8", "use": "Primary text" }
+      }
+    },
+    "brand": {
+      "indigoDefault": { "hex": "#3344E0", "use": "Primary buttons, links, active nav" },
+      "indigoHover": { "hex": "#2A3BCB", "use": "Hover state" },
+      "indigoPressed": { "hex": "#2230AE", "use": "Pressed state and active nav text" },
+      "indigoTint": { "hex": "#ECEEFD", "use": "Light fills and active backgrounds" },
+      "indigoDark": { "hex": "#6E7BFF", "use": "Indigo on dark surfaces" }
+    },
+    "functional": {
+      "incomePositive": {
+        "light": "#1F8F5F",
+        "dark": "#43C28A",
+        "use": "Income, gains, owed to the user"
+      },
+      "expense": {
+        "light": "#20242E",
+        "dark": "#F2F4F8",
+        "use": "Default expense ink; no separate hue"
+      },
+      "transfer": {
+        "light": "#5B6B86",
+        "dark": "#8A99B5",
+        "use": "Movements between user accounts"
+      },
+      "settlement": {
+        "light": "#B9772A",
+        "dark": "#D9A152",
+        "use": "Debt payments"
+      },
+      "refund": {
+        "light": "#128A93",
+        "dark": "#3FB6BE",
+        "use": "Linked returns"
+      },
+      "debtDanger": {
+        "light": "#CC4B4B",
+        "dark": "#E8736F",
+        "use": "User owes, over budget, destructive"
+      },
+      "alert": {
+        "light": "#C98A14",
+        "dark": "#E0A93C",
+        "use": "Near limit and warning states"
+      }
+    },
+    "category": {
+      "housing": { "color": "#C77D4A", "tint": "#F4E7DA", "icon": "home" },
+      "groceries": { "color": "#3F9E72", "tint": "#E0F0E8", "icon": "shopping_cart" },
+      "restaurants": { "color": "#C9554E", "tint": "#F6E2DF", "icon": "restaurant" },
+      "transport": { "color": "#4B7DC4", "tint": "#E1EAF6", "icon": "directions_car" },
+      "leisure": { "color": "#8A6FD1", "tint": "#EBE4F7", "icon": "sports_esports" },
+      "subscriptions": { "color": "#2C9AA6", "tint": "#DCEFF1", "icon": "credit_card" },
+      "uncategorized": { "color": "#9097A3", "tint": "#F0F1F4", "icon": "more_horiz" }
+    },
+    "banner": {
+      "info": { "background": "#ECEEFD", "border": "#D5D9FA", "text": "#28308C", "icon": "info" },
+      "success": { "background": "#E6F4EC", "border": "#C6E6D4", "text": "#136443", "icon": "check_circle" },
+      "alert": { "background": "#FBF1DD", "border": "#F1E2BE", "text": "#7A5A12", "icon": "warning" },
+      "error": { "background": "#FBEAEA", "border": "#F0CDCD", "text": "#8E2F2F", "icon": "error" }
+    },
+    "component": {
+      "destructiveBorder": "#E7C4C4",
+      "toggleOff": "#D7DBE1",
+      "focusRingIndigo": "rgba(51,68,224,.1)",
+      "desktopWindowChrome": "#F3F1EC",
+      "desktopSelectedRowBackground": "#F4F5FE",
+      "desktopSelectedRowBorder": "#DADFFB",
+      "desktopActiveNavBackground": "#EEF0FE",
+      "chartExpense": "#6E7891",
+      "scrim": "rgba(11,13,18,.55)"
+    }
+  },
+  "typography": {
+    "families": {
+      "interface": "Geist, sans-serif",
+      "figures": "Geist Mono, monospace"
+    },
+    "features": {
+      "figures": ["tnum"]
+    },
+    "locale": {
+      "currency": "EUR",
+      "decimalSeparator": ",",
+      "thousandsSeparator": ".",
+      "example": "18.420,15 EUR"
+    },
+    "scale": {
+      "display": { "sizePx": 28, "weight": 600, "lineHeight": "default" },
+      "title": { "sizePx": 21, "weight": 600, "lineHeight": "default" },
+      "heading": { "sizePx": 16, "weight": 600, "lineHeight": "default" },
+      "body": { "sizePx": 14, "weight": 500, "lineHeight": "default" },
+      "bodySmall": { "sizePx": 13, "weight": 500, "lineHeight": "default" },
+      "label": { "sizePx": 12, "weight": 500, "lineHeight": "default" },
+      "caption": { "sizePx": 11, "weight": 500, "lineHeight": "default" }
+    },
+    "tracking": {
+      "headingEm": 0,
+      "bodyEm": 0
+    }
+  },
+  "spacingPx": [2, 4, 6, 8, 10, 12, 14, 16, 20, 24, 32],
+  "radius": {
+    "r1": { "px": 7, "use": "Small chips, inputs in rows" },
+    "r2": { "px": 10, "use": "Buttons, fields, small cards" },
+    "r3": { "px": 14, "use": "Cards, panels" },
+    "r4": { "px": 18, "use": "Sheets, large surfaces" },
+    "pill": { "px": 999, "use": "Toggles, pill badges" }
+  },
+  "elevation": {
+    "e0": { "shadow": "none", "use": "Default bordered surfaces" },
+    "e1": { "shadow": "0 1px 2px rgba(11,13,18,.06)", "use": "Separators" },
+    "e2": { "shadow": "0 2px 8px rgba(11,13,18,.06)", "use": "Cards" },
+    "e3": { "shadow": "0 8px 18px -6px rgba(51,68,224,.45)", "use": "Button and FAB" },
+    "e4": { "shadow": "0 24px 50px -12px rgba(15,18,30,.28)", "use": "Sheets and dialogs" }
+  },
+  "sizing": {
+    "buttonHeightPx": 40,
+    "smallButtonHeightPx": 32,
+    "fieldHeightPx": 44,
+    "iconButtonSizePx": 40,
+    "toggleWidthPx": 38,
+    "toggleHeightPx": 22,
+    "toggleKnobPx": 18,
+    "checkboxSizePx": 18,
+    "categoryBarHeightPx": 5,
+    "budgetBarHeightPx": 6,
+    "desktopSidebarWidthPx": 248,
+    "desktopMasterListWidthPx": 540,
+    "modalMinWidthPx": 344,
+    "modalMaxWidthPx": 480,
+    "destructiveDialogWidthPx": 312,
+    "bottomSheetHandleWidthPx": 34,
+    "bottomSheetHandleHeightPx": 4,
+    "mobileTouchTargetMinPx": 44
+  },
+  "icons": {
+    "style": "Material Symbols Outlined",
+    "weight": 400,
+    "fillDefault": 0,
+    "fillActiveNavigation": 1,
+    "core": [
+      "space_dashboard",
+      "receipt_long",
+      "monitoring",
+      "account_balance_wallet",
+      "groups",
+      "add",
+      "search",
+      "tune",
+      "sort",
+      "home",
+      "shopping_cart",
+      "restaurant",
+      "directions_car",
+      "sports_esports",
+      "credit_card",
+      "savings",
+      "payments",
+      "swap_horiz",
+      "handshake",
+      "assignment_return",
+      "autorenew",
+      "trending_up",
+      "calendar_month",
+      "notifications",
+      "settings",
+      "warning",
+      "error",
+      "info",
+      "check_circle",
+      "north_east",
+      "south_west",
+      "edit",
+      "archive",
+      "bolt",
+      "lock"
+    ]
+  },
+  "components": {
+    "button": {
+      "primary": {
+        "background": "{colors.brand.indigoDefault}",
+        "foreground": "{colors.neutral.light.N0}",
+        "radius": "{radius.r2}",
+        "height": "{sizing.buttonHeightPx}",
+        "elevation": "{elevation.e3}"
+      },
+      "secondary": {
+        "background": "{colors.neutral.light.N0}",
+        "foreground": "{colors.neutral.light.N900}",
+        "border": "{colors.neutral.light.N200}",
+        "radius": "{radius.r2}",
+        "height": "{sizing.buttonHeightPx}"
+      },
+      "destructive": {
+        "background": "{colors.neutral.light.N0}",
+        "foreground": "{colors.functional.debtDanger.light}",
+        "border": "{colors.component.destructiveBorder}",
+        "radius": "{radius.r2}",
+        "height": "{sizing.buttonHeightPx}"
+      },
+      "disabled": {
+        "background": "{colors.neutral.light.N100}",
+        "foreground": "{colors.neutral.light.N400}",
+        "height": "{sizing.buttonHeightPx}"
+      }
+    },
+    "readOnlyBanner": {
+      "background": "{colors.banner.alert.background}",
+      "border": "{colors.banner.alert.border}",
+      "foreground": "{colors.banner.alert.text}",
+      "icon": "lock"
+    }
+  }
+}
