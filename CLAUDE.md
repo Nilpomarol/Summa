@@ -9,7 +9,7 @@
 - **Subagents** live in `.claude/agents/`: `schema-steward`, `android-engineer`, `windows-engineer`, `ui-ux-designer`, `spec-guardian`, `simplicity-guardian`. Delegate to the matching one for focused work; run **both `spec-guardian` (correct) and `simplicity-guardian` (simple)** to review a diff before finishing.
 - **Plan first for cross-cutting changes** (schema, sync, anything under `shared/`) — they ripple into both apps and the golden vectors.
 - **The golden vectors (`shared/golden/`) are the test gate** — run them after any money-rule change; never weaken one to pass.
-- The project is **pre-implementation**; `docs/06-roadmap.md` drives sequencing (Phase 0 = scaffolding + extracting a runnable `shared/`).
+- `docs/06-roadmap.md` drives sequencing. Phase 0A is complete; Android has a minimal Gradle/Compose scaffold, with shared SQLDelight wiring next.
 
 ## Top invariants (quick reference — full list in AGENTS.md)
 
