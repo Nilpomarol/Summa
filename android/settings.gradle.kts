@@ -15,4 +15,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "GestorFinances"
-include(":android:app")
+include(":app")

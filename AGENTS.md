@@ -14,6 +14,7 @@ A personal finance app: offline-first, local-first. **Android (Kotlin/Compose)**
 - `docs/04-data-model.md` — SQLite schema + canonical SQL (the cross-app contract).
 - `docs/05-golden-tests.md` + `shared/golden/*.json` — the executable money-rule contract.
 - `docs/06-roadmap.md` — phased plan.
+- `docs/09-manual-tests.md` — manual smoke checks for implemented slices.
 
 ## Non-negotiable invariants
 
@@ -37,6 +38,7 @@ Never violate these unless an explicit decision is recorded in `docs/`:
 - **Schema changes are atomic across artifacts:** update `shared/` DDL + a migration (bump `meta.schema_version`) + affected canonical SQL + affected golden vectors + both apps' bindings, together.
 - **Vertical slices:** prefer a thin end-to-end feature (DB → view → UI) over broad half-built layers.
 - **Tests gate behavior:** both apps run the golden vectors; never weaken a vector to make code pass.
+- **Manual checks stay current:** when a slice adds behavior the user can exercise, update `docs/09-manual-tests.md` with concrete steps and expected results.
 - **Stack discipline:** use the decided stack; don't add dependencies casually; justify any new one.
 - **Simplicity is a requirement, not a nicety.** Write the simplest *correct* code that satisfies the spec and these invariants: no speculative abstraction, premature generalization, gold-plating, or unjustified dependencies; clarity over cleverness; match existing patterns. The golden vectors, derived SQL views, `CHECK` constraints, and the `shared/` contract are deliberate safety nets — keep them; simplicity is sought *within* them. `simplicity-guardian` reviews for this. **Definition of done:** a change is done only when it is *correct* (golden green + `spec-guardian` clean) **and** *simple* (`simplicity-guardian` clean).
 - **Small, scoped commits** referencing the relevant doc section. Branch off `main`; don't commit/push unless asked.
@@ -56,7 +58,7 @@ Adopt the matching role for a task (Claude Code exposes these as subagents in `.
 
 *Concrete commands should be filled in as each scaffold lands.*
 
-- Android: `.\gradlew.bat :android:app:assembleDebug` (Windows) / `./gradlew :android:app:assembleDebug` (Unix), Kotlin, Jetpack Compose. SQLDelight wiring starts in P0B-2.
+- Android: from `android/`, run `.\gradlew.bat :app:assembleDebug` (Windows) / `./gradlew :app:assembleDebug` (Unix), Kotlin, Jetpack Compose. SQLDelight wiring starts in P0B-2.
 - Windows: .NET (`dotnet …`), WinUI 3 (Windows App SDK), Microsoft.Data.Sqlite + Dapper.
 - Shared tests: both runners load `shared/golden/*.json` and assert against `expected`.
 

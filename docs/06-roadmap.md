@@ -12,10 +12,11 @@
 - **One writing agent at a time:** use roadmap task IDs in prompts/commits; let the other agent review rather than edit the same dirty tree.
 - **Simplest correct thing wins:** prefer the simplest implementation that satisfies the spec and the invariants — no speculative abstraction, premature generalization, or gold-plating. The deliberate safety nets (golden vectors, derived SQL views, `CHECK` constraints, the `shared/` contract) are *not* overengineering and stay.
 - **Definition of done (every task):** *correct* — golden suite green and `spec-guardian` clean — **and** *simple* — `simplicity-guardian` clean.
+- **Manual checks:** update `docs/09-manual-tests.md` whenever a completed slice adds behavior the user can exercise directly.
 
 ## Current state ✅
 
-Design complete: spec (`00`), sync (`02`), architecture (`03`), data model (`04`), golden tests (`05`), roadmap (`06`), agent tooling (`AGENTS.md`, `CLAUDE.md`, `.claude/agents/`). Phase 0A shared contract is extracted; Android has a minimal Gradle/Compose scaffold.
+Design complete: spec (`00`), sync (`02`), architecture (`03`), data model (`04`), golden tests (`05`), roadmap (`06`), manual tests (`09`), agent tooling (`AGENTS.md`, `CLAUDE.md`, `.claude/agents/`). Phase 0A shared contract is extracted; Android has a minimal Gradle/Compose scaffold.
 
 ---
 
