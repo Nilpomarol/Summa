@@ -1,0 +1,47 @@
+{
+  "rule": "duplicate_detection",
+  "description": "v1 heuristic (tunable, see 05-golden-tests.md): candidate is a likely duplicate of existing iff same account_id AND equal amount_cents AND |date diff| <= 1 day AND normalized name equal (lowercase, trim, collapse whitespace). Flags only, never blocks (spec §4.6).",
+  "params": { "amount_tolerance_cents": 0, "date_window_days": 1, "name_match": "normalized_equal" },
+  "cases": [
+    {
+      "name": "duplicate / 1 day apart, name differs only by case + spacing",
+      "input": {
+        "existing":  { "account_id": "acc-1", "amount_cents": 4500, "date": "2026-03-10", "name": "MERCADONA OZONO" },
+        "candidate": { "account_id": "acc-1", "amount_cents": 4500, "date": "2026-03-11", "name": "Mercadona   Ozono" }
+      },
+      "expected": { "is_duplicate": true }
+    },
+    {
+      "name": "not duplicate / different amount",
+      "input": {
+        "existing":  { "account_id": "acc-1", "amount_cents": 4500, "date": "2026-03-10", "name": "MERCADONA OZONO" },
+        "candidate": { "account_id": "acc-1", "amount_cents": 4501, "date": "2026-03-10", "name": "MERCADONA OZONO" }
+      },
+      "expected": { "is_duplicate": false }
+    },
+    {
+      "name": "not duplicate / 2 days apart (just outside ±1 window)",
+      "input": {
+        "existing":  { "account_id": "acc-1", "amount_cents": 4500, "date": "2026-03-10", "name": "MERCADONA OZONO" },
+        "candidate": { "account_id": "acc-1", "amount_cents": 4500, "date": "2026-03-12", "name": "MERCADONA OZONO" }
+      },
+      "expected": { "is_duplicate": false }
+    },
+    {
+      "name": "not duplicate / different account",
+      "input": {
+        "existing":  { "account_id": "acc-1", "amount_cents": 4500, "date": "2026-03-10", "name": "MERCADONA OZONO" },
+        "candidate": { "account_id": "acc-2", "amount_cents": 4500, "date": "2026-03-10", "name": "MERCADONA OZONO" }
+      },
+      "expected": { "is_duplicate": false }
+    },
+    {
+      "name": "not duplicate / different normalized name",
+      "input": {
+        "existing":  { "account_id": "acc-1", "amount_cents": 4500, "date": "2026-03-10", "name": "MERCADONA OZONO" },
+        "candidate": { "account_id": "acc-1", "amount_cents": 4500, "date": "2026-03-10", "name": "LIDL CENTRE" }
+      },
+      "expected": { "is_duplicate": false }
+    }
+  ]
+}

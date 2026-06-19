@@ -1,0 +1,29 @@
+{
+  "rule": "debt_balance",
+  "description": "Per-person balance from splits + settlements (v_person_balance, spec §4.1). >0 = person owes the user; <0 = the user owes the person. Load the rows, run v_person_balance, assert expected.",
+  "cases": [
+    {
+      "name": "mixed: user-fronted split, a §2.6 split, and a settlement",
+      "input": {
+        "people": [ { "id": "pA" }, { "id": "pB" } ],
+        "movements": [
+          { "id": "mv1", "type": "expense", "account_id": "acc-1", "amount_cents": 5000, "date": "2026-03-01" },
+          { "id": "mv2", "type": "settlement", "account_id": "acc-1", "amount_cents": 1000, "date": "2026-03-05", "person_id": "pA", "settlement_direction": "person_to_user" }
+        ],
+        "splits": [
+          { "id": "s1", "movement_id": "mv1", "payer_person_id": null },
+          { "id": "s2", "movement_id": null, "payer_person_id": "pB", "total_amount_cents": 3000, "date": "2026-03-03" }
+        ],
+        "split_lines": [
+          { "split_id": "s1", "participant_kind": "user", "person_id": null, "owed_amount_cents": 2500 },
+          { "split_id": "s1", "participant_kind": "person", "person_id": "pA", "owed_amount_cents": 2500 },
+          { "split_id": "s2", "participant_kind": "user", "person_id": null, "owed_amount_cents": 1500 }
+        ]
+      },
+      "expected": {
+        "balance_cents": { "pA": 1500, "pB": -1500 },
+        "explain": { "pA": "+2500 owes user (s1) -1000 settled person->user = 1500", "pB": "-1500 user owes (s2 §2.6)" }
+      }
+    }
+  ]
+}
