@@ -42,6 +42,131 @@ Applying an accepted snapshot is **atomic**: decrypt to a temp file, fsync, then
 
 ---
 
+## Protocol v1 shape
+
+This section locks the Phase 0A protocol surface. Implementation still waits until Phase 7, but app scaffolds should not invent another snapshot or token format.
+
+### Snapshot file name
+
+Encrypted snapshots use:
+
+```text
+gestor-finances-snapshot-v1-{snapshot_version}-{created_at_utc}-{source_device_id}.gfsnap
+```
+
+Conventions:
+
+- `snapshot_version` is zero-padded to 12 digits, e.g. `000000000123`.
+- `created_at_utc` is basic UTC form, e.g. `20260619T091530Z`.
+- `source_device_id` is the local device id without braces. The device id is generated once per install and stored outside the finance DB so it is not cloned through snapshots.
+- The filename is for routing and human inspection only. The authoritative version is still the `meta.snapshot_version` stored inside the decrypted DB.
+
+### Snapshot binary format
+
+A `.gfsnap` file is:
+
+```text
+magic bytes:       "GFV7SNAP\n"
+header length:    uint32 big-endian byte length of the UTF-8 JSON header
+header:           UTF-8 JSON, authenticated but not encrypted
+ciphertext:       encrypted SQLite snapshot bytes, followed by the 16-byte GCM tag
+```
+
+Header JSON:
+
+```json
+{
+  "format": "gestor-finances.snapshot.v1",
+  "schema_version": 1,
+  "snapshot_version": 123,
+  "created_at_utc": "2026-06-19T09:15:30Z",
+  "source_device_id": "9d6f0b6d-0b7f-4ab7-a4d5-5c4e3f2fd2c0",
+  "kdf": {
+    "name": "PBKDF2-HMAC-SHA256",
+    "iterations": 600000,
+    "salt_b64": "base64-16-random-bytes",
+    "key_length_bits": 256
+  },
+  "aead": {
+    "name": "AES-256-GCM",
+    "nonce_b64": "base64-12-random-bytes",
+    "tag_length_bits": 128
+  },
+  "plaintext": {
+    "type": "sqlite-vacuum-into-image"
+  }
+}
+```
+
+Rules:
+
+- The plaintext is the consistent single-file SQLite image produced by SQLite backup API or `VACUUM INTO`.
+- The header bytes are passed as AES-GCM additional authenticated data (AAD). Changing the header, ciphertext, or tag makes decryption fail.
+- `salt_b64` is 16 cryptographically random bytes. `nonce_b64` is 12 cryptographically random bytes and must never repeat for the same derived key.
+- The snapshot encryption key is derived from the user-held sync passphrase with PBKDF2-HMAC-SHA256, 600,000 iterations, and 256-bit output. The iteration count may only move upward in a future format or migration.
+- AES-256-GCM is the authenticated-encryption primitive. No unauthenticated encryption mode is allowed for snapshots.
+- Header `schema_version` and `snapshot_version` are copies for routing and early rejection. After decryption, the app reads `meta.schema_version` and `meta.snapshot_version` from the SQLite image and treats those DB values as authoritative.
+
+Creating a snapshot:
+
+1. The writer opens a transaction and increments `meta.snapshot_version` by 1. Version gaps are allowed if export fails after this point.
+2. The writer creates a stable DB image with backup API or `VACUUM INTO`.
+3. The writer builds the header, encrypts the image, writes the `.gfsnap` file to a temp path, fsyncs, then atomically renames it into place.
+
+Applying a snapshot:
+
+1. Parse the header and reject unknown `format`, unsupported `schema_version`, unsupported crypto parameters, or a header `snapshot_version` that is not newer than the local DB.
+2. Derive the key, decrypt with the header bytes as AAD, and write the SQLite image to a temp DB path.
+3. Open the temp DB read-only, verify `meta.schema_version` is supported and `meta.snapshot_version` is newer than the local DB, then atomically replace the local DB.
+4. Reopen the DB and refresh application state.
+
+### Token marker
+
+The control token is represented in the exchange location by a plaintext marker:
+
+```text
+gestor-finances-token-v1.json
+```
+
+Marker JSON:
+
+```json
+{
+  "format": "gestor-finances.token.v1",
+  "operation": "handoff_to_desktop",
+  "session_id": "1d3bd54e-1e73-479a-91d5-96dc3a10b08b",
+  "holder_role": "desktop",
+  "holder_device_id": "24651d6f-c889-45d7-8f20-f8c7e06f4617",
+  "snapshot_version": 123,
+  "snapshot_file": "gestor-finances-snapshot-v1-000000000123-20260619T091530Z-9d6f0b6d-0b7f-4ab7-a4d5-5c4e3f2fd2c0.gfsnap",
+  "updated_at_utc": "2026-06-19T09:15:31Z"
+}
+```
+
+Allowed `operation` values:
+
+| Operation | Token holder after processing | Snapshot required? |
+|---|---:|---:|
+| `handoff_to_desktop` | desktop | yes |
+| `desktop_checkpoint` | desktop | yes |
+| `return_to_mobile` | mobile | yes |
+| `discard_desktop_session` | mobile | no; explicit user action only |
+
+Rules:
+
+- The marker is not secret. It is control metadata only.
+- A marker that references a snapshot is accepted only after the referenced snapshot decrypts and passes the version checks.
+- The local read-only/writer flag is platform-local app state, not authoritative finance data. The DB's `meta.snapshot_version` remains the data version authority.
+- `session_id` ties all desktop checkpoints and the final return to the handoff that opened the session.
+- If the mobile user discards a lost desktop session, the discarded `session_id` is recorded locally. Any later marker or snapshot from that session is presented as an interrupted-session recovery choice, never applied silently.
+
+### Crypto references
+
+- PBKDF2-HMAC-SHA256 with a 600,000 iteration work factor follows the [OWASP Password Storage Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html) FIPS-compatible PBKDF2 recommendation.
+- AES-GCM follows [NIST SP 800-38D](https://csrc.nist.gov/pubs/sp/800/38/d/final), which specifies GCM as an authenticated-encryption mode for block ciphers.
+
+---
+
 ## Device states
 
 ### Mobile
