@@ -17,6 +17,12 @@ import com.gestorfinances.app.data.repository.AnalysisNetWorthPoint
 import com.gestorfinances.app.data.repository.AnalysisOneTimeMode
 import com.gestorfinances.app.data.repository.AnalysisPeriodTotals
 import com.gestorfinances.app.data.repository.AnalysisRepository
+import com.gestorfinances.app.data.repository.MovementType
+import com.gestorfinances.app.data.repository.TemplateRepository
+import com.gestorfinances.app.data.repository.TemplateStatus
+import com.gestorfinances.app.data.repository.TemplateSummary
+import com.gestorfinances.app.domain.rules.CustomRecurrenceUnit
+import com.gestorfinances.app.domain.rules.RecurrenceFrequency
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.temporal.ChronoUnit
@@ -30,6 +36,7 @@ import kotlinx.coroutines.withContext
 
 class AnalysisViewModel(
     private val analysisRepository: AnalysisRepository,
+    private val templateRepository: TemplateRepository,
     private val todayProvider: () -> LocalDate = { LocalDate.now() },
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
@@ -187,6 +194,11 @@ class AnalysisViewModel(
                             emptyList()
                         },
                         heatmapDays = heatmapData,
+                        recurringCostSummary = if (snapshot.analysisMode == AnalysisMode.ACTUAL) {
+                            buildRecurringCostSummary(templateRepository.listActive())
+                        } else {
+                            RecurringCostSummary()
+                        },
                     )
                 }
             }
@@ -212,6 +224,7 @@ class AnalysisViewModel(
                         categoryTrends = it.categoryTrends,
                         netWorthPoints = it.netWorthPoints,
                         heatmapDays = it.heatmapDays,
+                        recurringCostSummary = it.recurringCostSummary,
                         currentAverageDivisor = currentDivisor,
                         previousAverageDivisor = previousRange?.let {
                             previousAverageDivisor(range, previousRange, currentDivisor)
@@ -309,11 +322,15 @@ class AnalysisViewModel(
 
     class Factory(
         private val analysisRepository: AnalysisRepository,
+        private val templateRepository: TemplateRepository,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if (modelClass.isAssignableFrom(AnalysisViewModel::class.java)) {
-                return AnalysisViewModel(analysisRepository = analysisRepository) as T
+                return AnalysisViewModel(
+                    analysisRepository = analysisRepository,
+                    templateRepository = templateRepository,
+                ) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }
@@ -372,6 +389,7 @@ data class AnalysisUiState(
     val categoryTrends: List<AnalysisCategoryTrendPoint> = emptyList(),
     val netWorthPoints: List<AnalysisNetWorthPoint> = emptyList(),
     val heatmapDays: List<AnalysisIncomeExpenseBucket> = emptyList(),
+    val recurringCostSummary: RecurringCostSummary = RecurringCostSummary(),
     val currentAverageDivisor: Long = 1,
     val previousAverageDivisor: Long = 1,
     val isLoading: Boolean = true,
@@ -398,6 +416,20 @@ data class AnalysisUiState(
             natureFilter != AnalysisNatureFilter.ALL ||
             oneTimeMode != AnalysisOneTimeMode.INCLUDE
 }
+
+data class RecurringCostSummary(
+    val monthlyExpenseCents: Long = 0L,
+    val items: List<RecurringCostItem> = emptyList(),
+) {
+    val hasCosts: Boolean get() = monthlyExpenseCents > 0L
+}
+
+data class RecurringCostItem(
+    val templateId: String,
+    val label: String?,
+    val categoryName: String?,
+    val monthlyExpenseCents: Long,
+)
 
 internal data class AnalysisRangeValidation(
     val range: AnalysisPeriodRange?,
@@ -499,6 +531,7 @@ private data class AnalysisLoadedData(
     val categoryTrends: List<AnalysisCategoryTrendPoint>,
     val netWorthPoints: List<AnalysisNetWorthPoint>,
     val heatmapDays: List<AnalysisIncomeExpenseBucket>,
+    val recurringCostSummary: RecurringCostSummary,
 )
 
 /** A daily heatmap is only meaningful for a bounded span; cap it at roughly one year. */
@@ -571,3 +604,52 @@ private fun previousAverageDivisor(
             flowBuckets = emptyList(),
         )
     }
+
+internal fun buildRecurringCostSummary(templates: List<TemplateSummary>): RecurringCostSummary {
+    val items = templates
+        .mapNotNull { template ->
+            val monthlyCents = template.monthlyRecurringExpenseCents() ?: return@mapNotNull null
+            RecurringCostItem(
+                templateId = template.id,
+                label = template.name?.takeIf { it.isNotBlank() }
+                    ?: template.payee?.takeIf { it.isNotBlank() },
+                categoryName = template.categoryName,
+                monthlyExpenseCents = monthlyCents,
+            )
+        }
+        .sortedByDescending { it.monthlyExpenseCents }
+
+    return RecurringCostSummary(
+        monthlyExpenseCents = items.sumOf { it.monthlyExpenseCents },
+        items = items,
+    )
+}
+
+private fun TemplateSummary.monthlyRecurringExpenseCents(): Long? {
+    if (status != TemplateStatus.ACTIVE || type != MovementType.EXPENSE || amountIsVariable) {
+        return null
+    }
+    val amount = amountCents?.takeIf { it > 0L } ?: return null
+    val monthlyCents = when (frequency) {
+        RecurrenceFrequency.WEEKLY -> amount.scaleRounded(numerator = 52L, denominator = 12L)
+        RecurrenceFrequency.FORTNIGHTLY -> amount.scaleRounded(numerator = 26L, denominator = 12L)
+        RecurrenceFrequency.MONTHLY -> amount
+        RecurrenceFrequency.YEARLY -> amount.scaleRounded(numerator = 1L, denominator = 12L)
+        RecurrenceFrequency.CUSTOM -> customMonthlyExpenseCents(amount)
+    } ?: return null
+    return monthlyCents.takeIf { it > 0L }
+}
+
+private fun TemplateSummary.customMonthlyExpenseCents(amount: Long): Long? {
+    val interval = intervalCount?.takeIf { it > 0L } ?: return null
+    return when (customUnit) {
+        CustomRecurrenceUnit.DAYS -> amount.scaleRounded(numerator = 365L, denominator = interval * 12L)
+        CustomRecurrenceUnit.WEEKS -> amount.scaleRounded(numerator = 52L, denominator = interval * 12L)
+        CustomRecurrenceUnit.MONTHS -> amount.scaleRounded(numerator = 1L, denominator = interval)
+        CustomRecurrenceUnit.YEARS -> amount.scaleRounded(numerator = 1L, denominator = interval * 12L)
+        null -> null
+    }
+}
+
+private fun Long.scaleRounded(numerator: Long, denominator: Long): Long =
+    (this * numerator + denominator / 2L) / denominator
