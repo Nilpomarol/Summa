@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Autorenew
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -65,6 +67,7 @@ import com.gestorfinances.app.ui.common.TrendLineChart
 import com.gestorfinances.app.ui.common.TrendSeries
 import com.gestorfinances.app.ui.common.categoryIcon
 import com.gestorfinances.app.ui.common.formatBasisPoints
+import com.gestorfinances.app.ui.common.formatEuroCents
 import com.gestorfinances.app.ui.common.formatLongDate
 import com.gestorfinances.app.ui.common.formatMonthYear
 import com.gestorfinances.app.ui.movements.MovementFilters
@@ -226,7 +229,7 @@ private fun AnalysisContent(
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
-        } else if (!state.hasActivity) {
+        } else if (!state.hasActivity && !state.recurringCostSummary.hasCosts) {
             item {
                 EmptyAnalysisCard()
             }
@@ -330,7 +333,10 @@ private fun AnalysisContent(
             }
         }
 
-        if (state.analysisMode == AnalysisMode.ACTUAL && state.hasActivity) {
+        if (
+            state.analysisMode == AnalysisMode.ACTUAL &&
+            (state.hasActivity || state.recurringCostSummary.hasCosts)
+        ) {
             analysisWidgets(state = state, onDrillDown = onDrillDown)
         }
     }
@@ -814,6 +820,12 @@ private fun LazyListScope.analysisWidgets(
     state: AnalysisUiState,
     onDrillDown: (MovementFilters) -> Unit,
 ) {
+    if (state.recurringCostSummary.hasCosts) {
+        item {
+            RecurringCostSummaryWidget(summary = state.recurringCostSummary)
+        }
+    }
+
     if (state.netWorthPoints.size >= 2) {
         item {
             NetWorthTrendWidget(points = state.netWorthPoints)
@@ -864,6 +876,77 @@ private fun LazyListScope.analysisWidgets(
         item {
             SpendingHeatmapWidget(cells = state.heatmapCells())
         }
+    }
+}
+
+@Composable
+private fun RecurringCostSummaryWidget(summary: RecurringCostSummary) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        SectionHeader(title = stringResource(R.string.recurring_cost_summary_title))
+        FinanceCard(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconChip(
+                        icon = Icons.Outlined.Autorenew,
+                        contentDescription = null,
+                        color = MaterialTheme.colorScheme.primary,
+                        size = 36.dp,
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = stringResource(
+                            R.string.recurring_cost_summary_body,
+                            formatEuroCents(summary.monthlyExpenseCents),
+                        ),
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                summary.items.take(MAX_RECURRING_COST_ITEMS).forEach { item ->
+                    RecurringCostItemRow(item = item)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecurringCostItemRow(item: RecurringCostItem) {
+    val title = item.label
+        ?: item.categoryName
+        ?: stringResource(R.string.common_no_category)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            item.categoryName?.takeIf { it != title }?.let { category ->
+                Text(
+                    text = category,
+                    color = FinanceTheme.colors.mutedText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        Spacer(modifier = Modifier.width(10.dp))
+        MoneyText(
+            cents = item.monthlyExpenseCents,
+            color = MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.titleSmall,
+        )
     }
 }
 
@@ -1134,6 +1217,7 @@ private fun AnalysisUiState.savingsBucketFilters(bucket: String): MovementFilter
 }
 
 private const val MAX_TREND_SERIES = 4
+private const val MAX_RECURRING_COST_ITEMS = 3
 
 @StringRes
 private fun AnalysisScope.labelRes(): Int =

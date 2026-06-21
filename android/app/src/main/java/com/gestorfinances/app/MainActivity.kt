@@ -226,6 +226,7 @@ private fun LedgerShell(
             viewModelStoreOwner,
             AnalysisViewModel.Factory(
                 analysisRepository = appContainer.analysisRepository,
+                templateRepository = appContainer.templateRepository,
             ),
         )[AnalysisViewModel::class.java]
     }
