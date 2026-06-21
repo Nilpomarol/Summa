@@ -9,13 +9,23 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-QUERY_ORDER = [
+VIEW_FILES = [
     "v_movement_shared.sql",
     "v_account_flow.sql",
     "v_account_balance.sql",
     "v_actual_expense.sql",
     "v_actual_income.sql",
     "v_person_balance.sql",
+]
+ANALYSIS_QUERY_FILES = [
+    "analysis_actual_by_category.sql",
+    "analysis_account_flow_over_time.sql",
+    "analysis_income_vs_expense.sql",
+    "analysis_period_totals.sql",
+    "analysis_category_trends.sql",
+    "analysis_largest_expenses.sql",
+    "analysis_net_worth_over_time.sql",
+    "analysis_top_merchants.sql",
 ]
 
 
@@ -37,6 +47,11 @@ def extract_strings(label: str, text: str, pattern: str) -> list[str]:
     return re.findall(r'"([^"]+)"', match.group(1))
 
 
+def extract_pair_file_names(label: str, text: str, pattern: str) -> list[str]:
+    strings = extract_strings(label, text, pattern)
+    return strings[0::2]
+
+
 def validate_shared_inventory() -> None:
     schema = ROOT / "shared" / "schema" / "schema.sql"
     migration = ROOT / "shared" / "migrations" / "001_initial.sql"
@@ -46,23 +61,36 @@ def validate_shared_inventory() -> None:
         fail(f"missing shared migration: {migration}")
 
     actual_queries = sorted(path.name for path in (ROOT / "shared" / "queries").glob("*.sql"))
-    if actual_queries != sorted(QUERY_ORDER):
-        fail(f"shared query inventory mismatch: expected {sorted(QUERY_ORDER)}, got {actual_queries}")
+    expected_queries = sorted(VIEW_FILES + ANALYSIS_QUERY_FILES)
+    if actual_queries != expected_queries:
+        fail(f"shared query inventory mismatch: expected {expected_queries}, got {actual_queries}")
 
 
 def validate_android_wiring() -> None:
     build_gradle = read(ROOT / "android" / "app" / "build.gradle.kts")
-    android_queries = extract_strings(
+    android_views = extract_strings(
         "android/app/build.gradle.kts",
         build_gradle,
-        r"val\s+sharedQueryFiles\s*=\s*listOf\((.*?)\)",
+        r"val\s+sharedViewFiles\s*=\s*listOf\((.*?)\)",
     )
-    if android_queries != QUERY_ORDER:
-        fail(f"Android sharedQueryFiles mismatch: expected {QUERY_ORDER}, got {android_queries}")
+    if android_views != VIEW_FILES:
+        fail(f"Android sharedViewFiles mismatch: expected {VIEW_FILES}, got {android_views}")
+    android_analysis_queries = extract_pair_file_names(
+        "android/app/build.gradle.kts",
+        build_gradle,
+        r"val\s+sharedAnalysisQueryFiles\s*=\s*listOf\((.*?)\)",
+    )
+    if android_analysis_queries != ANALYSIS_QUERY_FILES:
+        fail(
+            "Android sharedAnalysisQueryFiles mismatch: "
+            f"expected {ANALYSIS_QUERY_FILES}, got {android_analysis_queries}"
+        )
     if 'sharedRoot.file("migrations/001_initial.sql")' not in build_gradle:
         fail("Android SQLDelight wiring must read shared/migrations/001_initial.sql")
     if 'sharedRoot.file("queries/$it")' not in build_gradle:
         fail("Android SQLDelight wiring must read shared/queries entries")
+    if 'sharedRoot.file("queries/${it.first}")' not in build_gradle:
+        fail("Android SQLDelight wiring must read shared analysis query entries")
 
 
 def validate_windows_wiring() -> None:
@@ -72,8 +100,18 @@ def validate_windows_wiring() -> None:
         shared_sql,
         r"ViewFiles\s*=\s*\[(.*?)\]",
     )
-    if windows_queries != QUERY_ORDER:
-        fail(f"Windows ViewFiles mismatch: expected {QUERY_ORDER}, got {windows_queries}")
+    if windows_queries != VIEW_FILES:
+        fail(f"Windows ViewFiles mismatch: expected {VIEW_FILES}, got {windows_queries}")
+    windows_analysis_queries = extract_strings(
+        "windows/GestorFinances.Tests/SharedSql.cs",
+        shared_sql,
+        r"AnalysisQueryFiles\s*=\s*\[(.*?)\]",
+    )
+    if windows_analysis_queries != ANALYSIS_QUERY_FILES:
+        fail(
+            "Windows AnalysisQueryFiles mismatch: "
+            f"expected {ANALYSIS_QUERY_FILES}, got {windows_analysis_queries}"
+        )
     if 'ReadSharedFile("migrations", "001_initial.sql")' not in shared_sql:
         fail("Windows SQL loader must read shared/migrations/001_initial.sql")
     if 'ReadSharedFile("queries", viewFile)' not in shared_sql:

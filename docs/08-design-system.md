@@ -232,6 +232,8 @@ A **persistent, non-dismissible** top banner (distinct from the never-block bann
 
 - **Daily flow:** dual bar (income up, green `#1F8F5F`; expense down, gray `#6E7891`) split on a center axis.
 - **Net worth:** indigo line + 8% fill area sparkline.
+- **Spending heatmap:** calendar grid of day cells on a **neutral ink ramp** (light track → ink); darker = more spent that day. Expense is ink, not a hue, and indigo stays reserved for action.
+- **Category trends:** one line per top category over the period buckets, each in its **category** color (multi-series, no fill).
 
 ---
 
@@ -277,7 +279,7 @@ Cool, almost-black surfaces (not pure black). Functional color **lightens slight
 
 ## 11. Deferred (extend per phase)
 
-Specced when their phase arrives, to avoid over-designing now: the **split-line row** (Phase 3), **empty states** across screens, the analysis widgets beyond the two charts — **heatmap** and **category trend lines** (Phases 2 / 5) — and the **CSV-import wizard stepper** (Phase 6C).
+Specced when their phase arrives, to avoid over-designing now: Phase 3 split-line and debt-flow details now live in `docs/12-sharing-debts-ui.md`; **empty states** across screens and the **CSV-import wizard stepper** (Phase 6C) remain deferred. (The Phase-2 analysis widgets — spending heatmap and category trend lines — are now implemented; see §6 Charts.)
 
 ## File map
 

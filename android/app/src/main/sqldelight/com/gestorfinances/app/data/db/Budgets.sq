@@ -1,0 +1,83 @@
+activeBudgets:
+SELECT
+    budgets.id,
+    budgets.category_id,
+    categories.name AS category_name,
+    budgets.limit_amount_cents,
+    budgets.alert_threshold_percent,
+    budgets.start_date,
+    budgets.created_at,
+    budgets.updated_at,
+    budgets.archived_at
+FROM budgets
+LEFT JOIN categories
+    ON categories.id = budgets.category_id
+WHERE budgets.archived_at IS NULL
+  AND budgets.scope = 'category'
+ORDER BY lower(categories.name) ASC;
+
+budgetById:
+SELECT
+    budgets.id,
+    budgets.category_id,
+    categories.name AS category_name,
+    budgets.limit_amount_cents,
+    budgets.alert_threshold_percent,
+    budgets.start_date,
+    budgets.created_at,
+    budgets.updated_at,
+    budgets.archived_at
+FROM budgets
+LEFT JOIN categories
+    ON categories.id = budgets.category_id
+WHERE budgets.id = :id
+  AND budgets.archived_at IS NULL;
+
+budgetActualForCategory:
+SELECT COALESCE(SUM(amount_cents), 0) AS actual_cents
+FROM v_actual_expense
+WHERE category_id = :category_id
+  AND date >= :from_date
+  AND date <= :to_date;
+
+insertBudget:
+INSERT INTO budgets(
+    id,
+    scope,
+    category_id,
+    period,
+    limit_amount_cents,
+    start_date,
+    alert_threshold_percent,
+    created_at,
+    updated_at
+) VALUES (
+    :id,
+    'category',
+    :category_id,
+    'monthly',
+    :limit_amount_cents,
+    :start_date,
+    :alert_threshold_percent,
+    :created_at,
+    :updated_at
+);
+
+updateBudget:
+UPDATE budgets
+SET
+    category_id = :category_id,
+    limit_amount_cents = :limit_amount_cents,
+    start_date = :start_date,
+    alert_threshold_percent = :alert_threshold_percent,
+    updated_at = :updated_at
+WHERE id = :id
+  AND archived_at IS NULL;
+
+archiveBudget:
+UPDATE budgets
+SET
+    archived_at = :archived_at,
+    updated_at = :updated_at
+WHERE id = :id
+  AND archived_at IS NULL;

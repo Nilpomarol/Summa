@@ -1,0 +1,109 @@
+splitIdForMovement:
+SELECT id
+FROM splits
+WHERE movement_id = :movement_id;
+
+insertMovementSplit:
+INSERT INTO splits(
+    id,
+    movement_id,
+    payer_person_id,
+    entry_method,
+    total_amount_cents,
+    date,
+    description,
+    category_id,
+    trip_id,
+    created_at,
+    updated_at,
+    archived_at
+) VALUES (
+    :id,
+    :movement_id,
+    NULL,
+    :entry_method,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    :created_at,
+    :updated_at,
+    NULL
+);
+
+insertExternalSplit:
+INSERT INTO splits(
+    id,
+    movement_id,
+    payer_person_id,
+    entry_method,
+    total_amount_cents,
+    date,
+    description,
+    category_id,
+    trip_id,
+    created_at,
+    updated_at,
+    archived_at
+) VALUES (
+    :id,
+    NULL,
+    :payer_person_id,
+    :entry_method,
+    :total_amount_cents,
+    :date,
+    :description,
+    :category_id,
+    NULL,
+    :created_at,
+    :updated_at,
+    NULL
+);
+
+activateMovementSplit:
+UPDATE splits
+SET
+    entry_method = :entry_method,
+    updated_at = :updated_at,
+    archived_at = NULL
+WHERE id = :id;
+
+archiveMovementSplit:
+UPDATE splits
+SET
+    archived_at = :archived_at,
+    updated_at = :updated_at
+WHERE id = :id
+  AND archived_at IS NULL;
+
+archiveSplitLines:
+UPDATE split_lines
+SET
+    archived_at = :archived_at,
+    updated_at = :updated_at
+WHERE split_id = :split_id
+  AND archived_at IS NULL;
+
+insertSplitLine:
+INSERT INTO split_lines(
+    id,
+    split_id,
+    participant_kind,
+    person_id,
+    owed_amount_cents,
+    owed_percent,
+    created_at,
+    updated_at,
+    archived_at
+) VALUES (
+    :id,
+    :split_id,
+    :participant_kind,
+    :person_id,
+    :owed_amount_cents,
+    NULL,
+    :created_at,
+    :updated_at,
+    NULL
+);

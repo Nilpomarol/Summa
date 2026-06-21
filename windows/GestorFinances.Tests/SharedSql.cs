@@ -15,7 +15,21 @@ internal static class SharedSql
         "v_person_balance.sql"
     ];
 
+    private static readonly string[] AnalysisQueryFiles =
+    [
+        "analysis_actual_by_category.sql",
+        "analysis_account_flow_over_time.sql",
+        "analysis_income_vs_expense.sql",
+        "analysis_period_totals.sql",
+        "analysis_category_trends.sql",
+        "analysis_largest_expenses.sql",
+        "analysis_net_worth_over_time.sql",
+        "analysis_top_merchants.sql"
+    ];
+
     public static string RepositoryRoot { get; } = FindRepositoryRoot();
+
+    public static IReadOnlyList<string> AnalysisFiles => AnalysisQueryFiles;
 
     public static void ApplyBaseline(SqliteConnection connection)
     {
@@ -25,6 +39,16 @@ internal static class SharedSql
         {
             connection.Execute(ReadSharedFile("queries", viewFile));
         }
+    }
+
+    public static string ReadAnalysisQuery(string fileName)
+    {
+        if (!AnalysisQueryFiles.Contains(fileName))
+        {
+            throw new ArgumentException($"Unknown analysis query file: {fileName}", nameof(fileName));
+        }
+
+        return ReadSharedFile("queries", fileName);
     }
 
     private static string ReadSharedFile(params string[] pathParts)
