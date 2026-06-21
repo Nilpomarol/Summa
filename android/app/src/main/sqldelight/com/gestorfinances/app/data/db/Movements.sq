@@ -1,0 +1,353 @@
+activeMovementSummaries:
+SELECT
+    movements.id,
+    movements.type,
+    movements.amount_cents,
+    movements.date,
+    movements.account_id,
+    accounts.name AS account_name,
+    movements.dest_account_id,
+    destination_accounts.name AS destination_account_name,
+    movements.category_id,
+    categories.name AS category_name,
+    categories.nature AS category_nature,
+    movements.name,
+    movements.payee,
+    movements.notes,
+    movements.is_one_time,
+    movements.created_at,
+    movements.updated_at,
+    movements.archived_at,
+    NULLIF((
+        SELECT paid_by_people.name
+        FROM splits AS paid_by_split
+        JOIN split_lines AS paid_by_user_line
+            ON paid_by_user_line.split_id = paid_by_split.id
+           AND paid_by_user_line.participant_kind = 'user'
+           AND paid_by_user_line.owed_amount_cents = 0
+           AND paid_by_user_line.archived_at IS NULL
+        JOIN split_lines AS paid_by_person_line
+            ON paid_by_person_line.split_id = paid_by_split.id
+           AND paid_by_person_line.participant_kind = 'person'
+           AND paid_by_person_line.owed_amount_cents = movements.amount_cents
+           AND paid_by_person_line.archived_at IS NULL
+        JOIN people AS paid_by_people
+            ON paid_by_people.id = paid_by_person_line.person_id
+        WHERE paid_by_split.movement_id = movements.id
+          AND paid_by_split.archived_at IS NULL
+          AND (
+              SELECT COUNT(*)
+              FROM split_lines AS positive_person_line
+              WHERE positive_person_line.split_id = paid_by_split.id
+                AND positive_person_line.participant_kind = 'person'
+                AND positive_person_line.owed_amount_cents > 0
+                AND positive_person_line.archived_at IS NULL
+          ) = 1
+        LIMIT 1
+    ), '') AS paid_by_person_name,
+    COALESCE(v_movement_shared.is_shared, 0) AS is_shared,
+    movements.settlement_direction,
+    settlement_people.name AS settlement_person_name
+FROM movements
+JOIN accounts
+    ON accounts.id = movements.account_id
+LEFT JOIN accounts AS destination_accounts
+    ON destination_accounts.id = movements.dest_account_id
+LEFT JOIN categories
+    ON categories.id = movements.category_id
+LEFT JOIN people AS settlement_people
+    ON settlement_people.id = movements.person_id
+LEFT JOIN v_movement_shared
+    ON v_movement_shared.movement_id = movements.id
+WHERE movements.archived_at IS NULL
+ORDER BY movements.date DESC, movements.created_at DESC;
+
+activeMovementSummariesForAccount:
+SELECT
+    movements.id,
+    movements.type,
+    movements.amount_cents,
+    movements.date,
+    movements.account_id,
+    accounts.name AS account_name,
+    movements.dest_account_id,
+    destination_accounts.name AS destination_account_name,
+    movements.category_id,
+    categories.name AS category_name,
+    categories.nature AS category_nature,
+    movements.name,
+    movements.payee,
+    movements.notes,
+    movements.is_one_time,
+    movements.created_at,
+    movements.updated_at,
+    movements.archived_at,
+    NULLIF((
+        SELECT paid_by_people.name
+        FROM splits AS paid_by_split
+        JOIN split_lines AS paid_by_user_line
+            ON paid_by_user_line.split_id = paid_by_split.id
+           AND paid_by_user_line.participant_kind = 'user'
+           AND paid_by_user_line.owed_amount_cents = 0
+           AND paid_by_user_line.archived_at IS NULL
+        JOIN split_lines AS paid_by_person_line
+            ON paid_by_person_line.split_id = paid_by_split.id
+           AND paid_by_person_line.participant_kind = 'person'
+           AND paid_by_person_line.owed_amount_cents = movements.amount_cents
+           AND paid_by_person_line.archived_at IS NULL
+        JOIN people AS paid_by_people
+            ON paid_by_people.id = paid_by_person_line.person_id
+        WHERE paid_by_split.movement_id = movements.id
+          AND paid_by_split.archived_at IS NULL
+          AND (
+              SELECT COUNT(*)
+              FROM split_lines AS positive_person_line
+              WHERE positive_person_line.split_id = paid_by_split.id
+                AND positive_person_line.participant_kind = 'person'
+                AND positive_person_line.owed_amount_cents > 0
+                AND positive_person_line.archived_at IS NULL
+          ) = 1
+        LIMIT 1
+    ), '') AS paid_by_person_name,
+    COALESCE(v_movement_shared.is_shared, 0) AS is_shared,
+    movements.settlement_direction,
+    settlement_people.name AS settlement_person_name
+FROM movements
+JOIN accounts
+    ON accounts.id = movements.account_id
+LEFT JOIN accounts AS destination_accounts
+    ON destination_accounts.id = movements.dest_account_id
+LEFT JOIN categories
+    ON categories.id = movements.category_id
+LEFT JOIN people AS settlement_people
+    ON settlement_people.id = movements.person_id
+LEFT JOIN v_movement_shared
+    ON v_movement_shared.movement_id = movements.id
+WHERE movements.archived_at IS NULL
+  AND (movements.account_id = :account_id OR movements.dest_account_id = :account_id)
+ORDER BY movements.date DESC, movements.created_at DESC;
+
+movementById:
+SELECT
+    movements.id,
+    movements.type,
+    movements.amount_cents,
+    movements.date,
+    movements.account_id,
+    accounts.name AS account_name,
+    movements.dest_account_id,
+    destination_accounts.name AS destination_account_name,
+    movements.category_id,
+    categories.name AS category_name,
+    categories.nature AS category_nature,
+    movements.name,
+    movements.payee,
+    movements.notes,
+    movements.is_one_time,
+    movements.created_at,
+    movements.updated_at,
+    movements.archived_at,
+    NULLIF((
+        SELECT paid_by_people.name
+        FROM splits AS paid_by_split
+        JOIN split_lines AS paid_by_user_line
+            ON paid_by_user_line.split_id = paid_by_split.id
+           AND paid_by_user_line.participant_kind = 'user'
+           AND paid_by_user_line.owed_amount_cents = 0
+           AND paid_by_user_line.archived_at IS NULL
+        JOIN split_lines AS paid_by_person_line
+            ON paid_by_person_line.split_id = paid_by_split.id
+           AND paid_by_person_line.participant_kind = 'person'
+           AND paid_by_person_line.owed_amount_cents = movements.amount_cents
+           AND paid_by_person_line.archived_at IS NULL
+        JOIN people AS paid_by_people
+            ON paid_by_people.id = paid_by_person_line.person_id
+        WHERE paid_by_split.movement_id = movements.id
+          AND paid_by_split.archived_at IS NULL
+          AND (
+              SELECT COUNT(*)
+              FROM split_lines AS positive_person_line
+              WHERE positive_person_line.split_id = paid_by_split.id
+                AND positive_person_line.participant_kind = 'person'
+                AND positive_person_line.owed_amount_cents > 0
+                AND positive_person_line.archived_at IS NULL
+          ) = 1
+        LIMIT 1
+    ), '') AS paid_by_person_name,
+    COALESCE(v_movement_shared.is_shared, 0) AS is_shared,
+    movements.settlement_direction,
+    settlement_people.name AS settlement_person_name
+FROM movements
+JOIN accounts
+    ON accounts.id = movements.account_id
+LEFT JOIN accounts AS destination_accounts
+    ON destination_accounts.id = movements.dest_account_id
+LEFT JOIN categories
+    ON categories.id = movements.category_id
+LEFT JOIN people AS settlement_people
+    ON settlement_people.id = movements.person_id
+LEFT JOIN v_movement_shared
+    ON v_movement_shared.movement_id = movements.id
+WHERE movements.id = :id
+  AND movements.archived_at IS NULL;
+
+accountFlowForAccount:
+SELECT
+    v_account_flow.account_id,
+    v_account_flow.date,
+    v_account_flow.movement_id,
+    v_account_flow.delta_cents,
+    movements.type,
+    movements.name,
+    movements.payee,
+    movements.notes,
+    movements.category_id,
+    categories.name AS category_name,
+    movements.account_id AS origin_account_id,
+    origin_accounts.name AS origin_account_name,
+    movements.dest_account_id AS destination_account_id,
+    destination_accounts.name AS destination_account_name
+FROM v_account_flow
+JOIN movements
+    ON movements.id = v_account_flow.movement_id
+JOIN accounts AS origin_accounts
+    ON origin_accounts.id = movements.account_id
+LEFT JOIN accounts AS destination_accounts
+    ON destination_accounts.id = movements.dest_account_id
+LEFT JOIN categories
+    ON categories.id = movements.category_id
+WHERE v_account_flow.account_id = :account_id
+ORDER BY v_account_flow.date DESC, movements.created_at DESC;
+
+insertMovement:
+INSERT INTO movements(
+    id,
+    type,
+    amount_cents,
+    date,
+    account_id,
+    dest_account_id,
+    name,
+    payee,
+    notes,
+    is_one_time,
+    category_id,
+    template_id,
+    created_at,
+    updated_at
+) VALUES (
+    :id,
+    :type,
+    :amount_cents,
+    :date,
+    :account_id,
+    :dest_account_id,
+    :name,
+    :payee,
+    :notes,
+    :is_one_time,
+    :category_id,
+    :template_id,
+    :created_at,
+    :updated_at
+);
+
+refundsForExpense:
+SELECT
+    movements.id,
+    movements.amount_cents,
+    movements.date,
+    movements.actual_refund_cents,
+    movements.category_id,
+    categories.name AS category_name,
+    movements.notes
+FROM movements
+LEFT JOIN categories
+    ON categories.id = movements.category_id
+WHERE movements.type = 'refund'
+  AND movements.refunds_expense_id = :expense_id
+  AND movements.archived_at IS NULL
+ORDER BY movements.date DESC, movements.created_at DESC;
+
+insertRefund:
+INSERT INTO movements(
+    id,
+    type,
+    amount_cents,
+    date,
+    account_id,
+    name,
+    payee,
+    notes,
+    category_id,
+    refunds_expense_id,
+    actual_refund_cents,
+    created_at,
+    updated_at
+) VALUES (
+    :id,
+    'refund',
+    :amount_cents,
+    :date,
+    :account_id,
+    :name,
+    :payee,
+    :notes,
+    :category_id,
+    :refunds_expense_id,
+    :actual_refund_cents,
+    :created_at,
+    :updated_at
+);
+
+insertSettlement:
+INSERT INTO movements(
+    id,
+    type,
+    amount_cents,
+    date,
+    account_id,
+    notes,
+    category_id,
+    person_id,
+    settlement_direction,
+    created_at,
+    updated_at
+) VALUES (
+    :id,
+    'settlement',
+    :amount_cents,
+    :date,
+    :account_id,
+    :notes,
+    NULL,
+    :person_id,
+    :settlement_direction,
+    :created_at,
+    :updated_at
+);
+
+updateMovement:
+UPDATE movements
+SET
+    type = :type,
+    amount_cents = :amount_cents,
+    date = :date,
+    account_id = :account_id,
+    dest_account_id = :dest_account_id,
+    name = :name,
+    payee = :payee,
+    notes = :notes,
+    is_one_time = :is_one_time,
+    category_id = :category_id,
+    updated_at = :updated_at
+WHERE id = :id
+  AND archived_at IS NULL;
+
+archiveMovement:
+UPDATE movements
+SET
+    archived_at = :archived_at,
+    updated_at = :updated_at
+WHERE id = :id
+  AND archived_at IS NULL;

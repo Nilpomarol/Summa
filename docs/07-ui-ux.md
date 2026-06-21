@@ -3,6 +3,8 @@
 > The **structural** UI foundation: information architecture, navigation, the screen inventory with each screen's content blocks, the core flows, and the string-catalog structure. It turns the behavior in `docs/00-Full_Spec.md` into a concrete set of screens.
 >
 > **Out of scope (separate design pass):** visual style & aesthetics — colour, typography, spacing, theming, iconography, motion. This doc describes *what is on each page and how you move between pages*, not how it looks. Per-screen layout detail is refined just before building each phase.
+>
+> Phase-specific refinements: `docs/10-core-ledger-ui.md` defines the Android Phase 1 ledger screens; `docs/11-dashboard-analysis-ui.md` defines the Android Phase 2 dashboard and analysis screens; `docs/12-sharing-debts-ui.md` defines the Android Phase 3 people, split, debt, and settlement screens.
 
 ---
 
@@ -54,13 +56,13 @@ Each entry: **purpose · content blocks · primary actions · platform note.**
 ### Finances
 
 **Movements list**
-- Blocks: filter/search bar (type, account, category, trip, tag, person, nature, recurring, amount range, period, "paid by someone"); grouped/sorted list; each row shows name, date, account, signed amount, shared/"paid by X" marker.
+- Blocks: filter/search bar (type, account, category, trip, tag, person, nature, recurring, amount range, period, "paid by someone"); grouped/sorted list; each row shows concept, date, account, signed amount, shared/"paid by X" marker.
 - Actions: New movement; open detail; bulk-select (desktop, v1.5).
 - Platform: desktop master/detail (list + detail pane).
 
 **Movement detail**
 - Blocks: header (type, amount, date, account); category/payee/notes/trip/tag; type-specific (transfer dest; settlement person+direction; refund→linked expense; split summary if shared); refund list if applicable; audit (created/updated).
-- Actions: Edit; Archive; add Refund (expenses); "settles a debt with X" bridge; open split editor.
+- Actions: Edit; Delete; add Refund (expenses); "settles a debt with X" bridge; open split editor.
 
 **Add / Edit movement**
 - Blocks: type selector (expense / income / transfer / settlement / refund); amount; date; account (+ dest for transfer); category (expense/income/refund); payee; notes; trip + tag; **Shared** toggle → opens Split editor; **One-time** toggle (mark an extraordinary purchase; expenses only); recurring toggle → template fields.
@@ -69,11 +71,11 @@ Each entry: **purpose · content blocks · primary actions · platform note.**
 
 **Accounts list**
 - Blocks: account cards (name, type, balance, share of net worth); total net worth.
-- Actions: New account; open account; reorder; archive.
+- Actions: New account; open account; reorder; delete.
 
 **Account detail**
 - Blocks: balance + starting balance; scoped movement list; low-balance threshold indicator.
-- Actions: Edit account; New movement (prefilled account); removal strategies (archive / delete-empty / delete-with-movements / reassign-then-delete).
+- Actions: Edit account; New movement (prefilled account); removal strategies (delete-soft / delete-empty / delete-with-movements / reassign-then-delete).
 
 **Add / Edit account**
 - Blocks: name; starting balance; type; icon; colour; set-as-default; low-balance threshold.
@@ -89,7 +91,7 @@ Each entry: **purpose · content blocks · primary actions · platform note.**
 
 **Categories list**
 - Blocks: two-level hierarchy; per-category insight (this-month total + count, this-year total + share, budget bar green/amber/red if budgeted); "Sense categoria" bucket shown.
-- Actions: New category; open category; archive; reorder.
+- Actions: New category; open category; delete; reorder.
 
 **Category detail**
 - Blocks: this-month + this-year totals, share of year; budget status; movement list (drill).
@@ -103,7 +105,7 @@ Each entry: **purpose · content blocks · primary actions · platform note.**
 
 **Person detail**
 - Blocks: net balance; itemized breakdown (which splits / expenses-paid-by-them / settlements compose it); history.
-- Actions: **Settle up** (helper) · Export/share debt statement · Edit · Archive (warn if balance ≠ 0).
+- Actions: **Settle up** (helper) · Export/share debt statement · Edit · Delete (warn if balance ≠ 0).
 
 **Add / Edit person**
 - Blocks: name; avatar; colour; notes.
@@ -121,7 +123,7 @@ Each entry: **purpose · content blocks · primary actions · platform note.**
 
 **Tags management**
 - Blocks: tag list (global vs trip-local marker).
-- Actions: New tag; edit; archive; scope (global / trip-local).
+- Actions: New tag; edit; delete; scope (global / trip-local).
 
 **Budgets**
 - Blocks: budget list with progress (limit vs actual, over/under); scope (category-monthly first).

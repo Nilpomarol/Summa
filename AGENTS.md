@@ -17,6 +17,10 @@ A personal finance app: offline-first, local-first. **Android (Kotlin/Compose)**
 - `docs/07-ui-ux.md` — UI scaffold (IA, navigation, screen inventory, flows, strings; structure only).
 - `docs/08-design-system.md` — visual design system (tokens, typography, components, light/dark, mobile + desktop).
 - `docs/09-app-architecture.md` — per-app layering, state management, DI, and shared wiring.
+- `docs/10-core-ledger-ui.md` — Android Phase 1 ledger screen refinement.
+- `docs/11-dashboard-analysis-ui.md` — Android Phase 2 dashboard/analysis screen refinement.
+- `docs/12-sharing-debts-ui.md` — Android Phase 3 people/splits/debts screen refinement.
+- `docs/13-recurring-refunds-budgets-ui.md` — Android Phase 4 recurring/refunds/budgets/notifications screen refinement.
 - `shared/design/tokens/design-tokens.json` — machine-readable visual tokens consumed by both native apps.
 - `shared/design/tokens/platform-mapping.md` — Compose and WinUI mapping for shared visual tokens.
 
@@ -44,7 +48,7 @@ Never violate these unless an explicit decision is recorded in `docs/`:
 - **Tests gate behavior:** both apps run the golden vectors; never weaken a vector to make code pass.
 - **Manual checks stay current:** when a slice adds behavior the user can exercise, include concrete manual test steps and expected results in the final handoff.
 - **Stack discipline:** use the decided stack; don't add dependencies casually; justify any new one.
-- **Design-token discipline:** platform UI values come from `shared/design/tokens/design-tokens.json`; update `docs/08-design-system.md` and the shared token file together when a visual token changes.
+- **Design-system discipline:** platform UI values come from `shared/design/tokens/design-tokens.json`; update `docs/08-design-system.md` and the shared token file together when a visual token changes. New UI should conform to the design system as it is implemented whenever practical; if a screen remains intentionally rough, track the follow-up in `docs/06-roadmap.md`. Phase 5R is the dedicated Android redesign/consolidation pass before Windows starts.
 - **Simplicity is a requirement, not a nicety.** Write the simplest *correct* code that satisfies the spec and these invariants: no speculative abstraction, premature generalization, gold-plating, or unjustified dependencies; clarity over cleverness; match existing patterns. The golden vectors, derived SQL views, `CHECK` constraints, and the `shared/` contract are deliberate safety nets — keep them; simplicity is sought *within* them. `simplicity-guardian` reviews for this. **Definition of done:** a change is done only when it is *correct* (golden green + `spec-guardian` clean) **and** *simple* (`simplicity-guardian` clean).
 - **Small, scoped commits** referencing the relevant doc section. Branch off `main`; don't commit/push unless asked.
 

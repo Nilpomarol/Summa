@@ -9,6 +9,9 @@
 - **Golden vectors are the gate:** a money rule ships only when `shared/golden/` passes in both apps.
 - **`shared/` is the contract:** schema + canonical SQL are single-sourced, never forked.
 - **Foundational UI scaffold up front** (`docs/07-ui-ux.md`: IA, navigation, screen inventory, content blocks, flows, strings); **visual style lives in the design system** (`docs/08-design-system.md`); per-screen detail is refined just before building each phase.
+- **Design-system alignment is not final-only.** Each UI slice should follow `docs/08-design-system.md` and shared tokens as it is built. Do not knowingly ship utilitarian UI when the design-system path is straightforward; if a slice must stay rough to protect momentum, track the follow-up explicitly.
+- **Phase-end gates:** every implementation phase ends with tests, a focused UI polish/design-system pass, and an architecture/feature/code quality audit before the next phase starts.
+- **Android redesign checkpoint before Windows:** after the Android feature phases and before the Windows app begins, run a dedicated Android redesign/consolidation pass so the desktop app ports a stable visual language instead of copying temporary scaffolding.
 - **One writing agent at a time:** use roadmap task IDs in prompts/commits; let the other agent review rather than edit the same dirty tree.
 - **Simplest correct thing wins:** prefer the simplest implementation that satisfies the spec and the invariants — no speculative abstraction, premature generalization, or gold-plating. The deliberate safety nets (golden vectors, derived SQL views, `CHECK` constraints, the `shared/` contract) are *not* overengineering and stay.
 - **Definition of done (every task):** *correct* — golden suite green and `spec-guardian` clean — **and** *simple* — `simplicity-guardian` clean.
@@ -16,7 +19,7 @@
 
 ## Current state ✅
 
-Design complete: spec (`00`), sync (`02`), architecture (`03`), data model (`04`), golden tests (`05`), roadmap (`06`), agent tooling (`AGENTS.md`, `CLAUDE.md`, `.claude/agents/`). Phase 0A shared contract is extracted; Android has a minimal Gradle/Compose/SQLDelight scaffold.
+Phase 0 foundations, Android Phase 1 core ledger, Android Phase 2 analysis, and Android Phase 3 sharing/people/debts are all complete (`P3-1` through `P3-11`). Phase 4 (recurring, refunds & budgets) is underway: `P4-1` (UI/UX + strings, `docs/13`), `P4-2` (templates CRUD: `Templates.sq`, `TemplateRepository`, the `Recurring` bottom-nav screen, kotlinx.serialization in `main`), and `P4-3` (recurring due prompts: advancement-rule generation, confirm→create linked movement + advance cursor, skip, per-template skip-all, split carry-forward) are complete. `P4-4` (recurring list day-ordered with a monthly summary card), `P4-5` (refunds: from expense detail, cash + optional user-share actual, inherited category, over-refund warning), `P4-6` (budgets — category-monthly CRUD, limit-vs-derived-actual evaluation, green/amber/red progress, reached from the Analysis header), and `P4-7` (local notifications: recurring lead-time reminders, budget-threshold alerts, low-balance alerts) are also complete. `P4-8` (recurring-cost summary analysis) is next unless the roadmap is updated. Deferred follow-ups: editing a shared split *in the template form*, cross-template confirm-all/skip-all, surfacing orphaned refunds when an original expense is archived, and embedding the budget bar inside category breakdown/detail.
 
 ---
 
@@ -66,50 +69,56 @@ Design complete: spec (`00`), sync (`02`), architecture (`03`), data model (`04`
 ## Phase 1 — Core ledger (Android) — *Goals #1, #3*
 **Goal:** record money and see correct balances.
 
-- [ ] **P1-1** UI/UX: design account list/detail, movement list, add/edit-movement screens; add their Catalan strings to the catalog.
-- [ ] **P1-2** Data layer: repositories for accounts, categories, movements over SQLDelight.
-- [ ] **P1-3** Accounts: CRUD, starting balance, type, single-default enforcement, display order, archive.
-- [ ] **P1-4** Categories: CRUD, kind, nature, two-level parent, archive.
-- [ ] **P1-5** Movements: add/edit/archive for `expense`, `income`, `transfer` (origin+dest); the one-time/extraordinary flag on expenses; app-layer validation mirroring the CHECK constraints (amount > 0, type⇔field).
-- [ ] **P1-6** Wire `v_account_balance` / `v_account_flow` → per-account balance, net worth.
-- [ ] **P1-7** Movement list with filtering (type, account, category, date range, text search) and drill-through to detail.
-- [ ] **P1-8** First-run / onboarding: create first account + starting balance; seed default Catalan categories.
-- [ ] **P1-9** Global "New movement" action; live refresh of related screens on change.
-- [ ] **P1-10** Tests: repository unit tests; golden suite still green; basic UI smoke test.
+- [x] **P1-1** UI/UX: design account list/detail, movement list, add/edit-movement screens; add their Catalan strings to the catalog.
+- [x] **P1-2** Data layer: repositories for accounts, categories, movements over SQLDelight.
+- [x] **P1-3** Accounts: CRUD, starting balance, type, single-default enforcement, display order, delete via soft-delete.
+- [x] **P1-4** Categories: CRUD, kind, nature, two-level parent, delete via soft-delete.
+- [x] **P1-5** Movements: add/edit/delete via soft-delete for `expense`, `income`, `transfer` (origin+dest); the one-time/extraordinary flag on expenses; app-layer validation mirroring the CHECK constraints (amount > 0, type⇔field).
+- [x] **P1-6** Wire `v_account_balance` / `v_account_flow` → per-account balance, net worth.
+- [x] **P1-7** Movement list with filtering (type, account, category, date range, text search) and drill-through to detail.
+- [x] **P1-8** First-run / onboarding: create first account + starting balance; seed default Catalan categories.
+- [x] **P1-9** Global "New movement" action; live refresh of related screens on change.
+- [x] **P1-10** Tests: repository unit tests; golden suite still green; basic UI smoke test.
+- [x] **P1-11** Design-system alignment / UI polish for the completed Android core-ledger surfaces: app shell/nav/FAB, onboarding, accounts, categories, movements, dialogs, empty states, typography, spacing, cards, icons, and light/dark token usage. No new finance behavior.
+- [x] **P1-12** Architecture, feature, and code quality audit for the Android core ledger: verify docs/spec/design-system alignment, derived-view usage, test coverage, simplicity, and absence of speculative abstractions.
 
-**Exit:** record expenses/income/transfers on Android with correct, derived balances.
+**Exit:** record expenses/income/transfers on Android with correct, derived balances, and core ledger screens aligned to the design system.
 
 ---
 
 ## Phase 2 — Analysis core (Android) — *Goal #2*
 **Goal:** the dashboard and main spending analysis.
 
-- [ ] **P2-1** UI/UX: design the dashboard + analysis screens; add strings.
-- [ ] **P2-2** Analysis SQL in `shared/queries/`: parameterized actual-by-category, account-flow-over-time, income-vs-expense, period totals (built over the five views).
-- [ ] **P2-3** Dashboard: KPI cards (net worth, month income/expense, net flow + savings %), accounts overview, category breakdown, latest movements, quick actions.
-- [ ] **P2-4** Daily evolution chart (income vs. expense per day) — integrate the charts lib (Vico).
-- [ ] **P2-5** Time scopes: month / year / all-time / custom; period comparison (this vs. last).
-- [ ] **P2-6** Toggles: actual-vs-flow, averages-vs-totals, fixed-vs-variable, include/exclude one-time (extraordinary).
-- [ ] **P2-7** Drill-down everywhere: each aggregate opens its underlying movements.
-- [ ] **P2-8** Extra v1 widgets over current data: top merchants / most frequent expenses, largest expenses, spending heatmap, category trend lines, net-worth-over-time, and savings-rate by period.
-- [ ] **P2-9** Tests: analysis-query correctness against fixed datasets; golden green.
+- [x] **P2-1** UI/UX: design the dashboard + analysis screens; add strings.
+- [x] **P2-2** Analysis SQL in `shared/queries/`: parameterized actual-by-category, account-flow-over-time, income-vs-expense, period totals (built over the five views).
+- [x] **P2-3** Dashboard: KPI cards (net worth, month income/expense, net flow + savings %), accounts overview, category breakdown, latest movements, quick actions.
+- [x] **P2-4** Daily evolution chart (income vs. expense per day) — integrate the charts lib (Vico).
+- [x] **P2-5** Time scopes: month / year / all-time / custom; period comparison (this vs. last).
+- [x] **P2-6** Toggles: actual-vs-flow, averages-vs-totals, fixed-vs-variable, include/exclude one-time (extraordinary).
+- [x] **P2-7** Drill-down everywhere: each aggregate opens its underlying movements.
+- [x] **P2-8** Extra v1 widgets over current data: top merchants / most frequent expenses, largest expenses, spending heatmap, category trend lines, net-worth-over-time, and savings-rate by period.
+- [x] **P2-9** Tests: analysis-query correctness against fixed datasets; golden green.
+- [x] **P2-10** Design-system alignment / UI polish for dashboard and analysis after the core analysis surface is usable: KPI cards, charts, breakdown rows, filter controls, comparison states, empty states, and drill-down affordances. No new analysis behavior.
+- [x] **P2-11** Architecture, feature, and code quality audit for the Android analysis surface: verify canonical-query usage, feature completeness against docs, chart/filter simplicity, performance risk, and test coverage.
 
-**Exit:** the monthly dashboard, core breakdowns, and non-recurring v1 analysis widgets are usable and correct.
+**Exit:** the monthly dashboard, core breakdowns, and non-recurring v1 analysis widgets are usable, correct, and visually aligned with the design system.
 
 ---
 
 ## Phase 3 — Sharing, people & debts — *Goal #4 (the differentiator)*
 **Goal:** shared expenses and interpersonal debt.
 
-- [ ] **P3-1** UI/UX: design people, the split editor, settle-up, and debt views; add strings.
-- [ ] **P3-2** People: CRUD, archive (warn if balance ≠ 0).
-- [ ] **P3-3** Split editor: equal / exact / percentage entry → absolute cents (uses the rounding rule); participant picker; live reconcile to total.
-- [ ] **P3-4** User-fronted shared expense incl. §2.5 "paid by other" (user line = 0, one person at full).
-- [ ] **P3-5** §2.6 external split (no movement): "a person paid, I owe my share" entry flow, carrying its own date/category/trip.
-- [ ] **P3-6** Wire `v_person_balance` → per-person net balance + itemized breakdown (which splits/settlements compose it).
-- [ ] **P3-7** Settlements: create with direction inferred from balance; settle-up helper (pre-fill full outstanding + account); partial settlements.
-- [ ] **P3-8** Show `is_shared` (via `v_movement_shared`) in movement lists/detail; "paid by X" labeling.
-- [ ] **P3-9** Tests: `debt_balance` + `refund_actual` golden green in-app; split-rounding edge cases.
+- [x] **P3-1** UI/UX: design people, the split editor, settle-up, and debt views; add strings.
+- [x] **P3-2** People: CRUD, delete via soft-delete (warn if balance ≠ 0).
+- [x] **P3-3** Split editor: equal / exact / percentage entry → absolute cents (uses the rounding rule); participant picker; live reconcile to total.
+- [x] **P3-4** User-fronted shared expense incl. §2.5 "paid by other" (user line = 0, one person at full).
+- [x] **P3-5** §2.6 external split (no movement): "a person paid, I owe my share" entry flow, carrying its own date/category/trip.
+- [x] **P3-6** Wire `v_person_balance` → per-person net balance + itemized breakdown (which splits/settlements compose it).
+- [x] **P3-7** Settlements: create with direction inferred from balance; settle-up helper (pre-fill full outstanding + account); partial settlements.
+- [x] **P3-8** Show `is_shared` (via `v_movement_shared`) in movement lists/detail; "paid by X" labeling.
+- [x] **P3-9** Tests: `debt_balance` + `refund_actual` golden green in-app; split-rounding edge cases.
+- [x] **P3-10** Design-system alignment / UI polish for people, split editor, debt, settlement, and shared-expense surfaces. No new sharing/debt behavior.
+- [x] **P3-11** Architecture, feature, and code quality audit for sharing/people/debts: verify golden-rule parity, derived debt views, warning-not-blocking behavior, and simple state flows.
 
 **Exit:** shared expenses, debts, and settlements work; debt vectors green in-app.
 
@@ -118,15 +127,17 @@ Design complete: spec (`00`), sync (`02`), architecture (`03`), data model (`04`
 ## Phase 4 — Recurring, refunds & budgets
 **Goal:** recurring movements, refunds, and budget tracking.
 
-- [ ] **P4-1** UI/UX: design the recurring list, the recurring prompt, the refund flow, budgets, and notification settings; add strings.
-- [ ] **P4-2** Templates: CRUD with schedule (frequency, anchor, `custom_unit`/`interval_count`), flexibility fields, `split_config` JSON for shared recurring.
-- [ ] **P4-3** Recurring prompts (virtual): on open, generate due occurrences via the advancement rule; confirm (create movement + advance cursor) / skip (advance) / end / pause.
-- [ ] **P4-4** Recurring list ordered by day with a monthly total (mobile).
-- [ ] **P4-5** Refunds: create linked to an expense; `amount_cents` (cash) + optional `actual_refund_cents` (shared-expense share); inherit category; over-refund warning.
-- [ ] **P4-6** Budgets: CRUD (category-monthly first), evaluation (limit vs. actual), progress bar with green/amber/red.
-- [ ] **P4-7** Local notifications: recurring lead-time reminders, budget-threshold alerts, low-balance alerts (`account.low_balance_threshold`) — offline scheduling.
+- [x] **P4-1** UI/UX: design the recurring list, the recurring prompt, the refund flow, budgets, and notification settings; add strings. *(`docs/13-recurring-refunds-budgets-ui.md`)*
+- [x] **P4-2** Templates: CRUD with schedule (frequency, anchor, `custom_unit`/`interval_count`), flexibility fields, `split_config` JSON for shared recurring. *(Shared-recurring split editing in the template form is deferred to P4-3 where carry-forward prefill is implemented; the data layer persists `split_config` already.)*
+- [x] **P4-3** Recurring prompts (virtual): on open, generate due occurrences via the advancement rule; confirm (create movement + advance cursor) / skip (advance) / end / pause. *(Confirm prefills an editable amount/date dialog; split carry-forward is wired at the confirm/data level. Cross-template confirm-all/skip-all convenience is deferred; per-template skip-all is implemented.)*
+- [x] **P4-4** Recurring list ordered by day with a monthly total (mobile).
+- [x] **P4-5** Refunds: create linked to an expense; `amount_cents` (cash) + optional `actual_refund_cents` (shared-expense share); inherit category; over-refund warning. *(Started from expense detail, which also lists linked refunds. Surfacing orphaned refunds when the original is archived, and the refund→original label on the refund's own detail, are deferred refinements.)*
+- [x] **P4-6** Budgets: CRUD (category-monthly first), evaluation (limit vs. actual), progress bar with green/amber/red. *(Reached from the Analysis header; surfacing the same bar inside category breakdown/detail is a deferred follow-up once a category-detail surface exists.)*
+- [x] **P4-7** Local notifications: recurring lead-time reminders, budget-threshold alerts, low-balance alerts (`account.low_balance_threshold`) — offline scheduling.
 - [ ] **P4-8** Recurring-cost summary analysis ("you spend X/month on subscriptions") built from active templates.
 - [ ] **P4-9** Tests: `recurring_advance` + `refund_actual` golden green; budget-evaluation tests.
+- [ ] **P4-10** Design-system alignment / UI polish for recurring, refund, budget, alert, and notification surfaces. No new recurring/refund/budget behavior.
+- [ ] **P4-11** Architecture, feature, and code quality audit for recurring/refunds/budgets: verify rule parity, local scheduling boundaries, warning UX, and implementation simplicity.
 
 **Exit:** recurring prompts, refunds, budgets, recurring-cost summary, and alerts function offline.
 
@@ -142,13 +153,30 @@ Design complete: spec (`00`), sync (`02`), architecture (`03`), data model (`04`
 - [ ] **P5-5** Trips-as-blocks in normal analysis (toggle, on by default): roll-up into one line + drill-in.
 - [ ] **P5-6** Trip budget (`budgets` scope = trip).
 - [ ] **P5-7** Tests.
+- [ ] **P5-8** Design-system alignment / UI polish for trips, tags, trip detail, trip analysis, and trip-budget surfaces. No new trip/tag behavior.
+- [ ] **P5-9** Architecture, feature, and code quality audit for trips/tags: verify scope rules, analysis correctness, simple navigation/state, and test coverage.
 
 **Exit:** trips are fully functional and analyzable.
 
 ---
 
+## Phase 5R — Android redesign & design-system consolidation
+**Goal:** before switching to Windows, make the Android app feel like the intended product, not accumulated implementation scaffolding.
+
+- [ ] **P5R-1** Full Android UI audit against `docs/07-ui-ux.md`, `docs/08-design-system.md`, shared design tokens, and the implemented screens. Produce a short punch list of mismatches, rough edges, and reusable component gaps.
+- [ ] **P5R-2** App shell redesign pass: navigation hierarchy, global FAB/new-flow behavior, screen titles, top/bottom bars, loading states, empty states, and modal/sheet behavior. No finance behavior changes.
+- [ ] **P5R-3** Core surface redesign pass: dashboard/analysis, ledger, accounts, categories, people/debts, recurring/refunds/budgets, trips/tags, settings, and sync/read-only placeholders as applicable. Bring spacing, typography, cards, rows, chips, semantic colors, and dark mode into design-system alignment.
+- [ ] **P5R-4** Component consolidation: extract only the shared Compose UI pieces that are repeatedly used and clearly stable; remove one-off visual hacks and dead UI helpers. No speculative component library.
+- [ ] **P5R-5** Accessibility and density pass: touch targets, text overflow, contrast, Catalan string fit, small-screen behavior, dark mode, and keyboard/focus basics.
+- [ ] **P5R-6** Visual regression/manual checklist: document concrete manual checks for the redesigned Android app and run Android build/unit/golden tests.
+- [ ] **P5R-7** Architecture, feature, and code quality audit for the redesigned Android UI: verify no behavior drift, no overengineered UI abstractions, and docs/tokens/code consistency before Windows starts.
+
+**Exit:** Android has a coherent, design-system-aligned UI that can act as the visual source for the Windows implementation.
+
+---
+
 ## Phase 6 — Windows app
-**Goal:** desktop parity + the heavy tools, split so the desktop is never one giant porting phase.
+**Goal:** desktop parity + the heavy tools, split so the desktop is never one giant porting phase. Starts after Phase 5R stabilizes the Android visual language.
 
 ### Phase 6A — Windows shell & shared DB
 
@@ -157,6 +185,8 @@ Design complete: spec (`00`), sync (`02`), architecture (`03`), data model (`04`
 - [ ] **P6A-3** Data layer: repositories over the canonical SQL only (no EF Core); map core entities.
 - [ ] **P6A-4** Port minimal core screens: accounts, categories, movement list/detail, add/edit movement.
 - [ ] **P6A-5** Tests: C# golden suite green, schema/query parity check still green.
+- [ ] **P6A-6** Design-system alignment / UI polish for the Windows shell and minimal core screens using shared tokens. No new desktop ledger behavior.
+- [ ] **P6A-7** Architecture, feature, and code quality audit for the Windows shell/shared-DB slice: verify canonical SQL usage, no ORM query logic, simple MVVM wiring, and parity with Android core behavior.
 
 **Exit:** desktop launches, opens the real DB, and can perform basic ledger work.
 
@@ -166,6 +196,8 @@ Design complete: spec (`00`), sync (`02`), architecture (`03`), data model (`04`
 - [ ] **P6B-2** Recurring calendar: month grid, solid (instance exists) vs. greyed (pending), monthly total, month navigation.
 - [ ] **P6B-3** Large-screen analysis: desktop-specific layouts for charts, comparisons, filters, and drill-downs.
 - [ ] **P6B-4** Tests: desktop repository tests, UI smoke tests, golden green.
+- [ ] **P6B-5** Design-system alignment / UI polish for desktop parity screens and large-screen analysis. No new desktop parity behavior.
+- [ ] **P6B-6** Architecture, feature, and code quality audit for desktop parity: verify Android/Windows behavior parity, shared-query usage, desktop-only layout simplicity, and test coverage.
 
 **Exit:** desktop can view/edit everything the Android app can.
 
@@ -177,6 +209,8 @@ Design complete: spec (`00`), sync (`02`), architecture (`03`), data model (`04`
 - [ ] **P6C-4** Bulk save as one atomic batch with `import_batch_id`.
 - [ ] **P6C-5** Import batch review & rollback.
 - [ ] **P6C-6** Tests: import-pipeline unit tests, atomic batch tests, dedup/auto-cat vectors green.
+- [ ] **P6C-7** Design-system alignment / UI polish for CSV wizard, mapping, review, batch history, and rollback surfaces. No new import behavior.
+- [ ] **P6C-8** Architecture, feature, and code quality audit for CSV import: verify atomicity, warning UX, desktop-only boundaries, and importer simplicity.
 
 **Exit:** desktop has parity plus reliable bank CSV import.
 
@@ -193,6 +227,8 @@ Design complete: spec (`00`), sync (`02`), architecture (`03`), data model (`04`
 - [ ] **P7-6** Failure handling: desktop open-session detection & recovery; manual discard of a lost session.
 - [ ] **P7-7** Backup / export / import: whole-DB backup & restore; CSV-per-entity / JSON export; restore-from-export.
 - [ ] **P7-8** Tests: snapshot round-trip, version-reject, atomic-apply crash test, import-during-session atomicity.
+- [ ] **P7-9** Design-system alignment / UI polish for sync, read-only, backup/export/import, conflict/failure, and device-state surfaces. No new sync behavior.
+- [ ] **P7-10** Architecture, feature, and code quality audit for synchronization: verify token single-writer semantics, snapshot atomicity, encryption boundaries, read-only UX, and no merge logic.
 
 **Exit:** hand-off and checkpoints work; no data loss across the documented failure cases.
 
@@ -207,9 +243,9 @@ Design complete: spec (`00`), sync (`02`), architecture (`03`), data model (`04`
 - [ ] **P8-4** Onboarding polish; empty states across screens.
 - [ ] **P8-5** Privacy pass: confirm OS at-rest reliance; snapshot-encryption key UX (app lock stays deferred).
 - [ ] **P8-6** Performance pass at scale (thousands–tens of thousands of movements): verify indexes, profile analysis queries.
-- [ ] **P8-7** Accessibility & visual polish; theming pass on both apps.
+- [ ] **P8-7** UI polish/design-system/accessibility pass on both apps; verify light/dark theming, touch targets, keyboard/focus behavior, and empty states.
 - [ ] **P8-8** Packaging & distribution: Android (signed APK / Play Store), Windows (MSIX installer); signing.
-- [ ] **P8-9** Final `spec-guardian` and `simplicity-guardian` review; golden suite green; docs ↔ code consistency check.
+- [ ] **P8-9** Final architecture, feature, and code quality audit: `spec-guardian` and `simplicity-guardian` clean, golden suite green, docs ↔ code consistency check.
 - [ ] **P8-10** v1 release.
 
 **Exit:** v1.

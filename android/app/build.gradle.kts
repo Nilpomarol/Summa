@@ -2,14 +2,18 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.sqldelight)
 }
 
 val generatedSharedSql = layout.projectDirectory.file(
     "src/main/sqldelight/com/gestorfinances/app/data/db/SharedSchema.sq",
 )
+val generatedAnalysisSql = layout.projectDirectory.file(
+    "src/main/sqldelight/com/gestorfinances/app/data/db/Analysis.sq",
+)
 
-val sharedQueryFiles = listOf(
+val sharedViewFiles = listOf(
     "v_movement_shared.sql",
     "v_account_flow.sql",
     "v_account_balance.sql",
@@ -17,22 +21,35 @@ val sharedQueryFiles = listOf(
     "v_actual_income.sql",
     "v_person_balance.sql",
 )
+val sharedAnalysisQueryFiles = listOf(
+    "analysis_actual_by_category.sql" to "analysisActualByCategory",
+    "analysis_account_flow_over_time.sql" to "analysisAccountFlowOverTime",
+    "analysis_income_vs_expense.sql" to "analysisIncomeVsExpense",
+    "analysis_period_totals.sql" to "analysisPeriodTotals",
+    "analysis_category_trends.sql" to "analysisCategoryTrends",
+    "analysis_largest_expenses.sql" to "analysisLargestExpenses",
+    "analysis_net_worth_over_time.sql" to "analysisNetWorthOverTime",
+    "analysis_top_merchants.sql" to "analysisTopMerchants",
+)
 
 val syncSharedSqlForSqlDelight by tasks.registering {
     val sharedRoot = rootProject.layout.projectDirectory.dir("../shared")
     val sharedBaselineMigration = sharedRoot.file("migrations/001_initial.sql")
-    val sharedQueries = sharedQueryFiles.map { sharedRoot.file("queries/$it") }
+    val sharedViews = sharedViewFiles.map { sharedRoot.file("queries/$it") }
+    val sharedAnalysisQueries = sharedAnalysisQueryFiles.map { sharedRoot.file("queries/${it.first}") }
 
     inputs.file(sharedBaselineMigration)
-    inputs.files(sharedQueries)
+    inputs.files(sharedViews)
+    inputs.files(sharedAnalysisQueries)
     outputs.file(generatedSharedSql)
+    outputs.file(generatedAnalysisSql)
 
     doLast {
-        val outputFile = generatedSharedSql.asFile
-        outputFile.parentFile.mkdirs()
-        outputFile.writeText(
+        val sharedOutputFile = generatedSharedSql.asFile
+        sharedOutputFile.parentFile.mkdirs()
+        sharedOutputFile.writeText(
             buildString {
-                appendLine("-- Generated from ../../shared/migrations/001_initial.sql and ../../shared/queries.")
+                appendLine("-- Generated from ../../shared/migrations/001_initial.sql and shared view queries.")
                 appendLine("-- Do not edit directly; edit the shared SQL files instead.")
                 appendLine("-- Connection PRAGMAs are applied by DatabaseDriverFactory.")
                 appendLine()
@@ -44,11 +61,25 @@ val syncSharedSqlForSqlDelight by tasks.registering {
                 )
                 appendLine()
                 appendLine()
-                sharedQueries.forEach { queryFile ->
+                sharedViews.forEach { queryFile ->
                     appendLine()
                     appendLine("-- ${queryFile.asFile.name}")
                     append(queryFile.asFile.readText())
                     if (!endsWith("\n")) appendLine()
+                }
+            },
+        )
+        generatedAnalysisSql.asFile.writeText(
+            buildString {
+                appendLine("-- Generated from ../../shared/queries/analysis_*.sql.")
+                appendLine("-- Do not edit directly; edit the shared SQL files instead.")
+                appendLine()
+                sharedAnalysisQueryFiles.forEach { (fileName, queryName) ->
+                    val queryFile = sharedRoot.file("queries/$fileName").asFile
+                    appendLine("$queryName:")
+                    append(queryFile.readText())
+                    if (!endsWith("\n")) appendLine()
+                    appendLine()
                 }
             },
         )
@@ -115,12 +146,18 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.ui.text.google.fonts)
     implementation(libs.androidx.compose.ui.tooling.preview)
+    implementation(libs.kotlinx.serialization.json)
     implementation(libs.sqldelight.android.driver)
+    implementation(libs.vico.compose.m3)
 
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.kotlinx.serialization.json)
+    testImplementation(libs.sqldelight.sqlite.driver)
     testImplementation(libs.sqlite.jdbc)
 
     debugImplementation(libs.androidx.compose.ui.tooling)

@@ -461,7 +461,11 @@ FROM people p;
 SELECT category_id, SUM(amount_cents) AS spent_cents
 FROM v_actual_expense
 WHERE date >= :from AND date < :to
-  AND (:include_one_time = 1 OR is_one_time = 0)   -- toggle to exclude extraordinary purchases
+  AND (
+      :one_time_mode = 'include'
+      OR (:one_time_mode = 'exclude' AND is_one_time = 0)
+      OR (:one_time_mode = 'only' AND is_one_time = 1)
+  )
 GROUP BY category_id;
 
 -- Trips-as-blocks (spec §3.12): trip movements collapse into one line, the rest by category
@@ -472,7 +476,11 @@ WHERE date >= :from AND date < :to
 GROUP BY bucket;
 ```
 
-Fixed-vs-variable joins `v_actual_expense` → `categories.nature`; one-time (extraordinary) spend is the `is_one_time` flag carried on `v_actual_expense` — shown as its own bucket or excluded via the toggle above (refunds inherit their expense's flag); account-flow-over-time aggregates `v_account_flow` by `(account_id, date)`; period comparison runs the same query over two ranges. All analysis in spec §4.8 reduces to filters/aggregations over these five views.
+Fixed-vs-variable joins `v_actual_expense` → `categories.nature`; one-time (extraordinary) spend is the `is_one_time` flag carried on `v_actual_expense` — shown as its own bucket or excluded via the toggle above (refunds inherit their expense's flag); account-flow-over-time aggregates `v_account_flow` by `(account_id, date)`; period comparison runs the same query over two ranges. The first reusable P2 query files live in `shared/queries/analysis_*.sql` and cover actual-by-category, account-flow-over-time, income-vs-expense, and period totals. All analysis in spec §4.8 reduces to filters/aggregations over these five views.
+
+---
+
+Implementation note for the shared P2 queries: actual analysis uses `:one_time_mode` (`include`, `exclude`, `only`) and nullable `:category_nature` (`fixed`, `variable`) parameters. `only` applies to extraordinary expense rows and suppresses income rows for that view. Flow analysis remains based on `v_account_flow`; the flow-over-time query returns account bucket rows plus a shared bucket total for charting.
 
 ---
 

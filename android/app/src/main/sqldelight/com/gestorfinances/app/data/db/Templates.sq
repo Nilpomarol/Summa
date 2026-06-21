@@ -1,0 +1,181 @@
+activeTemplates:
+SELECT
+    templates.id,
+    templates.type,
+    templates.amount_cents,
+    templates.account_id,
+    accounts.name AS account_name,
+    templates.dest_account_id,
+    destination_accounts.name AS destination_account_name,
+    templates.category_id,
+    categories.name AS category_name,
+    templates.name,
+    templates.payee,
+    templates.notes,
+    templates.split_config,
+    templates.frequency,
+    templates.interval_count,
+    templates.custom_unit,
+    templates.day_of_month,
+    templates.weekday,
+    templates.next_due_date,
+    templates.amount_is_variable,
+    templates.amount_flex_cents,
+    templates.date_flex_days,
+    templates.lead_notification_days,
+    templates.status,
+    templates.created_at,
+    templates.updated_at,
+    templates.archived_at
+FROM templates
+JOIN accounts
+    ON accounts.id = templates.account_id
+LEFT JOIN accounts AS destination_accounts
+    ON destination_accounts.id = templates.dest_account_id
+LEFT JOIN categories
+    ON categories.id = templates.category_id
+WHERE templates.archived_at IS NULL
+ORDER BY
+    CASE templates.status WHEN 'active' THEN 0 WHEN 'paused' THEN 1 ELSE 2 END ASC,
+    templates.next_due_date ASC,
+    lower(templates.name) ASC;
+
+templateById:
+SELECT
+    templates.id,
+    templates.type,
+    templates.amount_cents,
+    templates.account_id,
+    accounts.name AS account_name,
+    templates.dest_account_id,
+    destination_accounts.name AS destination_account_name,
+    templates.category_id,
+    categories.name AS category_name,
+    templates.name,
+    templates.payee,
+    templates.notes,
+    templates.split_config,
+    templates.frequency,
+    templates.interval_count,
+    templates.custom_unit,
+    templates.day_of_month,
+    templates.weekday,
+    templates.next_due_date,
+    templates.amount_is_variable,
+    templates.amount_flex_cents,
+    templates.date_flex_days,
+    templates.lead_notification_days,
+    templates.status,
+    templates.created_at,
+    templates.updated_at,
+    templates.archived_at
+FROM templates
+JOIN accounts
+    ON accounts.id = templates.account_id
+LEFT JOIN accounts AS destination_accounts
+    ON destination_accounts.id = templates.dest_account_id
+LEFT JOIN categories
+    ON categories.id = templates.category_id
+WHERE templates.id = :id
+  AND templates.archived_at IS NULL;
+
+insertTemplate:
+INSERT INTO templates(
+    id,
+    type,
+    amount_cents,
+    account_id,
+    dest_account_id,
+    category_id,
+    name,
+    payee,
+    notes,
+    split_config,
+    frequency,
+    interval_count,
+    custom_unit,
+    day_of_month,
+    weekday,
+    next_due_date,
+    amount_is_variable,
+    amount_flex_cents,
+    date_flex_days,
+    lead_notification_days,
+    status,
+    created_at,
+    updated_at
+) VALUES (
+    :id,
+    :type,
+    :amount_cents,
+    :account_id,
+    :dest_account_id,
+    :category_id,
+    :name,
+    :payee,
+    :notes,
+    :split_config,
+    :frequency,
+    :interval_count,
+    :custom_unit,
+    :day_of_month,
+    :weekday,
+    :next_due_date,
+    :amount_is_variable,
+    :amount_flex_cents,
+    :date_flex_days,
+    :lead_notification_days,
+    :status,
+    :created_at,
+    :updated_at
+);
+
+updateTemplate:
+UPDATE templates
+SET
+    type = :type,
+    amount_cents = :amount_cents,
+    account_id = :account_id,
+    dest_account_id = :dest_account_id,
+    category_id = :category_id,
+    name = :name,
+    payee = :payee,
+    notes = :notes,
+    split_config = :split_config,
+    frequency = :frequency,
+    interval_count = :interval_count,
+    custom_unit = :custom_unit,
+    day_of_month = :day_of_month,
+    weekday = :weekday,
+    next_due_date = :next_due_date,
+    amount_is_variable = :amount_is_variable,
+    amount_flex_cents = :amount_flex_cents,
+    date_flex_days = :date_flex_days,
+    lead_notification_days = :lead_notification_days,
+    updated_at = :updated_at
+WHERE id = :id
+  AND archived_at IS NULL;
+
+advanceTemplateCursor:
+UPDATE templates
+SET
+    next_due_date = :next_due_date,
+    updated_at = :updated_at
+WHERE id = :id
+  AND archived_at IS NULL;
+
+setTemplateStatus:
+UPDATE templates
+SET
+    status = :status,
+    updated_at = :updated_at
+WHERE id = :id
+  AND archived_at IS NULL;
+
+archiveTemplate:
+UPDATE templates
+SET
+    archived_at = :archived_at,
+    updated_at = :updated_at
+WHERE id = :id
+  AND archived_at IS NULL;

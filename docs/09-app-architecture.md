@@ -54,8 +54,8 @@ The exact filenames may evolve, but the ownership rule does not: if SQL expresse
 
 ### 3.1 Build-Time Use
 
-- **Android:** Gradle combines `shared/migrations/001_initial.sql` and `shared/queries` into the SQLDelight source set. `shared/schema` remains the DDL reference, but database creation uses the same baseline migration that seeds `meta`. Generated files are build output and must not be edited.
-- **Windows:** the .NET project includes the same `shared/migrations` and `shared/queries` files as content or embedded resources. `shared/schema` remains the DDL reference. A small query loader reads the migration and query files and executes them through Microsoft.Data.Sqlite; Dapper maps result rows to simple DTOs.
+- **Android:** Gradle combines `shared/migrations/001_initial.sql` and the shared view definitions from `shared/queries` into the SQLDelight source set. Parameterized `analysis_*.sql` files remain shared SQL text for feature repositories/tests to execute with bound parameters. `shared/schema` remains the DDL reference, but database creation uses the same baseline migration that seeds `meta`. Generated files are build output and must not be edited.
+- **Windows:** the .NET project includes the same `shared/migrations` and `shared/queries` files as content or embedded resources. `shared/schema` remains the DDL reference. A small query loader reads the migration and view files for setup, and exposes parameterized analysis SQL for repositories to execute through Microsoft.Data.Sqlite; Dapper maps result rows to simple DTOs.
 - **Tests:** both test projects load `shared/golden/*.json` from the repository, not from duplicated app-local fixtures.
 
 ### 3.2 Parity Rules

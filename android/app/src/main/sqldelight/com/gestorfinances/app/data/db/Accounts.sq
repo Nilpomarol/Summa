@@ -1,0 +1,100 @@
+activeAccountSummaries:
+SELECT
+    accounts.id,
+    accounts.name,
+    accounts.starting_balance_cents,
+    accounts.type,
+    accounts.icon,
+    accounts.color,
+    accounts.is_default,
+    accounts.display_order,
+    accounts.low_balance_threshold_cents,
+    accounts.created_at,
+    accounts.updated_at,
+    accounts.archived_at,
+    v_account_balance.current_balance_cents
+FROM accounts
+JOIN v_account_balance
+    ON v_account_balance.account_id = accounts.id
+WHERE accounts.archived_at IS NULL
+ORDER BY accounts.display_order ASC, lower(accounts.name) ASC;
+
+accountById:
+SELECT
+    accounts.id,
+    accounts.name,
+    accounts.starting_balance_cents,
+    accounts.type,
+    accounts.icon,
+    accounts.color,
+    accounts.is_default,
+    accounts.display_order,
+    accounts.low_balance_threshold_cents,
+    accounts.created_at,
+    accounts.updated_at,
+    accounts.archived_at,
+    v_account_balance.current_balance_cents
+FROM accounts
+JOIN v_account_balance
+    ON v_account_balance.account_id = accounts.id
+WHERE accounts.id = :id
+  AND accounts.archived_at IS NULL;
+
+insertAccount:
+INSERT INTO accounts(
+    id,
+    name,
+    starting_balance_cents,
+    type,
+    icon,
+    color,
+    is_default,
+    display_order,
+    low_balance_threshold_cents,
+    created_at,
+    updated_at
+) VALUES (
+    :id,
+    :name,
+    :starting_balance_cents,
+    :type,
+    :icon,
+    :color,
+    :is_default,
+    :display_order,
+    :low_balance_threshold_cents,
+    :created_at,
+    :updated_at
+);
+
+updateAccount:
+UPDATE accounts
+SET
+    name = :name,
+    starting_balance_cents = :starting_balance_cents,
+    type = :type,
+    icon = :icon,
+    color = :color,
+    is_default = :is_default,
+    display_order = :display_order,
+    low_balance_threshold_cents = :low_balance_threshold_cents,
+    updated_at = :updated_at
+WHERE id = :id
+  AND archived_at IS NULL;
+
+clearDefaultAccounts:
+UPDATE accounts
+SET
+    is_default = 0,
+    updated_at = :updated_at
+WHERE is_default = 1
+  AND archived_at IS NULL;
+
+archiveAccount:
+UPDATE accounts
+SET
+    archived_at = :archived_at,
+    updated_at = :updated_at,
+    is_default = 0
+WHERE id = :id
+  AND archived_at IS NULL;

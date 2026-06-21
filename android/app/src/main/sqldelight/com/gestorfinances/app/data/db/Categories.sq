@@ -1,0 +1,80 @@
+activeCategories:
+SELECT
+    id,
+    name,
+    kind,
+    nature,
+    parent_id,
+    icon,
+    color,
+    display_order,
+    created_at,
+    updated_at,
+    archived_at
+FROM categories
+WHERE archived_at IS NULL
+ORDER BY display_order ASC, lower(name) ASC;
+
+categoryById:
+SELECT
+    id,
+    name,
+    kind,
+    nature,
+    parent_id,
+    icon,
+    color,
+    display_order,
+    created_at,
+    updated_at,
+    archived_at
+FROM categories
+WHERE id = :id
+  AND archived_at IS NULL;
+
+insertCategory:
+INSERT INTO categories(
+    id,
+    name,
+    kind,
+    nature,
+    parent_id,
+    icon,
+    color,
+    display_order,
+    created_at,
+    updated_at
+) VALUES (
+    :id,
+    :name,
+    :kind,
+    :nature,
+    :parent_id,
+    :icon,
+    :color,
+    :display_order,
+    :created_at,
+    :updated_at
+);
+
+updateCategory:
+UPDATE categories
+SET
+    name = :name,
+    kind = :kind,
+    nature = :nature,
+    parent_id = :parent_id,
+    icon = :icon,
+    color = :color,
+    display_order = :display_order,
+    updated_at = :updated_at
+WHERE id = :id
+  AND archived_at IS NULL;
+
+archiveCategory:
+UPDATE categories
+SET
+    archived_at = :archived_at,
+    updated_at = :updated_at
+WHERE id = :id
+  AND archived_at IS NULL;
