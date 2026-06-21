@@ -73,6 +73,52 @@ class BudgetRepositoryTest {
     }
 
     @Test
+    fun partialActualRefundNetsOnlyUserShareFromBudgetActual() {
+        freshStore().use { store ->
+            seedAccountAndCategory(store)
+            store.budgets.create(
+                BudgetDraft("b1", "food", 10_000, null, null),
+                createdAt = NOW,
+            )
+            store.movements.create(expense("e1", 9_000), createdAt = NOW)
+            store.movements.createRefund(
+                RefundDraft(
+                    id = "r1",
+                    refundsExpenseId = "e1",
+                    amountCents = 5_000,
+                    accountId = "checking",
+                    categoryId = "food",
+                    date = "2026-03-10",
+                    name = null,
+                    payee = null,
+                    notes = null,
+                    actualRefundCents = 2_000,
+                ),
+                createdAt = NOW,
+            )
+
+            assertEquals(7_000L, store.budgets.evaluateAll(FROM, TO).single().actualCents)
+        }
+    }
+
+    @Test
+    fun defaultThresholdWarnsAtEightyPercent() {
+        freshStore().use { store ->
+            seedAccountAndCategory(store)
+            store.budgets.create(
+                BudgetDraft("b1", "food", 10_000, null, null),
+                createdAt = NOW,
+            )
+
+            store.movements.create(expense("e1", 7_999), createdAt = NOW)
+            assertEquals(BudgetStatus.OK, store.budgets.evaluateAll(FROM, TO).single().status)
+
+            store.movements.create(expense("e2", 1), createdAt = NOW)
+            assertEquals(BudgetStatus.WARN, store.budgets.evaluateAll(FROM, TO).single().status)
+        }
+    }
+
+    @Test
     fun rejectsInvalidBudgets() {
         freshStore().use { store ->
             seedAccountAndCategory(store)
