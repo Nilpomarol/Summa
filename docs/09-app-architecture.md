@@ -132,18 +132,19 @@ They should:
 - expose derived values only by querying canonical views;
 - avoid generic CRUD repositories and ORM-style query builders.
 
-Multi-entity operations belong in use cases, not inside broad repositories. Example: `CreateSharedExpenseUseCase` validates the movement draft, computes split lines with the golden-tested split rule, writes movement plus split rows in one transaction, and returns warnings/effects.
+Repositories may orchestrate multi-entity writes in a single SQLite transaction. For example, `MovementRepository.create()` writes the movement row and split rows together atomically, calling pure `domain/rules/` objects such as `SplitCalculator` for the line amounts. A separate use-case layer has not been built; add one only if a real cross-repository write flow proves it necessary.
 
-### 4.3 Command Results
+### 4.3 Warning and Validation Flow
 
-Write use cases return a result shape that can represent:
+Hard invariants (`amount_cents ≤ 0`, transfer without destination, refund without a linked expense) are caught at the repository or domain-rules layer and prevent writes.
 
-- success;
-- validation errors that would violate schema invariants;
-- warnings that the user can override;
-- read-only rejection because this device lacks the sync token.
+Soft warnings (duplicate matches, over-settlements, live dependencies on archive) follow the "never block — warn" rule:
 
-This keeps the "never block - warn" rule explicit while still preventing invalid rows such as `amount_cents <= 0` or a transfer without a destination account.
+- The ViewModel computes the warning before committing and surfaces it as a dismissible `UiState` field.
+- The user may confirm and resubmit with an override flag.
+- The repository accepts the override flag and writes unconditionally.
+
+Read-only rejection (this device lacks the sync token) is deferred to Phase 5R-8, where a `DeviceAccessState` seam will be added to the shell and write paths.
 
 ---
 
@@ -173,7 +174,6 @@ android/app/src/main/java/.../gestorfinances/
       RecurrenceAdvancer.kt
       AutoCategorizer.kt
       DuplicateDetector.kt
-    usecase/
   sync/
   ui/
     navigation/
@@ -230,6 +230,8 @@ Do not introduce Hilt or another DI framework in Phase 0/1. Revisit only if cons
 - Compose screens use native Android string resources generated from the shared Catalan key set once that catalog is extracted.
 - Form drafts may use local Compose state for purely visual fields, but saveable business drafts should live in the ViewModel so warnings, overrides, and validation are testable.
 - Read-only sync state is part of global app state and is rendered as a prominent banner plus disabled edit actions.
+- The app shell (`LedgerShell`) is a plain `Surface` with a bottom bar; it does **not** provide a `Scaffold` or a top app bar. Each screen owns its own top bar so it can set the correct title and actions without fighting inset consumption from an outer Scaffold.
+- Shell navigation is a single `AppNavState` value (`section`, `managementDestination?`, `overlay?`). Back is handled by the pure `AppNavState.back()` reducer, not by individual screens.
 
 ---
 
@@ -401,5 +403,6 @@ This keeps implementation aligned with the roadmap rule: DB to view to UI, one t
 - No EF Core in the finance layer.
 - No app-side balance/debt caches as sources of truth.
 - No generic repository or mediator framework.
+- No use-case layer added prematurely — warnings live in ViewModels, multi-entity write orchestration lives in repositories.
 - No multi-user/auth/profile architecture.
 - No currency abstraction for v1.

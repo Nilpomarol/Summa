@@ -81,6 +81,8 @@ Phase 5R should proceed in dependency order, not purely visual navigation order.
 1. **Global audit and shell**
    Validate navigation, top-level information architecture, global add flow, modal/sheet strategy, loading and empty states, and shared component gaps.
 
+   Current Phase 5R shell decision: Android uses **Inici · Moviments · + · Anàlisi · Gestió** as the bottom bar. The centered FAB is always visible after onboarding and starts New movement, or routes to account creation when no account exists. Gestió is a 2-column × 3-row hub for Comptes, Categories, Persones, Esdeveniments, Recurrents, and Configuració. Back from Moviments, Anàlisi, or the Gestió hub returns to Inici; Back from a Gestió child returns to the Gestió hub. Pages inside Gestió keep Gestió highlighted.
+
 2. **Accounts and categories**
    These are foundational reference data. Many later screens depend on account and category identity, color, ordering, and validity.
 
@@ -130,7 +132,24 @@ Each Phase 5R slice is done only when:
 
 ---
 
-## 6. Phase 5R Output
+## 6. P5R-1 Manual Checklist
+
+Run these after building the app to confirm the shell is correct.
+
+| # | Step | Expected |
+|---|------|----------|
+| 1 | Cold-start on first launch (no DB) | App shows loading spinner centred on screen; after DB init, bottom bar appears immediately — no blank band at the top |
+| 2 | Tap Moviments, Anàlisi, Gestió in the bottom bar | Active item highlights; FAB stays centred in the bar across all tabs; top-edge separator on the bottom bar is a thin line, no full border |
+| 3 | Tap Gestió | Hub shows 6 tiles in a 2-column grid; each tile is ~88 dp tall with a coloured icon chip on the left and a title on the right; ripple starts from the tile surface |
+| 4 | Tap any Gestió tile | Navigate to the child screen; Back returns to the Gestió hub; Gestió tab stays highlighted |
+| 5 | Back from any top-level section | Returns to Inici |
+| 6 | Press system Back while on Inici | No navigation action |
+| 7 | Cold-start with a simulated DB failure | Error icon + message centred on screen; no blank band at top |
+| 8 | App is in light mode | Background is white/surface, not dark |
+
+---
+
+## 7. Phase 5R Output
 
 By the end of Phase 5R, Android should have:
 
