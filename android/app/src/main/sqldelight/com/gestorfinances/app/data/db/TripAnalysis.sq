@@ -1,0 +1,69 @@
+tripAnalysisSummary:
+WITH actual AS (
+    SELECT COALESCE(SUM(amount_cents), 0) AS actual_cents
+    FROM v_actual_expense
+    WHERE trip_id = :trip_id
+),
+outflow AS (
+    SELECT COALESCE(SUM(CASE WHEN f.delta_cents < 0 THEN -f.delta_cents ELSE 0 END), 0) AS flow_cents
+    FROM v_account_flow f
+    JOIN movements m
+        ON m.id = f.movement_id
+    WHERE m.trip_id = :trip_id
+      AND m.archived_at IS NULL
+)
+SELECT
+    actual.actual_cents,
+    outflow.flow_cents
+FROM actual, outflow;
+
+tripActualByDay:
+SELECT
+    date,
+    SUM(amount_cents) AS actual_cents
+FROM v_actual_expense
+WHERE trip_id = :trip_id
+GROUP BY date
+HAVING SUM(amount_cents) <> 0
+ORDER BY date ASC;
+
+tripActualByCategory:
+SELECT
+    CAST(CASE WHEN c.id IS NULL THEN NULL ELSE e.category_id END AS TEXT) AS category_id,
+    c.name AS category_name,
+    c.icon AS category_icon,
+    c.color AS category_color,
+    SUM(e.amount_cents) AS actual_cents
+FROM v_actual_expense e
+LEFT JOIN categories c
+    ON c.id = e.category_id
+   AND c.archived_at IS NULL
+WHERE e.trip_id = :trip_id
+GROUP BY
+    category_id,
+    category_name,
+    category_icon,
+    category_color
+HAVING SUM(e.amount_cents) <> 0
+ORDER BY ABS(SUM(e.amount_cents)) DESC, lower(COALESCE(category_name, '')) ASC;
+
+tripActualByTag:
+SELECT
+    CAST(CASE WHEN t.id IS NULL THEN NULL ELSE m.tag_id END AS TEXT) AS tag_id,
+    t.name AS tag_name,
+    t.color AS tag_color,
+    SUM(e.amount_cents) AS actual_cents
+FROM v_actual_expense e
+LEFT JOIN movements m
+    ON m.id = e.source_id
+   AND m.archived_at IS NULL
+LEFT JOIN tags t
+    ON t.id = m.tag_id
+   AND t.archived_at IS NULL
+WHERE e.trip_id = :trip_id
+GROUP BY
+    tag_id,
+    tag_name,
+    tag_color
+HAVING SUM(e.amount_cents) <> 0
+ORDER BY ABS(SUM(e.amount_cents)) DESC, lower(COALESCE(tag_name, '')) ASC;

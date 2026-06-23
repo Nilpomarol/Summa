@@ -19,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Autorenew
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
@@ -50,11 +51,13 @@ import com.gestorfinances.app.data.repository.TemplateStatus
 import com.gestorfinances.app.data.repository.TemplateSummary
 import com.gestorfinances.app.domain.rules.CustomRecurrenceUnit
 import com.gestorfinances.app.domain.rules.RecurrenceFrequency
+import com.gestorfinances.app.ui.common.BannerKind
 import com.gestorfinances.app.ui.common.ChipFlowSection
 import com.gestorfinances.app.ui.common.DestructiveTextButton
 import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.FinanceFilterChip
 import com.gestorfinances.app.ui.common.IconChip
+import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.NeutralPill
 import com.gestorfinances.app.ui.common.PrimaryButton
@@ -184,11 +187,7 @@ private fun RecurringContent(
 
         state.errorMessage?.let { message ->
             item {
-                Text(
-                    text = message,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+                InlineBanner(kind = BannerKind.Error, text = message)
             }
         }
 
@@ -443,6 +442,10 @@ private fun DuePromptCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            NeutralPill(
+                text = stringResource(R.string.recurring_due_badge),
+                leadingIcon = Icons.Outlined.Warning,
+            )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
@@ -505,18 +508,10 @@ private fun ConfirmPromptDialog(
                     )
                 }
                 prompt.errorRes?.let {
-                    Text(
-                        text = stringResource(it),
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
+                    InlineBanner(kind = BannerKind.Error, text = stringResource(it))
                 }
                 prompt.errorMessage?.let {
-                    Text(
-                        text = it,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
+                    InlineBanner(kind = BannerKind.Error, text = it)
                 }
                 OutlinedTextField(
                     value = prompt.amount,
@@ -600,18 +595,10 @@ private fun TemplateFormDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 form.errorRes?.let {
-                    Text(
-                        text = stringResource(it),
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
+                    InlineBanner(kind = BannerKind.Error, text = stringResource(it))
                 }
                 form.errorMessage?.let {
-                    Text(
-                        text = it,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
+                    InlineBanner(kind = BannerKind.Error, text = it)
                 }
                 SegmentedControl(
                     options = templateTypes,
@@ -631,6 +618,16 @@ private fun TemplateFormDialog(
                         value = form.amount,
                         onValueChange = { onFormChange(form.copy(amount = it)) },
                         label = { Text(text = stringResource(R.string.template_field_amount)) },
+                        prefix = { Text(text = "€") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        shape = MaterialTheme.shapes.small,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = form.amountFlex,
+                        onValueChange = { onFormChange(form.copy(amountFlex = it)) },
+                        label = { Text(text = stringResource(R.string.template_field_amount_flex)) },
                         prefix = { Text(text = "€") },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -688,7 +685,24 @@ private fun TemplateFormDialog(
                     shape = MaterialTheme.shapes.small,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                OutlinedTextField(
+                    value = form.payee,
+                    onValueChange = { onFormChange(form.copy(payee = it)) },
+                    label = { Text(text = stringResource(R.string.template_field_payee)) },
+                    singleLine = true,
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.fillMaxWidth(),
+                )
                 ScheduleFields(form = form, onFormChange = onFormChange)
+                OutlinedTextField(
+                    value = form.dateFlex,
+                    onValueChange = { onFormChange(form.copy(dateFlex = it)) },
+                    label = { Text(text = stringResource(R.string.template_field_date_flex)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.fillMaxWidth(),
+                )
                 OutlinedTextField(
                     value = form.nextDueDate,
                     onValueChange = { onFormChange(form.copy(nextDueDate = it)) },
@@ -707,6 +721,15 @@ private fun TemplateFormDialog(
                     shape = MaterialTheme.shapes.small,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                ChipFlowSection(label = stringResource(R.string.template_field_status)) {
+                    TemplateStatus.entries.forEach { status ->
+                        FinanceFilterChip(
+                            selected = form.status == status,
+                            label = status.label(),
+                            onClick = { onFormChange(form.copy(status = status)) },
+                        )
+                    }
+                }
                 OutlinedTextField(
                     value = form.notes,
                     onValueChange = { onFormChange(form.copy(notes = it)) },
@@ -820,6 +843,14 @@ private fun CustomRecurrenceUnit.label(): String =
         CustomRecurrenceUnit.WEEKS -> stringResource(R.string.template_unit_weeks)
         CustomRecurrenceUnit.MONTHS -> stringResource(R.string.template_unit_months)
         CustomRecurrenceUnit.YEARS -> stringResource(R.string.template_unit_years)
+    }
+
+@Composable
+private fun TemplateStatus.label(): String =
+    when (this) {
+        TemplateStatus.ACTIVE -> stringResource(R.string.template_status_active)
+        TemplateStatus.PAUSED -> stringResource(R.string.template_status_paused)
+        TemplateStatus.ENDED -> stringResource(R.string.template_status_ended)
     }
 
 @Composable

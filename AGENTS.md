@@ -21,6 +21,8 @@ A personal finance app: offline-first, local-first. **Android (Kotlin/Compose)**
 - `docs/11-dashboard-analysis-ui.md` — Android Phase 2 dashboard/analysis screen refinement.
 - `docs/12-sharing-debts-ui.md` — Android Phase 3 people/splits/debts screen refinement.
 - `docs/13-recurring-refunds-budgets-ui.md` — Android Phase 4 recurring/refunds/budgets/notifications screen refinement.
+- `docs/14-trips-tags-ui.md` — Android Phase 5 trips, tags, and trip-analysis screens.
+- `docs/15-android-redesign-validation.md` — Phase 5R Android redesign + logic-validation rules, order, and definition of done.
 - `shared/design/tokens/design-tokens.json` — machine-readable visual tokens consumed by both native apps.
 - `shared/design/tokens/platform-mapping.md` — Compose and WinUI mapping for shared visual tokens.
 
@@ -49,6 +51,7 @@ Never violate these unless an explicit decision is recorded in `docs/`:
 - **Manual checks stay current:** when a slice adds behavior the user can exercise, include concrete manual test steps and expected results in the final handoff.
 - **Stack discipline:** use the decided stack; don't add dependencies casually; justify any new one.
 - **Design-system discipline:** platform UI values come from `shared/design/tokens/design-tokens.json`; update `docs/08-design-system.md` and the shared token file together when a visual token changes. New UI should conform to the design system as it is implemented whenever practical; if a screen remains intentionally rough, track the follow-up in `docs/06-roadmap.md`. Phase 5R is the dedicated Android redesign/consolidation pass before Windows starts.
+- **Phase 5R redesign discipline:** during Phase 5R, read `docs/15-android-redesign-validation.md` before editing. Logic and UI validation happen iteratively per page/entity. Any logic issue discovered during redesign must be fixed at the deepest correct layer across docs, shared schema/SQL, repositories, ViewModels, UI, strings, tests, and Windows/shared harnesses where affected. Existing local data is disposable test data, so do not keep incorrect fields or compatibility placeholders just to preserve it.
 - **Simplicity is a requirement, not a nicety.** Write the simplest *correct* code that satisfies the spec and these invariants: no speculative abstraction, premature generalization, gold-plating, or unjustified dependencies; clarity over cleverness; match existing patterns. The golden vectors, derived SQL views, `CHECK` constraints, and the `shared/` contract are deliberate safety nets — keep them; simplicity is sought *within* them. `simplicity-guardian` reviews for this. **Definition of done:** a change is done only when it is *correct* (golden green + `spec-guardian` clean) **and** *simple* (`simplicity-guardian` clean).
 - **Small, scoped commits** referencing the relevant doc section. Branch off `main`; don't commit/push unless asked.
 

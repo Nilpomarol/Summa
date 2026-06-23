@@ -76,6 +76,43 @@ class AnalysisQueriesRepositoryTest {
         }
     }
 
+    @Test
+    fun actualBreakdownGroupsTripRowsAsPresentationBlocksWhenEnabled() {
+        freshStore().use { store ->
+            seedTwoMonths(store)
+            store.trips.create(tripDraft("mallorca"), createdAt = NOW)
+            store.movements.create(
+                movementDraft(
+                    id = "trip-dinner",
+                    type = MovementType.EXPENSE,
+                    amountCents = 12_000,
+                    date = "2026-06-22",
+                    categoryId = "groceries",
+                    tripId = "mallorca",
+                ),
+                createdAt = NOW,
+            )
+
+            val grouped = store.analysis.actualBreakdown(
+                fromDate = "2026-06-01",
+                toDate = "2026-07-01",
+                groupTrips = true,
+            )
+            val groupedTrip = grouped.single { it.rowKind == AnalysisBreakdownKind.TRIP }
+            assertEquals("mallorca", groupedTrip.tripId)
+            assertEquals(12_000L, groupedTrip.expenseCents)
+            assertEquals(50_000L, grouped.single { it.categoryId == "groceries" }.expenseCents)
+
+            val ungrouped = store.analysis.actualBreakdown(
+                fromDate = "2026-06-01",
+                toDate = "2026-07-01",
+                groupTrips = false,
+            )
+            assertEquals(emptyList<AnalysisCategoryTotal>(), ungrouped.filter { it.rowKind == AnalysisBreakdownKind.TRIP })
+            assertEquals(62_000L, ungrouped.single { it.categoryId == "groceries" }.expenseCents)
+        }
+    }
+
     private fun seedTwoMonths(store: TestStore) {
         store.accounts.create(accountDraft(id = "checking"), createdAt = NOW)
         store.accounts.create(accountDraft(id = "savings", displayOrder = 1), createdAt = NOW)
@@ -128,6 +165,7 @@ class AnalysisQueriesRepositoryTest {
             categories = CategoryRepository(database.categoriesQueries),
             movements = MovementRepository(database.movementsQueries),
             analysis = AnalysisRepository(database.analysisQueries),
+            trips = TripRepository(database.tripsQueries),
         )
     }
 
@@ -137,6 +175,7 @@ class AnalysisQueriesRepositoryTest {
         val categories: CategoryRepository,
         val movements: MovementRepository,
         val analysis: AnalysisRepository,
+        val trips: TripRepository,
     ) : AutoCloseable {
         override fun close() {
             driver.close()
@@ -180,6 +219,7 @@ class AnalysisQueriesRepositoryTest {
         date: String,
         destinationAccountId: String? = null,
         categoryId: String? = null,
+        tripId: String? = null,
     ): MovementDraft =
         MovementDraft(
             id = id,
@@ -189,10 +229,25 @@ class AnalysisQueriesRepositoryTest {
             accountId = "checking",
             destinationAccountId = destinationAccountId,
             categoryId = categoryId,
+            tripId = tripId,
             name = id,
             payee = null,
             notes = null,
             isOneTime = false,
+        )
+
+    private fun tripDraft(id: String): TripDraft =
+        TripDraft(
+            id = id,
+            name = id,
+            type = TripType.TRIP,
+            status = TripStatus.ACTIVE,
+            startDate = "2026-06-01",
+            endDate = "2026-06-30",
+            icon = null,
+            color = null,
+            notes = null,
+            defaultAccountId = null,
         )
 
     private companion object {

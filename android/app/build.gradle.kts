@@ -22,6 +22,7 @@ val sharedViewFiles = listOf(
     "v_person_balance.sql",
 )
 val sharedAnalysisQueryFiles = listOf(
+    "analysis_actual_breakdown.sql" to "analysisActualBreakdown",
     "analysis_actual_by_category.sql" to "analysisActualByCategory",
     "analysis_account_flow_over_time.sql" to "analysisAccountFlowOverTime",
     "analysis_income_vs_expense.sql" to "analysisIncomeVsExpense",

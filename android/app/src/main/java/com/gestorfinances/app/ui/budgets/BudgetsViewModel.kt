@@ -6,11 +6,15 @@ import androidx.lifecycle.viewModelScope
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.BudgetDraft
 import com.gestorfinances.app.data.repository.BudgetEvaluation
+import com.gestorfinances.app.data.repository.BudgetPeriod
 import com.gestorfinances.app.data.repository.BudgetRepository
+import com.gestorfinances.app.data.repository.BudgetScope
 import com.gestorfinances.app.data.repository.BudgetSummary
 import com.gestorfinances.app.data.repository.CategoryKind
 import com.gestorfinances.app.data.repository.CategoryRecord
 import com.gestorfinances.app.data.repository.CategoryRepository
+import com.gestorfinances.app.data.repository.TripRepository
+import com.gestorfinances.app.data.repository.TripSummary
 import com.gestorfinances.app.notifications.NotificationRefresher
 import com.gestorfinances.app.ui.common.formatEuroInput
 import com.gestorfinances.app.ui.common.parseEuroCents
@@ -30,6 +34,7 @@ import kotlinx.coroutines.withContext
 class BudgetsViewModel(
     private val budgetRepository: BudgetRepository,
     private val categoryRepository: CategoryRepository,
+    private val tripRepository: TripRepository,
     private val notificationRefresher: NotificationRefresher = NotificationRefresher.NoOp,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val today: () -> LocalDate = { LocalDate.now() },
@@ -37,12 +42,14 @@ class BudgetsViewModel(
     private val _state = MutableStateFlow(BudgetsUiState())
     val state: StateFlow<BudgetsUiState> = _state.asStateFlow()
 
-    fun onScreenShown() {
-        refresh()
+    fun onScreenShown(contextTripId: String? = null) {
+        _state.value = _state.value.copy(contextTripId = contextTripId)
+        refresh(openContextForm = contextTripId != null)
     }
 
     fun onAddClicked() {
-        _state.value = _state.value.copy(form = BudgetFormState())
+        val state = _state.value
+        _state.value = state.copy(form = newBudgetForm(state.contextTripId, state.trips))
     }
 
     fun onEditClicked(budget: BudgetSummary) {
@@ -77,7 +84,9 @@ class BudgetsViewModel(
         val startValid = form.startDate.isBlank() || parseDate(form.startDate) != null
 
         val errorRes = when {
-            form.categoryId == null -> R.string.budget_validation_category_required
+            form.scope == BudgetScope.CATEGORY && form.categoryId == null ->
+                R.string.budget_validation_category_required
+            form.scope == BudgetScope.TRIP && form.tripId == null -> R.string.budget_validation_trip_required
             limit == null || limit <= 0L -> R.string.budget_validation_limit_positive
             form.threshold.isNotBlank() && (threshold == null || threshold !in 1L..100L) ->
                 R.string.budget_validation_threshold_range
@@ -91,10 +100,13 @@ class BudgetsViewModel(
 
         val draft = BudgetDraft(
             id = form.id ?: UUID.randomUUID().toString(),
-            categoryId = requireNotNull(form.categoryId),
+            categoryId = if (form.scope == BudgetScope.CATEGORY) requireNotNull(form.categoryId) else null,
             limitAmountCents = requireNotNull(limit),
             alertThresholdPercent = threshold,
             startDate = form.startDate.trim().ifBlank { null },
+            tripId = if (form.scope == BudgetScope.TRIP) requireNotNull(form.tripId) else null,
+            scope = form.scope,
+            period = if (form.scope == BudgetScope.TRIP) BudgetPeriod.ONE_OFF else BudgetPeriod.MONTHLY,
         )
         val now = Instant.now().toString()
         viewModelScope.launch {
@@ -126,7 +138,7 @@ class BudgetsViewModel(
         _state.value = _state.value.copy(errorMessage = throwable.message ?: throwable.javaClass.simpleName)
     }
 
-    private fun refresh() {
+    private fun refresh(openContextForm: Boolean = false) {
         viewModelScope.launch {
             _state.value = _state.value.copy(isLoading = true, errorMessage = null)
             val month = YearMonth.from(today())
@@ -138,6 +150,7 @@ class BudgetsViewModel(
                             toDate = month.atEndOfMonth().toString(),
                         ),
                         categories = categoryRepository.listActive().filter { it.supportsExpense },
+                        trips = tripRepository.listActive(),
                     )
                 }
             }
@@ -146,6 +159,16 @@ class BudgetsViewModel(
                     _state.value.copy(
                         evaluations = it.evaluations,
                         categories = it.categories,
+                        trips = it.trips,
+                        form = if (openContextForm) {
+                            contextBudgetForm(
+                                contextTripId = _state.value.contextTripId,
+                                evaluations = it.evaluations,
+                                trips = it.trips,
+                            )
+                        } else {
+                            _state.value.form
+                        },
                         isLoading = false,
                     )
                 },
@@ -170,6 +193,7 @@ class BudgetsViewModel(
     class Factory(
         private val budgetRepository: BudgetRepository,
         private val categoryRepository: CategoryRepository,
+        private val tripRepository: TripRepository,
         private val notificationRefresher: NotificationRefresher = NotificationRefresher.NoOp,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
@@ -178,6 +202,7 @@ class BudgetsViewModel(
                 return BudgetsViewModel(
                     budgetRepository = budgetRepository,
                     categoryRepository = categoryRepository,
+                    tripRepository = tripRepository,
                     notificationRefresher = notificationRefresher,
                 ) as T
             }
@@ -189,6 +214,8 @@ class BudgetsViewModel(
 data class BudgetsUiState(
     val evaluations: List<BudgetEvaluation> = emptyList(),
     val categories: List<CategoryRecord> = emptyList(),
+    val trips: List<TripSummary> = emptyList(),
+    val contextTripId: String? = null,
     val isLoading: Boolean = true,
     val errorMessage: String? = null,
     val form: BudgetFormState? = null,
@@ -196,7 +223,9 @@ data class BudgetsUiState(
 
 data class BudgetFormState(
     val id: String? = null,
+    val scope: BudgetScope = BudgetScope.CATEGORY,
     val categoryId: String? = null,
+    val tripId: String? = null,
     val limit: String = "",
     val threshold: String = "",
     val startDate: String = "",
@@ -207,6 +236,7 @@ data class BudgetFormState(
 private data class LoadedBudgetData(
     val evaluations: List<BudgetEvaluation>,
     val categories: List<CategoryRecord>,
+    val trips: List<TripSummary>,
 )
 
 private val CategoryRecord.supportsExpense: Boolean
@@ -215,11 +245,39 @@ private val CategoryRecord.supportsExpense: Boolean
 private fun BudgetSummary.toFormState(): BudgetFormState =
     BudgetFormState(
         id = id,
+        scope = scope,
         categoryId = categoryId,
+        tripId = tripId,
         limit = formatEuroInput(limitAmountCents),
         threshold = alertThresholdPercent?.toString().orEmpty(),
         startDate = startDate.orEmpty(),
     )
+
+private fun newBudgetForm(
+    contextTripId: String?,
+    trips: List<TripSummary>,
+): BudgetFormState {
+    val trip = contextTripId?.let { tripId -> trips.firstOrNull { it.id == tripId } }
+    return if (trip != null) {
+        BudgetFormState(
+            scope = BudgetScope.TRIP,
+            tripId = trip.id,
+            startDate = trip.startDate.orEmpty(),
+        )
+    } else {
+        BudgetFormState()
+    }
+}
+
+private fun contextBudgetForm(
+    contextTripId: String?,
+    evaluations: List<BudgetEvaluation>,
+    trips: List<TripSummary>,
+): BudgetFormState? {
+    val tripId = contextTripId ?: return null
+    val existing = evaluations.firstOrNull { it.budget.scope == BudgetScope.TRIP && it.budget.tripId == tripId }
+    return existing?.budget?.toFormState() ?: newBudgetForm(tripId, trips)
+}
 
 private fun parseDate(raw: String): LocalDate? =
     try {

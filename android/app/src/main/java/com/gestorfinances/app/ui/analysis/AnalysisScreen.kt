@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Autorenew
+import androidx.compose.material.icons.outlined.Flight
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -41,6 +42,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AnalysisAccountFlowBucket
+import com.gestorfinances.app.data.repository.AnalysisBreakdownKind
 import com.gestorfinances.app.data.repository.AnalysisBucket
 import com.gestorfinances.app.data.repository.AnalysisCategoryTotal
 import com.gestorfinances.app.data.repository.AnalysisCategoryTrendPoint
@@ -83,6 +85,7 @@ import kotlin.math.abs
 fun AnalysisScreen(
     viewModel: AnalysisViewModel,
     onDrillDown: (MovementFilters) -> Unit,
+    onTripDetail: (String) -> Unit,
     onManageBudgets: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -100,6 +103,7 @@ fun AnalysisScreen(
         onValueModeSelected = viewModel::onValueModeSelected,
         onNatureFilterSelected = viewModel::onNatureFilterSelected,
         onOneTimeModeSelected = viewModel::onOneTimeModeSelected,
+        onGroupTripsAsBlocksChange = viewModel::onGroupTripsAsBlocksChanged,
         onPreviousPeriod = viewModel::onPreviousPeriodClicked,
         onNextPeriod = viewModel::onNextPeriodClicked,
         onComparePreviousChange = viewModel::onComparePreviousChanged,
@@ -107,6 +111,7 @@ fun AnalysisScreen(
         onCustomToChange = viewModel::onCustomToChanged,
         onResetPeriod = viewModel::onResetPeriodClicked,
         onDrillDown = onDrillDown,
+        onTripDetail = onTripDetail,
         modifier = modifier,
     )
 }
@@ -120,6 +125,7 @@ private fun AnalysisContent(
     onValueModeSelected: (AnalysisValueMode) -> Unit,
     onNatureFilterSelected: (AnalysisNatureFilter) -> Unit,
     onOneTimeModeSelected: (AnalysisOneTimeMode) -> Unit,
+    onGroupTripsAsBlocksChange: (Boolean) -> Unit,
     onPreviousPeriod: () -> Unit,
     onNextPeriod: () -> Unit,
     onComparePreviousChange: (Boolean) -> Unit,
@@ -127,6 +133,7 @@ private fun AnalysisContent(
     onCustomToChange: (String) -> Unit,
     onResetPeriod: () -> Unit,
     onDrillDown: (MovementFilters) -> Unit,
+    onTripDetail: (String) -> Unit,
     modifier: Modifier,
 ) {
     LazyColumn(
@@ -202,6 +209,7 @@ private fun AnalysisContent(
                     state = state,
                     onNatureFilterSelected = onNatureFilterSelected,
                     onOneTimeModeSelected = onOneTimeModeSelected,
+                    onGroupTripsAsBlocksChange = onGroupTripsAsBlocksChange,
                 )
             }
         }
@@ -297,16 +305,20 @@ private fun AnalysisContent(
             }
         } else if (state.analysisMode == AnalysisMode.ACTUAL) {
             val maxCategoryCents = state.categories.maxOf { abs(it.netCents) }.coerceAtLeast(1L)
-            items(items = state.categories, key = { it.categoryId ?: "uncategorized" }) { category ->
+            items(items = state.categories, key = { it.rowKey() }) { category ->
                 CategoryBreakdownRow(
                     category = category,
                     maxCents = maxCategoryCents,
                     divisor = state.currentDisplayDivisor(),
                     onClick = {
-                        state.periodFilters(
-                            categoryId = category.categoryId,
-                            uncategorizedOnly = category.categoryId == null,
-                        )?.let(onDrillDown)
+                        if (category.rowKind == AnalysisBreakdownKind.TRIP && category.tripId != null) {
+                            onTripDetail(category.tripId)
+                        } else {
+                            state.periodFilters(
+                                categoryId = category.categoryId,
+                                uncategorizedOnly = category.categoryId == null,
+                            )?.let(onDrillDown)
+                        }
                     },
                 )
             }
@@ -369,8 +381,24 @@ private fun ActualFilterControls(
     state: AnalysisUiState,
     onNatureFilterSelected: (AnalysisNatureFilter) -> Unit,
     onOneTimeModeSelected: (AnalysisOneTimeMode) -> Unit,
+    onGroupTripsAsBlocksChange: (Boolean) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        FinanceCard(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Checkbox(
+                    checked = state.groupTripsAsBlocks,
+                    onCheckedChange = onGroupTripsAsBlocksChange,
+                )
+                Text(
+                    text = stringResource(R.string.trip_analysis_group_as_block),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+        }
         ChipFlowSection(label = stringResource(R.string.analysis_filter_nature)) {
             AnalysisNatureFilter.entries.forEach { filter ->
                 FinanceFilterChip(
@@ -717,9 +745,19 @@ private fun CategoryBreakdownRow(
     divisor: Long,
     onClick: () -> Unit,
 ) {
-    val color = categoryColor(category.categoryColor)
+    val color = if (category.rowKind == AnalysisBreakdownKind.TRIP) {
+        FinanceTheme.colors.transfer
+    } else {
+        categoryColor(category.categoryColor)
+    }
     val amount = category.netCents
     val displayAmount = amount.divideCents(divisor)
+    val title = if (category.rowKind == AnalysisBreakdownKind.TRIP) {
+        category.tripName?.let { stringResource(R.string.trip_analysis_block_title, it) }
+            ?: stringResource(R.string.nav_trips)
+    } else {
+        category.categoryName ?: stringResource(R.string.common_no_category)
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -729,14 +767,18 @@ private fun CategoryBreakdownRow(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconChip(
-                icon = categoryIcon(category.categoryIcon),
+                icon = if (category.rowKind == AnalysisBreakdownKind.TRIP) {
+                    Icons.Outlined.Flight
+                } else {
+                    categoryIcon(category.categoryIcon)
+                },
                 contentDescription = null,
                 color = color,
                 size = 36.dp,
             )
             Spacer(modifier = Modifier.width(10.dp))
             Text(
-                text = category.categoryName ?: stringResource(R.string.common_no_category),
+                text = title,
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.titleSmall,
                 maxLines = 1,
@@ -1402,6 +1444,12 @@ private fun AnalysisUiState.chartPointFilters(point: IncomeExpenseChartPoint): M
         dateTo = toDate,
     )
 }
+
+private fun AnalysisCategoryTotal.rowKey(): String =
+    when (rowKind) {
+        AnalysisBreakdownKind.TRIP -> "trip:${tripId ?: tripName.orEmpty()}"
+        AnalysisBreakdownKind.CATEGORY -> "category:${categoryId ?: "uncategorized"}"
+    }
 
 private fun AnalysisBucket.toMovementDateRange(bucket: String): Pair<String, String>? =
     runCatching {

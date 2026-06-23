@@ -34,6 +34,7 @@
     <string name="nav_analysis">Anàlisi</string>
     <string name="nav_people">Persones</string>
     <string name="nav_recurring">Periòdics</string>
+    <string name="nav_trips">Viatges</string>
 
     <!-- Onboarding -->
     <string name="onboarding_loading">Preparant l\'inici...</string>
@@ -288,6 +289,10 @@
     <string name="movement_field_name">Concepte</string>
     <string name="movement_field_payee">Beneficiari</string>
     <string name="movement_field_notes">Notes</string>
+    <string name="movement_field_trip">Viatge</string>
+    <string name="movement_field_tag">Etiqueta</string>
+    <string name="movement_trip_badge">Viatge</string>
+    <string name="movement_tag_disabled_no_trip">Tria un viatge per afegir una etiqueta.</string>
     <string name="movement_field_one_time">Despesa extraordinària</string>
     <string name="movement_field_one_time_support">Marca aquesta despesa per poder-la aïllar de l\'anàlisi.</string>
     <string name="movement_one_time_badge">Extraordinària</string>
@@ -468,6 +473,8 @@
     <string name="template_validation_amount_required">Introdueix un import o marca\'l com a variable.</string>
     <string name="template_validation_interval_required">Indica l\'interval i la unitat.</string>
     <string name="template_validation_anchor_invalid">El dia indicat no és vàlid.</string>
+    <string name="template_validation_amount_flex_invalid">Introdueix un marge d\'import vàlid.</string>
+    <string name="template_validation_date_flex_invalid">Introdueix un marge de dies igual o superior a zero.</string>
     <string name="template_end_confirm_title">Finalitzar la sèrie?</string>
     <string name="template_end_confirm_body">Es deixaran de generar avisos. Els moviments ja creats es mantenen.</string>
 
@@ -496,7 +503,8 @@
     <string name="budget_new_title">Nou pressupost</string>
     <string name="budget_edit_title">Edita el pressupost</string>
     <string name="budget_field_category">Categoria</string>
-    <string name="budget_field_limit">Límit mensual</string>
+    <string name="budget_field_trip">Viatge</string>
+    <string name="budget_field_limit">Límit</string>
     <string name="budget_field_threshold">Llindar d\'avís (1–100)</string>
     <string name="budget_field_start">Data d\'inici</string>
     <string name="budget_progress">%1$s de %2$s</string>
@@ -505,10 +513,15 @@
     <string name="budget_save_new">Crea el pressupost</string>
     <string name="budget_save_changes">Desa els canvis</string>
     <string name="budget_empty_title">Encara no tens pressupostos</string>
-    <string name="budget_empty_body">Posa un límit mensual a una categoria per controlar la despesa.</string>
+    <string name="budget_empty_body">Posa un límit a una categoria o a un viatge per controlar la despesa.</string>
     <string name="budget_validation_limit_positive">El límit ha de ser superior a zero.</string>
     <string name="budget_validation_category_required">Tria una categoria.</string>
+    <string name="budget_validation_trip_required">Tria un viatge.</string>
     <string name="budget_validation_threshold_range">El llindar ha d\'estar entre 1 i 100.</string>
+
+    <string name="budget_status_ok">Dins del límit</string>
+    <string name="budget_status_warn">A prop del límit</string>
+    <string name="budget_status_over">Superat</string>
 
     <!-- Notifications & alerts (settings) -->
     <string name="settings_notifications_title">Avisos</string>
@@ -532,4 +545,107 @@
     <string name="notification_budget_body">%1$s: %2$s de %3$s.</string>
     <string name="notification_low_balance_title">Saldo baix</string>
     <string name="notification_low_balance_body">%1$s: saldo %2$s, llindar %3$s.</string>
+
+    <!-- Phase 5 (P5-1): trips, trip analysis, tags. -->
+
+    <!-- Trips list and detail -->
+    <string name="trip_list_title">Viatges</string>
+    <string name="trip_list_add">Nou viatge</string>
+    <string name="trip_loading">Carregant viatges...</string>
+    <string name="trip_empty_title">Encara no tens viatges</string>
+    <string name="trip_empty_body">Crea un viatge o esdeveniment per veure\'n el cost separat de la despesa habitual.</string>
+    <string name="trip_filter_all">Tots</string>
+    <string name="trip_filter_planned">Planificats</string>
+    <string name="trip_filter_active">Actius</string>
+    <string name="trip_filter_finished">Finalitzats</string>
+    <string name="trip_detail_title">Detall del viatge</string>
+    <string name="trip_detail_total_actual">Cost real</string>
+    <string name="trip_detail_total_flow">Sortida total</string>
+    <string name="trip_detail_days">Dies</string>
+    <string name="trip_detail_avg_day">Mitjana per dia</string>
+    <string name="trip_avg_day_value">%1$s/dia</string>
+    <string name="trip_detail_daily_chart">Evolució diària</string>
+    <string name="trip_detail_breakdown_category">Per categoria</string>
+    <string name="trip_detail_breakdown_tag">Per etiqueta</string>
+    <string name="trip_detail_movements">Moviments del viatge</string>
+    <string name="trip_detail_default_account">Compte per defecte: %1$s</string>
+    <string name="trip_detail_no_default_account">Sense compte per defecte</string>
+    <string name="trip_action_new_movement">Nou moviment del viatge</string>
+    <string name="trip_action_manage_tags">Gestiona etiquetes</string>
+    <string name="trip_action_budget">Pressupost del viatge</string>
+    <string name="trip_action_edit">Edita el viatge</string>
+    <string name="trip_action_archive">Elimina el viatge</string>
+    <string name="trip_archive_confirm_title">Eliminar viatge?</string>
+    <string name="trip_archive_warning">El viatge es deixarà de mostrar a les llistes. Els moviments vinculats es conservaran.</string>
+
+    <!-- Add/Edit trip -->
+    <string name="trip_form_new_title">Nou viatge</string>
+    <string name="trip_form_edit_title">Edita el viatge</string>
+    <string name="trip_save_new">Crea el viatge</string>
+    <string name="trip_save_changes">Desa els canvis</string>
+    <string name="trip_field_name">Nom</string>
+    <string name="trip_field_type">Tipus</string>
+    <string name="trip_field_status">Estat</string>
+    <string name="trip_field_start_date">Data d\'inici</string>
+    <string name="trip_field_end_date">Data de fi</string>
+    <string name="trip_field_default_account">Compte per defecte</string>
+    <string name="trip_field_icon">Icona</string>
+    <string name="trip_field_color">Color</string>
+    <string name="trip_field_notes">Notes</string>
+    <string name="trip_type_trip">Viatge</string>
+    <string name="trip_type_celebration">Celebració</string>
+    <string name="trip_type_other">Altres</string>
+    <string name="trip_status_planned">Planificat</string>
+    <string name="trip_status_active">Actiu</string>
+    <string name="trip_status_finished">Finalitzat</string>
+    <string name="trip_date_range">%1$s – %2$s</string>
+    <string name="trip_date_ongoing">Des de %1$s</string>
+    <string name="trip_validation_name_required">Introdueix el nom del viatge.</string>
+    <string name="trip_validation_start_date_invalid">Introdueix una data d\'inici vàlida.</string>
+    <string name="trip_validation_end_date_invalid">Introdueix una data de fi vàlida.</string>
+    <string name="trip_validation_date_order">La data de fi ha de ser posterior o igual a la d\'inici.</string>
+
+    <!-- Trip analysis -->
+    <string name="trip_analysis_mode_daily">Per dia</string>
+    <string name="trip_analysis_mode_cumulative">Acumulat</string>
+    <string name="trip_analysis_mode_total">Totals</string>
+    <string name="trip_analysis_mode_avg_day">Mitjana/dia</string>
+    <string name="trip_analysis_untagged">Sense etiqueta</string>
+    <string name="trip_analysis_group_as_block">Agrupa viatges com a blocs</string>
+    <string name="trip_analysis_block_title">Viatge: %1$s</string>
+    <string name="trip_analysis_empty_title">Sense despesa en aquest viatge</string>
+    <string name="trip_analysis_empty_body">Afegeix moviments al viatge per veure\'n l\'anàlisi.</string>
+
+    <!-- Tags -->
+    <string name="tag_list_title">Etiquetes</string>
+    <string name="tag_list_add">Nova etiqueta</string>
+    <string name="tag_loading">Carregant etiquetes...</string>
+    <string name="tag_empty_title">Encara no hi ha etiquetes</string>
+    <string name="tag_empty_body">Crea etiquetes per classificar la despesa dins dels viatges.</string>
+    <string name="tag_form_new_title">Nova etiqueta</string>
+    <string name="tag_form_edit_title">Edita etiqueta</string>
+    <string name="tag_save_new">Crea etiqueta</string>
+    <string name="tag_save_changes">Desa canvis</string>
+    <string name="tag_field_name">Nom</string>
+    <string name="tag_field_scope">Abast</string>
+    <string name="tag_field_trip">Viatge local</string>
+    <string name="tag_field_icon">Icona</string>
+    <string name="tag_field_color">Color</string>
+    <string name="tag_scope_global">Global</string>
+    <string name="tag_scope_trip_local">Local del viatge</string>
+    <string name="tag_scope_trip_local_value">Local de %1$s</string>
+    <string name="tag_picker_none">Sense etiqueta</string>
+    <string name="tag_picker_global_section">Globals</string>
+    <string name="tag_picker_trip_section">D\'aquest viatge</string>
+    <string name="tag_action_archive">Elimina etiqueta</string>
+    <string name="tag_archive_confirm_title">Eliminar etiqueta?</string>
+    <string name="tag_archive_warning">L\'etiqueta es deixarà de mostrar. Els moviments vinculats conservaran l\'historial.</string>
+    <string name="tag_validation_name_required">Introdueix el nom de l\'etiqueta.</string>
+    <string name="tag_validation_trip_required">Tria un viatge per crear una etiqueta local.</string>
+
+    <!-- Trip budgets -->
+    <string name="budget_scope_category">Categoria</string>
+    <string name="budget_scope_trip">Viatge</string>
+    <string name="budget_trip_title">Pressupost del viatge</string>
+    <string name="budget_trip_empty">Aquest viatge encara no té pressupost.</string>
 </resources>

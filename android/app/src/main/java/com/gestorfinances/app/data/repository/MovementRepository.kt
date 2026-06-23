@@ -30,6 +30,10 @@ data class MovementSummary(
     val categoryId: String?,
     val categoryName: String?,
     val categoryNature: CategoryNature?,
+    val tripId: String? = null,
+    val tripName: String? = null,
+    val tagId: String? = null,
+    val tagName: String? = null,
     val name: String?,
     val payee: String?,
     val notes: String?,
@@ -51,6 +55,8 @@ data class MovementDraft(
     val accountId: String,
     val destinationAccountId: String?,
     val categoryId: String?,
+    val tripId: String? = null,
+    val tagId: String? = null,
     val name: String?,
     val payee: String?,
     val notes: String?,
@@ -184,6 +190,8 @@ class MovementRepository(
                 notes = draft.notes,
                 is_one_time = draft.isOneTime.toDbLong(),
                 category_id = draft.categoryId,
+                trip_id = draft.tripId,
+                tag_id = draft.tagId,
                 template_id = draft.templateId,
                 created_at = createdAt,
                 updated_at = createdAt,
@@ -211,6 +219,8 @@ class MovementRepository(
                 notes = draft.notes,
                 is_one_time = draft.isOneTime.toDbLong(),
                 category_id = draft.categoryId,
+                trip_id = draft.tripId,
+                tag_id = draft.tagId,
                 updated_at = updatedAt,
             )
             applySplitWrite(draft.id, draft.splitWrite, timestamp = updatedAt)
@@ -375,6 +385,10 @@ private fun mapMovementSummary(
     categoryId: String?,
     categoryName: String?,
     categoryNature: String?,
+    tripId: String?,
+    tripName: String?,
+    tagId: String?,
+    tagName: String?,
     name: String?,
     payee: String?,
     notes: String?,
@@ -399,6 +413,10 @@ private fun mapMovementSummary(
         categoryId = categoryId,
         categoryName = categoryName,
         categoryNature = categoryNature?.let(CategoryNature::fromDb),
+        tripId = tripId,
+        tripName = tripName,
+        tagId = tagId,
+        tagName = tagName,
         name = name,
         payee = payee,
         notes = notes,
@@ -471,6 +489,9 @@ private fun requireDirectMovementType(type: MovementType) {
 }
 
 private fun validateSplitWrite(draft: MovementDraft) {
+    require(draft.tagId == null || draft.tripId != null) {
+        "Tagged movements must be attached to a trip."
+    }
     val split = (draft.splitWrite as? MovementSplitWrite.Replace)?.draft ?: return
     require(draft.type == MovementType.EXPENSE) {
         "Only expense movements can have a movement-backed split."

@@ -3,6 +3,8 @@ package com.gestorfinances.app.notifications
 import com.gestorfinances.app.data.repository.AccountSummary
 import com.gestorfinances.app.data.repository.AccountType
 import com.gestorfinances.app.data.repository.BudgetEvaluation
+import com.gestorfinances.app.data.repository.BudgetPeriod
+import com.gestorfinances.app.data.repository.BudgetScope
 import com.gestorfinances.app.data.repository.BudgetStatus
 import com.gestorfinances.app.data.repository.BudgetSummary
 import com.gestorfinances.app.data.repository.MovementType
@@ -112,8 +114,12 @@ class NotificationRulesTest {
     ): BudgetSummary =
         BudgetSummary(
             id = id,
+            scope = BudgetScope.CATEGORY,
             categoryId = "food",
             categoryName = "Menjar",
+            tripId = null,
+            tripName = null,
+            period = BudgetPeriod.MONTHLY,
             limitAmountCents = limit,
             alertThresholdPercent = threshold,
             startDate = null,

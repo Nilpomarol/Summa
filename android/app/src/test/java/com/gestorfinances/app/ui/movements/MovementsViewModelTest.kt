@@ -14,6 +14,12 @@ import com.gestorfinances.app.data.repository.MovementType
 import com.gestorfinances.app.data.repository.PersonDraft
 import com.gestorfinances.app.data.repository.PersonRepository
 import com.gestorfinances.app.data.repository.SplitEntryMethod
+import com.gestorfinances.app.data.repository.TagDraft
+import com.gestorfinances.app.data.repository.TagRepository
+import com.gestorfinances.app.data.repository.TripDraft
+import com.gestorfinances.app.data.repository.TripRepository
+import com.gestorfinances.app.data.repository.TripStatus
+import com.gestorfinances.app.data.repository.TripType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -246,6 +252,90 @@ class MovementsViewModelTest {
     }
 
     @Test
+    fun tripDefaultAccountPrecedesGlobalDefaultForNewMovement() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            store.accounts.create(accountDraft("cash", displayOrder = 1), createdAt = NOW)
+            store.trips.create(
+                TripDraft(
+                    id = "mallorca",
+                    name = "Mallorca",
+                    type = TripType.TRIP,
+                    status = TripStatus.ACTIVE,
+                    startDate = null,
+                    endDate = null,
+                    icon = null,
+                    color = null,
+                    notes = null,
+                    defaultAccountId = "cash",
+                ),
+                createdAt = NOW,
+            )
+            val viewModel = viewModel(store)
+
+            viewModel.onAddClicked("mallorca")
+            advanceUntilIdle()
+
+            assertEquals("mallorca", viewModel.form().tripId)
+            assertEquals("cash", viewModel.form().accountId)
+
+            viewModel.onFormChanged(
+                viewModel.form().copy(
+                    amount = "12",
+                    date = "2026-01-01",
+                    name = "Dinar",
+                ),
+            )
+            viewModel.onSaveClicked()
+            advanceUntilIdle()
+
+            val movement = store.movements.listActive().single()
+            assertEquals("mallorca", movement.tripId)
+            assertEquals("Mallorca", movement.tripName)
+            assertEquals("cash", movement.accountId)
+        }
+    }
+
+    @Test
+    fun movementTagRequiresCompatibleTripAndPersists() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            store.trips.create(tripDraft("mallorca"), createdAt = NOW)
+            store.trips.create(tripDraft("lisboa"), createdAt = NOW)
+            store.tags.create(TagDraft("food", "Menjar", null, null, null), createdAt = NOW)
+            store.tags.create(TagDraft("beach", "Platja", null, null, "mallorca"), createdAt = NOW)
+            val viewModel = viewModel(store)
+
+            viewModel.onAddClicked("mallorca")
+            advanceUntilIdle()
+            viewModel.onTagSelected("beach")
+
+            assertEquals("beach", viewModel.form().tagId)
+
+            viewModel.onTripSelected("lisboa")
+
+            assertNull(viewModel.form().tagId)
+
+            viewModel.onTripSelected("mallorca")
+            viewModel.onTagSelected("food")
+            viewModel.onFormChanged(
+                viewModel.form().copy(
+                    amount = "8",
+                    date = "2026-01-01",
+                    name = "Esmorzar",
+                ),
+            )
+            viewModel.onSaveClicked()
+            advanceUntilIdle()
+
+            val movement = store.movements.listActive().single()
+            assertEquals("mallorca", movement.tripId)
+            assertEquals("food", movement.tagId)
+            assertEquals("Menjar", movement.tagName)
+        }
+    }
+
+    @Test
     fun overRefundIsWarnedButNotBlocked() = runTest(dispatcher) {
         freshStore().use { store ->
             store.accounts.create(accountDraft("checking"), createdAt = NOW)
@@ -282,6 +372,8 @@ class MovementsViewModelTest {
             accountRepository = store.accounts,
             categoryRepository = store.categories,
             personRepository = store.people,
+            tripRepository = store.trips,
+            tagRepository = store.tags,
             ioDispatcher = dispatcher,
         )
 
@@ -297,6 +389,8 @@ class MovementsViewModelTest {
             categories = CategoryRepository(database.categoriesQueries),
             movements = MovementRepository(database.movementsQueries, database.splitsQueries),
             people = PersonRepository(database.peopleQueries),
+            tags = TagRepository(database.tagsQueries),
+            trips = TripRepository(database.tripsQueries),
         )
     }
 
@@ -307,6 +401,8 @@ class MovementsViewModelTest {
         val categories: CategoryRepository,
         val movements: MovementRepository,
         val people: PersonRepository,
+        val tags: TagRepository,
+        val trips: TripRepository,
     ) : AutoCloseable {
         override fun close() {
             driver.close()
@@ -333,6 +429,20 @@ class MovementsViewModelTest {
             avatar = null,
             color = null,
             notes = null,
+        )
+
+    private fun tripDraft(id: String): TripDraft =
+        TripDraft(
+            id = id,
+            name = id,
+            type = TripType.TRIP,
+            status = TripStatus.ACTIVE,
+            startDate = null,
+            endDate = null,
+            icon = null,
+            color = null,
+            notes = null,
+            defaultAccountId = null,
         )
 
     private fun movementDraft(

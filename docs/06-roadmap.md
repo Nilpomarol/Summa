@@ -11,7 +11,7 @@
 - **Foundational UI scaffold up front** (`docs/07-ui-ux.md`: IA, navigation, screen inventory, content blocks, flows, strings); **visual style lives in the design system** (`docs/08-design-system.md`); per-screen detail is refined just before building each phase.
 - **Design-system alignment is not final-only.** Each UI slice should follow `docs/08-design-system.md` and shared tokens as it is built. Do not knowingly ship utilitarian UI when the design-system path is straightforward; if a slice must stay rough to protect momentum, track the follow-up explicitly.
 - **Phase-end gates:** every implementation phase ends with tests, a focused UI polish/design-system pass, and an architecture/feature/code quality audit before the next phase starts.
-- **Android redesign checkpoint before Windows:** after the Android feature phases and before the Windows app begins, run a dedicated Android redesign/consolidation pass so the desktop app ports a stable visual language instead of copying temporary scaffolding.
+- **Android redesign checkpoint before Windows:** after the Android feature phases and before the Windows app begins, run a dedicated Android redesign/consolidation pass so the desktop app ports a stable visual language instead of copying temporary scaffolding. Phase 5R also validates app logic; follow `docs/15-android-redesign-validation.md`.
 - **One writing agent at a time:** use roadmap task IDs in prompts/commits; let the other agent review rather than edit the same dirty tree.
 - **Simplest correct thing wins:** prefer the simplest implementation that satisfies the spec and the invariants — no speculative abstraction, premature generalization, or gold-plating. The deliberate safety nets (golden vectors, derived SQL views, `CHECK` constraints, the `shared/` contract) are *not* overengineering and stay.
 - **Definition of done (every task):** *correct* — golden suite green and `spec-guardian` clean — **and** *simple* — `simplicity-guardian` clean.
@@ -19,7 +19,7 @@
 
 ## Current state ✅
 
-Phase 0 foundations, Android Phase 1 core ledger, Android Phase 2 analysis, and Android Phase 3 sharing/people/debts are all complete (`P3-1` through `P3-11`). Phase 4 (recurring, refunds & budgets) is underway: `P4-1` (UI/UX + strings, `docs/13`), `P4-2` (templates CRUD: `Templates.sq`, `TemplateRepository`, the `Recurring` bottom-nav screen, kotlinx.serialization in `main`), and `P4-3` (recurring due prompts: advancement-rule generation, confirm→create linked movement + advance cursor, skip, per-template skip-all, split carry-forward) are complete. `P4-4` (recurring list day-ordered with a monthly summary card), `P4-5` (refunds: from expense detail, cash + optional user-share actual, inherited category, over-refund warning), `P4-6` (budgets — category-monthly CRUD, limit-vs-derived-actual evaluation, green/amber/red progress, reached from the Analysis header), `P4-7` (local notifications: recurring lead-time reminders, budget-threshold alerts, low-balance alerts), `P4-8` (recurring-cost summary analysis built from active fixed expense templates), and `P4-9` (recurring/refund golden vectors plus budget-evaluation tests) are also complete. `P4-10` (design-system alignment / UI polish for recurring, refund, budget, alert, and notification surfaces) is next unless the roadmap is updated. Deferred follow-ups: editing a shared split *in the template form*, cross-template confirm-all/skip-all, surfacing orphaned refunds when an original expense is archived, and embedding the budget bar inside category breakdown/detail.
+Phase 0 foundations, Android Phase 1 core ledger, Android Phase 2 analysis, Android Phase 3 sharing/people/debts, Android Phase 4 recurring/refunds/budgets, and Android Phase 5 trips/tags are complete (`P5-1` through `P5-9`). `Phase 5R` (Android redesign & design-system consolidation) is next unless the roadmap is updated. Deferred follow-ups from Phase 4: editing a shared split *in the template form*, cross-template confirm-all/skip-all, surfacing orphaned refunds when an original expense is archived, and embedding the budget bar inside category breakdown/detail.
 
 ---
 
@@ -136,8 +136,8 @@ Phase 0 foundations, Android Phase 1 core ledger, Android Phase 2 analysis, and 
 - [x] **P4-7** Local notifications: recurring lead-time reminders, budget-threshold alerts, low-balance alerts (`account.low_balance_threshold`) — offline scheduling.
 - [x] **P4-8** Recurring-cost summary analysis ("you spend X/month on subscriptions") built from active templates.
 - [x] **P4-9** Tests: `recurring_advance` + `refund_actual` golden green; budget-evaluation tests.
-- [ ] **P4-10** Design-system alignment / UI polish for recurring, refund, budget, alert, and notification surfaces. No new recurring/refund/budget behavior.
-- [ ] **P4-11** Architecture, feature, and code quality audit for recurring/refunds/budgets: verify rule parity, local scheduling boundaries, warning UX, and implementation simplicity.
+- [x] **P4-10** Design-system alignment / UI polish for recurring, refund, budget, alert, and notification surfaces. No new recurring/refund/budget behavior.
+- [x] **P4-11** Architecture, feature, and code quality audit for recurring/refunds/budgets: verify rule parity, local scheduling boundaries, warning UX, and implementation simplicity.
 
 **Exit:** recurring prompts, refunds, budgets, recurring-cost summary, and alerts function offline.
 
@@ -146,15 +146,15 @@ Phase 0 foundations, Android Phase 1 core ledger, Android Phase 2 analysis, and 
 ## Phase 5 — Trips & tags
 **Goal:** trips as a first-class analysis unit.
 
-- [ ] **P5-1** UI/UX: design trips list, trip-detail analysis, and tag management; add strings.
-- [ ] **P5-2** Trips: CRUD (type, status, dates, default account); attach movements; per-trip default-account precedence.
-- [ ] **P5-3** Tags: CRUD; global vs. trip-local; one tag per movement (only when `trip_id` set).
-- [ ] **P5-4** Trip-detail analysis: KPIs (total, days, avg/day), stacked daily chart (per-day ↔ cumulative), breakdown by category & by tag (total ↔ avg/day), scoped movement list.
-- [ ] **P5-5** Trips-as-blocks in normal analysis (toggle, on by default): roll-up into one line + drill-in.
-- [ ] **P5-6** Trip budget (`budgets` scope = trip).
-- [ ] **P5-7** Tests.
-- [ ] **P5-8** Design-system alignment / UI polish for trips, tags, trip detail, trip analysis, and trip-budget surfaces. No new trip/tag behavior.
-- [ ] **P5-9** Architecture, feature, and code quality audit for trips/tags: verify scope rules, analysis correctness, simple navigation/state, and test coverage.
+- [x] **P5-1** UI/UX: design trips list, trip-detail analysis, and tag management; add strings. *(`docs/14-trips-tags-ui.md`)*
+- [x] **P5-2** Trips: CRUD (type, status, dates, default account); attach movements; per-trip default-account precedence. *(Android: `Trips.sq`, `TripRepository`, `TripsScreen`, movement `trip_id` save/read path.)*
+- [x] **P5-3** Tags: CRUD; global vs. trip-local; one tag per movement (only when `trip_id` set). *(Android: `Tags.sq`, `TagRepository`, `TagsScreen`, movement tag picker/filter/detail display.)*
+- [x] **P5-4** Trip-detail analysis: KPIs (total, days, avg/day), stacked daily chart (per-day ↔ cumulative), breakdown by category & by tag (total ↔ avg/day), scoped movement list. *(Android: `TripAnalysis.sq`, `TripAnalysisRepository`, trip detail KPIs/chart/breakdowns/scoped movement list.)*
+- [x] **P5-5** Trips-as-blocks in normal analysis (toggle, on by default): roll-up into one line + drill-in. *(Shared: `analysis_actual_breakdown.sql`; Android Analysis toggle + trip-block drill-through.)*
+- [x] **P5-6** Trip budget (`budgets` scope = trip). *(Android: shared `budgets` table scope support, trip budget form/list evaluation, trip detail Budget action.)*
+- [x] **P5-7** Tests. *(Android: trip-block analysis grouping, trip-budget context ViewModel, repository coverage for trips/tags/trip analysis/trip budgets, movement trip/tag integration.)*
+- [x] **P5-8** Design-system alignment / UI polish for trips, tags, trip detail, trip analysis, and trip-budget surfaces. No new trip/tag behavior. *(Android: identity icon chips, neutral status/scope pills, overflow row actions, inline validation banners, and neutral trip-block analysis color.)*
+- [x] **P5-9** Architecture, feature, and code quality audit for trips/tags: verify scope rules, analysis correctness, simple navigation/state, and test coverage. *(Audit complete; fixed active tag queries so trip-local tags from archived trips are treated as absent, with regression coverage.)*
 
 **Exit:** trips are fully functional and analyzable.
 
@@ -163,13 +163,20 @@ Phase 0 foundations, Android Phase 1 core ledger, Android Phase 2 analysis, and 
 ## Phase 5R — Android redesign & design-system consolidation
 **Goal:** before switching to Windows, make the Android app feel like the intended product, not accumulated implementation scaffolding.
 
-- [ ] **P5R-1** Full Android UI audit against `docs/07-ui-ux.md`, `docs/08-design-system.md`, shared design tokens, and the implemented screens. Produce a short punch list of mismatches, rough edges, and reusable component gaps.
-- [ ] **P5R-2** App shell redesign pass: navigation hierarchy, global FAB/new-flow behavior, screen titles, top/bottom bars, loading states, empty states, and modal/sheet behavior. No finance behavior changes.
-- [ ] **P5R-3** Core surface redesign pass: dashboard/analysis, ledger, accounts, categories, people/debts, recurring/refunds/budgets, trips/tags, settings, and sync/read-only placeholders as applicable. Bring spacing, typography, cards, rows, chips, semantic colors, and dark mode into design-system alignment.
-- [ ] **P5R-4** Component consolidation: extract only the shared Compose UI pieces that are repeatedly used and clearly stable; remove one-off visual hacks and dead UI helpers. No speculative component library.
-- [ ] **P5R-5** Accessibility and density pass: touch targets, text overflow, contrast, Catalan string fit, small-screen behavior, dark mode, and keyboard/focus basics.
-- [ ] **P5R-6** Visual regression/manual checklist: document concrete manual checks for the redesigned Android app and run Android build/unit/golden tests.
-- [ ] **P5R-7** Architecture, feature, and code quality audit for the redesigned Android UI: verify no behavior drift, no overengineered UI abstractions, and docs/tokens/code consistency before Windows starts.
+Read `docs/15-android-redesign-validation.md` before any `P5R-*` work. Phase 5R combines logic validation and UI/UX redesign. Logic issues discovered during UI work must be fixed deeply across the affected model, SQL, repositories, UI, docs, and tests; existing local data is disposable test data.
+
+- [ ] **P5R-1** Full Android audit and shell plan: validate navigation hierarchy, app shell, global new-flow behavior, screen titles, top/bottom bars, loading states, empty states, modal/sheet behavior, and reusable component gaps against `docs/07-ui-ux.md`, `docs/08-design-system.md`, shared design tokens, and the implemented screens.
+- [ ] **P5R-2** Accounts and categories redesign + logic validation: verify reference-data rules, identity color/icon behavior, ordering, archived handling, and dependent UI assumptions before redesigning the screens.
+- [ ] **P5R-3** Movements and ledger redesign + logic validation: validate expense/income/transfer entry, account defaults, categories, trip/tag attachment, one-time flag, split/refund entry points, filters, detail, and list ergonomics.
+- [ ] **P5R-4** Dashboard and analysis redesign + logic validation: validate derived SQL usage, period controls, drill-downs, trips-as-blocks, chart language, budget entry points, and empty states.
+- [ ] **P5R-5** People, splits, debts, and settlements redesign + logic validation: verify debt derivation, split-entry UX, settlement warnings, archive behavior, and scoped movement/debt navigation.
+- [ ] **P5R-6** Recurring, refunds, budgets, and notifications redesign + logic validation: verify date rules, recurring advancement, refund actual math, budget evaluation, alert thresholds, and notification surfaces.
+- [ ] **P5R-7** Trips and tags redesign + logic validation: revisit trip/tag UX after ledger and analysis settle; verify scope rules, trip analysis, trip budgets, tag locality, and movement integration.
+- [ ] **P5R-8** Settings, sync, and read-only states redesign: finish cross-cutting surfaces, sync/read-only placeholders, and app-level settings once the core surfaces are stable.
+- [ ] **P5R-9** Component consolidation: extract only shared Compose UI pieces that are repeatedly used and clearly stable; remove one-off visual hacks and dead UI helpers. No speculative component library.
+- [ ] **P5R-10** Accessibility and density pass: touch targets, text overflow, contrast, Catalan string fit, small-screen behavior, dark mode, and keyboard/focus basics.
+- [ ] **P5R-11** Visual regression/manual checklist: document concrete manual checks for the redesigned Android app and run Android build/unit/golden tests.
+- [ ] **P5R-12** Architecture, feature, and code quality audit for the redesigned Android UI: verify no behavior drift, no overengineered UI abstractions, and docs/tokens/code consistency before Windows starts.
 
 **Exit:** Android has a coherent, design-system-aligned UI that can act as the visual source for the Windows implementation.
 
