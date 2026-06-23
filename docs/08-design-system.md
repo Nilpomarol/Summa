@@ -225,7 +225,8 @@ A **persistent, non-dismissible** top banner (distinct from the never-block bann
 
 ### Navigation
 
-- **Mobile:** bottom nav (5 groups) with a centered indigo **FAB** raised −22px; active item = indigo + filled icon.
+- **Mobile:** bottom nav with four destinations — **Inici, Moviments, Anàlisi, Gestió** — and a centered indigo **FAB** embedded between Moviments and Anàlisi. The FAB is always visible after onboarding and opens New movement, or routes to account creation when no account exists. Active item = indigo + filled icon. Gestió stays active for all pages opened from the Gestió hub.
+- **Gestió hub:** simple 2-column × 3-row grid for Comptes, Categories, Persones, Esdeveniments, Recurrents, and Configuració. Tiles use neutral surfaces, compact icon emphasis, and restrained text; avoid decorative card-heavy treatment.
 - **Desktop:** same groups become a **248px sidebar**, grouped with section labels; active = light-indigo (`#EEF0FE`) fill + filled icon; pending counts as indigo pills.
 
 ### Charts

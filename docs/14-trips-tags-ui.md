@@ -21,14 +21,14 @@ P5 must not introduce person groups, multi-tag movements, many-to-many tags, des
 
 ## 2. Navigation Shape
 
-Trips live under **Management**, matching `docs/07-ui-ux.md` and spec section 5.9. On Android, the Trips list is reached from the management area rather than as a new bottom-nav destination. Trip detail is a drill-through screen from:
+Trips/events live under **Gestió > Esdeveniments**, matching `docs/07-ui-ux.md` and spec section 5.9. On Android, the trips/events list is reached from the Gestió grid rather than as a new bottom-nav destination. Trip/event detail is a drill-through screen from:
 
-- Trips list;
+- Esdeveniments list;
 - grouped trip blocks in Dashboard / Analysis;
 - movement detail when a movement has a `trip_id`;
 - trip budget alerts or trip-budget surfaces once P5-6 lands.
 
-Tags are managed from a secondary **Tags** surface reachable from Trips and from the movement form's tag picker. A trip-local tag is created from a trip context so its `trip_id` is preserved.
+Tags are managed inside **Esdeveniments**, reachable from trip/event detail and from the movement form's tag picker once a trip/event is selected. A trip-local tag is created from a trip context so its `trip_id` is preserved. Tags are not a separate top-level Gestió tile.
 
 ---
 
@@ -38,7 +38,7 @@ Purpose: show exceptional events as compact, scannable objects and make the curr
 
 Content:
 
-- title: Trips;
+- title: Esdeveniments;
 - filter chips for planned / active / finished, plus all;
 - active/ongoing trips first, then planned, then finished;
 - each trip row/card shows icon, name, type, status pill, date range (or ongoing), default account when set, and a small actual-spend figure when available;

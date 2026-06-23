@@ -35,6 +35,23 @@
     <string name="nav_people">Persones</string>
     <string name="nav_recurring">Periòdics</string>
     <string name="nav_trips">Viatges</string>
+    <string name="nav_management">Gestió</string>
+
+    <!-- Management hub -->
+    <string name="management_title">Gestió</string>
+    <string name="management_subtitle">Administra les peces que organitzen les finances.</string>
+    <string name="management_accounts_title">Comptes</string>
+    <string name="management_accounts_subtitle">Saldos i ordre</string>
+    <string name="management_categories_title">Categories</string>
+    <string name="management_categories_subtitle">Classificació</string>
+    <string name="management_people_title">Persones</string>
+    <string name="management_people_subtitle">Deutes compartits</string>
+    <string name="management_events_title">Esdeveniments</string>
+    <string name="management_events_subtitle">Viatges i ocasions</string>
+    <string name="management_recurring_title">Recurrents</string>
+    <string name="management_recurring_subtitle">Plantilles i avisos</string>
+    <string name="management_settings_title">Configuració</string>
+    <string name="management_settings_subtitle">Sistema i avisos</string>
 
     <!-- Onboarding -->
     <string name="onboarding_loading">Preparant l\'inici...</string>

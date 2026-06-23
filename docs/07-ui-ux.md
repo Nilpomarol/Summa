@@ -12,23 +12,25 @@
 
 Same screens on both platforms; different shells.
 
-- **Mobile (Android, primary):** bottom navigation with 4–5 destinations; a global **"＋ New movement"** primary action reachable everywhere; secondary destinations reached from within sections.
+- **Mobile (Android, primary):** bottom navigation with four destinations plus an embedded centered **"＋ New movement"** primary action: **Inici · Moviments · + · Anàlisi · Gestió**. The FAB remains visible throughout the app after onboarding; if no account exists yet, tapping it opens account creation instead of a blocked movement form. Secondary destinations are reached from within their section.
 - **Desktop (Windows, secondary):** left **sidebar** with the same groups; wider content area, frequently **two-pane** (list + detail).
 
 **Navigation groups** (from spec §5.9):
 
-- **Principal:** Dashboard · Analysis
-- **Finances:** Movements · Accounts · Recurring
-- **Management:** Categories · People · Trips
-- **Footer/system:** Settings (theme toggle, backup, sync)
+- **Principal:** Dashboard / Inici · Analysis / Anàlisi
+- **Finances:** Movements / Moviments
+- **Management / Gestió:** Accounts / Comptes · Categories · People / Persones · Events / Esdeveniments · Recurring / Recurrents · Settings / Configuració
+- **Event-local:** Tags / Etiquetes live inside Events; they are not a top-level management destination.
 
-**Global behaviors:** "New movement" available everywhere; **live refresh** (a change on one screen updates related screens); a **read-only banner** when this device doesn't hold the sync token (spec §6, `docs/02`).
+**Global behaviors:** "New movement" available everywhere through the centered FAB; **live refresh** (a change on one screen updates related screens); a **read-only banner** when this device doesn't hold the sync token (spec §6, `docs/02`).
+
+**Android back behavior:** from Moviments, Anàlisi, or the Gestió hub, Back returns to Inici; from a Gestió child page, Back returns to the Gestió hub; from Inici, Back follows normal Android app-exit/minimize behavior. Bottom-nav switching does not build a deep back stack. Any page opened from Gestió keeps Gestió highlighted in the bottom bar.
 
 ---
 
 ## 2. Layout conventions (structure only)
 
-- **Mobile:** top app bar (title + contextual actions) · single scrollable column of sections/cards · bottom nav · FAB for "New movement". Editors and pickers are full-screen or bottom sheets.
+- **Mobile:** top app bar (title + contextual actions) · single scrollable column of sections/cards · bottom nav with the embedded centered FAB for "New movement". Editors and pickers are full-screen or bottom sheets.
 - **Desktop:** sidebar · content area; lists and their detail shown **side-by-side** (master/detail) where it helps; analysis uses the extra width (multi-column, larger charts); editors are dialogs/panes.
 - **Lists** everywhere: support filter + search, are **drill-through** to detail, and show derived figures (balances, "actual") read from the canonical views.
 - **Never-block:** warnings are inline, dismissible banners — never modal hard-stops (spec §4.6, §4.7).
@@ -89,6 +91,12 @@ Each entry: **purpose · content blocks · primary actions · platform note.**
 
 ### Management
 
+**Management / Gestió hub**
+- Purpose: compact entry point for reference data, shared contexts, recurring setup, and system settings.
+- Blocks: a simple **2-column × 3-row grid** that should fit or nearly fit one mobile screen without scrolling: Comptes, Categories, Persones, Esdeveniments, Recurrents, Configuració.
+- Actions: open the selected full management page; Back from a child returns to the hub.
+- Platform: mobile grid hub; desktop sidebar group.
+
 **Categories list**
 - Blocks: two-level hierarchy; per-category insight (this-month total + count, this-year total + share, budget bar green/amber/red if budgeted); "Sense categoria" bucket shown.
 - Actions: New category; open category; delete; reorder.
@@ -110,20 +118,20 @@ Each entry: **purpose · content blocks · primary actions · platform note.**
 **Add / Edit person**
 - Blocks: name; avatar; colour; notes.
 
-**Trips list**
+**Events / Esdeveniments list** (stored as trips/events in the data model)
 - Blocks: trip cards (name, type, dates/ongoing, status).
-- Actions: New trip; open trip.
+- Actions: New event/trip; open event.
 
-**Trip detail** — spec §3.11
+**Event / Esdeveniment detail** — spec §3.11
 - Blocks: KPIs (total spent, days, avg/day); stacked daily chart (per-day ↔ cumulative); breakdown by category & by tag (total ↔ avg/day); scoped movement list (new movements default within trip dates + pre-attach).
-- Actions: Edit trip; New movement (scoped); set default account; trip budget.
+- Actions: Edit event; New movement (scoped); set default account; event budget.
 
-**Add / Edit trip**
+**Add / Edit event**
 - Blocks: name; type (trip/celebration/other); start/end (end optional); default account; budget; notes; status.
 
-**Tags management**
-- Blocks: tag list (global vs trip-local marker).
-- Actions: New tag; edit; delete; scope (global / trip-local).
+**Tags management** (inside Events)
+- Blocks: tag list (global vs event-local marker), reached from event detail and event-scoped movement/tag pickers.
+- Actions: New tag; edit; delete; scope (global / event-local).
 
 **Budgets**
 - Blocks: budget list with progress (limit vs actual, over/under); scope (category-monthly first).
