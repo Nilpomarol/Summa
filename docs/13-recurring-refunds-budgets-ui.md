@@ -22,16 +22,15 @@ P4 must not implement trips/tags attachment in the template UI beyond the option
 
 ## 2. Navigation Shape
 
-Phase 4 adds **Recurring** as a primary Finances destination, per `docs/07-ui-ux.md` §IA:
+Phase 4 adds **Recurrents** under the Gestió hub, per `docs/07-ui-ux.md` §IA. The primary Android destinations remain:
 
-- Dashboard;
-- Movements;
-- Accounts;
-- Analysis;
-- People;
-- **Recurring**.
+- Inici;
+- Moviments;
+- centered New movement FAB;
+- Anàlisi;
+- Gestió.
 
-Budgets are reached from Analysis/Categories management and from a category's detail, not from the bottom bar; a category-scoped budget is created or edited from the category context so the scope is preserved. Refunds are not a destination: a refund starts from an **expense's** movement detail (`Add refund`). Notification and alert settings live under **Settings** (system tools, §5.8), reached from the management area. The global "New movement" action is unchanged; "New recurring" starts from the Recurring screen, and "New budget" from the budgets surface.
+Budgets are reached from Analysis/Categories management and from a category's detail, not from the bottom bar; a category-scoped budget is created or edited from the category context so the scope is preserved. Refunds are not a destination: a refund starts from an **expense's** movement detail (`Add refund`). Notification and alert settings live under **Gestió > Configuració** (system tools, §5.8). Recurring templates live under **Gestió > Recurrents**. The global "New movement" action is unchanged and remains centered in the bottom bar; "New recurring" starts from Recurrents, and "New budget" from the budgets surface.
 
 ---
 

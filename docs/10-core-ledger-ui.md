@@ -22,12 +22,13 @@ The first ledger UI must not show disabled future controls for splits, people, s
 
 Use the mobile shell from `docs/07-ui-ux.md` and `docs/08-design-system.md`:
 
-- bottom navigation: Home, Movements, Accounts, Analysis, People;
-- centered primary action: New movement;
+- bottom navigation: Inici, Moviments, centered New movement FAB, Anàlisi, Gestió;
+- Gestió hub: Comptes, Categories, Persones, Esdeveniments, Recurrents, Configuració in a 2-column × 3-row grid;
+- centered primary action: New movement, always visible after onboarding;
 - top app bar title changes with the selected screen;
 - read-only banner can be added later by sync work, but P1 screens should reserve the pattern: edit actions can be disabled from shared app state when sync arrives.
 
-P1 can leave Home, Analysis, and People as simple placeholders until their phases. Movements, Accounts, and Categories are the active destinations for this slice.
+P1 can leave Inici, Anàlisi, and later Gestió child pages as simple placeholders until their phases. Moviments, Comptes, and Categories are the active destinations for this slice. Back from Moviments or Gestió returns to Inici; Back from a Gestió child returns to the Gestió hub.
 
 ---
 

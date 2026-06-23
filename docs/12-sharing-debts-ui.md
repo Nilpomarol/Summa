@@ -22,15 +22,15 @@ P3 must not implement recurring templates, refunds, budgets, trips/tags, CSV imp
 
 ## 2. Navigation Shape
 
-When the People screen becomes usable, the primary Android destinations should be:
+When the People screen becomes usable, it lives under the Gestió hub defined in `docs/07-ui-ux.md`. The primary Android destinations remain:
 
-- Dashboard;
-- Movements;
-- Accounts;
-- Analysis;
-- People.
+- Inici;
+- Moviments;
+- centered New movement FAB;
+- Anàlisi;
+- Gestió.
 
-Categories remains a management surface reachable from account/movement management entry points and category pickers. The global New movement action remains centered and opens the existing movement flow. Person-specific actions, such as Settle up or Person paid for me, start from People or Person detail so the person context is preserved.
+Categories remains a management surface reachable from Gestió, account/movement management entry points, and category pickers. The global New movement action remains centered and opens the existing movement flow. Person-specific actions, such as Settle up or Person paid for me, start from Gestió > Persones or Person detail so the person context is preserved.
 
 ---
 
