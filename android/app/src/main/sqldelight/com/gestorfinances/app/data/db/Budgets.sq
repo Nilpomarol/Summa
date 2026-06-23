@@ -1,8 +1,12 @@
 activeBudgets:
 SELECT
     budgets.id,
+    budgets.scope,
     budgets.category_id,
     categories.name AS category_name,
+    budgets.trip_id,
+    trips.name AS trip_name,
+    budgets.period,
     budgets.limit_amount_cents,
     budgets.alert_threshold_percent,
     budgets.start_date,
@@ -12,15 +16,26 @@ SELECT
 FROM budgets
 LEFT JOIN categories
     ON categories.id = budgets.category_id
+   AND categories.archived_at IS NULL
+LEFT JOIN trips
+    ON trips.id = budgets.trip_id
+   AND trips.archived_at IS NULL
 WHERE budgets.archived_at IS NULL
-  AND budgets.scope = 'category'
-ORDER BY lower(categories.name) ASC;
+  AND (
+      (budgets.scope = 'category' AND categories.id IS NOT NULL) OR
+      (budgets.scope = 'trip' AND trips.id IS NOT NULL)
+  )
+ORDER BY budgets.scope ASC, lower(COALESCE(categories.name, trips.name, '')) ASC;
 
 budgetById:
 SELECT
     budgets.id,
+    budgets.scope,
     budgets.category_id,
     categories.name AS category_name,
+    budgets.trip_id,
+    trips.name AS trip_name,
+    budgets.period,
     budgets.limit_amount_cents,
     budgets.alert_threshold_percent,
     budgets.start_date,
@@ -30,6 +45,10 @@ SELECT
 FROM budgets
 LEFT JOIN categories
     ON categories.id = budgets.category_id
+   AND categories.archived_at IS NULL
+LEFT JOIN trips
+    ON trips.id = budgets.trip_id
+   AND trips.archived_at IS NULL
 WHERE budgets.id = :id
   AND budgets.archived_at IS NULL;
 
@@ -40,11 +59,19 @@ WHERE category_id = :category_id
   AND date >= :from_date
   AND date <= :to_date;
 
+budgetActualForTrip:
+SELECT COALESCE(SUM(amount_cents), 0) AS actual_cents
+FROM v_actual_expense
+WHERE trip_id = :trip_id
+  AND date >= :from_date
+  AND date <= :to_date;
+
 insertBudget:
 INSERT INTO budgets(
     id,
     scope,
     category_id,
+    trip_id,
     period,
     limit_amount_cents,
     start_date,
@@ -53,9 +80,10 @@ INSERT INTO budgets(
     updated_at
 ) VALUES (
     :id,
-    'category',
+    :scope,
     :category_id,
-    'monthly',
+    :trip_id,
+    :period,
     :limit_amount_cents,
     :start_date,
     :alert_threshold_percent,
@@ -66,7 +94,10 @@ INSERT INTO budgets(
 updateBudget:
 UPDATE budgets
 SET
+    scope = :scope,
     category_id = :category_id,
+    trip_id = :trip_id,
+    period = :period,
     limit_amount_cents = :limit_amount_cents,
     start_date = :start_date,
     alert_threshold_percent = :alert_threshold_percent,

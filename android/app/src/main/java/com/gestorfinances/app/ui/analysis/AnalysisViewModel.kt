@@ -134,11 +134,12 @@ class AnalysisViewModel(
                         totals = totals,
                         previousTotals = previousTotals,
                         categories = if (isActual) {
-                            analysisRepository.actualByCategory(
+                            analysisRepository.actualBreakdown(
                                 fromDate = range.fromDate.toString(),
                                 toDate = range.toDateExclusive.toString(),
                                 oneTimeMode = snapshot.oneTimeMode,
                                 categoryNature = categoryNature,
+                                groupTrips = snapshot.groupTripsAsBlocks,
                             )
                         } else {
                             emptyList()
@@ -271,6 +272,11 @@ class AnalysisViewModel(
         refresh()
     }
 
+    fun onGroupTripsAsBlocksChanged(groupTripsAsBlocks: Boolean) {
+        _state.value = _state.value.copy(groupTripsAsBlocks = groupTripsAsBlocks)
+        refresh()
+    }
+
     fun onPreviousPeriodClicked() {
         shiftPeriod(delta = -1)
     }
@@ -377,6 +383,7 @@ data class AnalysisUiState(
     val customFrom: String = "",
     val customTo: String = "",
     val comparePrevious: Boolean = false,
+    val groupTripsAsBlocks: Boolean = true,
     val currentRange: AnalysisPeriodRange? = null,
     val previousRange: AnalysisPeriodRange? = null,
     val totals: AnalysisPeriodTotals = emptyAnalysisTotals(),
@@ -414,7 +421,8 @@ data class AnalysisUiState(
             analysisMode != AnalysisMode.ACTUAL ||
             valueMode != AnalysisValueMode.TOTALS ||
             natureFilter != AnalysisNatureFilter.ALL ||
-            oneTimeMode != AnalysisOneTimeMode.INCLUDE
+            oneTimeMode != AnalysisOneTimeMode.INCLUDE ||
+            !groupTripsAsBlocks
 }
 
 data class RecurringCostSummary(

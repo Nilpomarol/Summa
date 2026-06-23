@@ -19,6 +19,10 @@ import com.gestorfinances.app.data.repository.PersonRepository
 import com.gestorfinances.app.data.repository.RefundDraft
 import com.gestorfinances.app.data.repository.RefundSummary
 import com.gestorfinances.app.data.repository.PersonSummary
+import com.gestorfinances.app.data.repository.TagRepository
+import com.gestorfinances.app.data.repository.TagSummary
+import com.gestorfinances.app.data.repository.TripRepository
+import com.gestorfinances.app.data.repository.TripSummary
 import com.gestorfinances.app.domain.rules.DuplicateDetector
 import com.gestorfinances.app.domain.rules.DuplicateMovement
 import com.gestorfinances.app.notifications.NotificationRefresher
@@ -41,6 +45,8 @@ class MovementsViewModel(
     private val accountRepository: AccountRepository,
     private val categoryRepository: CategoryRepository,
     private val personRepository: PersonRepository,
+    private val tripRepository: TripRepository,
+    private val tagRepository: TagRepository,
     private val notificationRefresher: NotificationRefresher = NotificationRefresher.NoOp,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
@@ -52,6 +58,10 @@ class MovementsViewModel(
     }
 
     fun onAddClicked() {
+        onAddClicked(tripId = null)
+    }
+
+    fun onAddClicked(tripId: String?) {
         viewModelScope.launch {
             val result = loadMovementData()
             result.fold(
@@ -59,16 +69,15 @@ class MovementsViewModel(
                     val form = if (it.accounts.isEmpty()) {
                         null
                     } else {
-                        MovementFormState(
-                            accountId = defaultAccountId(it.accounts),
-                            date = LocalDate.now().toString(),
-                        )
+                        newMovementForm(it, tripId)
                     }
                     _state.value = _state.value.copy(
                         movements = it.movements,
                         accounts = it.accounts,
                         categories = it.categories,
                         people = it.people,
+                        trips = it.trips,
+                        tags = it.tags,
                         isLoading = false,
                         errorMessage = null,
                         form = form,
@@ -250,6 +259,24 @@ class MovementsViewModel(
         _state.value = _state.value.copy(form = normalizeForm(form))
     }
 
+    fun onTripSelected(tripId: String?) {
+        val form = _state.value.form ?: return
+        val trip = tripId?.let { selectedId -> _state.value.trips.firstOrNull { it.id == selectedId } }
+        val tag = form.tagId?.let { tagId -> _state.value.tags.firstOrNull { it.id == tagId } }
+        val accountId = if (form.id == null && trip?.defaultAccountId != null) {
+            trip.defaultAccountId
+        } else {
+            form.accountId
+        }
+        val tagId = if (tag != null && tag.supportsTrip(tripId)) form.tagId else null
+        onFormChanged(form.copy(tripId = tripId, tagId = tagId, accountId = accountId))
+    }
+
+    fun onTagSelected(tagId: String?) {
+        val form = _state.value.form ?: return
+        onFormChanged(form.copy(tagId = tagId))
+    }
+
     fun onSharedToggled(enabled: Boolean) {
         val form = _state.value.form ?: return
         val nextForm = if (enabled) {
@@ -288,6 +315,9 @@ class MovementsViewModel(
         val category = form.categoryId?.let { categoryId ->
             _state.value.categories.firstOrNull { it.id == categoryId }
         }
+        val tag = form.tagId?.let { tagId ->
+            _state.value.tags.firstOrNull { it.id == tagId }
+        }
         val splitDraft = form.splitEditor?.toMovementSplitDraft(amount)
 
         val errorRes = when {
@@ -303,6 +333,8 @@ class MovementsViewModel(
             form.type == MovementType.TRANSFER && form.accountId == form.destinationAccountId ->
                 R.string.movement_validation_transfer_same_account
             category != null && !category.supports(form.type) -> R.string.movement_validation_category_invalid
+            form.tagId != null && (form.tripId == null || tag == null || !tag.supportsTrip(form.tripId)) ->
+                R.string.tag_validation_trip_required
             form.splitEditor != null && splitDraft == null ->
                 form.splitEditor.calculation(amount).errorRes ?: R.string.split_validation_reconcile
             else -> null
@@ -329,6 +361,8 @@ class MovementsViewModel(
             accountId = requireNotNull(form.accountId),
             destinationAccountId = form.destinationAccountId.takeIf { form.type == MovementType.TRANSFER },
             categoryId = form.categoryId.takeIf { form.type != MovementType.TRANSFER },
+            tripId = form.tripId,
+            tagId = form.tagId,
             name = form.name.nullIfBlank(),
             payee = form.payee.nullIfBlank(),
             notes = form.notes.nullIfBlank(),
@@ -381,6 +415,8 @@ class MovementsViewModel(
                         accounts = it.accounts,
                         categories = it.categories,
                         people = it.people,
+                        trips = it.trips,
+                        tags = it.tags,
                         isLoading = false,
                         dataVersion = dataVersion,
                     )
@@ -404,6 +440,8 @@ class MovementsViewModel(
                     accounts = accountRepository.listActive(),
                     categories = categoryRepository.listActive(),
                     people = personRepository.listActive(),
+                    trips = tripRepository.listActive(),
+                    tags = tagRepository.listActive(),
                 )
             }
         }
@@ -435,11 +473,26 @@ class MovementsViewModel(
         val category = typeChangedForm.categoryId?.let { categoryId ->
             _state.value.categories.firstOrNull { it.id == categoryId }
         }
-        return if (category != null && !category.supports(typeChangedForm.type)) {
-            typeChangedForm.copy(categoryId = null, errorRes = null, errorMessage = null, duplicateWarning = false)
-        } else {
-            typeChangedForm.copy(errorRes = null, errorMessage = null, duplicateWarning = false)
+        val tag = typeChangedForm.tagId?.let { tagId ->
+            _state.value.tags.firstOrNull { it.id == tagId }
         }
+        val categoryId = if (category != null && !category.supports(typeChangedForm.type)) {
+            null
+        } else {
+            typeChangedForm.categoryId
+        }
+        val tagId = if (typeChangedForm.tripId == null || tag == null || !tag.supportsTrip(typeChangedForm.tripId)) {
+            null
+        } else {
+            typeChangedForm.tagId
+        }
+        return typeChangedForm.copy(
+            categoryId = categoryId,
+            tagId = tagId,
+            errorRes = null,
+            errorMessage = null,
+            duplicateWarning = false,
+        )
     }
 
     // Warn (never block) when an active movement matches account + amount + date(±1) + name.
@@ -472,6 +525,8 @@ class MovementsViewModel(
         private val accountRepository: AccountRepository,
         private val categoryRepository: CategoryRepository,
         private val personRepository: PersonRepository,
+        private val tripRepository: TripRepository,
+        private val tagRepository: TagRepository,
         private val notificationRefresher: NotificationRefresher = NotificationRefresher.NoOp,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
@@ -482,6 +537,8 @@ class MovementsViewModel(
                     accountRepository = accountRepository,
                     categoryRepository = categoryRepository,
                     personRepository = personRepository,
+                    tripRepository = tripRepository,
+                    tagRepository = tagRepository,
                     notificationRefresher = notificationRefresher,
                 ) as T
             }
@@ -495,6 +552,8 @@ data class MovementsUiState(
     val accounts: List<AccountSummary> = emptyList(),
     val categories: List<CategoryRecord> = emptyList(),
     val people: List<PersonSummary> = emptyList(),
+    val trips: List<TripSummary> = emptyList(),
+    val tags: List<TagSummary> = emptyList(),
     val filters: MovementFilters = MovementFilters(),
     val isLoading: Boolean = true,
     val errorMessage: String? = null,
@@ -514,6 +573,8 @@ data class MovementFilters(
     val type: MovementType? = null,
     val accountId: String? = null,
     val categoryId: String? = null,
+    val tripId: String? = null,
+    val tagId: String? = null,
     val uncategorizedOnly: Boolean = false,
     val sourceMode: MovementSourceMode? = null,
     val categoryNature: CategoryNature? = null,
@@ -525,6 +586,8 @@ data class MovementFilters(
     val hasAdvancedFilters: Boolean
         get() = accountId != null ||
             categoryId != null ||
+            tripId != null ||
+            tagId != null ||
             uncategorizedOnly ||
             dateFrom.isNotBlank() ||
             dateTo.isNotBlank() ||
@@ -552,6 +615,8 @@ data class MovementFormState(
     val accountId: String? = null,
     val destinationAccountId: String? = null,
     val categoryId: String? = null,
+    val tripId: String? = null,
+    val tagId: String? = null,
     val name: String = "",
     val payee: String = "",
     val notes: String = "",
@@ -584,10 +649,24 @@ private data class LoadedMovementData(
     val accounts: List<AccountSummary>,
     val categories: List<CategoryRecord>,
     val people: List<PersonSummary>,
+    val trips: List<TripSummary>,
+    val tags: List<TagSummary>,
 )
 
 private fun defaultAccountId(accounts: List<AccountSummary>): String? =
     accounts.firstOrNull { it.isDefault }?.id ?: accounts.firstOrNull()?.id
+
+private fun newMovementForm(
+    data: LoadedMovementData,
+    tripId: String?,
+): MovementFormState {
+    val trip = tripId?.let { selectedId -> data.trips.firstOrNull { it.id == selectedId } }
+    return MovementFormState(
+        accountId = trip?.defaultAccountId ?: defaultAccountId(data.accounts),
+        tripId = trip?.id,
+        date = LocalDate.now().toString(),
+    )
+}
 
 private fun MovementFilters.withDateValidation(): MovementFilters {
     val from = parseDateOrNull(dateFrom)
@@ -608,6 +687,8 @@ private fun MovementFilters.matches(movement: MovementSummary): Boolean {
         return false
     }
     if (categoryId != null && movement.categoryId != categoryId) return false
+    if (tripId != null && movement.tripId != tripId) return false
+    if (tagId != null && movement.tagId != tagId) return false
     if (uncategorizedOnly && movement.categoryId != null) return false
     if (categoryNature != null && movement.categoryNature != categoryNature) return false
     when (oneTimeMode) {
@@ -623,6 +704,8 @@ private fun MovementFilters.matches(movement: MovementSummary): Boolean {
             movement.payee,
             movement.notes,
             movement.categoryName,
+            movement.tripName,
+            movement.tagName,
             movement.accountName,
             movement.destinationAccountName,
         ).joinToString(separator = " ").lowercase()
@@ -644,6 +727,8 @@ private fun MovementSummary.toFormState(): MovementFormState =
         accountId = accountId,
         destinationAccountId = destinationAccountId,
         categoryId = categoryId,
+        tripId = tripId,
+        tagId = tagId,
         name = name.orEmpty(),
         payee = payee.orEmpty(),
         notes = notes.orEmpty(),
@@ -657,6 +742,9 @@ private fun CategoryRecord.supports(type: MovementType): Boolean =
         MovementType.INCOME -> kind == CategoryKind.INCOME || kind == CategoryKind.BOTH
         else -> false
     }
+
+private fun TagSummary.supportsTrip(tripId: String?): Boolean =
+    tripId != null && (this.tripId == null || this.tripId == tripId)
 
 private fun parseDate(raw: String): LocalDate? =
     try {

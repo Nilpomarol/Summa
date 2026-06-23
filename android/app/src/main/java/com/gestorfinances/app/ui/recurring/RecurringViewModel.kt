@@ -64,7 +64,7 @@ class RecurringViewModel(
 
     fun onAddClicked() {
         _state.value = _state.value.copy(
-            form = TemplateFormState(nextDueDate = LocalDate.now().toString()),
+            form = TemplateFormState(nextDueDate = today().toString()),
         )
     }
 
@@ -224,6 +224,15 @@ class RecurringViewModel(
         val isTransfer = form.type == MovementType.TRANSFER
         val dayOfMonth = form.dayOfMonth.trim().toLongOrNull()
         val intervalCount = form.intervalCount.trim().toLongOrNull()
+        val amountFlexCents = form.amountFlex.trim()
+            .takeIf { it.isNotBlank() }
+            ?.let { parseEuroCents(it, allowNegative = false) }
+        val dateFlexDays = form.dateFlex.trim()
+            .takeIf { it.isNotBlank() }
+            ?.toLongOrNull()
+        val leadNotificationDays = form.leadDays.trim()
+            .takeIf { it.isNotBlank() }
+            ?.toLongOrNull()
 
         val errorRes = when {
             !form.amountIsVariable && form.amount.isBlank() -> R.string.template_validation_amount_required
@@ -240,6 +249,11 @@ class RecurringViewModel(
                 R.string.template_validation_interval_required
             form.nextDueDate.isBlank() -> R.string.movement_validation_date_required
             nextDue == null -> R.string.movement_validation_date_invalid
+            form.amountFlex.isNotBlank() && amountFlexCents == null -> R.string.template_validation_amount_flex_invalid
+            form.dateFlex.isNotBlank() && (dateFlexDays == null || dateFlexDays < 0L) ->
+                R.string.template_validation_date_flex_invalid
+            form.leadDays.isNotBlank() && (leadNotificationDays == null || leadNotificationDays < 0L) ->
+                R.string.notification_validation_lead_days
             else -> null
         }
         if (errorRes != null) {
@@ -265,9 +279,9 @@ class RecurringViewModel(
             weekday = if (form.frequency.usesWeekday()) form.weekday?.toLong() else null,
             nextDueDate = requireNotNull(nextDue).toString(),
             amountIsVariable = form.amountIsVariable,
-            amountFlexCents = parseEuroCents(form.amountFlex, allowNegative = false),
-            dateFlexDays = form.dateFlex.trim().toLongOrNull()?.takeIf { it >= 0L },
-            leadNotificationDays = form.leadDays.trim().toLongOrNull()?.takeIf { it >= 0L },
+            amountFlexCents = amountFlexCents,
+            dateFlexDays = dateFlexDays,
+            leadNotificationDays = leadNotificationDays,
             status = form.status,
         )
 

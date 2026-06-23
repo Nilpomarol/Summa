@@ -49,6 +49,8 @@ import com.gestorfinances.app.data.repository.MovementSummary
 import com.gestorfinances.app.data.repository.MovementType
 import com.gestorfinances.app.data.repository.SettlementDirection
 import com.gestorfinances.app.data.repository.PersonSummary
+import com.gestorfinances.app.data.repository.TagSummary
+import com.gestorfinances.app.data.repository.TripSummary
 import com.gestorfinances.app.ui.common.BannerKind
 import com.gestorfinances.app.ui.common.ChipFlowSection
 import com.gestorfinances.app.ui.common.DateGroupHeader
@@ -146,7 +148,11 @@ private fun MovementDialogs(
             accounts = state.accounts,
             categories = state.categories,
             people = state.people,
+            trips = state.trips,
+            tags = state.tags,
             onFormChange = viewModel::onFormChanged,
+            onTripSelected = viewModel::onTripSelected,
+            onTagSelected = viewModel::onTagSelected,
             onSharedToggled = viewModel::onSharedToggled,
             onSplitEditorChange = viewModel::onSplitEditorChanged,
             onDismiss = viewModel::onFormDismissed,
@@ -248,6 +254,8 @@ private fun MovementsContent(
                         filters = state.filters,
                         accounts = state.accounts,
                         categories = state.categories,
+                        trips = state.trips,
+                        tags = state.tags,
                         onFiltersChange = onFiltersChange,
                         onClearFilters = onClearFilters,
                     )
@@ -320,6 +328,8 @@ private fun MovementFiltersCard(
     filters: MovementFilters,
     accounts: List<AccountSummary>,
     categories: List<CategoryRecord>,
+    trips: List<TripSummary>,
+    tags: List<TagSummary>,
     onFiltersChange: (MovementFilters) -> Unit,
     onClearFilters: () -> Unit,
 ) {
@@ -397,6 +407,36 @@ private fun MovementFiltersCard(
                             )
                         },
                     )
+                }
+            }
+            ChipFlowSection(label = stringResource(R.string.movement_field_trip)) {
+                FinanceFilterChip(
+                    selected = filters.tripId == null,
+                    label = stringResource(R.string.trip_filter_all),
+                    onClick = { onFiltersChange(filters.copy(tripId = null, tagId = null)) },
+                )
+                trips.forEach { trip ->
+                    FinanceFilterChip(
+                        selected = filters.tripId == trip.id,
+                        label = trip.name,
+                        onClick = { onFiltersChange(filters.copy(tripId = trip.id, tagId = null)) },
+                    )
+                }
+            }
+            if (filters.tripId != null) {
+                ChipFlowSection(label = stringResource(R.string.movement_field_tag)) {
+                    FinanceFilterChip(
+                        selected = filters.tagId == null,
+                        label = stringResource(R.string.tag_picker_none),
+                        onClick = { onFiltersChange(filters.copy(tagId = null)) },
+                    )
+                    tags.filter { it.supportsTrip(filters.tripId) }.forEach { tag ->
+                        FinanceFilterChip(
+                            selected = filters.tagId == tag.id,
+                            label = tag.name,
+                            onClick = { onFiltersChange(filters.copy(tagId = tag.id)) },
+                        )
+                    }
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -593,6 +633,18 @@ private fun MovementDetailDialog(
                     DetailLine(
                         label = stringResource(R.string.movement_detail_category),
                         value = movement.categoryName ?: stringResource(R.string.common_no_category),
+                    )
+                }
+                movement.tripName?.let {
+                    DetailLine(
+                        label = stringResource(R.string.movement_field_trip),
+                        value = it,
+                    )
+                }
+                movement.tagName?.let {
+                    DetailLine(
+                        label = stringResource(R.string.movement_field_tag),
+                        value = it,
                     )
                 }
                 if (movement.type == MovementType.SETTLEMENT) {
@@ -817,7 +869,11 @@ private fun MovementFormDialog(
     accounts: List<AccountSummary>,
     categories: List<CategoryRecord>,
     people: List<PersonSummary>,
+    trips: List<TripSummary>,
+    tags: List<TagSummary>,
     onFormChange: (MovementFormState) -> Unit,
+    onTripSelected: (String?) -> Unit,
+    onTagSelected: (String?) -> Unit,
     onSharedToggled: (Boolean) -> Unit,
     onSplitEditorChange: (SplitEditorState) -> Unit,
     onDismiss: () -> Unit,
@@ -905,6 +961,42 @@ private fun MovementFormDialog(
                             label = account.name,
                             onClick = { onFormChange(form.copy(accountId = account.id)) },
                         )
+                    }
+                }
+                ChipFlowSection(label = stringResource(R.string.movement_field_trip)) {
+                    FinanceFilterChip(
+                        selected = form.tripId == null,
+                        label = stringResource(R.string.trip_filter_all),
+                        onClick = { onTripSelected(null) },
+                    )
+                    trips.forEach { trip ->
+                        FinanceFilterChip(
+                            selected = form.tripId == trip.id,
+                            label = trip.name,
+                            onClick = { onTripSelected(trip.id) },
+                        )
+                    }
+                }
+                val tagOptions = tags.filter { it.supportsTrip(form.tripId) }
+                if (form.tripId == null) {
+                    InlineBanner(
+                        kind = BannerKind.Info,
+                        text = stringResource(R.string.movement_tag_disabled_no_trip),
+                    )
+                } else {
+                    ChipFlowSection(label = stringResource(R.string.movement_field_tag)) {
+                        FinanceFilterChip(
+                            selected = form.tagId == null,
+                            label = stringResource(R.string.tag_picker_none),
+                            onClick = { onTagSelected(null) },
+                        )
+                        tagOptions.forEach { tag ->
+                            FinanceFilterChip(
+                                selected = form.tagId == tag.id,
+                                label = tag.name,
+                                onClick = { onTagSelected(tag.id) },
+                            )
+                        }
                     }
                 }
                 if (form.type == MovementType.TRANSFER) {
@@ -1024,17 +1116,21 @@ private fun MovementSummary.title(): String =
 @Composable
 private fun MovementSummary.subtitle(): String =
     when (type) {
-        MovementType.TRANSFER -> stringResource(
-            R.string.movement_transfer_accounts,
-            accountName,
-            destinationAccountName ?: stringResource(R.string.movement_destination_missing),
-        )
+        MovementType.TRANSFER -> listOfNotNull(
+            stringResource(
+                R.string.movement_transfer_accounts,
+                accountName,
+                destinationAccountName ?: stringResource(R.string.movement_destination_missing),
+            ),
+            tripName,
+            tagName,
+        ).joinToString(separator = " · ")
         MovementType.SETTLEMENT ->
             listOfNotNull(settlementContext(), accountName).joinToString(separator = " · ")
         else -> {
             val category = categoryName ?: stringResource(R.string.common_no_category)
             val paidBy = paidByPersonName?.let { stringResource(R.string.movement_paid_by_person, it) }
-            listOfNotNull(paidBy, category, accountName).joinToString(separator = " · ")
+            listOfNotNull(paidBy, tripName, tagName, category, accountName).joinToString(separator = " · ")
         }
     }
 
@@ -1092,6 +1188,9 @@ private fun CategoryRecord.supports(type: MovementType): Boolean =
         MovementType.INCOME -> kind == CategoryKind.INCOME || kind == CategoryKind.BOTH
         else -> false
     }
+
+private fun TagSummary.supportsTrip(tripId: String?): Boolean =
+    tripId != null && (this.tripId == null || this.tripId == tripId)
 
 private val phaseOneTypes = listOf(
     MovementType.EXPENSE,

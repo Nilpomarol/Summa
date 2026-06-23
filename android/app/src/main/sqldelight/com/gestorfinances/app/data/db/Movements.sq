@@ -11,6 +11,10 @@ SELECT
     movements.category_id,
     categories.name AS category_name,
     categories.nature AS category_nature,
+    movements.trip_id,
+    trips.name AS trip_name,
+    movements.tag_id,
+    tags.name AS tag_name,
     movements.name,
     movements.payee,
     movements.notes,
@@ -55,6 +59,10 @@ LEFT JOIN accounts AS destination_accounts
     ON destination_accounts.id = movements.dest_account_id
 LEFT JOIN categories
     ON categories.id = movements.category_id
+LEFT JOIN trips
+    ON trips.id = movements.trip_id
+LEFT JOIN tags
+    ON tags.id = movements.tag_id
 LEFT JOIN people AS settlement_people
     ON settlement_people.id = movements.person_id
 LEFT JOIN v_movement_shared
@@ -75,6 +83,10 @@ SELECT
     movements.category_id,
     categories.name AS category_name,
     categories.nature AS category_nature,
+    movements.trip_id,
+    trips.name AS trip_name,
+    movements.tag_id,
+    tags.name AS tag_name,
     movements.name,
     movements.payee,
     movements.notes,
@@ -119,6 +131,10 @@ LEFT JOIN accounts AS destination_accounts
     ON destination_accounts.id = movements.dest_account_id
 LEFT JOIN categories
     ON categories.id = movements.category_id
+LEFT JOIN trips
+    ON trips.id = movements.trip_id
+LEFT JOIN tags
+    ON tags.id = movements.tag_id
 LEFT JOIN people AS settlement_people
     ON settlement_people.id = movements.person_id
 LEFT JOIN v_movement_shared
@@ -140,6 +156,10 @@ SELECT
     movements.category_id,
     categories.name AS category_name,
     categories.nature AS category_nature,
+    movements.trip_id,
+    trips.name AS trip_name,
+    movements.tag_id,
+    tags.name AS tag_name,
     movements.name,
     movements.payee,
     movements.notes,
@@ -184,6 +204,10 @@ LEFT JOIN accounts AS destination_accounts
     ON destination_accounts.id = movements.dest_account_id
 LEFT JOIN categories
     ON categories.id = movements.category_id
+LEFT JOIN trips
+    ON trips.id = movements.trip_id
+LEFT JOIN tags
+    ON tags.id = movements.tag_id
 LEFT JOIN people AS settlement_people
     ON settlement_people.id = movements.person_id
 LEFT JOIN v_movement_shared
@@ -232,6 +256,8 @@ INSERT INTO movements(
     notes,
     is_one_time,
     category_id,
+    trip_id,
+    tag_id,
     template_id,
     created_at,
     updated_at
@@ -247,6 +273,8 @@ INSERT INTO movements(
     :notes,
     :is_one_time,
     :category_id,
+    :trip_id,
+    :tag_id,
     :template_id,
     :created_at,
     :updated_at
@@ -340,6 +368,8 @@ SET
     notes = :notes,
     is_one_time = :is_one_time,
     category_id = :category_id,
+    trip_id = :trip_id,
+    tag_id = :tag_id,
     updated_at = :updated_at
 WHERE id = :id
   AND archived_at IS NULL;

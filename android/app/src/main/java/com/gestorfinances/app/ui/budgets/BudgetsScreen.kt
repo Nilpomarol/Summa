@@ -47,15 +47,20 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.BudgetEvaluation
+import com.gestorfinances.app.data.repository.BudgetScope
 import com.gestorfinances.app.data.repository.BudgetStatus
 import com.gestorfinances.app.data.repository.BudgetSummary
 import com.gestorfinances.app.data.repository.CategoryRecord
+import com.gestorfinances.app.data.repository.TripSummary
+import com.gestorfinances.app.ui.common.BannerKind
 import com.gestorfinances.app.ui.common.ChipFlowSection
 import com.gestorfinances.app.ui.common.DestructiveTextButton
 import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.FinanceFilterChip
-import com.gestorfinances.app.ui.common.MoneyText
+import com.gestorfinances.app.ui.common.InlineBanner
+import com.gestorfinances.app.ui.common.NeutralPill
 import com.gestorfinances.app.ui.common.PrimaryButton
+import com.gestorfinances.app.ui.common.SegmentedControl
 import com.gestorfinances.app.ui.common.formatEuroCents
 import com.gestorfinances.app.ui.theme.FinanceTheme
 
@@ -63,12 +68,13 @@ import com.gestorfinances.app.ui.theme.FinanceTheme
 fun BudgetsScreen(
     viewModel: BudgetsViewModel,
     onBack: () -> Unit,
+    contextTripId: String? = null,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsState()
 
-    LaunchedEffect(viewModel) {
-        viewModel.onScreenShown()
+    LaunchedEffect(viewModel, contextTripId) {
+        viewModel.onScreenShown(contextTripId)
     }
 
     BudgetsContent(
@@ -84,6 +90,7 @@ fun BudgetsScreen(
         BudgetFormDialog(
             form = form,
             categories = state.categories,
+            trips = state.trips,
             onFormChange = viewModel::onFormChanged,
             onDismiss = viewModel::onFormDismissed,
             onSave = viewModel::onSaveClicked,
@@ -123,11 +130,7 @@ private fun BudgetsContent(
 
         state.errorMessage?.let { message ->
             item {
-                Text(
-                    text = message,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+                InlineBanner(kind = BannerKind.Error, text = message)
             }
         }
 
@@ -166,11 +169,12 @@ private fun BudgetRow(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = evaluation.budget.categoryName
+                    text = evaluation.budget.displayName
                         ?: stringResource(R.string.common_no_category),
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.titleSmall,
                 )
+                NeutralPill(text = evaluation.status.label())
                 BudgetRowMenu(onEdit = onEdit, onDelete = onDelete)
             }
             BudgetProgressBar(
@@ -210,13 +214,13 @@ private fun BudgetProgressBar(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(10.dp)
+            .height(6.dp)
             .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(50)),
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth(fraction)
-                .height(10.dp)
+                .height(6.dp)
                 .background(color, RoundedCornerShape(50)),
         )
     }
@@ -282,6 +286,7 @@ private fun EmptyBudgetsCard(onAdd: () -> Unit) {
 private fun BudgetFormDialog(
     form: BudgetFormState,
     categories: List<CategoryRecord>,
+    trips: List<TripSummary>,
     onFormChange: (BudgetFormState) -> Unit,
     onDismiss: () -> Unit,
     onSave: () -> Unit,
@@ -301,26 +306,51 @@ private fun BudgetFormDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 form.errorRes?.let {
-                    Text(
-                        text = stringResource(it),
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
+                    InlineBanner(kind = BannerKind.Error, text = stringResource(it))
                 }
                 form.errorMessage?.let {
-                    Text(
-                        text = it,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
+                    InlineBanner(kind = BannerKind.Error, text = it)
                 }
-                ChipFlowSection(label = stringResource(R.string.budget_field_category)) {
-                    categories.forEach { category ->
-                        FinanceFilterChip(
-                            selected = form.categoryId == category.id,
-                            label = category.name,
-                            onClick = { onFormChange(form.copy(categoryId = category.id)) },
+                SegmentedControl(
+                    options = BudgetScope.entries,
+                    selected = form.scope,
+                    label = { it.label() },
+                    onSelect = { scope ->
+                        onFormChange(
+                            form.copy(
+                                scope = scope,
+                                categoryId = if (scope == BudgetScope.CATEGORY) form.categoryId else null,
+                                tripId = if (scope == BudgetScope.TRIP) form.tripId else null,
+                            ),
                         )
+                    },
+                )
+                if (form.scope == BudgetScope.CATEGORY) {
+                    ChipFlowSection(label = stringResource(R.string.budget_field_category)) {
+                        categories.forEach { category ->
+                            FinanceFilterChip(
+                                selected = form.categoryId == category.id,
+                                label = category.name,
+                                onClick = { onFormChange(form.copy(categoryId = category.id)) },
+                            )
+                        }
+                    }
+                } else {
+                    ChipFlowSection(label = stringResource(R.string.budget_field_trip)) {
+                        trips.forEach { trip ->
+                            FinanceFilterChip(
+                                selected = form.tripId == trip.id,
+                                label = trip.name,
+                                onClick = {
+                                    onFormChange(
+                                        form.copy(
+                                            tripId = trip.id,
+                                            startDate = form.startDate.ifBlank { trip.startDate.orEmpty() },
+                                        ),
+                                    )
+                                },
+                            )
+                        }
                     }
                 }
                 OutlinedTextField(
@@ -339,6 +369,15 @@ private fun BudgetFormDialog(
                     label = { Text(text = stringResource(R.string.budget_field_threshold)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = form.startDate,
+                    onValueChange = { onFormChange(form.copy(startDate = it)) },
+                    label = { Text(text = stringResource(R.string.budget_field_start)) },
+                    supportingText = { Text(text = stringResource(R.string.movement_date_format_hint)) },
+                    singleLine = true,
                     shape = MaterialTheme.shapes.small,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -368,6 +407,23 @@ private fun BudgetStatus.color(): Color =
         BudgetStatus.WARN -> FinanceTheme.colors.alert
         BudgetStatus.OVER -> FinanceTheme.colors.debt
     }
+
+@Composable
+private fun BudgetStatus.label(): String =
+    when (this) {
+        BudgetStatus.OK -> stringResource(R.string.budget_status_ok)
+        BudgetStatus.WARN -> stringResource(R.string.budget_status_warn)
+        BudgetStatus.OVER -> stringResource(R.string.budget_status_over)
+    }
+
+@Composable
+private fun BudgetScope.label(): String =
+    stringResource(
+        when (this) {
+            BudgetScope.CATEGORY -> R.string.budget_scope_category
+            BudgetScope.TRIP -> R.string.budget_scope_trip
+        },
+    )
 
 private fun progressFraction(evaluation: BudgetEvaluation): Float {
     val limit = evaluation.budget.limitAmountCents

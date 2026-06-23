@@ -4,7 +4,7 @@
 >
 > **Out of scope (separate design pass):** visual style & aesthetics — colour, typography, spacing, theming, iconography, motion. This doc describes *what is on each page and how you move between pages*, not how it looks. Per-screen layout detail is refined just before building each phase.
 >
-> Phase-specific refinements: `docs/10-core-ledger-ui.md` defines the Android Phase 1 ledger screens; `docs/11-dashboard-analysis-ui.md` defines the Android Phase 2 dashboard and analysis screens; `docs/12-sharing-debts-ui.md` defines the Android Phase 3 people, split, debt, and settlement screens.
+> Phase-specific refinements: `docs/10-core-ledger-ui.md` defines the Android Phase 1 ledger screens; `docs/11-dashboard-analysis-ui.md` defines the Android Phase 2 dashboard and analysis screens; `docs/12-sharing-debts-ui.md` defines the Android Phase 3 people, split, debt, and settlement screens; `docs/13-recurring-refunds-budgets-ui.md` defines the Android Phase 4 recurring, refunds, budgets, and notification screens; `docs/14-trips-tags-ui.md` defines the Android Phase 5 trips, tags, and trip-analysis screens.
 
 ---
 

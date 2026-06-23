@@ -129,7 +129,7 @@ class FinanceNotificationCoordinator(
                     title = appContext.getString(titleRes),
                     body = appContext.getString(
                         R.string.notification_budget_body,
-                        budget.categoryName ?: appContext.getString(R.string.common_no_category),
+                        budget.displayName ?: appContext.getString(R.string.common_no_category),
                         formatEuroCents(candidate.evaluation.actualCents),
                         formatEuroCents(budget.limitAmountCents),
                     ),

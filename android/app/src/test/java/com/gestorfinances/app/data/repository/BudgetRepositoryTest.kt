@@ -119,6 +119,50 @@ class BudgetRepositoryTest {
     }
 
     @Test
+    fun evaluationHonorsBudgetStartDateInsidePeriod() {
+        freshStore().use { store ->
+            seedAccountAndCategory(store)
+            store.budgets.create(
+                BudgetDraft("b1", "food", 10_000, null, "2026-03-10"),
+                createdAt = NOW,
+            )
+            store.movements.create(expense("before", 4_000).copy(date = "2026-03-05"), createdAt = NOW)
+            store.movements.create(expense("after", 3_000).copy(date = "2026-03-10"), createdAt = NOW)
+
+            assertEquals(3_000L, store.budgets.evaluateAll(FROM, TO).single().actualCents)
+        }
+    }
+
+    @Test
+    fun tripBudgetEvaluatesActualSpendForTripOnly() {
+        freshStore().use { store ->
+            seedAccountAndCategory(store)
+            seedTrip(store, "mallorca")
+            store.budgets.create(
+                BudgetDraft(
+                    id = "trip-budget",
+                    categoryId = null,
+                    limitAmountCents = 10_000,
+                    alertThresholdPercent = null,
+                    startDate = "2026-03-01",
+                    tripId = "mallorca",
+                    scope = BudgetScope.TRIP,
+                    period = BudgetPeriod.ONE_OFF,
+                ),
+                createdAt = NOW,
+            )
+
+            store.movements.create(expense("trip-expense", 7_000).copy(tripId = "mallorca"), createdAt = NOW)
+            store.movements.create(expense("regular-expense", 5_000), createdAt = NOW)
+
+            val evaluation = store.budgets.evaluateAll(FROM, TO).single()
+            assertEquals(BudgetScope.TRIP, evaluation.budget.scope)
+            assertEquals(7_000L, evaluation.actualCents)
+            assertEquals(3_000L, evaluation.remainingCents)
+        }
+    }
+
+    @Test
     fun rejectsInvalidBudgets() {
         freshStore().use { store ->
             seedAccountAndCategory(store)
@@ -176,6 +220,24 @@ class BudgetRepositoryTest {
         )
     }
 
+    private fun seedTrip(store: TestStore, id: String) {
+        store.trips.create(
+            TripDraft(
+                id = id,
+                name = id,
+                type = TripType.TRIP,
+                status = TripStatus.ACTIVE,
+                startDate = "2026-03-01",
+                endDate = "2026-03-31",
+                icon = null,
+                color = null,
+                notes = null,
+                defaultAccountId = null,
+            ),
+            createdAt = NOW,
+        )
+    }
+
     private fun freshStore(): TestStore {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         driver.execute(null, "PRAGMA foreign_keys = ON", 0)
@@ -186,6 +248,7 @@ class BudgetRepositoryTest {
             accounts = AccountRepository(database.accountsQueries),
             categories = CategoryRepository(database.categoriesQueries),
             movements = MovementRepository(database.movementsQueries, database.splitsQueries),
+            trips = TripRepository(database.tripsQueries),
             budgets = BudgetRepository(database.budgetsQueries),
         )
     }
@@ -195,6 +258,7 @@ class BudgetRepositoryTest {
         val accounts: AccountRepository,
         val categories: CategoryRepository,
         val movements: MovementRepository,
+        val trips: TripRepository,
         val budgets: BudgetRepository,
     ) : AutoCloseable {
         override fun close() {

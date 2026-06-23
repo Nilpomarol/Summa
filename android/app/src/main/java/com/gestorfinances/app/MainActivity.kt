@@ -21,11 +21,13 @@ import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Flight
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.Autorenew
 import androidx.compose.material.icons.outlined.BarChart
+import androidx.compose.material.icons.outlined.Flight
 import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material3.FabPosition
@@ -74,7 +76,11 @@ import com.gestorfinances.app.ui.recurring.RecurringScreen
 import com.gestorfinances.app.ui.recurring.RecurringViewModel
 import com.gestorfinances.app.ui.settings.SettingsScreen
 import com.gestorfinances.app.ui.settings.SettingsViewModel
+import com.gestorfinances.app.ui.tags.TagsScreen
+import com.gestorfinances.app.ui.tags.TagsViewModel
 import com.gestorfinances.app.ui.theme.GestorFinancesTheme
+import com.gestorfinances.app.ui.trips.TripsScreen
+import com.gestorfinances.app.ui.trips.TripsViewModel
 import com.gestorfinances.app.notifications.DESTINATION_ACCOUNTS
 import com.gestorfinances.app.notifications.DESTINATION_BUDGETS
 import com.gestorfinances.app.notifications.DESTINATION_RECURRING
@@ -238,6 +244,8 @@ private fun LedgerShell(
                 accountRepository = appContainer.accountRepository,
                 categoryRepository = appContainer.categoryRepository,
                 personRepository = appContainer.personRepository,
+                tripRepository = appContainer.tripRepository,
+                tagRepository = appContainer.tagRepository,
                 notificationRefresher = appContainer.notificationCoordinator,
             ),
         )[MovementsViewModel::class.java]
@@ -273,6 +281,7 @@ private fun LedgerShell(
             BudgetsViewModel.Factory(
                 budgetRepository = appContainer.budgetRepository,
                 categoryRepository = appContainer.categoryRepository,
+                tripRepository = appContainer.tripRepository,
                 notificationRefresher = appContainer.notificationCoordinator,
             ),
         )[BudgetsViewModel::class.java]
@@ -286,8 +295,31 @@ private fun LedgerShell(
             ),
         )[SettingsViewModel::class.java]
     }
+    val tripsViewModel = remember(viewModelStoreOwner) {
+        ViewModelProvider(
+            viewModelStoreOwner,
+            TripsViewModel.Factory(
+                tripRepository = appContainer.tripRepository,
+                tripAnalysisRepository = appContainer.tripAnalysisRepository,
+                movementRepository = appContainer.movementRepository,
+                accountRepository = appContainer.accountRepository,
+            ),
+        )[TripsViewModel::class.java]
+    }
+    val tagsViewModel = remember(viewModelStoreOwner) {
+        ViewModelProvider(
+            viewModelStoreOwner,
+            TagsViewModel.Factory(
+                tagRepository = appContainer.tagRepository,
+                tripRepository = appContainer.tripRepository,
+            ),
+        )[TagsViewModel::class.java]
+    }
     var showBudgets by remember { mutableStateOf(false) }
+    var budgetContextTripId by remember { mutableStateOf<String?>(null) }
     var showSettings by remember { mutableStateOf(false) }
+    var showTags by remember { mutableStateOf(false) }
+    var tagsContextTripId by remember { mutableStateOf<String?>(null) }
     val onboardingState by onboardingViewModel.state.collectAsState()
     val movementsState by movementsViewModel.state.collectAsState()
 
@@ -308,19 +340,25 @@ private fun LedgerShell(
             DESTINATION_RECURRING -> {
                 selectedSection = LedgerSection.RECURRING
                 showBudgets = false
+                budgetContextTripId = null
                 showSettings = false
+                showTags = false
                 onNotificationDestinationConsumed()
             }
             DESTINATION_BUDGETS -> {
                 selectedSection = LedgerSection.ANALYSIS
                 showBudgets = true
+                budgetContextTripId = null
                 showSettings = false
+                showTags = false
                 onNotificationDestinationConsumed()
             }
             DESTINATION_ACCOUNTS -> {
                 selectedSection = LedgerSection.ACCOUNTS
                 showBudgets = false
+                budgetContextTripId = null
                 showSettings = false
+                showTags = false
                 onNotificationDestinationConsumed()
             }
         }
@@ -343,7 +381,7 @@ private fun LedgerShell(
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
-            if (!showBudgets && !showSettings) {
+            if (!showBudgets && !showSettings && !showTags) {
                 FloatingActionButton(
                     onClick = {
                         if (canAddMovement) {
@@ -389,10 +427,28 @@ private fun LedgerShell(
             )
             return@Scaffold
         }
+        if (showTags) {
+            TagsScreen(
+                viewModel = tagsViewModel,
+                contextTripId = tagsContextTripId,
+                onBack = {
+                    showTags = false
+                    tagsContextTripId = null
+                },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+            )
+            return@Scaffold
+        }
         if (showBudgets) {
             BudgetsScreen(
                 viewModel = budgetsViewModel,
-                onBack = { showBudgets = false },
+                onBack = {
+                    showBudgets = false
+                    budgetContextTripId = null
+                },
+                contextTripId = budgetContextTripId,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
@@ -431,13 +487,40 @@ private fun LedgerShell(
             LedgerSection.ANALYSIS -> AnalysisScreen(
                 viewModel = analysisViewModel,
                 onDrillDown = openMovements,
-                onManageBudgets = { showBudgets = true },
+                onTripDetail = { tripId ->
+                    tripsViewModel.onDetailClicked(tripId)
+                    selectedSection = LedgerSection.TRIPS
+                },
+                onManageBudgets = {
+                    budgetContextTripId = null
+                    showBudgets = true
+                },
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
             )
             LedgerSection.PEOPLE -> PeopleScreen(
                 viewModel = peopleViewModel,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+            )
+            LedgerSection.TRIPS -> TripsScreen(
+                viewModel = tripsViewModel,
+                onNewMovement = { trip ->
+                    tripsViewModel.onDetailDismissed()
+                    movementsViewModel.onAddClicked(trip.id)
+                },
+                onManageTags = { tripId ->
+                    tripsViewModel.onDetailDismissed()
+                    tagsContextTripId = tripId
+                    showTags = true
+                },
+                onManageBudget = { tripId ->
+                    tripsViewModel.onDetailDismissed()
+                    budgetContextTripId = tripId
+                    showBudgets = true
+                },
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
@@ -539,6 +622,7 @@ private enum class LedgerSection(
     ACCOUNTS(R.string.nav_accounts, Icons.Filled.AccountBalanceWallet, Icons.Outlined.AccountBalanceWallet),
     ANALYSIS(R.string.nav_analysis, Icons.Filled.BarChart, Icons.Outlined.BarChart),
     PEOPLE(R.string.nav_people, Icons.Filled.Groups, Icons.Outlined.Groups),
+    TRIPS(R.string.nav_trips, Icons.Filled.Flight, Icons.Outlined.Flight),
     RECURRING(R.string.nav_recurring, Icons.Filled.Autorenew, Icons.Outlined.Autorenew),
 }
 

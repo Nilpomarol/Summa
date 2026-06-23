@@ -1,0 +1,78 @@
+activeTags:
+SELECT
+    tags.id,
+    tags.name,
+    tags.icon,
+    tags.color,
+    tags.trip_id,
+    trips.name AS trip_name,
+    tags.created_at,
+    tags.updated_at,
+    tags.archived_at
+FROM tags
+LEFT JOIN trips
+    ON trips.id = tags.trip_id
+   AND trips.archived_at IS NULL
+WHERE tags.archived_at IS NULL
+  AND (tags.trip_id IS NULL OR trips.id IS NOT NULL)
+ORDER BY
+    CASE WHEN tags.trip_id IS NULL THEN 0 ELSE 1 END ASC,
+    lower(COALESCE(trips.name, '')) ASC,
+    lower(tags.name) ASC;
+
+tagById:
+SELECT
+    tags.id,
+    tags.name,
+    tags.icon,
+    tags.color,
+    tags.trip_id,
+    trips.name AS trip_name,
+    tags.created_at,
+    tags.updated_at,
+    tags.archived_at
+FROM tags
+LEFT JOIN trips
+    ON trips.id = tags.trip_id
+   AND trips.archived_at IS NULL
+WHERE tags.id = :id
+  AND tags.archived_at IS NULL
+  AND (tags.trip_id IS NULL OR trips.id IS NOT NULL);
+
+insertTag:
+INSERT INTO tags(
+    id,
+    name,
+    icon,
+    color,
+    trip_id,
+    created_at,
+    updated_at
+) VALUES (
+    :id,
+    :name,
+    :icon,
+    :color,
+    :trip_id,
+    :created_at,
+    :updated_at
+);
+
+updateTag:
+UPDATE tags
+SET
+    name = :name,
+    icon = :icon,
+    color = :color,
+    trip_id = :trip_id,
+    updated_at = :updated_at
+WHERE id = :id
+  AND archived_at IS NULL;
+
+archiveTag:
+UPDATE tags
+SET
+    archived_at = :archived_at,
+    updated_at = :updated_at
+WHERE id = :id
+  AND archived_at IS NULL;

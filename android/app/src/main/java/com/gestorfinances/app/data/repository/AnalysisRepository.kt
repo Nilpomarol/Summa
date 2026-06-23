@@ -12,10 +12,13 @@ data class AnalysisPeriodTotals(
 )
 
 data class AnalysisCategoryTotal(
+    val rowKind: AnalysisBreakdownKind = AnalysisBreakdownKind.CATEGORY,
     val categoryId: String?,
     val categoryName: String?,
     val categoryIcon: String?,
     val categoryColor: String?,
+    val tripId: String? = null,
+    val tripName: String? = null,
     val expenseCents: Long,
     val incomeCents: Long,
     val netCents: Long,
@@ -84,6 +87,20 @@ enum class AnalysisCategoryNature(val queryValue: String) {
     VARIABLE("variable"),
 }
 
+enum class AnalysisBreakdownKind {
+    CATEGORY,
+    TRIP,
+    ;
+
+    companion object {
+        fun fromDb(value: String): AnalysisBreakdownKind =
+            when (value) {
+                "trip" -> TRIP
+                else -> CATEGORY
+            }
+    }
+}
+
 class AnalysisRepository(
     private val queries: AnalysisQueries,
 ) {
@@ -100,6 +117,22 @@ class AnalysisRepository(
             category_nature = categoryNature?.queryValue,
             mapper = ::mapPeriodTotals,
         ).executeAsOne()
+
+    fun actualBreakdown(
+        fromDate: String,
+        toDate: String,
+        oneTimeMode: AnalysisOneTimeMode = AnalysisOneTimeMode.INCLUDE,
+        categoryNature: AnalysisCategoryNature? = null,
+        groupTrips: Boolean = true,
+    ): List<AnalysisCategoryTotal> =
+        queries.analysisActualBreakdown(
+            from_date = fromDate,
+            to_date = toDate,
+            one_time_mode = oneTimeMode.queryValue,
+            category_nature = categoryNature?.queryValue,
+            group_trips = if (groupTrips) 1L else 0L,
+            mapper = ::mapBreakdownTotal,
+        ).executeAsList()
 
     fun actualByCategory(
         fromDate: String,
@@ -241,6 +274,33 @@ private fun mapPeriodTotals(
         savingsRateBasisPoints = savingsRateBasisPoints,
     )
 
+private fun mapBreakdownTotal(
+    rowKind: String,
+    categoryId: String?,
+    categoryName: String?,
+    categoryKind: String?,
+    categoryNature: String?,
+    categoryIcon: String?,
+    categoryColor: String?,
+    tripId: String?,
+    tripName: String?,
+    expenseCents: Long?,
+    incomeCents: Long?,
+    netCents: Long?,
+): AnalysisCategoryTotal =
+    AnalysisCategoryTotal(
+        rowKind = AnalysisBreakdownKind.fromDb(rowKind),
+        categoryId = categoryId,
+        categoryName = categoryName,
+        categoryIcon = categoryIcon,
+        categoryColor = categoryColor,
+        tripId = tripId,
+        tripName = tripName,
+        expenseCents = expenseCents ?: 0L,
+        incomeCents = incomeCents ?: 0L,
+        netCents = netCents ?: 0L,
+    )
+
 private fun mapCategoryTotal(
     categoryId: String?,
     categoryName: String?,
@@ -253,6 +313,7 @@ private fun mapCategoryTotal(
     netCents: Long?,
 ): AnalysisCategoryTotal =
     AnalysisCategoryTotal(
+        rowKind = AnalysisBreakdownKind.CATEGORY,
         categoryId = categoryId,
         categoryName = categoryName,
         categoryIcon = categoryIcon,

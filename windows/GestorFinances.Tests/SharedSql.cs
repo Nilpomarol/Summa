@@ -17,6 +17,7 @@ internal static class SharedSql
 
     private static readonly string[] AnalysisQueryFiles =
     [
+        "analysis_actual_breakdown.sql",
         "analysis_actual_by_category.sql",
         "analysis_account_flow_over_time.sql",
         "analysis_income_vs_expense.sql",

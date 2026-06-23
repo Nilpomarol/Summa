@@ -65,6 +65,43 @@ public sealed class AnalysisQueryTests
     }
 
     [TestMethod]
+    public void ActualBreakdownCanGroupTripsAsPresentationBlocks()
+    {
+        using var connection = SeededConnection();
+
+        var groupedRows = connection.Query(
+            SharedSql.ReadAnalysisQuery("analysis_actual_breakdown.sql"),
+            new
+            {
+                from_date = From,
+                to_date = To,
+                one_time_mode = "include",
+                category_nature = (string?)null,
+                group_trips = 1
+            }).ToList();
+
+        var tripRow = groupedRows.Single(r => (string)r.row_kind == "trip");
+        Assert.AreEqual("mallorca", (string)tripRow.trip_id);
+        Assert.AreEqual("Mallorca", (string)tripRow.trip_name);
+        Assert.AreEqual(5_000L, (long)tripRow.expense_cents);
+        Assert.IsFalse(groupedRows.Any(r => (string?)r.category_id == "electronics"));
+
+        var ungroupedRows = connection.Query(
+            SharedSql.ReadAnalysisQuery("analysis_actual_breakdown.sql"),
+            new
+            {
+                from_date = From,
+                to_date = To,
+                one_time_mode = "include",
+                category_nature = (string?)null,
+                group_trips = 0
+            }).ToList();
+
+        Assert.IsFalse(ungroupedRows.Any(r => (string)r.row_kind == "trip"));
+        Assert.AreEqual(5_000L, (long)ungroupedRows.Single(r => (string?)r.category_id == "electronics").expense_cents);
+    }
+
+    [TestMethod]
     public void IncomeVsExpenseBucketsByMonth()
     {
         using var connection = SeededConnection();
@@ -228,19 +265,24 @@ public sealed class AnalysisQueryTests
                 ('groceries', 'Groceries', 'expense', 'variable', 1, @Now, @Now),
                 ('electronics', 'Electronics', 'expense', 'variable', 2, @Now, @Now);
 
+            INSERT INTO trips
+                (id, name, type, status, start_date, end_date, created_at, updated_at)
+            VALUES
+                ('mallorca', 'Mallorca', 'trip', 'active', '2026-06-01', '2026-06-30', @Now, @Now);
+
             INSERT INTO movements
-                (id, type, amount_cents, date, account_id, dest_account_id, name, is_one_time, category_id,
+                (id, type, amount_cents, date, account_id, dest_account_id, name, is_one_time, category_id, trip_id,
                  refunds_expense_id, created_at, updated_at)
             VALUES
-                ('salary-june', 'income', 250000, '2026-06-01', 'checking', NULL, 'Salary', 0, 'salary',
+                ('salary-june', 'income', 250000, '2026-06-01', 'checking', NULL, 'Salary', 0, 'salary', NULL,
                  NULL, @Now, @Now),
-                ('groceries-1', 'expense', 2000, '2026-06-05', 'checking', NULL, 'Groceries', 0, 'groceries',
+                ('groceries-1', 'expense', 2000, '2026-06-05', 'checking', NULL, 'Groceries', 0, 'groceries', NULL,
                  NULL, @Now, @Now),
-                ('laptop', 'expense', 5000, '2026-06-10', 'checking', NULL, 'Laptop', 1, 'electronics',
+                ('laptop', 'expense', 5000, '2026-06-10', 'checking', NULL, 'Laptop', 1, 'electronics', 'mallorca',
                  NULL, @Now, @Now),
-                ('grocery-refund', 'refund', 500, '2026-06-12', 'checking', NULL, 'Refund', 0, 'groceries',
+                ('grocery-refund', 'refund', 500, '2026-06-12', 'checking', NULL, 'Refund', 0, 'groceries', NULL,
                  'groceries-1', @Now, @Now),
-                ('to-savings', 'transfer', 10000, '2026-06-15', 'checking', 'savings', 'Savings transfer', 0, NULL,
+                ('to-savings', 'transfer', 10000, '2026-06-15', 'checking', 'savings', 'Savings transfer', 0, NULL, NULL,
                  NULL, @Now, @Now);
             """,
             new { Now });

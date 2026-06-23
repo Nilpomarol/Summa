@@ -1,0 +1,105 @@
+activeTrips:
+SELECT
+    trips.id,
+    trips.name,
+    trips.type,
+    trips.status,
+    trips.start_date,
+    trips.end_date,
+    trips.icon,
+    trips.color,
+    trips.notes,
+    trips.default_account_id,
+    accounts.name AS default_account_name,
+    trips.created_at,
+    trips.updated_at,
+    trips.archived_at
+FROM trips
+LEFT JOIN accounts
+    ON accounts.id = trips.default_account_id
+   AND accounts.archived_at IS NULL
+WHERE trips.archived_at IS NULL
+ORDER BY
+    CASE trips.status
+        WHEN 'active' THEN 0
+        WHEN 'planned' THEN 1
+        ELSE 2
+    END ASC,
+    COALESCE(trips.start_date, trips.created_at) DESC,
+    lower(trips.name) ASC;
+
+tripById:
+SELECT
+    trips.id,
+    trips.name,
+    trips.type,
+    trips.status,
+    trips.start_date,
+    trips.end_date,
+    trips.icon,
+    trips.color,
+    trips.notes,
+    trips.default_account_id,
+    accounts.name AS default_account_name,
+    trips.created_at,
+    trips.updated_at,
+    trips.archived_at
+FROM trips
+LEFT JOIN accounts
+    ON accounts.id = trips.default_account_id
+   AND accounts.archived_at IS NULL
+WHERE trips.id = :id
+  AND trips.archived_at IS NULL;
+
+insertTrip:
+INSERT INTO trips(
+    id,
+    name,
+    type,
+    status,
+    start_date,
+    end_date,
+    icon,
+    color,
+    notes,
+    default_account_id,
+    created_at,
+    updated_at
+) VALUES (
+    :id,
+    :name,
+    :type,
+    :status,
+    :start_date,
+    :end_date,
+    :icon,
+    :color,
+    :notes,
+    :default_account_id,
+    :created_at,
+    :updated_at
+);
+
+updateTrip:
+UPDATE trips
+SET
+    name = :name,
+    type = :type,
+    status = :status,
+    start_date = :start_date,
+    end_date = :end_date,
+    icon = :icon,
+    color = :color,
+    notes = :notes,
+    default_account_id = :default_account_id,
+    updated_at = :updated_at
+WHERE id = :id
+  AND archived_at IS NULL;
+
+archiveTrip:
+UPDATE trips
+SET
+    archived_at = :archived_at,
+    updated_at = :updated_at
+WHERE id = :id
+  AND archived_at IS NULL;

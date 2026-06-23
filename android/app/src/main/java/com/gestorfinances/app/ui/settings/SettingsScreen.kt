@@ -109,11 +109,7 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     state.errorRes?.let {
-                        Text(
-                            text = stringResource(it),
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
+                        InlineBanner(kind = BannerKind.Error, text = stringResource(it))
                     }
                     Row(
                         verticalAlignment = Alignment.CenterVertically,

@@ -57,9 +57,13 @@ class RecurringViewModelTest {
                     amount = "80",
                     accountId = "checking",
                     name = "Lloguer",
+                    payee = "Propietat",
                     frequency = RecurrenceFrequency.MONTHLY,
                     dayOfMonth = "1",
                     nextDueDate = "2026-02-01",
+                    amountFlex = "5",
+                    dateFlex = "2",
+                    leadDays = "1",
                 ),
             )
             viewModel.onSaveClicked()
@@ -68,6 +72,10 @@ class RecurringViewModelTest {
             assertNull(viewModel.state.value.form)
             val template = viewModel.state.value.templates.single()
             assertEquals(8_000L, template.amountCents)
+            assertEquals("Propietat", template.payee)
+            assertEquals(500L, template.amountFlexCents)
+            assertEquals(2L, template.dateFlexDays)
+            assertEquals(1L, template.leadNotificationDays)
             assertEquals(RecurrenceFrequency.MONTHLY, template.frequency)
             assertEquals(1L, template.dayOfMonth)
             assertEquals(TemplateStatus.ACTIVE, template.status)
@@ -97,6 +105,35 @@ class RecurringViewModelTest {
 
             assertEquals(
                 R.string.template_validation_interval_required,
+                viewModel.state.value.form!!.errorRes,
+            )
+            assertTrue(store.templates.listActive().isEmpty())
+        }
+    }
+
+    @Test
+    fun invalidFlexibilityFieldsShowErrors() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            val viewModel = viewModel(store)
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+
+            viewModel.onAddClicked()
+            viewModel.onFormChanged(
+                viewModel.state.value.form!!.copy(
+                    amount = "10",
+                    amountFlex = "oops",
+                    accountId = "checking",
+                    dayOfMonth = "1",
+                    nextDueDate = "2026-02-01",
+                ),
+            )
+            viewModel.onSaveClicked()
+            advanceUntilIdle()
+
+            assertEquals(
+                R.string.template_validation_amount_flex_invalid,
                 viewModel.state.value.form!!.errorRes,
             )
             assertTrue(store.templates.listActive().isEmpty())
