@@ -4,50 +4,45 @@ import android.Manifest
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import androidx.activity.compose.BackHandler
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.annotation.StringRes
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ReceiptLong
-import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
-import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Autorenew
-import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.filled.Flight
-import androidx.compose.material.icons.filled.Groups
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.outlined.AccountBalanceWallet
-import androidx.compose.material.icons.outlined.Autorenew
-import androidx.compose.material.icons.outlined.BarChart
-import androidx.compose.material.icons.outlined.Flight
-import androidx.compose.material.icons.outlined.Groups
-import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material3.FabPosition
+import androidx.compose.material.icons.outlined.Error
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -62,12 +57,19 @@ import com.gestorfinances.app.ui.analysis.AnalysisScreen
 import com.gestorfinances.app.ui.analysis.AnalysisViewModel
 import com.gestorfinances.app.ui.budgets.BudgetsScreen
 import com.gestorfinances.app.ui.budgets.BudgetsViewModel
+import com.gestorfinances.app.ui.categories.CategoriesScreen
+import com.gestorfinances.app.ui.categories.CategoriesViewModel
 import com.gestorfinances.app.ui.dashboard.DashboardScreen
 import com.gestorfinances.app.ui.dashboard.DashboardViewModel
+import com.gestorfinances.app.ui.management.ManagementDestination
+import com.gestorfinances.app.ui.management.ManagementScreen
 import com.gestorfinances.app.ui.movements.MovementFilters
 import com.gestorfinances.app.ui.movements.MovementDialogHost
 import com.gestorfinances.app.ui.movements.MovementsScreen
 import com.gestorfinances.app.ui.movements.MovementsViewModel
+import com.gestorfinances.app.ui.navigation.AppNavState
+import com.gestorfinances.app.ui.navigation.AppOverlay
+import com.gestorfinances.app.ui.navigation.TopLevelSection
 import com.gestorfinances.app.ui.onboarding.OnboardingScreen
 import com.gestorfinances.app.ui.onboarding.OnboardingViewModel
 import com.gestorfinances.app.ui.people.PeopleScreen
@@ -88,6 +90,7 @@ import com.gestorfinances.app.notifications.EXTRA_NOTIFICATION_DESTINATION
 import com.gestorfinances.app.notifications.canPostFinanceNotifications
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
@@ -164,26 +167,22 @@ private fun AppShell(
     notificationPermissionGranted: Boolean,
     onRequestNotificationPermission: () -> Unit,
 ) {
-    Scaffold { innerPadding ->
-        Surface(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            color = MaterialTheme.colorScheme.background,
-        ) {
-            when (databaseState) {
-                DatabaseState.Checking,
-                is DatabaseState.Failed,
-                -> DatabaseStatus(databaseState = databaseState)
-                is DatabaseState.Ready -> LedgerShell(
-                    appContainer = appContainer,
-                    viewModelStoreOwner = viewModelStoreOwner,
-                    notificationDestination = notificationDestination,
-                    onNotificationDestinationConsumed = onNotificationDestinationConsumed,
-                    notificationPermissionGranted = notificationPermissionGranted,
-                    onRequestNotificationPermission = onRequestNotificationPermission,
-                )
-            }
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background,
+    ) {
+        when (databaseState) {
+            DatabaseState.Checking,
+            is DatabaseState.Failed,
+            -> DatabaseStatus(databaseState = databaseState)
+            is DatabaseState.Ready -> LedgerShell(
+                appContainer = appContainer,
+                viewModelStoreOwner = viewModelStoreOwner,
+                notificationDestination = notificationDestination,
+                onNotificationDestinationConsumed = onNotificationDestinationConsumed,
+                notificationPermissionGranted = notificationPermissionGranted,
+                onRequestNotificationPermission = onRequestNotificationPermission,
+            )
         }
     }
 }
@@ -197,7 +196,7 @@ private fun LedgerShell(
     notificationPermissionGranted: Boolean,
     onRequestNotificationPermission: () -> Unit,
 ) {
-    var selectedSection by remember { mutableStateOf(LedgerSection.DASHBOARD) }
+    var nav by remember { mutableStateOf(AppNavState.Home) }
     val onboardingViewModel = remember(viewModelStoreOwner) {
         ViewModelProvider(
             viewModelStoreOwner,
@@ -216,6 +215,14 @@ private fun LedgerShell(
                 notificationRefresher = appContainer.notificationCoordinator,
             ),
         )[AccountsViewModel::class.java]
+    }
+    val categoriesViewModel = remember(viewModelStoreOwner) {
+        ViewModelProvider(
+            viewModelStoreOwner,
+            CategoriesViewModel.Factory(
+                categoryRepository = appContainer.categoryRepository,
+            ),
+        )[CategoriesViewModel::class.java]
     }
     val dashboardViewModel = remember(viewModelStoreOwner) {
         ViewModelProvider(
@@ -315,16 +322,25 @@ private fun LedgerShell(
             ),
         )[TagsViewModel::class.java]
     }
-    var showBudgets by remember { mutableStateOf(false) }
-    var budgetContextTripId by remember { mutableStateOf<String?>(null) }
-    var showSettings by remember { mutableStateOf(false) }
-    var showTags by remember { mutableStateOf(false) }
-    var tagsContextTripId by remember { mutableStateOf<String?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
     val onboardingState by onboardingViewModel.state.collectAsState()
     val movementsState by movementsViewModel.state.collectAsState()
+    val accountsState by accountsViewModel.state.collectAsState()
+    val createAccountMessage = stringResource(R.string.movement_no_accounts_title)
 
     LaunchedEffect(movementsViewModel) {
         movementsViewModel.onScreenShown()
+    }
+
+    LaunchedEffect(accountsViewModel) {
+        accountsViewModel.onScreenShown()
+    }
+
+    LaunchedEffect(accountsState.accounts.size) {
+        if (accountsState.accounts.isNotEmpty()) {
+            movementsViewModel.onScreenShown()
+        }
     }
 
     if (onboardingState.isLoading || onboardingState.needsOnboarding) {
@@ -335,30 +351,42 @@ private fun LedgerShell(
         return
     }
 
+    fun showTopLevel(section: TopLevelSection) {
+        nav = AppNavState.topLevel(section)
+    }
+
+    fun showManagement(destination: ManagementDestination? = null) {
+        nav = AppNavState.management(destination)
+    }
+
+    fun openMovementForm(tripId: String? = null) {
+        val hasAccount = movementsState.accounts.isNotEmpty() || accountsState.accounts.isNotEmpty()
+        if (hasAccount) {
+            movementsViewModel.onAddClicked(tripId)
+        } else {
+            showManagement(ManagementDestination.ACCOUNTS)
+            accountsViewModel.onAddClicked()
+            coroutineScope.launch {
+                snackbarHostState.showSnackbar(createAccountMessage)
+            }
+        }
+    }
+
+    BackHandler(enabled = nav.canNavigateBack) { nav = nav.back() }
+
     LaunchedEffect(notificationDestination) {
         when (notificationDestination) {
             DESTINATION_RECURRING -> {
-                selectedSection = LedgerSection.RECURRING
-                showBudgets = false
-                budgetContextTripId = null
-                showSettings = false
-                showTags = false
+                showManagement(ManagementDestination.RECURRING)
                 onNotificationDestinationConsumed()
             }
             DESTINATION_BUDGETS -> {
-                selectedSection = LedgerSection.ANALYSIS
-                showBudgets = true
-                budgetContextTripId = null
-                showSettings = false
-                showTags = false
+                nav = AppNavState.topLevel(TopLevelSection.ANALYSIS)
+                    .copy(overlay = AppOverlay.Budgets(tripId = null))
                 onNotificationDestinationConsumed()
             }
             DESTINATION_ACCOUNTS -> {
-                selectedSection = LedgerSection.ACCOUNTS
-                showBudgets = false
-                budgetContextTripId = null
-                showSettings = false
-                showTags = false
+                showManagement(ManagementDestination.ACCOUNTS)
                 onNotificationDestinationConsumed()
             }
         }
@@ -372,200 +400,242 @@ private fun LedgerShell(
         }
     }
 
-    val canAddMovement = movementsState.accounts.isNotEmpty()
     val openMovements: (MovementFilters) -> Unit = { filters ->
         movementsViewModel.onDrillDown(filters)
-        selectedSection = LedgerSection.MOVEMENTS
+        showTopLevel(TopLevelSection.MOVEMENTS)
     }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        floatingActionButton = {
-            if (!showBudgets && !showSettings && !showTags) {
-                FloatingActionButton(
-                    onClick = {
-                        if (canAddMovement) {
-                            movementsViewModel.onAddClicked()
-                        }
-                    },
-                containerColor = if (canAddMovement) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.surfaceVariant
-                },
-                contentColor = if (canAddMovement) {
-                    MaterialTheme.colorScheme.onPrimary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-                shape = CircleShape,
-            ) {
-                    Icon(
-                        imageVector = Icons.Filled.Add,
-                        contentDescription = stringResource(R.string.movement_list_add),
-                    )
-                }
-            }
-        },
-        floatingActionButtonPosition = FabPosition.Center,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
-            LedgerNavigationBar(
-                selectedSection = selectedSection,
-                onSelected = { selectedSection = it },
+            FinanceBottomBar(
+                selectedSection = nav.section,
+                onSelected = ::showTopLevel,
+                onAddMovement = { openMovementForm() },
             )
         },
     ) { innerPadding ->
-        if (showSettings) {
-            SettingsScreen(
-                viewModel = settingsViewModel,
-                notificationPermissionGranted = notificationPermissionGranted,
-                onRequestNotificationPermission = onRequestNotificationPermission,
-                onBack = { showSettings = false },
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-            )
-            return@Scaffold
+        when (val overlay = nav.overlay) {
+            is AppOverlay.Tags -> {
+                TagsScreen(
+                    viewModel = tagsViewModel,
+                    contextTripId = overlay.tripId,
+                    onBack = { nav = nav.back() },
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                )
+                return@Scaffold
+            }
+            is AppOverlay.Budgets -> {
+                BudgetsScreen(
+                    viewModel = budgetsViewModel,
+                    onBack = { nav = nav.back() },
+                    contextTripId = overlay.tripId,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                )
+                return@Scaffold
+            }
+            null -> Unit
         }
-        if (showTags) {
-            TagsScreen(
-                viewModel = tagsViewModel,
-                contextTripId = tagsContextTripId,
-                onBack = {
-                    showTags = false
-                    tagsContextTripId = null
-                },
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-            )
-            return@Scaffold
-        }
-        if (showBudgets) {
-            BudgetsScreen(
-                viewModel = budgetsViewModel,
-                onBack = {
-                    showBudgets = false
-                    budgetContextTripId = null
-                },
-                contextTripId = budgetContextTripId,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-            )
-            return@Scaffold
-        }
-        when (selectedSection) {
-            LedgerSection.DASHBOARD -> DashboardScreen(
+        when (nav.section) {
+            TopLevelSection.DASHBOARD -> DashboardScreen(
                 viewModel = dashboardViewModel,
-                onNewMovement = {
-                    if (canAddMovement) {
-                        movementsViewModel.onAddClicked()
-                    }
-                },
-                onViewAnalysis = { selectedSection = LedgerSection.ANALYSIS },
-                onSettings = { showSettings = true },
+                onNewMovement = { openMovementForm() },
+                onViewAnalysis = { showTopLevel(TopLevelSection.ANALYSIS) },
+                onSettings = { showManagement(ManagementDestination.SETTINGS) },
                 onDrillDown = openMovements,
                 onMovementDetail = movementsViewModel::onDetailClicked,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
             )
-            LedgerSection.MOVEMENTS -> MovementsScreen(
+            TopLevelSection.MOVEMENTS -> MovementsScreen(
                 viewModel = movementsViewModel,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
                 showDialogs = false,
             )
-            LedgerSection.ACCOUNTS -> AccountsScreen(
-                viewModel = accountsViewModel,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-            )
-            LedgerSection.ANALYSIS -> AnalysisScreen(
+            TopLevelSection.ANALYSIS -> AnalysisScreen(
                 viewModel = analysisViewModel,
                 onDrillDown = openMovements,
                 onTripDetail = { tripId ->
                     tripsViewModel.onDetailClicked(tripId)
-                    selectedSection = LedgerSection.TRIPS
+                    showManagement(ManagementDestination.EVENTS)
                 },
                 onManageBudgets = {
-                    budgetContextTripId = null
-                    showBudgets = true
+                    nav = nav.copy(overlay = AppOverlay.Budgets(tripId = null))
                 },
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
             )
-            LedgerSection.PEOPLE -> PeopleScreen(
-                viewModel = peopleViewModel,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-            )
-            LedgerSection.TRIPS -> TripsScreen(
-                viewModel = tripsViewModel,
-                onNewMovement = { trip ->
-                    tripsViewModel.onDetailDismissed()
-                    movementsViewModel.onAddClicked(trip.id)
-                },
-                onManageTags = { tripId ->
-                    tripsViewModel.onDetailDismissed()
-                    tagsContextTripId = tripId
-                    showTags = true
-                },
-                onManageBudget = { tripId ->
-                    tripsViewModel.onDetailDismissed()
-                    budgetContextTripId = tripId
-                    showBudgets = true
-                },
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-            )
-            LedgerSection.RECURRING -> RecurringScreen(
-                viewModel = recurringViewModel,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-            )
+            TopLevelSection.MANAGEMENT -> when (nav.managementDestination) {
+                null -> ManagementScreen(
+                    onDestinationSelected = ::showManagement,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                )
+                ManagementDestination.ACCOUNTS -> AccountsScreen(
+                    viewModel = accountsViewModel,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                )
+                ManagementDestination.CATEGORIES -> CategoriesScreen(
+                    viewModel = categoriesViewModel,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                )
+                ManagementDestination.PEOPLE -> PeopleScreen(
+                    viewModel = peopleViewModel,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                )
+                ManagementDestination.EVENTS -> TripsScreen(
+                    viewModel = tripsViewModel,
+                    onNewMovement = { trip ->
+                        tripsViewModel.onDetailDismissed()
+                        openMovementForm(trip.id)
+                    },
+                    onManageTags = { tripId ->
+                        tripsViewModel.onDetailDismissed()
+                        nav = nav.copy(overlay = AppOverlay.Tags(tripId = tripId))
+                    },
+                    onManageBudget = { tripId ->
+                        tripsViewModel.onDetailDismissed()
+                        nav = nav.copy(overlay = AppOverlay.Budgets(tripId = tripId))
+                    },
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                )
+                ManagementDestination.RECURRING -> RecurringScreen(
+                    viewModel = recurringViewModel,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                )
+                ManagementDestination.SETTINGS -> SettingsScreen(
+                    viewModel = settingsViewModel,
+                    notificationPermissionGranted = notificationPermissionGranted,
+                    onRequestNotificationPermission = onRequestNotificationPermission,
+                    onBack = { nav = nav.back() },
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                )
+            }
         }
     }
     MovementDialogHost(viewModel = movementsViewModel)
 }
 
 @Composable
-private fun LedgerNavigationBar(
-    selectedSection: LedgerSection,
-    onSelected: (LedgerSection) -> Unit,
+private fun FinanceBottomBar(
+    selectedSection: TopLevelSection,
+    onSelected: (TopLevelSection) -> Unit,
+    onAddMovement: () -> Unit,
 ) {
-    NavigationBar(
-        containerColor = MaterialTheme.colorScheme.surface,
-        tonalElevation = 0.dp,
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
     ) {
-        LedgerSection.entries.forEach { section ->
-            val selected = selectedSection == section
-            NavigationBarItem(
-                selected = selected,
-                onClick = { onSelected(section) },
-                icon = {
-                    Icon(
-                        imageVector = if (selected) section.selectedIcon else section.unselectedIcon,
-                        contentDescription = null,
+        Column {
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .height(74.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    BottomBarItem(
+                        section = TopLevelSection.DASHBOARD,
+                        selected = selectedSection == TopLevelSection.DASHBOARD,
+                        onClick = { onSelected(TopLevelSection.DASHBOARD) },
+                        modifier = Modifier.weight(1f),
                     )
-                },
-                label = {
-                    Text(text = stringResource(section.labelRes))
-                },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = MaterialTheme.colorScheme.primary,
-                    selectedTextColor = MaterialTheme.colorScheme.primary,
-                    indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                ),
+                    BottomBarItem(
+                        section = TopLevelSection.MOVEMENTS,
+                        selected = selectedSection == TopLevelSection.MOVEMENTS,
+                        onClick = { onSelected(TopLevelSection.MOVEMENTS) },
+                        modifier = Modifier.weight(1f),
+                    )
+                    Box(modifier = Modifier.weight(1f))
+                    BottomBarItem(
+                        section = TopLevelSection.ANALYSIS,
+                        selected = selectedSection == TopLevelSection.ANALYSIS,
+                        onClick = { onSelected(TopLevelSection.ANALYSIS) },
+                        modifier = Modifier.weight(1f),
+                    )
+                    BottomBarItem(
+                        section = TopLevelSection.MANAGEMENT,
+                        selected = selectedSection == TopLevelSection.MANAGEMENT,
+                        onClick = { onSelected(TopLevelSection.MANAGEMENT) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                FloatingActionButton(
+                    onClick = onAddMovement,
+                    modifier = Modifier.size(56.dp),
+                    shape = MaterialTheme.shapes.extraLarge,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 8.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Add,
+                        contentDescription = stringResource(R.string.movement_list_add),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BottomBarItem(
+    section: TopLevelSection,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier
+            .height(64.dp)
+            .padding(horizontal = 2.dp),
+        color = MaterialTheme.colorScheme.surface,
+        contentColor = if (selected) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Icon(
+                imageVector = if (selected) section.selectedIcon else section.unselectedIcon,
+                contentDescription = null,
+                modifier = Modifier.size(22.dp),
+            )
+            Text(
+                text = stringResource(section.labelRes),
+                style = MaterialTheme.typography.labelSmall,
             )
         }
     }
@@ -573,24 +643,38 @@ private fun LedgerNavigationBar(
 
 @Composable
 private fun DatabaseStatus(databaseState: DatabaseState) {
-    Column(
-        modifier = Modifier.padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .padding(32.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = stringResource(R.string.app_name),
-            style = MaterialTheme.typography.headlineMedium,
-        )
-        Text(
-            text = stringResource(R.string.home_scaffold_status),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            text = databaseState.message(),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            if (databaseState is DatabaseState.Failed) {
+                Icon(
+                    imageVector = Icons.Outlined.Error,
+                    contentDescription = null,
+                    modifier = Modifier.size(48.dp),
+                    tint = MaterialTheme.colorScheme.error,
+                )
+            }
+            Text(
+                text = stringResource(R.string.app_name),
+                style = MaterialTheme.typography.headlineMedium,
+            )
+            Text(
+                text = databaseState.message(),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (databaseState is DatabaseState.Checking) {
+                CircularProgressIndicator(modifier = Modifier.size(32.dp))
+            }
+        }
     }
 }
 
@@ -612,27 +696,13 @@ private sealed interface DatabaseState {
     data class Failed(val message: String) : DatabaseState
 }
 
-private enum class LedgerSection(
-    @StringRes val labelRes: Int,
-    val selectedIcon: ImageVector,
-    val unselectedIcon: ImageVector,
-) {
-    DASHBOARD(R.string.nav_home, Icons.Filled.Home, Icons.Outlined.Home),
-    MOVEMENTS(R.string.nav_movements, Icons.AutoMirrored.Filled.ReceiptLong, Icons.AutoMirrored.Outlined.ReceiptLong),
-    ACCOUNTS(R.string.nav_accounts, Icons.Filled.AccountBalanceWallet, Icons.Outlined.AccountBalanceWallet),
-    ANALYSIS(R.string.nav_analysis, Icons.Filled.BarChart, Icons.Outlined.BarChart),
-    PEOPLE(R.string.nav_people, Icons.Filled.Groups, Icons.Outlined.Groups),
-    TRIPS(R.string.nav_trips, Icons.Filled.Flight, Icons.Outlined.Flight),
-    RECURRING(R.string.nav_recurring, Icons.Filled.Autorenew, Icons.Outlined.Autorenew),
-}
-
 private fun Intent?.notificationDestination(): String? =
     this?.getStringExtra(EXTRA_NOTIFICATION_DESTINATION)
 
 @Preview(showBackground = true)
 @Composable
-private fun AppShellPreview() {
+private fun DatabaseStatusPreview() {
     GestorFinancesTheme {
-        DatabaseStatus(databaseState = DatabaseState.Ready(DatabaseMeta("1", "0")))
+        DatabaseStatus(databaseState = DatabaseState.Checking)
     }
 }

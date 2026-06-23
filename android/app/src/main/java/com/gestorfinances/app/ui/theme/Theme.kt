@@ -1,6 +1,5 @@
 package com.gestorfinances.app.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -8,7 +7,7 @@ import androidx.compose.runtime.ReadOnlyComposable
 
 @Composable
 fun GestorFinancesTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val financeColors = if (darkTheme) DarkFinanceColors else LightFinanceColors
