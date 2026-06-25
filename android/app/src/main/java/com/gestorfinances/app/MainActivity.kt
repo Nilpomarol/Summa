@@ -221,6 +221,8 @@ private fun LedgerShell(
             viewModelStoreOwner,
             CategoriesViewModel.Factory(
                 categoryRepository = appContainer.categoryRepository,
+                analysisRepository = appContainer.analysisRepository,
+                movementRepository = appContainer.movementRepository,
             ),
         )[CategoriesViewModel::class.java]
     }
@@ -470,6 +472,7 @@ private fun LedgerShell(
                 onManageBudgets = {
                     nav = nav.copy(overlay = AppOverlay.Budgets(tripId = null))
                 },
+                onClearCategoryFilter = analysisViewModel::clearCategoryFilter,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
@@ -493,6 +496,10 @@ private fun LedgerShell(
                 )
                 ManagementDestination.CATEGORIES -> CategoriesScreen(
                     viewModel = categoriesViewModel,
+                    onViewAnalysis = { categoryId, categoryName ->
+                        analysisViewModel.setCategoryFilter(categoryId, categoryName)
+                        showTopLevel(TopLevelSection.ANALYSIS)
+                    },
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),

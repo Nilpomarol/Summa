@@ -325,6 +325,17 @@ class AnalysisViewModel(
         _state.value = _state.value.copy(filterAccountId = null, filterAccountName = null)
     }
 
+    fun setCategoryFilter(categoryId: String, categoryName: String) {
+        _state.value = _state.value.copy(
+            filterCategoryId = categoryId,
+            filterCategoryName = categoryName,
+        )
+    }
+
+    fun clearCategoryFilter() {
+        _state.value = _state.value.copy(filterCategoryId = null, filterCategoryName = null)
+    }
+
     private fun shiftPeriod(delta: Long) {
         val state = _state.value
         _state.value = when (state.scope) {
@@ -412,6 +423,8 @@ data class AnalysisUiState(
     val previousAverageDivisor: Long = 1,
     val filterAccountId: String? = null,
     val filterAccountName: String? = null,
+    val filterCategoryId: String? = null,
+    val filterCategoryName: String? = null,
     val isLoading: Boolean = true,
     val errorMessage: String? = null,
     @StringRes val customErrorRes: Int? = null,

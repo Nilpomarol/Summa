@@ -169,6 +169,28 @@ Run these after building the app to confirm the accounts redesign is correct.
 
 ---
 
+## 9. P5R-2 Categories Manual Checklist
+
+Run these after building the app to confirm the categories redesign is correct.
+
+| # | Step | Expected |
+|---|------|----------|
+| 1 | Open Gestió → Categories | Uncategorized card at top; "Despeses" and "Ingressos" collapsible section headers with count badge; tapping the header collapses/expands the section |
+| 2 | A parent category has no spend this month but has yearly spend | Card shows the yearly amount and "Aquest any" period label in the spend block |
+| 3 | A parent category has monthly spend | Spend block shows amount + "Aquest mes"; category-color progress bar proportional to section total; percentage of section total at the right |
+| 4 | A parent category has subcategories | Secondary line shows e.g. "Despesa · 3 subcategories"; expand chevron visible; tapping chevron shows/hides child rows |
+| 5 | A category has `FIXED` nature | `Fixa` pill tag (PushPin icon + text, surfaceVariant background) appears inline beside the name |
+| 6 | Parent spend with subcategories | Card amount = parent own spend + all children's spend; section total uses same rollup |
+| 7 | Tap a category card | `ModalBottomSheet` opens; header shows category `IconChip`, name, movement count, and "Anàlisi" `TextButton` |
+| 8 | Sheet has movements | `LazyColumn` of `MovementListItem` rows with type chip, name, date, signed amount |
+| 9 | Tap "Anàlisi" in the category flow sheet | Sheet dismisses; navigates to Anàlisi tab; "Categoria: [name]" `FinanceFilterChip` appears below the title |
+| 10 | Tap the category filter chip in Anàlisi | Chip disappears (filter cleared) |
+| 11 | Open category add/edit form | Sheet shows `ColorPickerRow` (20 swatches + HSV slot), `IconPickerRow` with `CategoryIconPalette`, live `CategoryPreviewCard`, kind segmented control, nature segmented control, parent selector |
+| 12 | Save a category with icon and color set | Icon and color persist after re-opening the edit form |
+| 13 | Tap "Anàlisi" in account flow sheet (from AccountsScreen) | Still works — account filter chip appears (regression check) |
+
+---
+
 ## 8. Phase 5R Output
 
 By the end of Phase 5R, Android should have:

@@ -47,6 +47,7 @@ data class EntityColorOption(val hex: String, val color: Color)
  * Stored in the DB as hex strings; `categoryColor()` / `accountIcon()` parse them back.
  */
 val EntityColorPalette: List<EntityColorOption> = listOf(
+    // Original 8 — design-token functional colors
     EntityColorOption("#3344E0", TokenColor.Indigo),
     EntityColorOption("#1F8F5F", TokenColor.IncomeLight),
     EntityColorOption("#128A93", TokenColor.RefundLight),
@@ -55,6 +56,17 @@ val EntityColorPalette: List<EntityColorOption> = listOf(
     EntityColorOption("#C98A14", TokenColor.AlertLight),
     EntityColorOption("#CC4B4B", TokenColor.DebtLight),
     EntityColorOption("#9097A3", TokenColor.CategoryUncategorized),
+    // New additions
+    EntityColorOption("#8B5CF6", Color(0xFF8B5CF6)),
+    EntityColorOption("#3B82F6", Color(0xFF3B82F6)),
+    EntityColorOption("#0D9488", Color(0xFF0D9488)),
+    EntityColorOption("#22C55E", Color(0xFF22C55E)),
+    EntityColorOption("#84CC16", Color(0xFF84CC16)),
+    EntityColorOption("#F97316", Color(0xFFF97316)),
+    EntityColorOption("#EC4899", Color(0xFFEC4899)),
+    EntityColorOption("#EF4444", Color(0xFFEF4444)),
+    EntityColorOption("#A16207", Color(0xFFA16207)),
+    EntityColorOption("#374151", Color(0xFF374151)),
 )
 
 // ---------------------------------------------------------------------------
@@ -76,18 +88,94 @@ val AccountIconPalette: List<EntityIconOption> = listOf(
 )
 
 val CategoryIconPalette: List<EntityIconOption> = listOf(
+    // Housing & home
     EntityIconOption("home", categoryIcon("home")),
-    EntityIconOption("shopping_cart", categoryIcon("shopping_cart")),
+    EntityIconOption("apartment", categoryIcon("apartment")),
+    EntityIconOption("weekend", categoryIcon("weekend")),
+    EntityIconOption("kitchen", categoryIcon("kitchen")),
+    EntityIconOption("build", categoryIcon("build")),
+    EntityIconOption("cleaning_services", categoryIcon("cleaning_services")),
+    EntityIconOption("local_laundry_service", categoryIcon("local_laundry_service")),
+    // Food & drink
     EntityIconOption("restaurant", categoryIcon("restaurant")),
+    EntityIconOption("fastfood", categoryIcon("fastfood")),
+    EntityIconOption("local_cafe", categoryIcon("local_cafe")),
+    EntityIconOption("local_bar", categoryIcon("local_bar")),
+    EntityIconOption("liquor", categoryIcon("liquor")),
+    EntityIconOption("cake", categoryIcon("cake")),
+    EntityIconOption("icecream", categoryIcon("icecream")),
+    // Transport
     EntityIconOption("directions_car", categoryIcon("directions_car")),
+    EntityIconOption("train", categoryIcon("train")),
+    EntityIconOption("directions_bus", categoryIcon("directions_bus")),
+    EntityIconOption("local_taxi", categoryIcon("local_taxi")),
+    EntityIconOption("two_wheeler", categoryIcon("two_wheeler")),
+    EntityIconOption("directions_bike", categoryIcon("directions_bike")),
+    EntityIconOption("directions_boat", categoryIcon("directions_boat")),
+    EntityIconOption("flight", categoryIcon("flight")),
+    EntityIconOption("local_gas_station", categoryIcon("local_gas_station")),
+    EntityIconOption("ev_station", categoryIcon("ev_station")),
+    EntityIconOption("local_parking", categoryIcon("local_parking")),
+    // Shopping
+    EntityIconOption("shopping_cart", categoryIcon("shopping_cart")),
+    EntityIconOption("shopping_bag", categoryIcon("shopping_bag")),
+    EntityIconOption("local_mall", categoryIcon("local_mall")),
+    EntityIconOption("storefront", categoryIcon("storefront")),
+    EntityIconOption("checkroom", categoryIcon("checkroom")),
+    EntityIconOption("diamond", categoryIcon("diamond")),
+    // Health & wellness
+    EntityIconOption("local_hospital", categoryIcon("local_hospital")),
+    EntityIconOption("medical_services", categoryIcon("medical_services")),
+    EntityIconOption("local_pharmacy", categoryIcon("local_pharmacy")),
+    EntityIconOption("fitness_center", categoryIcon("fitness_center")),
+    EntityIconOption("spa", categoryIcon("spa")),
+    EntityIconOption("self_improvement", categoryIcon("self_improvement")),
+    // Entertainment & leisure
     EntityIconOption("sports_esports", categoryIcon("sports_esports")),
+    EntityIconOption("movie", categoryIcon("movie")),
+    EntityIconOption("music_note", categoryIcon("music_note")),
+    EntityIconOption("theater_comedy", categoryIcon("theater_comedy")),
+    EntityIconOption("nightlife", categoryIcon("nightlife")),
+    EntityIconOption("casino", categoryIcon("casino")),
+    EntityIconOption("sports_soccer", categoryIcon("sports_soccer")),
+    EntityIconOption("sports_basketball", categoryIcon("sports_basketball")),
+    EntityIconOption("hiking", categoryIcon("hiking")),
+    EntityIconOption("pool", categoryIcon("pool")),
+    EntityIconOption("park", categoryIcon("park")),
+    EntityIconOption("beach_access", categoryIcon("beach_access")),
+    EntityIconOption("hotel", categoryIcon("hotel")),
+    EntityIconOption("luggage", categoryIcon("luggage")),
+    // Technology
+    EntityIconOption("phone_android", categoryIcon("phone_android")),
+    EntityIconOption("computer", categoryIcon("computer")),
+    EntityIconOption("headphones", categoryIcon("headphones")),
+    EntityIconOption("camera_alt", categoryIcon("camera_alt")),
+    EntityIconOption("wifi", categoryIcon("wifi")),
+    // Education & work
+    EntityIconOption("school", categoryIcon("school")),
+    EntityIconOption("menu_book", categoryIcon("menu_book")),
+    EntityIconOption("science", categoryIcon("science")),
+    EntityIconOption("calculate", categoryIcon("calculate")),
+    EntityIconOption("work", categoryIcon("work")),
+    EntityIconOption("business_center", categoryIcon("business_center")),
+    // Finance
     EntityIconOption("payments", categoryIcon("payments")),
     EntityIconOption("savings", categoryIcon("savings")),
-    EntityIconOption("school", categoryIcon("school")),
-    EntityIconOption("local_hospital", categoryIcon("local_hospital")),
-    EntityIconOption("flight", categoryIcon("flight")),
-    EntityIconOption("phone_android", categoryIcon("phone_android")),
-    EntityIconOption("fitness_center", categoryIcon("fitness_center")),
+    EntityIconOption("euro", categoryIcon("euro")),
+    EntityIconOption("receipt", categoryIcon("receipt")),
+    // Personal & social
+    EntityIconOption("face", categoryIcon("face")),
+    EntityIconOption("content_cut", categoryIcon("content_cut")),
+    EntityIconOption("child_care", categoryIcon("child_care")),
+    EntityIconOption("pets", categoryIcon("pets")),
+    EntityIconOption("group", categoryIcon("group")),
+    EntityIconOption("volunteer_activism", categoryIcon("volunteer_activism")),
+    EntityIconOption("card_giftcard", categoryIcon("card_giftcard")),
+    EntityIconOption("celebration", categoryIcon("celebration")),
+    EntityIconOption("local_florist", categoryIcon("local_florist")),
+    // Utilities
+    EntityIconOption("bolt", categoryIcon("bolt")),
+    EntityIconOption("water_drop", categoryIcon("water_drop")),
 )
 
 // ---------------------------------------------------------------------------

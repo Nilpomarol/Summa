@@ -140,9 +140,11 @@
     <string name="category_kind_expense">Despesa</string>
     <string name="category_kind_income">Ingrés</string>
     <string name="category_kind_both">Despesa i ingrés</string>
+    <string name="category_kind_both_short">Ambdós</string>
     <string name="category_nature_fixed">Fixa</string>
     <string name="category_nature_variable">Variable</string>
     <string name="category_parent_none">Sense categoria superior</string>
+    <string name="category_parent_search_placeholder">Cerca categoria superior...</string>
     <string name="category_parent_value">Categoria superior: %1$s</string>
     <string name="category_parent_disabled_has_children">Una categoria amb subcategories no pot passar a ser subcategoria.</string>
     <string name="category_archive_confirm_title">Eliminar categoria?</string>
@@ -150,6 +152,18 @@
     <string name="category_validation_name_required">Introdueix el nom de la categoria.</string>
     <string name="category_validation_parent_invalid">Tria una categoria superior de primer nivell.</string>
     <string name="category_validation_parent_has_children">Una categoria amb subcategories no pot tenir categoria superior.</string>
+    <string name="category_section_expense">Despeses</string>
+    <string name="category_section_income">Ingressos</string>
+    <string name="category_field_color">Color</string>
+    <string name="category_field_icon">Icona</string>
+    <string name="category_preview_placeholder">Nova categoria</string>
+    <string name="category_flow_view_analysis">Anàlisi</string>
+    <string name="category_flow_loading">Carregant moviments...</string>
+    <string name="category_flow_empty">Sense moviments per a aquesta categoria.</string>
+    <string name="category_parent_search_empty">Cap categoria coincideix amb la cerca.</string>
+    <string name="analysis_category_filter">Categoria: %1$s</string>
+    <string name="category_spend_month">Aquest mes</string>
+    <string name="category_spend_year">Aquest any</string>
 
     <!-- People and debts -->
     <string name="person_list_title">Persones</string>
@@ -421,6 +435,10 @@
     <plurals name="account_flow_movement_count">
         <item quantity="one">%1$d moviment</item>
         <item quantity="other">%1$d moviments</item>
+    </plurals>
+    <plurals name="category_child_count">
+        <item quantity="one">%1$d subcategoria</item>
+        <item quantity="other">%1$d subcategories</item>
     </plurals>
 
     <!-- Phase 4 (P4-1): recurring, refunds, budgets, notifications. -->
