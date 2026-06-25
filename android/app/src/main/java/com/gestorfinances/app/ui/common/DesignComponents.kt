@@ -234,6 +234,74 @@ fun <T> SegmentedControl(
     }
 }
 
+/**
+ * Labeled segmented control with a bordered track and an indigo-tint active segment
+ * (design §2.3 — indigo carries active state). A calmer, flatter alternative to
+ * [SegmentedControl] for form selectors: hairline-bordered container, the selected segment
+ * filled with the indigo tint and ink-pressed label, the rest transparent and muted.
+ */
+@Composable
+fun <T> LabeledSegmentedControl(
+    label: String,
+    options: List<T>,
+    selected: T,
+    optionLabel: @Composable (T) -> String,
+    onSelect: (T) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = FinanceTheme.colors.mutedText,
+        )
+        Surface(
+            shape = MaterialTheme.shapes.small,
+            color = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(1.dp, FinanceTheme.colors.cardBorder),
+        ) {
+            Row(
+                modifier = Modifier.padding(3.dp),
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                options.forEach { option ->
+                    val isSelected = option == selected
+                    Surface(
+                        onClick = { onSelect(option) },
+                        modifier = Modifier.weight(1f),
+                        shape = MaterialTheme.shapes.extraSmall,
+                        color = if (isSelected) {
+                            MaterialTheme.colorScheme.primaryContainer
+                        } else {
+                            Color.Transparent
+                        },
+                        contentColor = if (isSelected) {
+                            MaterialTheme.colorScheme.onPrimaryContainer
+                        } else {
+                            FinanceTheme.colors.mutedText
+                        },
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .heightIn(min = 38.dp)
+                                .fillMaxWidth()
+                                .padding(horizontal = 6.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = optionLabel(option),
+                                style = MaterialTheme.typography.labelLarge,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 /** Primary action button (design §6): indigo fill, white label, r2. */
 @Composable
 fun PrimaryButton(

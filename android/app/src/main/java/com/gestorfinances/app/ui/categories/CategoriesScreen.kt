@@ -1,31 +1,53 @@
 package com.gestorfinances.app.ui.categories
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.BarChart
+import androidx.compose.material.icons.outlined.PushPin
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Clear
+import androidx.compose.material.icons.outlined.ExpandLess
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -35,17 +57,27 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.CategoryKind
 import com.gestorfinances.app.data.repository.CategoryNature
 import com.gestorfinances.app.data.repository.CategoryRecord
-import com.gestorfinances.app.ui.common.ChipFlowSection
+import com.gestorfinances.app.ui.common.CategoryIconPalette
+import com.gestorfinances.app.ui.common.ColorPickerRow
+import com.gestorfinances.app.ui.common.DestructiveTextButton
 import com.gestorfinances.app.ui.common.FinanceCard
-import com.gestorfinances.app.ui.common.FinanceFilterChip
 import com.gestorfinances.app.ui.common.IconChip
+import com.gestorfinances.app.ui.common.IconPickerRow
+import com.gestorfinances.app.ui.common.LabeledSegmentedControl
+import com.gestorfinances.app.ui.common.MoneyText
+import com.gestorfinances.app.ui.common.MovementListItem
 import com.gestorfinances.app.ui.common.PrimaryButton
+import com.gestorfinances.app.ui.common.TopBarIconButton
 import com.gestorfinances.app.ui.common.categoryIcon
 import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.categoryColor
@@ -53,6 +85,7 @@ import com.gestorfinances.app.ui.theme.categoryColor
 @Composable
 fun CategoriesScreen(
     viewModel: CategoriesViewModel,
+    onViewAnalysis: (categoryId: String, categoryName: String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsState()
@@ -67,10 +100,11 @@ fun CategoriesScreen(
         onAdd = viewModel::onAddClicked,
         onEdit = viewModel::onEditClicked,
         onArchive = viewModel::onArchiveClicked,
+        onFlow = viewModel::onFlowClicked,
     )
 
     state.form?.let { form ->
-        CategoryFormDialog(
+        CategoryFormSheet(
             form = form,
             categories = state.categories,
             onFormChange = viewModel::onFormChanged,
@@ -85,19 +119,25 @@ fun CategoriesScreen(
             title = { Text(text = stringResource(R.string.category_archive_confirm_title)) },
             text = { Text(text = stringResource(R.string.category_archive_warning)) },
             confirmButton = {
-                TextButton(
-                    onClick = viewModel::onArchiveConfirmed,
-                ) {
-                    Text(
-                        text = stringResource(R.string.common_archive),
-                        color = MaterialTheme.colorScheme.error,
-                    )
+                DestructiveTextButton(onClick = viewModel::onArchiveConfirmed) {
+                    Text(text = stringResource(R.string.common_archive))
                 }
             },
             dismissButton = {
                 TextButton(onClick = viewModel::onArchiveDismissed) {
                     Text(text = stringResource(R.string.common_cancel))
                 }
+            },
+        )
+    }
+
+    state.flowDetail?.let { detail ->
+        CategoryFlowSheet(
+            detail = detail,
+            onDismiss = viewModel::onFlowDismissed,
+            onViewAnalysis = {
+                viewModel.onFlowDismissed()
+                onViewAnalysis(detail.category.id, detail.category.name)
             },
         )
     }
@@ -110,18 +150,59 @@ private fun CategoriesContent(
     onAdd: () -> Unit,
     onEdit: (CategoryRecord) -> Unit,
     onArchive: (CategoryRecord) -> Unit,
+    onFlow: (CategoryRecord) -> Unit,
 ) {
-    val rows = categoryRows(state.categories)
+    val expenseParents = state.categories.filter {
+        it.parentId == null && (it.kind == CategoryKind.EXPENSE || it.kind == CategoryKind.BOTH)
+    }.sortedForDisplay()
+    val incomeParents = state.categories.filter {
+        it.parentId == null && it.kind == CategoryKind.INCOME
+    }.sortedForDisplay()
+    val childrenByParent = state.categories.groupBy { it.parentId }
+
+    // Section totals roll up each parent's own spend + all its children's spend
+    val expenseMonthTotal = expenseParents.sumOf { parent ->
+        val ch = childrenByParent[parent.id].orEmpty()
+        (state.monthSpend[parent.id] ?: 0L) + ch.sumOf { state.monthSpend[it.id] ?: 0L }
+    }
+    val expenseYearTotal = expenseParents.sumOf { parent ->
+        val ch = childrenByParent[parent.id].orEmpty()
+        (state.yearSpend[parent.id] ?: 0L) + ch.sumOf { state.yearSpend[it.id] ?: 0L }
+    }
+    val incomeMonthTotal = incomeParents.sumOf { parent ->
+        val ch = childrenByParent[parent.id].orEmpty()
+        (state.monthSpend[parent.id] ?: 0L) + ch.sumOf { state.monthSpend[it.id] ?: 0L }
+    }
+    val incomeYearTotal = incomeParents.sumOf { parent ->
+        val ch = childrenByParent[parent.id].orEmpty()
+        (state.yearSpend[parent.id] ?: 0L) + ch.sumOf { state.yearSpend[it.id] ?: 0L }
+    }
+
+    var expenseSectionExpanded by remember { mutableStateOf(true) }
+    var incomeSectionExpanded by remember { mutableStateOf(true) }
+
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        // Title + add button
         item {
-            Text(
-                text = stringResource(R.string.category_list_title),
-                style = MaterialTheme.typography.headlineMedium,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.category_list_title),
+                    style = MaterialTheme.typography.headlineMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                TopBarIconButton(
+                    icon = Icons.Outlined.Add,
+                    contentDescription = stringResource(R.string.category_list_add),
+                    onClick = onAdd,
+                )
+            }
         }
 
         state.errorMessage?.let { message ->
@@ -134,9 +215,7 @@ private fun CategoriesContent(
             }
         }
 
-        item {
-            UncategorizedCard()
-        }
+        item { UncategorizedCard() }
 
         if (state.isLoading) {
             item {
@@ -146,29 +225,411 @@ private fun CategoriesContent(
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
-        } else if (state.categories.isEmpty()) {
-            item {
-                EmptyCategoriesCard(onAdd = onAdd)
-            }
         } else {
-            items(items = rows, key = { it.category.id }) { row ->
-                CategoryRow(
-                    row = row,
-                    categories = state.categories,
-                    onEdit = { onEdit(row.category) },
-                    onArchive = { onArchive(row.category) },
+            // Expense section
+            item {
+                CollapsibleSectionHeader(
+                    title = stringResource(R.string.category_section_expense),
+                    count = expenseParents.size,
+                    expanded = expenseSectionExpanded,
+                    onToggle = { expenseSectionExpanded = !expenseSectionExpanded },
                 )
             }
+            if (expenseSectionExpanded) {
+                if (expenseParents.isEmpty()) {
+                    item {
+                        Text(
+                            text = stringResource(R.string.category_empty_title),
+                            color = FinanceTheme.colors.mutedText,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                } else {
+                    items(items = expenseParents, key = { "expense-${it.id}" }) { parent ->
+                        val children = childrenByParent[parent.id].orEmpty().sortedForDisplay()
+                        CategoryParentCard(
+                            category = parent,
+                            children = children,
+                            monthSpend = state.monthSpend,
+                            yearSpend = state.yearSpend,
+                            sectionMonthTotal = expenseMonthTotal,
+                            sectionYearTotal = expenseYearTotal,
+                            onEdit = { onEdit(parent) },
+                            onArchive = { onArchive(parent) },
+                            onFlow = { onFlow(parent) },
+                            onEditChild = onEdit,
+                            onArchiveChild = onArchive,
+                            onFlowChild = onFlow,
+                        )
+                    }
+                }
+            }
+
+            // Income section
             item {
-                PrimaryButton(
-                    text = stringResource(R.string.category_list_add),
-                    onClick = onAdd,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp),
+                CollapsibleSectionHeader(
+                    title = stringResource(R.string.category_section_income),
+                    count = incomeParents.size,
+                    expanded = incomeSectionExpanded,
+                    onToggle = { incomeSectionExpanded = !incomeSectionExpanded },
+                )
+            }
+            if (incomeSectionExpanded) {
+                if (incomeParents.isEmpty()) {
+                    item {
+                        Text(
+                            text = stringResource(R.string.category_empty_title),
+                            color = FinanceTheme.colors.mutedText,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                } else {
+                    items(items = incomeParents, key = { "income-${it.id}" }) { parent ->
+                        val children = childrenByParent[parent.id].orEmpty().sortedForDisplay()
+                        CategoryParentCard(
+                            category = parent,
+                            children = children,
+                            monthSpend = state.monthSpend,
+                            yearSpend = state.yearSpend,
+                            sectionMonthTotal = incomeMonthTotal,
+                            sectionYearTotal = incomeYearTotal,
+                            onEdit = { onEdit(parent) },
+                            onArchive = { onArchive(parent) },
+                            onFlow = { onFlow(parent) },
+                            onEditChild = onEdit,
+                            onArchiveChild = onArchive,
+                            onFlowChild = onFlow,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CollapsibleSectionHeader(
+    title: String,
+    count: Int,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggle)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.weight(1f),
+        )
+        if (count > 0) {
+            Surface(
+                shape = MaterialTheme.shapes.extraSmall,
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = FinanceTheme.colors.mutedText,
+            ) {
+                Text(
+                    text = count.toString(),
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                 )
             }
         }
+        Icon(
+            imageVector = if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+            contentDescription = null,
+            tint = FinanceTheme.colors.mutedText,
+            modifier = Modifier.size(20.dp),
+        )
+    }
+}
+
+@Composable
+private fun CategoryParentCard(
+    category: CategoryRecord,
+    children: List<CategoryRecord>,
+    monthSpend: Map<String, Long>,
+    yearSpend: Map<String, Long>,
+    sectionMonthTotal: Long,
+    sectionYearTotal: Long,
+    onEdit: () -> Unit,
+    onArchive: () -> Unit,
+    onFlow: () -> Unit,
+    onEditChild: (CategoryRecord) -> Unit,
+    onArchiveChild: (CategoryRecord) -> Unit,
+    onFlowChild: (CategoryRecord) -> Unit,
+) {
+    var childrenExpanded by remember { mutableStateOf(true) }
+    val hasChildren = children.isNotEmpty()
+
+    val monthLabel = stringResource(R.string.category_spend_month)
+    val yearLabel = stringResource(R.string.category_spend_year)
+
+    // Aggregate parent's own spend + all children's spend
+    val monthAmt = (monthSpend[category.id] ?: 0L) + children.sumOf { monthSpend[it.id] ?: 0L }
+    val yearAmt = (yearSpend[category.id] ?: 0L) + children.sumOf { yearSpend[it.id] ?: 0L }
+    val spendAmt = if (monthAmt > 0L) monthAmt else if (yearAmt > 0L) yearAmt else null
+    val spendLabel = when {
+        monthAmt > 0L -> monthLabel
+        yearAmt > 0L -> yearLabel
+        else -> null
+    }
+    val sectionTotal = if (monthAmt > 0L) sectionMonthTotal else sectionYearTotal
+    val fraction = if (spendAmt != null && sectionTotal > 0L) {
+        (spendAmt.toFloat() / sectionTotal.toFloat()).coerceIn(0f, 1f)
+    } else 0f
+    val percentText = when {
+        fraction <= 0f -> null
+        fraction < 0.01f -> "<1%"
+        else -> "${(fraction * 100).toInt()}%"
+    }
+    val catColor = categoryColor(category.color)
+
+    // Secondary line: kind + optional child count, e.g. "Despesa · 3 subcategories"
+    val kindLabel = category.kind.label()
+    val secondaryLine = if (hasChildren) {
+        "$kindLabel · " + pluralStringResource(
+            R.plurals.category_child_count,
+            children.size,
+            children.size,
+        )
+    } else {
+        kindLabel
+    }
+
+    FinanceCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onFlow),
+    ) {
+        Column {
+            // Main row: icon + name/meta + expand + menu (icon centers against the 2-line text)
+            Row(
+                modifier = Modifier.padding(
+                    start = 16.dp,
+                    end = 4.dp,
+                    top = 14.dp,
+                    bottom = if (spendAmt != null) 0.dp else 14.dp,
+                ),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconChip(
+                    icon = categoryIcon(category.icon),
+                    contentDescription = null,
+                    color = catColor,
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Text(
+                            text = category.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                        if (category.nature == CategoryNature.FIXED) {
+                            FixedNatureTag()
+                        }
+                    }
+                    Text(
+                        text = secondaryLine,
+                        color = FinanceTheme.colors.mutedText,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                if (hasChildren) {
+                    IconButton(onClick = { childrenExpanded = !childrenExpanded }) {
+                        Icon(
+                            imageVector = if (childrenExpanded) Icons.Outlined.ExpandLess
+                                         else Icons.Outlined.ExpandMore,
+                            contentDescription = null,
+                            tint = FinanceTheme.colors.mutedText,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                }
+                CategoryMenuDropdown(onEdit = onEdit, onArchive = onArchive)
+            }
+
+            // Spend block: amount + period on the left, bar fills, percentage at the end
+            if (spendAmt != null && spendLabel != null) {
+                Row(
+                    modifier = Modifier.padding(
+                        start = 16.dp,
+                        end = 16.dp,
+                        top = 12.dp,
+                        bottom = 14.dp,
+                    ),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Column {
+                        MoneyText(
+                            cents = spendAmt,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            style = MaterialTheme.typography.titleSmall,
+                        )
+                        Text(
+                            text = spendLabel,
+                            color = FinanceTheme.colors.mutedText,
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(6.dp)
+                            .background(
+                                MaterialTheme.colorScheme.surfaceVariant,
+                                RoundedCornerShape(3.dp),
+                            ),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .fillMaxWidth(fraction)
+                                .background(catColor, RoundedCornerShape(3.dp)),
+                        )
+                    }
+                    if (percentText != null) {
+                        Text(
+                            text = percentText,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = FinanceTheme.colors.mutedText,
+                        )
+                    }
+                }
+            }
+
+            // Children
+            if (hasChildren && childrenExpanded) {
+                HorizontalDivider(color = FinanceTheme.colors.cardBorder)
+                children.forEachIndexed { index, child ->
+                    CategoryChildRow(
+                        category = child,
+                        parentName = category.name,
+                        monthSpend = monthSpend,
+                        yearSpend = yearSpend,
+                        monthLabel = monthLabel,
+                        yearLabel = yearLabel,
+                        onEdit = { onEditChild(child) },
+                        onArchive = { onArchiveChild(child) },
+                        onFlow = { onFlowChild(child) },
+                    )
+                    if (index < children.lastIndex) {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 58.dp),
+                            color = FinanceTheme.colors.cardBorder,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FixedNatureTag() {
+    Surface(
+        shape = MaterialTheme.shapes.extraSmall,
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        contentColor = FinanceTheme.colors.mutedText,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.PushPin,
+                contentDescription = null,
+                modifier = Modifier.size(10.dp),
+            )
+            Text(
+                text = stringResource(R.string.category_nature_fixed),
+                style = MaterialTheme.typography.labelSmall,
+            )
+        }
+    }
+}
+
+@Composable
+private fun CategoryChildRow(
+    category: CategoryRecord,
+    parentName: String,
+    monthSpend: Map<String, Long>,
+    yearSpend: Map<String, Long>,
+    monthLabel: String,
+    yearLabel: String,
+    onEdit: () -> Unit,
+    onArchive: () -> Unit,
+    onFlow: () -> Unit,
+) {
+    val monthAmt = monthSpend[category.id] ?: 0L
+    val yearAmt = yearSpend[category.id] ?: 0L
+    val (spendAmt, spendLabel) = when {
+        monthAmt > 0L -> monthAmt to monthLabel
+        yearAmt > 0L -> yearAmt to yearLabel
+        else -> null to null
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onFlow)
+            .padding(start = 14.dp, end = 4.dp, top = 10.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Spacer(modifier = Modifier.width(8.dp))
+        IconChip(
+            icon = categoryIcon(category.icon),
+            contentDescription = null,
+            color = categoryColor(category.color),
+            size = 32.dp,
+        )
+        Spacer(modifier = Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = category.name,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = parentName,
+                color = FinanceTheme.colors.mutedText,
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (spendAmt != null && spendLabel != null) {
+            Column(
+                horizontalAlignment = Alignment.End,
+                modifier = Modifier.padding(horizontal = 4.dp),
+            ) {
+                MoneyText(
+                    cents = spendAmt,
+                    color = FinanceTheme.colors.mutedText,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text(
+                    text = spendLabel,
+                    color = FinanceTheme.colors.mutedText,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
+        }
+        CategoryMenuDropdown(onEdit = onEdit, onArchive = onArchive)
     }
 }
 
@@ -176,7 +637,7 @@ private fun CategoriesContent(
 private fun UncategorizedCard() {
     FinanceCard(modifier = Modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconChip(
@@ -188,7 +649,7 @@ private fun UncategorizedCard() {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = stringResource(R.string.common_no_category),
-                    style = MaterialTheme.typography.titleSmall,
+                    style = MaterialTheme.typography.titleMedium,
                 )
                 Text(
                     text = stringResource(R.string.category_uncategorized_body),
@@ -201,91 +662,24 @@ private fun UncategorizedCard() {
 }
 
 @Composable
-private fun EmptyCategoriesCard(onAdd: () -> Unit) {
-    FinanceCard(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(
-                text = stringResource(R.string.category_empty_title),
-                style = MaterialTheme.typography.titleMedium,
-            )
-            Text(
-                text = stringResource(R.string.category_empty_body),
-                color = FinanceTheme.colors.mutedText,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            PrimaryButton(
-                text = stringResource(R.string.category_list_add),
-                onClick = onAdd,
-            )
-        }
-    }
-}
-
-@Composable
-private fun CategoryRow(
-    row: CategoryRow,
-    categories: List<CategoryRecord>,
+private fun CategoryMenuDropdown(
     onEdit: () -> Unit,
     onArchive: () -> Unit,
 ) {
-    val parentName = row.category.parentId?.let { parentId ->
-        categories.firstOrNull { it.id == parentId }?.name
-    }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = if (row.isChild) 20.dp else 0.dp, top = 6.dp, bottom = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        IconChip(
-            icon = categoryIcon(row.category.icon),
-            contentDescription = null,
-            color = categoryColor(row.category.color),
-        )
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = row.category.name,
-                style = MaterialTheme.typography.titleSmall,
-            )
-            Text(
-                text = "${row.category.kind.label()} · ${row.category.nature.label()}",
-                color = FinanceTheme.colors.mutedText,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            parentName?.let {
-                Text(
-                    text = stringResource(R.string.category_parent_value, it),
-                    color = FinanceTheme.colors.mutedText,
-                    style = MaterialTheme.typography.labelMedium,
-                )
-            }
-        }
-        CategoryRowMenu(onEdit = onEdit, onArchive = onArchive)
-    }
-}
-
-@Composable
-private fun CategoryRowMenu(
-    onEdit: () -> Unit,
-    onArchive: () -> Unit,
-) {
-    var expanded by remember { mutableStateOf(false) }
+    var menuExpanded by remember { mutableStateOf(false) }
     Box {
-        IconButton(onClick = { expanded = true }) {
+        IconButton(onClick = { menuExpanded = true }) {
             Icon(
                 imageVector = Icons.Outlined.MoreVert,
                 contentDescription = stringResource(R.string.common_more_options),
                 tint = FinanceTheme.colors.mutedText,
+                modifier = Modifier.size(20.dp),
             )
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.common_edit)) },
-                onClick = { expanded = false; onEdit() },
+                onClick = { menuExpanded = false; onEdit() },
             )
             DropdownMenuItem(
                 text = {
@@ -294,114 +688,193 @@ private fun CategoryRowMenu(
                         color = MaterialTheme.colorScheme.error,
                     )
                 },
-                onClick = { expanded = false; onArchive() },
+                onClick = { menuExpanded = false; onArchive() },
             )
         }
     }
 }
 
+// ---------------------------------------------------------------------------
+// Category form — bottom sheet
+// ---------------------------------------------------------------------------
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CategoryFormDialog(
+private fun CategoryFormSheet(
     form: CategoryFormState,
     categories: List<CategoryRecord>,
     onFormChange: (CategoryFormState) -> Unit,
     onDismiss: () -> Unit,
     onSave: () -> Unit,
 ) {
-    AlertDialog(
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        title = {
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .navigationBarsPadding()
+                .imePadding()
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            // Title
             Text(
                 text = stringResource(
-                    if (form.id == null) R.string.category_form_new_title else R.string.category_form_edit_title,
+                    if (form.id == null) R.string.category_form_new_title
+                    else R.string.category_form_edit_title,
                 ),
+                style = MaterialTheme.typography.titleLarge,
             )
-        },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                form.errorRes?.let {
-                    Text(
-                        text = stringResource(it),
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-                form.errorMessage?.let {
-                    Text(
-                        text = it,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-                OutlinedTextField(
-                    value = form.name,
-                    onValueChange = { onFormChange(form.copy(name = it, errorRes = null, errorMessage = null)) },
-                    label = { Text(text = stringResource(R.string.category_field_name)) },
-                    singleLine = true,
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                ChipFlowSection(label = stringResource(R.string.category_field_kind)) {
-                    CategoryKind.entries.forEach { kind ->
-                        FinanceFilterChip(
-                            selected = form.kind == kind,
-                            label = kind.label(),
-                            onClick = { onFormChange(form.copy(kind = kind, errorRes = null, errorMessage = null)) },
-                        )
-                    }
-                }
-                ChipFlowSection(label = stringResource(R.string.category_field_nature)) {
-                    CategoryNature.entries.forEach { nature ->
-                        FinanceFilterChip(
-                            selected = form.nature == nature,
-                            label = nature.label(),
-                            onClick = {
-                                onFormChange(form.copy(nature = nature, errorRes = null, errorMessage = null))
-                            },
-                        )
-                    }
-                }
-                CategoryParentSelector(
-                    form = form,
-                    categories = categories,
-                    onParentSelected = {
-                        onFormChange(form.copy(parentId = it, errorRes = null, errorMessage = null))
-                    },
-                )
-            }
-        },
-        confirmButton = {
-            Button(onClick = onSave) {
+
+            // Errors
+            form.errorRes?.let {
                 Text(
-                    text = stringResource(
-                        if (form.id == null) R.string.category_save_new else R.string.category_save_changes,
-                    ),
+                    text = stringResource(it),
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
                 )
             }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.common_cancel))
+            form.errorMessage?.let {
+                Text(
+                    text = it,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
             }
-        },
-    )
+
+            // Live preview
+            CategoryPreviewCard(form = form)
+
+            // Name
+            OutlinedTextField(
+                value = form.name,
+                onValueChange = {
+                    onFormChange(form.copy(name = it, errorRes = null, errorMessage = null))
+                },
+                label = { Text(text = stringResource(R.string.category_field_name)) },
+                singleLine = true,
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            // Kind selector
+            LabeledSegmentedControl(
+                label = stringResource(R.string.category_field_kind),
+                options = CategoryKind.entries,
+                selected = form.kind,
+                optionLabel = { it.shortLabel() },
+                onSelect = { kind ->
+                    onFormChange(
+                        form.copy(kind = kind, parentId = null, errorRes = null, errorMessage = null),
+                    )
+                },
+            )
+
+            // Nature selector
+            LabeledSegmentedControl(
+                label = stringResource(R.string.category_field_nature),
+                options = CategoryNature.entries,
+                selected = form.nature,
+                optionLabel = { it.label() },
+                onSelect = { nature ->
+                    onFormChange(form.copy(nature = nature, errorRes = null, errorMessage = null))
+                },
+            )
+
+            // Color picker
+            ColorPickerRow(
+                label = stringResource(R.string.category_field_color),
+                selectedHex = form.colorHex,
+                onSelect = { onFormChange(form.copy(colorHex = it)) },
+            )
+
+            // Icon picker
+            IconPickerRow(
+                label = stringResource(R.string.category_field_icon),
+                options = CategoryIconPalette,
+                selectedKey = form.iconKey,
+                onSelect = { onFormChange(form.copy(iconKey = it)) },
+            )
+
+            // Parent picker
+            CategoryParentPicker(
+                form = form,
+                categories = categories,
+                onParentSelected = { onFormChange(form.copy(parentId = it, errorRes = null, errorMessage = null)) },
+            )
+
+            // Action buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f),
+                    shape = MaterialTheme.shapes.small,
+                ) {
+                    Text(text = stringResource(R.string.common_cancel))
+                }
+                PrimaryButton(
+                    text = stringResource(
+                        if (form.id == null) R.string.category_save_new
+                        else R.string.category_save_changes,
+                    ),
+                    onClick = onSave,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
 }
 
 @Composable
-private fun CategoryParentSelector(
+private fun CategoryPreviewCard(form: CategoryFormState) {
+    val color = categoryColor(form.colorHex)
+    val icon = categoryIcon(form.iconKey)
+    val nameText = form.name.ifBlank { stringResource(R.string.category_preview_placeholder) }
+
+    FinanceCard(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            IconChip(icon = icon, contentDescription = null, color = color)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = nameText,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = if (form.name.isBlank()) {
+                        FinanceTheme.colors.mutedText
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
+                )
+                Text(
+                    text = "${form.kind.label()} · ${form.nature.label()}",
+                    color = FinanceTheme.colors.mutedText,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CategoryParentPicker(
     form: CategoryFormState,
     categories: List<CategoryRecord>,
     onParentSelected: (String?) -> Unit,
 ) {
     val hasActiveChildren = form.id != null && categories.any { it.parentId == form.id }
-    val parentOptions = if (hasActiveChildren) {
-        emptyList()
-    } else {
-        categories.filter { it.parentId == null && it.id != form.id }
-    }
 
     if (hasActiveChildren) {
         Text(
@@ -412,21 +885,284 @@ private fun CategoryParentSelector(
         return
     }
 
-    ChipFlowSection(label = stringResource(R.string.category_field_parent)) {
-        FinanceFilterChip(
-            selected = form.parentId == null,
-            label = stringResource(R.string.category_parent_none),
-            onClick = { onParentSelected(null) },
+    val compatibleKinds = when (form.kind) {
+        CategoryKind.EXPENSE -> setOf(CategoryKind.EXPENSE, CategoryKind.BOTH)
+        CategoryKind.INCOME -> setOf(CategoryKind.INCOME, CategoryKind.BOTH)
+        CategoryKind.BOTH -> setOf(CategoryKind.BOTH)
+    }
+    val parentOptions = categories.filter {
+        it.parentId == null && it.id != form.id && it.kind in compatibleKinds
+    }
+
+    var query by remember { mutableStateOf("") }
+    val showSearch = parentOptions.size > 5
+    val filtered = remember(query, parentOptions) {
+        if (query.isBlank()) parentOptions
+        else parentOptions.filter { it.name.contains(query.trim(), ignoreCase = true) }
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = stringResource(R.string.category_field_parent),
+            style = MaterialTheme.typography.labelMedium,
+            color = FinanceTheme.colors.mutedText,
         )
-        parentOptions.forEach { category ->
-            FinanceFilterChip(
-                selected = form.parentId == category.id,
-                label = category.name,
-                onClick = { onParentSelected(category.id) },
+        if (showSearch) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                placeholder = { Text(text = stringResource(R.string.category_parent_search_placeholder)) },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Outlined.Search,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                },
+                trailingIcon = if (query.isNotEmpty()) {
+                    {
+                        IconButton(onClick = { query = "" }) {
+                            Icon(
+                                imageVector = Icons.Outlined.Clear,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                    }
+                } else null,
+                singleLine = true,
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier.fillMaxWidth(),
             )
+        }
+
+        // Bordered, non-scrolling list — the whole sheet scrolls as one surface.
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.small,
+            color = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(1.dp, FinanceTheme.colors.cardBorder),
+        ) {
+            Column {
+                // "No parent" option, always first
+                ParentOptionRow(
+                    label = stringResource(R.string.category_parent_none),
+                    icon = null,
+                    iconColor = null,
+                    selected = form.parentId == null,
+                    onClick = { onParentSelected(null) },
+                )
+                if (query.isNotBlank() && filtered.isEmpty()) {
+                    HorizontalDivider(color = FinanceTheme.colors.cardBorder)
+                    Text(
+                        text = stringResource(R.string.category_parent_search_empty),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = FinanceTheme.colors.mutedText,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                    )
+                } else {
+                    filtered.forEach { parent ->
+                        HorizontalDivider(color = FinanceTheme.colors.cardBorder)
+                        ParentOptionRow(
+                            label = parent.name,
+                            icon = categoryIcon(parent.icon),
+                            iconColor = categoryColor(parent.color),
+                            selected = form.parentId == parent.id,
+                            onClick = { onParentSelected(parent.id) },
+                        )
+                    }
+                }
+            }
         }
     }
 }
+
+@Composable
+private fun ParentOptionRow(
+    label: String,
+    icon: ImageVector?,
+    iconColor: Color?,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        color = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+        contentColor = if (selected) {
+            MaterialTheme.colorScheme.onPrimaryContainer
+        } else {
+            MaterialTheme.colorScheme.onSurface
+        },
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            if (icon != null && iconColor != null) {
+                IconChip(
+                    icon = icon,
+                    contentDescription = null,
+                    color = iconColor,
+                    size = 32.dp,
+                )
+            }
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            if (selected) {
+                Icon(
+                    imageVector = Icons.Outlined.Check,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Category flow sheet
+// ---------------------------------------------------------------------------
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CategoryFlowSheet(
+    detail: CategoryFlowDetailState,
+    onDismiss: () -> Unit,
+    onViewAnalysis: () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val category = detail.category
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.75f)
+                .navigationBarsPadding()
+                .padding(bottom = 8.dp),
+        ) {
+            // Header: icon + name/count + analysis button
+            val movementCountText = if (!detail.isLoading) {
+                pluralStringResource(
+                    R.plurals.account_flow_movement_count,
+                    detail.entries.size,
+                    detail.entries.size,
+                )
+            } else null
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                IconChip(
+                    icon = categoryIcon(category.icon),
+                    contentDescription = null,
+                    color = categoryColor(category.color),
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = category.name,
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    if (movementCountText != null) {
+                        Text(
+                            text = movementCountText,
+                            color = FinanceTheme.colors.mutedText,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
+                TextButton(onClick = onViewAnalysis) {
+                    Icon(
+                        imageVector = Icons.Outlined.BarChart,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(text = stringResource(R.string.category_flow_view_analysis))
+                }
+            }
+
+            HorizontalDivider()
+
+            // Movement list
+            when {
+                detail.isLoading -> {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.category_flow_loading),
+                            color = FinanceTheme.colors.mutedText,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
+                detail.entries.isEmpty() -> {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.category_flow_empty),
+                            color = FinanceTheme.colors.mutedText,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
+                else -> {
+                    LazyColumn(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
+                    ) {
+                        items(detail.entries) { entry ->
+                            MovementListItem(entry = entry)
+                            HorizontalDivider(
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                            )
+                        }
+                    }
+                }
+            }
+
+            detail.errorMessage?.let { msg ->
+                Text(
+                    text = msg,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                )
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 @Composable
 private fun CategoryKind.label(): String =
@@ -436,31 +1172,21 @@ private fun CategoryKind.label(): String =
         CategoryKind.BOTH -> stringResource(R.string.category_kind_both)
     }
 
+/** Compact label so all three kinds fit a single segmented row. */
+@Composable
+private fun CategoryKind.shortLabel(): String =
+    when (this) {
+        CategoryKind.EXPENSE -> stringResource(R.string.category_kind_expense)
+        CategoryKind.INCOME -> stringResource(R.string.category_kind_income)
+        CategoryKind.BOTH -> stringResource(R.string.category_kind_both_short)
+    }
+
 @Composable
 private fun CategoryNature.label(): String =
     when (this) {
         CategoryNature.FIXED -> stringResource(R.string.category_nature_fixed)
         CategoryNature.VARIABLE -> stringResource(R.string.category_nature_variable)
     }
-
-private data class CategoryRow(
-    val category: CategoryRecord,
-    val isChild: Boolean,
-)
-
-private fun categoryRows(categories: List<CategoryRecord>): List<CategoryRow> {
-    val activeIds = categories.map { it.id }.toSet()
-    val childrenByParent = categories.groupBy { it.parentId }
-    val roots = categories.filter { it.parentId == null || it.parentId !in activeIds }
-        .sortedForDisplay()
-
-    return roots.flatMap { root ->
-        listOf(CategoryRow(root, isChild = false)) +
-            childrenByParent[root.id].orEmpty()
-                .sortedForDisplay()
-                .map { CategoryRow(it, isChild = true) }
-    }
-}
 
 private fun List<CategoryRecord>.sortedForDisplay(): List<CategoryRecord> =
     sortedWith(compareBy<CategoryRecord> { it.displayOrder }.thenBy { it.name.lowercase() })

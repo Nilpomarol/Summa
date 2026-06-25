@@ -171,6 +171,9 @@ class MovementRepository(
     fun accountFlowForAccount(accountId: String): List<AccountFlowEntry> =
         queries.accountFlowForAccount(accountId, ::mapAccountFlowEntry).executeAsList()
 
+    fun movementsForCategory(categoryId: String): List<AccountFlowEntry> =
+        queries.movementsForCategory(categoryId, ::mapAccountFlowEntry).executeAsList()
+
     fun create(
         draft: MovementDraft,
         createdAt: String,

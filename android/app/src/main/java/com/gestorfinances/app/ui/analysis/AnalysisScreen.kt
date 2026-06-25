@@ -87,6 +87,7 @@ fun AnalysisScreen(
     onDrillDown: (MovementFilters) -> Unit,
     onTripDetail: (String) -> Unit,
     onManageBudgets: () -> Unit,
+    onClearCategoryFilter: () -> Unit = viewModel::clearCategoryFilter,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsState()
@@ -111,6 +112,7 @@ fun AnalysisScreen(
         onCustomToChange = viewModel::onCustomToChanged,
         onResetPeriod = viewModel::onResetPeriodClicked,
         onClearAccountFilter = viewModel::clearAccountFilter,
+        onClearCategoryFilter = onClearCategoryFilter,
         onDrillDown = onDrillDown,
         onTripDetail = onTripDetail,
         modifier = modifier,
@@ -134,6 +136,7 @@ private fun AnalysisContent(
     onCustomToChange: (String) -> Unit,
     onResetPeriod: () -> Unit,
     onClearAccountFilter: () -> Unit,
+    onClearCategoryFilter: () -> Unit,
     onDrillDown: (MovementFilters) -> Unit,
     onTripDetail: (String) -> Unit,
     modifier: Modifier,
@@ -167,6 +170,16 @@ private fun AnalysisContent(
                     selected = true,
                     label = stringResource(R.string.analysis_account_filter, accountName),
                     onClick = onClearAccountFilter,
+                )
+            }
+        }
+
+        state.filterCategoryName?.let { categoryName ->
+            item {
+                FinanceFilterChip(
+                    selected = true,
+                    label = stringResource(R.string.analysis_category_filter, categoryName),
+                    onClick = onClearCategoryFilter,
                 )
             }
         }
