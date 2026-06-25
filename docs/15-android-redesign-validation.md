@@ -149,7 +149,27 @@ Run these after building the app to confirm the shell is correct.
 
 ---
 
-## 7. Phase 5R Output
+## 7. P5R-2 Accounts Manual Checklist
+
+Run these after building the app to confirm the accounts redesign is correct.
+
+| # | Step | Expected |
+|---|------|----------|
+| 1 | Open Gestió → Comptes with ≥ 2 accounts | `PatrimoniHeroCard` shows net worth in `displayMedium`; stacked color bar segments proportional to each positive-balance account; per-account rows show colored 8 dp dot, name, %, and balance |
+| 2 | One account has a negative balance | Balance is red (`FinanceTheme.colors.debt`) in both the hero breakdown row and the `AccountCard` |
+| 3 | One account is below its low-balance threshold | `AccountCard` balance is red |
+| 4 | Tap an account card | `ModalBottomSheet` opens; header shows account `IconChip`, name, movement count (e.g. "3 moviments"), and a `BarChart` icon + "Anàlisi" `TextButton` |
+| 5 | Sheet has movements | `LazyColumn` of `MovementListItem` rows: type `IconChip`, title, date, signed amount in type color |
+| 6 | Tap "Anàlisi" in the sheet header | Sheet dismisses; navigates to Anàlisi tab; "Compte: [name]" `FinanceFilterChip` appears below the section title |
+| 7 | Tap the account filter chip in Anàlisi | Chip disappears (filter cleared) |
+| 8 | Open account add/edit form | Sheet shows `ColorPickerRow`: 8 swatches + palette slot all in one row; `IconPickerRow`; live `AccountPreviewCard` |
+| 9 | Tap the palette swatch | HSV picker expands: 2D saturation/value rect + hue slider + hex `OutlinedTextField` |
+| 10 | Drag inside the 2D rect while the form sheet is open | Color updates live; sheet does not scroll or dismiss during the drag |
+| 11 | Type a valid hex code in the hex field | Picker and swatch update to that color |
+
+---
+
+## 8. Phase 5R Output
 
 By the end of Phase 5R, Android should have:
 

@@ -110,6 +110,7 @@ fun AnalysisScreen(
         onCustomFromChange = viewModel::onCustomFromChanged,
         onCustomToChange = viewModel::onCustomToChanged,
         onResetPeriod = viewModel::onResetPeriodClicked,
+        onClearAccountFilter = viewModel::clearAccountFilter,
         onDrillDown = onDrillDown,
         onTripDetail = onTripDetail,
         modifier = modifier,
@@ -132,6 +133,7 @@ private fun AnalysisContent(
     onCustomFromChange: (String) -> Unit,
     onCustomToChange: (String) -> Unit,
     onResetPeriod: () -> Unit,
+    onClearAccountFilter: () -> Unit,
     onDrillDown: (MovementFilters) -> Unit,
     onTripDetail: (String) -> Unit,
     modifier: Modifier,
@@ -157,6 +159,16 @@ private fun AnalysisContent(
                     }
                 },
             )
+        }
+
+        state.filterAccountName?.let { accountName ->
+            item {
+                FinanceFilterChip(
+                    selected = true,
+                    label = stringResource(R.string.analysis_account_filter, accountName),
+                    onClick = onClearAccountFilter,
+                )
+            }
         }
 
         item {

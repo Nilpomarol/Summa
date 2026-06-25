@@ -11,6 +11,7 @@ import com.gestorfinances.app.data.repository.AccountType
 import com.gestorfinances.app.data.repository.AccountFlowEntry
 import com.gestorfinances.app.data.repository.MovementRepository
 import com.gestorfinances.app.notifications.NotificationRefresher
+import com.gestorfinances.app.ui.common.EntityColorPalette
 import com.gestorfinances.app.ui.common.formatEuroInput
 import com.gestorfinances.app.ui.common.parseEuroCents
 import java.time.Instant
@@ -39,6 +40,8 @@ class AccountsViewModel(
         val nextOrder = (accounts.maxOfOrNull { it.displayOrder } ?: -1L) + 1L
         _state.value = _state.value.copy(
             form = AccountFormState(
+                colorHex = EntityColorPalette.first().hex,
+                iconKey = defaultIconKeyForType(AccountType.BANK),
                 isDefault = accounts.none { it.isDefault },
                 displayOrder = nextOrder,
             ),
@@ -161,8 +164,8 @@ class AccountsViewModel(
             name = name,
             startingBalanceCents = requireNotNull(startingBalance),
             type = form.type,
-            icon = null,
-            color = null,
+            icon = form.iconKey,
+            color = form.colorHex,
             isDefault = form.isDefault,
             displayOrder = form.displayOrder,
             lowBalanceThresholdCents = lowBalanceThreshold,
@@ -284,9 +287,12 @@ data class AccountFormState(
     val name: String = "",
     val startingBalance: String = "0",
     val type: AccountType = AccountType.BANK,
+    val colorHex: String? = null,
+    val iconKey: String? = null,
     val isDefault: Boolean = false,
     val displayOrder: Long = 0,
     val lowBalanceThreshold: String = "",
+    val showAdvanced: Boolean = false,
     val errorRes: Int? = null,
     val errorMessage: String? = null,
 )
@@ -297,6 +303,8 @@ private fun AccountSummary.toFormState(): AccountFormState =
         name = name,
         startingBalance = formatEuroInput(startingBalanceCents),
         type = type,
+        colorHex = color ?: EntityColorPalette.first().hex,
+        iconKey = icon ?: defaultIconKeyForType(type),
         isDefault = isDefault,
         displayOrder = displayOrder,
         lowBalanceThreshold = lowBalanceThresholdCents?.let(::formatEuroInput) ?: "",
@@ -314,3 +322,12 @@ private fun AccountSummary.toDraft(displayOrder: Long): AccountDraft =
         displayOrder = displayOrder,
         lowBalanceThresholdCents = lowBalanceThresholdCents,
     )
+
+private fun defaultIconKeyForType(type: AccountType): String =
+    when (type) {
+        AccountType.BANK -> "account_balance"
+        AccountType.CASH -> "payments"
+        AccountType.SAVINGS -> "savings"
+        AccountType.INVESTMENT -> "trending_up"
+        AccountType.OTHER -> "wallet"
+    }
