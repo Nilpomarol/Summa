@@ -483,6 +483,10 @@ private fun LedgerShell(
                 )
                 ManagementDestination.ACCOUNTS -> AccountsScreen(
                     viewModel = accountsViewModel,
+                    onViewAnalysis = { accountId, accountName ->
+                        analysisViewModel.setAccountFilter(accountId, accountName)
+                        showTopLevel(TopLevelSection.ANALYSIS)
+                    },
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),

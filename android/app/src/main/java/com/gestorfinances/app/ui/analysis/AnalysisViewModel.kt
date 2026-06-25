@@ -314,6 +314,17 @@ class AnalysisViewModel(
         refresh()
     }
 
+    fun setAccountFilter(accountId: String, accountName: String) {
+        _state.value = _state.value.copy(
+            filterAccountId = accountId,
+            filterAccountName = accountName,
+        )
+    }
+
+    fun clearAccountFilter() {
+        _state.value = _state.value.copy(filterAccountId = null, filterAccountName = null)
+    }
+
     private fun shiftPeriod(delta: Long) {
         val state = _state.value
         _state.value = when (state.scope) {
@@ -399,6 +410,8 @@ data class AnalysisUiState(
     val recurringCostSummary: RecurringCostSummary = RecurringCostSummary(),
     val currentAverageDivisor: Long = 1,
     val previousAverageDivisor: Long = 1,
+    val filterAccountId: String? = null,
+    val filterAccountName: String? = null,
     val isLoading: Boolean = true,
     val errorMessage: String? = null,
     @StringRes val customErrorRes: Int? = null,

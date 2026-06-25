@@ -95,6 +95,11 @@
     <string name="account_field_starting_balance">Saldo inicial</string>
     <string name="account_field_default">Compte per defecte</string>
     <string name="account_field_low_balance_threshold">Llindar de saldo baix</string>
+    <string name="account_field_color">Color</string>
+    <string name="account_field_icon">Icona</string>
+    <string name="account_advanced_options">Opcions avançades</string>
+    <string name="account_preview_placeholder">Nom del compte</string>
+    <string name="entity_color_custom">Color personalitzat</string>
     <string name="account_type_bank">Banc</string>
     <string name="account_type_cash">Efectiu</string>
     <string name="account_type_savings">Estalvi</string>
@@ -110,6 +115,7 @@
     <string name="account_flow_empty">Aquest compte encara no té moviments.</string>
     <string name="account_flow_transfer_to">Transferència a %1$s</string>
     <string name="account_flow_transfer_from">Transferència de %1$s</string>
+    <string name="account_flow_view_analysis">Anàlisi</string>
     <string name="account_move_up">Puja</string>
     <string name="account_move_down">Baixa</string>
     <string name="account_validation_name_required">Introdueix el nom del compte.</string>
@@ -385,6 +391,7 @@
     <string name="analysis_filter_variable">Variables</string>
     <string name="analysis_filter_amount_min">Import mínim</string>
     <string name="analysis_filter_amount_max">Import màxim</string>
+    <string name="analysis_account_filter">Compte: %1$s</string>
     <string name="analysis_summary_expense">Despesa actual</string>
     <string name="analysis_summary_income">Ingrés actual</string>
     <string name="analysis_summary_net">Net actual</string>
@@ -408,6 +415,10 @@
     <string name="analysis_heatmap_legend_less">Menys</string>
     <string name="analysis_heatmap_legend_more">Més</string>
     <plurals name="analysis_merchant_count">
+        <item quantity="one">%1$d moviment</item>
+        <item quantity="other">%1$d moviments</item>
+    </plurals>
+    <plurals name="account_flow_movement_count">
         <item quantity="one">%1$d moviment</item>
         <item quantity="other">%1$d moviments</item>
     </plurals>

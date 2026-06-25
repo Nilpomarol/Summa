@@ -2,17 +2,24 @@ package com.gestorfinances.app.ui.common
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.AssignmentReturn
+import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material.icons.automirrored.outlined.TrendingUp
 import androidx.compose.material.icons.outlined.AccountBalance
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
+import androidx.compose.material.icons.outlined.Business
 import androidx.compose.material.icons.outlined.CreditCard
 import androidx.compose.material.icons.outlined.DirectionsCar
+import androidx.compose.material.icons.outlined.FitnessCenter
+import androidx.compose.material.icons.outlined.Flight
 import androidx.compose.material.icons.outlined.Handshake
 import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.LocalHospital
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.Payments
+import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material.icons.outlined.Savings
+import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.ShoppingCart
 import androidx.compose.material.icons.outlined.SouthWest
 import androidx.compose.material.icons.outlined.SportsEsports
@@ -35,7 +42,26 @@ fun categoryIcon(name: String?): ImageVector =
         "credit_card" -> Icons.Outlined.CreditCard
         "payments" -> Icons.Outlined.Payments
         "savings" -> Icons.Outlined.Savings
+        "school" -> Icons.Outlined.School
+        "local_hospital" -> Icons.Outlined.LocalHospital
+        "flight" -> Icons.Outlined.Flight
+        "phone_android" -> Icons.Outlined.PhoneAndroid
+        "fitness_center" -> Icons.Outlined.FitnessCenter
         else -> Icons.Outlined.MoreHoriz
+    }
+
+/** Maps the icon key stored on accounts to an outlined Compose vector. */
+fun accountIcon(key: String?): ImageVector =
+    when (key) {
+        "account_balance" -> Icons.Outlined.AccountBalance
+        "payments" -> Icons.Outlined.Payments
+        "savings" -> Icons.Outlined.Savings
+        "trending_up" -> Icons.AutoMirrored.Outlined.TrendingUp
+        "credit_card" -> Icons.Outlined.CreditCard
+        "wallet" -> Icons.Outlined.AccountBalanceWallet
+        "business" -> Icons.Outlined.Business
+        "receipt_long" -> Icons.AutoMirrored.Outlined.ReceiptLong
+        else -> Icons.Outlined.AccountBalance
     }
 
 fun accountTypeIcon(type: AccountType): ImageVector =

@@ -1,35 +1,51 @@
 package com.gestorfinances.app.ui.accounts
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.BarChart
+import androidx.compose.material.icons.outlined.ExpandLess
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -39,6 +55,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -47,22 +64,31 @@ import com.gestorfinances.app.data.repository.AccountFlowEntry
 import com.gestorfinances.app.data.repository.AccountSummary
 import com.gestorfinances.app.data.repository.AccountType
 import com.gestorfinances.app.data.repository.MovementType
+import com.gestorfinances.app.ui.common.AccountIconPalette
 import com.gestorfinances.app.ui.common.ChipFlowSection
+import com.gestorfinances.app.ui.common.ColorPickerRow
 import com.gestorfinances.app.ui.common.DestructiveTextButton
+import com.gestorfinances.app.ui.common.EntityColorPalette
 import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.FinanceFilterChip
 import com.gestorfinances.app.ui.common.IconChip
+import com.gestorfinances.app.ui.common.IconPickerRow
 import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.NeutralPill
+import com.gestorfinances.app.ui.common.MovementListItem
 import com.gestorfinances.app.ui.common.PrimaryButton
+import com.gestorfinances.app.ui.common.accountIcon
 import com.gestorfinances.app.ui.common.accountTypeIcon
 import com.gestorfinances.app.ui.common.formatEuroCents
 import com.gestorfinances.app.ui.common.label
+import com.gestorfinances.app.ui.common.parseEuroCents
 import com.gestorfinances.app.ui.theme.FinanceTheme
+import com.gestorfinances.app.ui.theme.categoryColor
 
 @Composable
 fun AccountsScreen(
     viewModel: AccountsViewModel,
+    onViewAnalysis: (accountId: String, accountName: String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsState()
@@ -83,7 +109,7 @@ fun AccountsScreen(
     )
 
     state.form?.let { form ->
-        AccountFormDialog(
+        AccountFormSheet(
             form = form,
             onFormChange = viewModel::onFormChanged,
             onDismiss = viewModel::onFormDismissed,
@@ -110,9 +136,13 @@ fun AccountsScreen(
     }
 
     state.flowDetail?.let { detail ->
-        AccountFlowDialog(
+        AccountFlowSheet(
             detail = detail,
             onDismiss = viewModel::onFlowDismissed,
+            onViewAnalysis = {
+                viewModel.onFlowDismissed()
+                onViewAnalysis(detail.account.id, detail.account.name)
+            },
         )
     }
 }
@@ -141,7 +171,7 @@ private fun AccountsContent(
         }
 
         item {
-            NetWorthHero(netWorthCents = state.accounts.sumOf { it.currentBalanceCents })
+            PatrimoniHeroCard(accounts = state.accounts)
         }
 
         state.errorMessage?.let { message ->
@@ -167,9 +197,11 @@ private fun AccountsContent(
                 EmptyAccountsCard(onAdd = onAdd)
             }
         } else {
+            val totalCents = state.accounts.sumOf { it.currentBalanceCents }
             items(items = state.accounts, key = { it.id }) { account ->
-                AccountRow(
+                AccountCard(
                     account = account,
+                    totalCents = totalCents,
                     onEdit = { onEdit(account) },
                     onArchive = { onArchive(account) },
                     onFlow = { onFlow(account) },
@@ -189,28 +221,133 @@ private fun AccountsContent(
 }
 
 @Composable
-private fun NetWorthHero(netWorthCents: Long) {
+private fun PatrimoniHeroCard(accounts: List<AccountSummary>) {
+    val netWorthCents = accounts.sumOf { it.currentBalanceCents }
+    val countText = if (accounts.size == 1) "1 compte" else "${accounts.size} comptes"
+    val positiveAccounts = accounts.filter { it.currentBalanceCents > 0 }
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
         color = FinanceTheme.colors.heroSurface,
         contentColor = FinanceTheme.colors.heroOnSurface,
     ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(
-                text = stringResource(R.string.account_list_net_worth),
-                style = MaterialTheme.typography.labelMedium,
-                color = FinanceTheme.colors.heroOnSurfaceMuted,
-            )
+        Column(modifier = Modifier.padding(20.dp)) {
+            // Header row: label + account count badge
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.account_list_net_worth),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = FinanceTheme.colors.heroOnSurfaceMuted,
+                )
+                if (accounts.isNotEmpty()) {
+                    Surface(
+                        shape = MaterialTheme.shapes.extraSmall,
+                        color = FinanceTheme.colors.heroOnSurface.copy(alpha = 0.12f),
+                        contentColor = FinanceTheme.colors.heroOnSurfaceMuted,
+                    ) {
+                        Text(
+                            text = countText,
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Main net worth figure
             MoneyText(
                 cents = netWorthCents,
                 color = FinanceTheme.colors.heroOnSurface,
                 style = MaterialTheme.typography.displayMedium,
             )
+
+            // Per-account breakdown (only when there are accounts)
+            if (accounts.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Colored stacked bar — one segment per positive-balance account
+                if (positiveAccounts.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp)),
+                    ) {
+                        positiveAccounts.forEach { account ->
+                            Box(
+                                modifier = Modifier
+                                    .weight(account.currentBalanceCents.toFloat())
+                                    .fillMaxHeight()
+                                    .background(categoryColor(account.color)),
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(14.dp))
+                }
+
+                HorizontalDivider(color = FinanceTheme.colors.heroOnSurface.copy(alpha = 0.12f))
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Per-account rows
+                accounts.forEach { account ->
+                    AccountBreakdownRow(account = account, netWorthCents = netWorthCents)
+                }
+            }
         }
+    }
+}
+
+@Composable
+private fun AccountBreakdownRow(account: AccountSummary, netWorthCents: Long) {
+    val accountColor = categoryColor(account.color)
+    val fraction = if (netWorthCents > 0 && account.currentBalanceCents > 0) {
+        account.currentBalanceCents.toFloat() / netWorthCents.toFloat()
+    } else 0f
+    val percentText = when {
+        account.currentBalanceCents <= 0 -> null
+        fraction < 0.01f -> "<1%"
+        else -> "${(fraction * 100).toInt()}%"
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .background(accountColor, CircleShape),
+        )
+        Text(
+            text = account.name,
+            style = MaterialTheme.typography.bodyMedium,
+            color = FinanceTheme.colors.heroOnSurface,
+            modifier = Modifier.weight(1f),
+        )
+        if (percentText != null) {
+            Text(
+                text = percentText,
+                style = MaterialTheme.typography.labelSmall,
+                color = FinanceTheme.colors.heroOnSurfaceMuted,
+            )
+        }
+        MoneyText(
+            cents = account.currentBalanceCents,
+            color = if (account.currentBalanceCents < 0) FinanceTheme.colors.debt
+                    else FinanceTheme.colors.heroOnSurface,
+            style = MaterialTheme.typography.titleSmall,
+            signed = account.currentBalanceCents < 0,
+        )
     }
 }
 
@@ -239,8 +376,9 @@ private fun EmptyAccountsCard(onAdd: () -> Unit) {
 }
 
 @Composable
-private fun AccountRow(
+private fun AccountCard(
     account: AccountSummary,
+    totalCents: Long,
     onEdit: () -> Unit,
     onArchive: () -> Unit,
     onFlow: () -> Unit,
@@ -250,55 +388,91 @@ private fun AccountRow(
     val belowThreshold = account.lowBalanceThresholdCents?.let {
         account.currentBalanceCents < it
     } ?: false
-    Row(
+    val accountColor = categoryColor(account.color)
+    val fraction = if (totalCents > 0 && account.currentBalanceCents > 0) {
+        (account.currentBalanceCents.toFloat() / totalCents.toFloat()).coerceIn(0f, 1f)
+    } else 0f
+    val percentText = "${(fraction * 100).toInt()}%"
+
+    FinanceCard(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onFlow)
-            .padding(vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .clickable(onClick = onFlow),
     ) {
-        IconChip(
-            icon = accountTypeIcon(account.type),
-            contentDescription = null,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            tint = MaterialTheme.colorScheme.surfaceVariant,
-        )
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Text(
-                    text = account.name,
-                    style = MaterialTheme.typography.titleSmall,
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+            // Main row: icon + name/type + balance + menu
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconChip(
+                    icon = if (account.icon != null) accountIcon(account.icon)
+                           else accountTypeIcon(account.type),
+                    contentDescription = null,
+                    color = accountColor,
                 )
-                if (account.isDefault) {
-                    NeutralPill(text = stringResource(R.string.account_default_badge))
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Text(
+                            text = account.name,
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        if (account.isDefault) {
+                            NeutralPill(text = stringResource(R.string.account_default_badge))
+                        }
+                    }
+                    Text(
+                        text = account.type.label(),
+                        color = FinanceTheme.colors.mutedText,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                MoneyText(
+                    cents = account.currentBalanceCents,
+                    color = if (account.currentBalanceCents < 0 || belowThreshold) FinanceTheme.colors.debt
+                            else MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.titleLarge,
+                )
+                AccountRowMenu(
+                    onEdit = onEdit,
+                    onMoveUp = onMoveUp,
+                    onMoveDown = onMoveDown,
+                    onArchive = onArchive,
+                )
+            }
+
+            // Progress bar + percentage (only when total is meaningful)
+            if (totalCents > 0) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(4.dp)
+                            .background(
+                                MaterialTheme.colorScheme.surfaceVariant,
+                                RoundedCornerShape(2.dp),
+                            ),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .fillMaxWidth(fraction)
+                                .background(accountColor, RoundedCornerShape(2.dp)),
+                        )
+                    }
+                    Text(
+                        text = percentText,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = FinanceTheme.colors.mutedText,
+                    )
                 }
             }
-            Text(
-                text = account.type.label(),
-                color = FinanceTheme.colors.mutedText,
-                style = MaterialTheme.typography.bodyMedium,
-            )
         }
-        Spacer(modifier = Modifier.width(8.dp))
-        MoneyText(
-            cents = account.currentBalanceCents,
-            color = if (belowThreshold) {
-                FinanceTheme.colors.debt
-            } else {
-                MaterialTheme.colorScheme.onSurface
-            },
-            style = MaterialTheme.typography.titleMedium,
-        )
-        AccountRowMenu(
-            onEdit = onEdit,
-            onMoveUp = onMoveUp,
-            onMoveDown = onMoveDown,
-            onArchive = onArchive,
-        )
     }
 }
 
@@ -344,212 +518,382 @@ private fun AccountRowMenu(
     }
 }
 
+// ---------------------------------------------------------------------------
+// Account form — bottom sheet
+// ---------------------------------------------------------------------------
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AccountFormDialog(
+private fun AccountFormSheet(
     form: AccountFormState,
     onFormChange: (AccountFormState) -> Unit,
     onDismiss: () -> Unit,
     onSave: () -> Unit,
 ) {
-    AlertDialog(
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        title = {
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .navigationBarsPadding()
+                .imePadding()
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            // Title
             Text(
                 text = stringResource(
-                    if (form.id == null) R.string.account_form_new_title else R.string.account_form_edit_title,
+                    if (form.id == null) R.string.account_form_new_title
+                    else R.string.account_form_edit_title,
                 ),
+                style = MaterialTheme.typography.titleLarge,
             )
-        },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                form.errorRes?.let {
-                    Text(
-                        text = stringResource(it),
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-                form.errorMessage?.let {
-                    Text(
-                        text = it,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-                OutlinedTextField(
-                    value = form.name,
-                    onValueChange = { onFormChange(form.copy(name = it, errorRes = null, errorMessage = null)) },
-                    label = { Text(text = stringResource(R.string.account_field_name)) },
-                    singleLine = true,
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = form.startingBalance,
-                    onValueChange = {
-                        onFormChange(form.copy(startingBalance = it, errorRes = null, errorMessage = null))
-                    },
-                    label = { Text(text = stringResource(R.string.account_field_starting_balance)) },
-                    prefix = { Text(text = "€") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true,
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                ChipFlowSection(label = stringResource(R.string.account_field_type)) {
-                    AccountType.entries.forEach { type ->
-                        FinanceFilterChip(
-                            selected = form.type == type,
-                            label = type.label(),
-                            onClick = { onFormChange(form.copy(type = type)) },
-                        )
-                    }
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(
-                        checked = form.isDefault,
-                        onCheckedChange = { onFormChange(form.copy(isDefault = it)) },
-                    )
-                    Text(text = stringResource(R.string.account_field_default))
-                }
-                OutlinedTextField(
-                    value = form.lowBalanceThreshold,
-                    onValueChange = {
-                        onFormChange(form.copy(lowBalanceThreshold = it, errorRes = null, errorMessage = null))
-                    },
-                    label = { Text(text = stringResource(R.string.account_field_low_balance_threshold)) },
-                    prefix = { Text(text = "€") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true,
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        },
-        confirmButton = {
-            Button(onClick = onSave) {
+
+            // Errors
+            form.errorRes?.let {
                 Text(
-                    text = stringResource(
-                        if (form.id == null) R.string.account_save_new else R.string.account_save_changes,
-                    ),
+                    text = stringResource(it),
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
                 )
             }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.common_cancel))
+            form.errorMessage?.let {
+                Text(
+                    text = it,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
             }
-        },
-    )
+
+            // Live preview
+            AccountPreviewCard(form = form)
+
+            // Name
+            OutlinedTextField(
+                value = form.name,
+                onValueChange = {
+                    onFormChange(form.copy(name = it, errorRes = null, errorMessage = null))
+                },
+                label = { Text(text = stringResource(R.string.account_field_name)) },
+                singleLine = true,
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            // Starting balance
+            OutlinedTextField(
+                value = form.startingBalance,
+                onValueChange = {
+                    onFormChange(form.copy(startingBalance = it, errorRes = null, errorMessage = null))
+                },
+                label = { Text(text = stringResource(R.string.account_field_starting_balance)) },
+                prefix = { Text(text = "€") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                singleLine = true,
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            // Color picker
+            ColorPickerRow(
+                label = stringResource(R.string.account_field_color),
+                selectedHex = form.colorHex,
+                onSelect = { onFormChange(form.copy(colorHex = it)) },
+            )
+
+            // Icon picker
+            IconPickerRow(
+                label = stringResource(R.string.account_field_icon),
+                options = AccountIconPalette,
+                selectedKey = form.iconKey,
+                onSelect = { onFormChange(form.copy(iconKey = it)) },
+            )
+
+            // Type chips
+            ChipFlowSection(label = stringResource(R.string.account_field_type)) {
+                AccountType.entries.forEach { type ->
+                    FinanceFilterChip(
+                        selected = form.type == type,
+                        label = type.label(),
+                        onClick = { onFormChange(form.copy(type = type)) },
+                    )
+                }
+            }
+
+            // Default toggle
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.account_field_default),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                Switch(
+                    checked = form.isDefault,
+                    onCheckedChange = { onFormChange(form.copy(isDefault = it)) },
+                )
+            }
+
+            // Advanced options (low balance threshold)
+            AdvancedAccountOptions(form = form, onFormChange = onFormChange)
+
+            // Action buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f),
+                    shape = MaterialTheme.shapes.small,
+                ) {
+                    Text(text = stringResource(R.string.common_cancel))
+                }
+                PrimaryButton(
+                    text = stringResource(
+                        if (form.id == null) R.string.account_save_new
+                        else R.string.account_save_changes,
+                    ),
+                    onClick = onSave,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
 }
 
 @Composable
-private fun AccountFlowDialog(
-    detail: AccountFlowDetailState,
-    onDismiss: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(text = stringResource(R.string.account_flow_title, detail.account.name)) },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
+private fun AccountPreviewCard(form: AccountFormState) {
+    val balanceCents = parseEuroCents(form.startingBalance, allowNegative = true) ?: 0L
+    val color = categoryColor(form.colorHex)
+    val icon = accountIcon(form.iconKey)
+    val nameText = form.name.ifBlank { stringResource(R.string.account_preview_placeholder) }
+
+    FinanceCard(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            IconChip(icon = icon, contentDescription = null, color = color)
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(
+                        text = nameText,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = if (form.name.isBlank()) {
+                            FinanceTheme.colors.mutedText
+                        } else {
+                            MaterialTheme.colorScheme.onSurface
+                        },
+                    )
+                    if (form.isDefault) {
+                        NeutralPill(text = stringResource(R.string.account_default_badge))
+                    }
+                }
                 Text(
-                    text = stringResource(
-                        R.string.account_flow_current_balance,
-                        formatEuroCents(detail.account.currentBalanceCents),
-                    ),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Text(
-                    text = stringResource(
-                        R.string.account_flow_starting_balance,
-                        formatEuroCents(detail.account.startingBalanceCents),
-                    ),
+                    text = form.type.label(),
                     color = FinanceTheme.colors.mutedText,
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                detail.errorMessage?.let {
+            }
+            MoneyText(
+                cents = balanceCents,
+                style = MaterialTheme.typography.titleMedium,
+            )
+        }
+    }
+}
+
+@Composable
+private fun AdvancedAccountOptions(
+    form: AccountFormState,
+    onFormChange: (AccountFormState) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        HorizontalDivider()
+        Surface(
+            onClick = { onFormChange(form.copy(showAdvanced = !form.showAdvanced)) },
+            color = MaterialTheme.colorScheme.surface,
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.account_advanced_options),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = FinanceTheme.colors.mutedText,
+                    modifier = Modifier.weight(1f),
+                )
+                Icon(
+                    imageVector = if (form.showAdvanced) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                    contentDescription = null,
+                    tint = FinanceTheme.colors.mutedText,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+        if (form.showAdvanced) {
+            OutlinedTextField(
+                value = form.lowBalanceThreshold,
+                onValueChange = {
+                    onFormChange(form.copy(lowBalanceThreshold = it, errorRes = null, errorMessage = null))
+                },
+                label = { Text(text = stringResource(R.string.account_field_low_balance_threshold)) },
+                prefix = { Text(text = "€") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                singleLine = true,
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+            )
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Account flow sheet (Step 4)
+// ---------------------------------------------------------------------------
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AccountFlowSheet(
+    detail: AccountFlowDetailState,
+    onDismiss: () -> Unit,
+    onViewAnalysis: () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val account = detail.account
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.75f)
+                .navigationBarsPadding()
+                .padding(bottom = 8.dp),
+        ) {
+            // Header: icon + name/count + analysis button (single row)
+            val movementCountText = if (!detail.isLoading) {
+                pluralStringResource(
+                    R.plurals.account_flow_movement_count,
+                    detail.entries.size,
+                    detail.entries.size,
+                )
+            } else null
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                IconChip(
+                    icon = if (account.icon != null) accountIcon(account.icon)
+                           else accountTypeIcon(account.type),
+                    contentDescription = null,
+                    color = categoryColor(account.color),
+                )
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = it,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium,
+                        text = account.name,
+                        style = MaterialTheme.typography.titleMedium,
                     )
+                    if (movementCountText != null) {
+                        Text(
+                            text = movementCountText,
+                            color = FinanceTheme.colors.mutedText,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
                 }
-                when {
-                    detail.isLoading -> Text(
-                        text = stringResource(R.string.account_flow_loading),
-                        color = FinanceTheme.colors.mutedText,
-                        style = MaterialTheme.typography.bodyMedium,
+                TextButton(onClick = onViewAnalysis) {
+                    Icon(
+                        imageVector = Icons.Outlined.BarChart,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
                     )
-                    detail.entries.isEmpty() -> Text(
-                        text = stringResource(R.string.account_flow_empty),
-                        color = FinanceTheme.colors.mutedText,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    else -> detail.entries.forEach { entry ->
-                        AccountFlowRow(entry = entry)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(text = stringResource(R.string.account_flow_view_analysis))
+                }
+            }
+
+            HorizontalDivider()
+
+            // Movement list
+            when {
+                detail.isLoading -> {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.account_flow_loading),
+                            color = FinanceTheme.colors.mutedText,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
+                detail.entries.isEmpty() -> {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.account_flow_empty),
+                            color = FinanceTheme.colors.mutedText,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
+                else -> {
+                    LazyColumn(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
+                    ) {
+                        items(detail.entries) { entry ->
+                            MovementListItem(entry = entry)
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                        }
                     }
                 }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.common_back))
+
+            detail.errorMessage?.let { msg ->
+                Text(
+                    text = msg,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                )
             }
-        },
-    )
-}
-
-@Composable
-private fun AccountFlowRow(entry: AccountFlowEntry) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = entry.title(),
-                style = MaterialTheme.typography.titleSmall,
-            )
-            Text(
-                text = entry.date,
-                color = FinanceTheme.colors.mutedText,
-                style = MaterialTheme.typography.labelMedium,
-            )
         }
-        Spacer(modifier = Modifier.width(8.dp))
-        MoneyText(
-            cents = entry.deltaCents,
-            color = if (entry.deltaCents > 0) {
-                FinanceTheme.colors.income
-            } else {
-                MaterialTheme.colorScheme.onSurface
-            },
-            style = MaterialTheme.typography.titleMedium,
-            signed = true,
-        )
     }
 }
-
-@Composable
-private fun AccountFlowEntry.title(): String =
-    when (type) {
-        MovementType.TRANSFER -> if (deltaCents < 0) {
-            stringResource(
-                R.string.account_flow_transfer_to,
-                destinationAccountName ?: stringResource(R.string.movement_destination_missing),
-            )
-        } else {
-            stringResource(R.string.account_flow_transfer_from, originAccountName)
-        }
-        else -> name ?: payee ?: categoryName ?: type.label()
-    }
-
