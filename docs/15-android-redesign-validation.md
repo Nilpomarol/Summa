@@ -1,6 +1,8 @@
 # Android Phase 5R - Redesign and Logic Validation
 
 > Scope: Phase 5R. This is the working contract for the Android redesign checkpoint before Windows starts. It combines two tasks that must happen together: validating app logic and redesigning the Android UI/UX into a coherent, design-system-aligned product. Read this before starting any `P5R-*` task.
+>
+> **Audit register:** Known logic/UX/maintainability findings live in `docs/16-android-audit-findings.md` with stable IDs (`C1`, `O4`, `M5`, …). Each slice in §4 lists the IDs it owns; the roadmap mirrors the same IDs in `docs/06-roadmap.md`. Treat slice work as redesign **plus** resolving its owned audit IDs at the deepest correct layer.
 
 ---
 
@@ -89,14 +91,22 @@ Phase 5R should proceed in dependency order, not purely visual navigation order.
 3. **Movements and ledger**
    This is the core write surface. Validate expense, income, transfer, category, trip, tag, split entry points, refund entry points, one-time flag, and account defaults.
 
+   *Audit IDs owned here (P5R-3):* `C5` (atomic external-split edit), `F2` + `U2` (§2.6 form — group bill vs my share), `O1` (`Movements.sq` 4× duplication → `v_movement_summary`), `O4` (dead `archive` branch), `O5` (dead person split line), `M2` (`MovementsViewModel` split → `MovementDraftBuilder` + `MovementSaveCoordinator`), `M6` (`sl.archived_at` filter). `F1` (AutoCategorizer wiring) is **descoped** to P5R-6 / 6C prep — only the roadmap note is updated here. Start with the T2-1 design decision (`docs/16` §4 F2/O5) before any code.
+
 4. **Dashboard and analysis**
    Once ledger behavior is clean, validate the derived reading surfaces, drill-down paths, trip grouping, budget entry points, and chart language.
+
+   *Audit IDs owned here (P5R-4):* `O2` (`analysis_actual_breakdown` redundancy), `O3` (`analysis_net_worth` O(N²) self-join → window function), `O6` (`validate_shared_sql.py` list drift — do this first), `M2` (`AnalysisScreen` split).
 
 5. **People, splits, debts, and settlements**
    These depend on movement correctness and include the most sensitive derived debt logic.
 
+   *Audit IDs owned here (P5R-5):* `F4` (`debt_balance` golden edge cases), `F6` (settlement-exceeds-debt warn-not-block). The §2.6 person-page side of the flow finalized in P5R-3 is re-validated here end-to-end.
+
 6. **Recurring, refunds, budgets, and notifications**
    These depend on movement, category, date, actual spend, and account-flow behavior.
+
+   *Audit IDs owned here (P5R-6):* `C3` (recurring confirm atomicity), `C4` (quick-template atomicity), `F3` (`RecurringAdvancer` loop bound), `F6` (over-refund warn UX, now unblocked by C6), `F1` (AutoCategorizer form suggestion — descoped from P5R-3). Plus the P4 deferred follow-ups (orphan refunds, budget bar inside category detail).
 
 7. **Trips and tags**
    Revisit after ledger and analysis settle so trip/tag UX matches the final app language and still respects scope rules.
