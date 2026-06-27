@@ -687,7 +687,7 @@ Global search and rich filtering across all movements and entities (folds into �
 ### 5.9 Navigation
 
 - **Mobile:** bottom navigation; **desktop:** sidebar.
-- Suggested map — *Principal:* Dashboard, Analysis · *Finances:* Movements, Accounts, Recurring · *Management:* Categories, People, Trips (→ trip detail) · *Footer:* Settings, theme toggle.
+- Suggested map — *Bottom nav (mobile):* **Inici** (Dashboard) · **Moviments** (Movements) · **＋** (global New movement) · **Anàlisi** (Analysis) · **Gestió** (Management hub). The **Gestió** hub holds Accounts, Categories, People, Events (→ trip detail), Recurring, and Settings. · *Desktop:* sidebar with the same groups.
 - A global **"New movement"** action available everywhere.
 - **Live refresh:** a change on one screen refreshes related screens.
 - **Undo last action:** after a create / edit / delete, a brief undo affordance reverts it — a safety net on top of archive-based soft-delete (§4.7).

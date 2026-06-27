@@ -91,7 +91,7 @@ Phase 5R should proceed in dependency order, not purely visual navigation order.
 3. **Movements and ledger**
    This is the core write surface. Validate expense, income, transfer, category, trip, tag, split entry points, refund entry points, one-time flag, and account defaults.
 
-   *Audit IDs owned here (P5R-3):* `C5` (atomic external-split edit), `F2` + `U2` (§2.6 form — group bill vs my share), `O1` (`Movements.sq` 4× duplication → `v_movement_summary`), `O4` (dead `archive` branch), `O5` (dead person split line), `M2` (`MovementsViewModel` split → `MovementDraftBuilder` + `MovementSaveCoordinator`), `M6` (`sl.archived_at` filter). `F1` (AutoCategorizer wiring) is **descoped** to P5R-6 / 6C prep — only the roadmap note is updated here. Start with the T2-1 design decision (`docs/16` §4 F2/O5) before any code.
+   *Audit IDs owned here (P5R-3):* `C1` (migration runner — built here with the first real migration, since external-split finality needs a schema change), `C5` (atomic external-split edit), `F2` + `U2` (§2.6 form — group bill vs my share), `O1` (`Movements.sq` 4× duplication → `v_movement_summary`), `O4` (dead `archive` branch), `O5` (dead person split line), `M2` (`MovementsViewModel` split → `MovementDraftBuilder` + `MovementSaveCoordinator`), `M6` (`sl.archived_at` filter). `F1` (AutoCategorizer wiring) is **descoped** to P5R-6 / 6C prep — only the roadmap note is updated here. Start with the T2-1 design decision (`docs/16` §4 F2/O5) before any code.
 
 4. **Dashboard and analysis**
    Once ledger behavior is clean, validate the derived reading surfaces, drill-down paths, trip grouping, budget entry points, and chart language.

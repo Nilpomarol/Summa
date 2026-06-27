@@ -23,6 +23,7 @@ The audit was performed as a senior-architect review across correctness, functio
 | `P8` | Owned by Phase 8 release hardening. |
 | `WONTFIX` | Accepted risk; no action planned. |
 | `DESCOPE` | Explicitly moved out of its original roadmap note to a different owner. |
+| `INVALID` | Audit error — the finding is not a real defect. Recorded so the reasoning is auditable. |
 
 The implementation plan has three tiers:
 - **Tier 1 (Foundation):** `T1` items. No feature/visual work.
@@ -35,19 +36,19 @@ The implementation plan has three tiers:
 
 | ID | Title | Severity | Disposition | Owner | Conf. |
 |---|---|---|---|---|---|
-| **C1** | No DB migration runner | Critical | T1 | Foundation | High |
-| **C2** | `DataSeeder` hard-deletes 9 tables, user-reachable | Critical | P8 | Release-prep (remove) | High |
+| **C1** | No DB migration runner | Critical | P5R-3 | Built with the first real migration (external splits) | High |
+| **C2** | `DataSeeder` hard-deletes 9 tables, user-reachable | Critical | P8 | Release-prep (remove); DEBUG gate applied when WIP merges (HEAD has no DataSeeder) | High |
 | **C3** | Recurring confirm non-atomic | Critical | P5R-6 | Recurring | High |
 | **C4** | Quick-template-create non-atomic | Critical | P5R-6 | Recurring | High |
 | **C5** | External-split edit non-atomic | Critical | P5R-3 | Movements | High |
-| **C6** | Over-refund CHECK vs "never block" | Critical | T1 | Foundation (with C1) | High |
+| **C6** | ~~Over-refund CHECK vs "never block"~~ **INVALID — false positive** | — | INVALID | Not a defect; CHECK is correct (see §4) | High |
 | **F1** | `AutoCategorizer` built but unwired | Functional | DESCOPE | P5R-6 / 6C prep | High |
 | **F2** | §2.6 form can't express group bill | Functional | P5R-3 | Movements | High |
 | **F3** | `RecurringAdvancer` while-loop unbounded | Functional | P5R-6 | Recurring | Medium |
 | **F4** | `debt_balance` golden vector has one case | Functional | P5R-5 | Debts | Medium |
 | **F5** | No undo affordance despite spec §5.9 | Functional | P8 | Release polish | Medium |
 | **F6** | Inconsistent warn-vs-block across rules | Functional | P5R-5 / P5R-6 | Split | Medium |
-| **U1** | "Load demo data" destructive trap | Usability | P8 | Release-prep (remove) | High |
+| **U1** | "Load demo data" destructive trap | Usability | P8 | Release-prep (remove); same WIP-merge timing as C2 | High |
 | **U2** | External-payer form missing share field | Usability | P5R-3 | Movements | High |
 | **U3** | No P5R-3 manual checklist yet | Usability | P5R-3 | This slice | High |
 | **U4** | No instrumentation/UI tests | Usability | P8 | Optional | Medium |
@@ -74,14 +75,15 @@ The implementation plan has three tiers:
 #### C1 — No DB migration runner
 - **Evidence:** `android/app/src/main/java/com/gestorfinances/app/data/db/DatabaseDriverFactory.kt:12-24` constructs `AndroidSqliteDriver(schema = GestorDatabase.Schema, …)` with no `migrations = …` vararg. `shared/migrations/001_initial.sql` is only a build-time input (the `syncSharedSqlForSqlDelight` task generates `.sq` from it); no runtime migration runner consumes `0NN_*.sql`. `MetaRepository.load()` reads `schema_version` for display only.
 - **Impact:** SQLDelight 2.x throws `IllegalStateException("Inconsistent schema, missing migration?")` the moment `GestorDatabase.Schema.version` rises on an installed DB. The first schema change after release crashes every existing user on next launch; their data is stranded. Violates `AGENTS.md` ("Schema changes are atomic across artifacts … together").
-- **Fix:** Add a `Migrations` consumer that reads `shared/migrations/0NN_*.sql` in order; wire it into `AndroidSqliteDriver(…, migrations = …)`. Add a JVM regression test that opens a DB at version N and upgrades to N+1. C6 is the first real migration to prove the runner.
+- **Fix:** Add a `Migrations` consumer that reads `shared/migrations/0NN_*.sql` in order; wire it into `AndroidSqliteDriver(…, migrations = …)`. Add a JVM regression test that opens a DB at version N and upgrades to N+1.
+- **Disposition note:** Deferred from Tier 1 to **P5R-3**. Tier 1 has no real schema change to migrate (C6, the original trigger, is invalid), so building the runner now would be empty scaffolding against the project's "no speculative abstraction" rule. P5R-3's external-split finality (F2/O5) will be the first real schema change; the runner is built and proven there against a migration that's actually needed. The audit's M5 multi-write test harness (committed in Tier 1) is the testing foundation the migration regression test will build on.
 - **Confidence:** High.
 
 #### C2 — `DataSeeder` hard-deletes 9 tables, user-reachable
 - **Evidence:** `DataSeeder.kt` runs `PRAGMA foreign_keys=OFF` then `DELETE FROM` over `split_lines, splits, movements, templates, tags, trips, people, categories, accounts`. `SettingsViewModel.onSeedDataRequested` calls it directly. This is the only hard-delete surface in the codebase.
 - **Impact:** A user who taps "load demo data" on real data irrecoverably destroys everything. Soft-delete/`archived_at` is bypassed.
-- **Disposition note:** This is a development seeding helper, not a production feature. It will be **removed** for the release build. Tier 1 adds a cheap `BuildConfig.DEBUG` gate as insurance; full removal happens in P8.
-- **Fix:** T1-5 gates behind `BuildConfig.DEBUG`; P8 removes the path entirely.
+- **Disposition note:** This is a development seeding helper, not a production feature. It will be **removed** for the release build. **HEAD status:** `DataSeeder` and the `SettingsViewModel.onSeedDataRequested` entry point exist only in the in-progress external-split WIP branch, not in committed `main`; therefore Tier 1 cannot gate code that isn't there. The `BuildConfig.DEBUG` gate is applied at the **WIP-merge moment** (a ~2-line change in `SettingsViewModel`/`SettingsScreen` plus enabling `buildFeatures.buildConfig`), and the path is removed entirely in P8.
+- **Fix:** At WIP merge — gate behind `BuildConfig.DEBUG`. At P8 — remove the path entirely.
 - **Confidence:** High.
 
 #### C3 — Recurring confirm non-atomic
@@ -102,10 +104,10 @@ The implementation plan has three tiers:
 - **Fix:** Add `SplitRepository.replaceExternalSplit(id, draft)` that archives + inserts in one TX; rewrite the ViewModel to call it. Add an M5 integration test that injects a failure mid-replace and asserts the old split is still active.
 - **Confidence:** High.
 
-#### C6 — Over-refund CHECK vs "never block"
-- **Evidence:** `shared/schema/schema.sql:218` and `shared/migrations/001_initial.sql:218`: `CHECK ( actual_refund_cents IS NULL OR actual_refund_cents <= amount_cents )`. `AGENTS.md` invariant #7 and spec §3.3b require warn-and-allow for the rare over-refund/goodwill-credit case.
-- **Impact:** The documented over-refund case is impossible to record — the app throws a CHECK violation instead of warning. Spec↔schema mismatch at the contract layer.
-- **Fix:** Drop the CHECK (write `002_drop_over_refund_check.sql`, bump `schema_version` to 2 — this is the first real migration that proves C1's runner); keep the check as a dismissible warning in `MovementRepository.createRefund` / the form; add a golden vector. P5R-6 builds the banner UX; until then the repository accepts over-refund with a logged warning.
+#### C6 — Over-refund CHECK vs "never block" — **INVALID (false positive)**
+- **Evidence cited:** `shared/schema/schema.sql:218` and `shared/migrations/001_initial.sql:218`: `CHECK ( actual_refund_cents IS NULL OR actual_refund_cents <= amount_cents )`. The original audit asserted this conflicts with `AGENTS.md` invariant #7 and spec §3.3b's "warn and allow over-refund."
+- **Why the audit was wrong:** The CHECK is a **same-row** invariant — a single refund's analysis reduction (`actual_refund_cents`) cannot exceed its own cash inflow (`amount_cents`). That is always true: the spending-analysis reduction for one refund can never exceed the money that refund deposited. The spec's "warn and allow over-refund" (§3.3b) and `AGENTS.md` invariant #7 refer to a **different, cross-row** relationship — *total refunds vs the original expense* (`Σ refunds.amount_cents ≤ expense.amount_cents`), which `docs/04-data-model.md` §4 explicitly says is app-enforced and warn-and-allow. No valid scenario produces `actual_refund_cents > amount_cents` on one row: a shared-expense refund has `actual < amount` (only the user's share reduces), a partial refund has `actual ≤ amount`, and a goodwill credit that exceeds the original expense caps the analysis reduction at the remaining un-refunded amount (still `≤ amount_cents`), with the cash excess never counting as income (§3.3b).
+- **Disposition:** INVALID. The CHECK stays. Removing it would introduce a real data-integrity hole (analysis reduction decoupled from cash flow), not fix one. No code or schema change.
 - **Confidence:** High.
 
 ### Functional
@@ -148,7 +150,7 @@ The implementation plan has three tiers:
 
 #### U1 — "Load demo data" destructive trap
 - **Evidence:** See C2. Whatever dialog guards the Settings action, the underlying operation is unconditional and unrecoverable at the VM layer.
-- **Disposition note:** Dev helper; gated in T1-5, removed in P8. Same lifecycle as C2.
+- **Disposition note:** Dev helper; gated at the WIP-merge moment, removed in P8. Same lifecycle as C2 (the WIP-only-in-HEAD caveat applies).
 - **Confidence:** High.
 
 #### U2 — External-payer form missing share field
@@ -243,8 +245,8 @@ The implementation plan has three tiers:
 
 ## 5. Cross-references
 
-- **Tier 1 (Foundation) scope:** C1, C6, U5, M5 (harness), C2/U1 (DEBUG gate). No feature/visual work.
-- **Tier 2 (P5R-3) scope:** C5, F2, U2, U3, O1, O4, O5, M2 (MovementsViewModel), M6, plus F1 descope (roadmap note only). Starts with the T2-1 design decision (§4 F2/O5).
+- **Tier 1 (Foundation) — shipped:** M5 (multi-write test harness `RepositoryTestSupport` + `MovementRepositoryAtomicityTest`, the atomicity-test pattern the C3/C4/C5 fixes will reuse), U5 (spec §5.9 nav reconciled to the implemented IA). **Deferred out of Tier 1:** C1 → P5R-3 (no real schema change to migrate without C6; building the runner then proves it against the first real migration). **Invalidated:** C6 (false positive; CHECK is correct). **Deferred to WIP-merge:** C2/U1 DEBUG gate (the `DataSeeder` code is WIP-only, not in `main`); full removal stays at P8.
+- **Tier 2 (P5R-3) scope:** C1 (migration runner, built with the first real migration), C5, F2, U2, U3, O1, O4, O5, M2 (MovementsViewModel), M6, plus F1 descope (roadmap note only). Starts with the T2-1 design decision (§4 F2/O5).
 - **Tier 3 mapping:**
   - **P5R-4** (dashboard + analysis): O2, O3, O6, M2 (AnalysisScreen).
   - **P5R-5** (people/splits/debts): F4, F6 (settlement side), §2.6 person-page flow.
