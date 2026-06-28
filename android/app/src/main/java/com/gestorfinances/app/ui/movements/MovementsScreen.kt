@@ -1,13 +1,18 @@
 package com.gestorfinances.app.ui.movements
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -17,18 +22,27 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Bolt
-import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.ChevronLeft
+import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -38,8 +52,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountSummary
@@ -48,7 +64,6 @@ import com.gestorfinances.app.data.repository.CategoryRecord
 import com.gestorfinances.app.data.repository.MovementSummary
 import com.gestorfinances.app.data.repository.MovementType
 import com.gestorfinances.app.data.repository.SettlementDirection
-import com.gestorfinances.app.data.repository.PersonSummary
 import com.gestorfinances.app.data.repository.TagSummary
 import com.gestorfinances.app.data.repository.TripSummary
 import com.gestorfinances.app.ui.common.BannerKind
@@ -60,18 +75,31 @@ import com.gestorfinances.app.ui.common.FinanceFilterChip
 import com.gestorfinances.app.ui.common.IconChip
 import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.MoneyText
+import com.gestorfinances.app.ui.common.MovementListItem
 import com.gestorfinances.app.ui.common.PrimaryButton
+import com.gestorfinances.app.ui.common.chipVisual
+import com.gestorfinances.app.ui.common.contextLine
 import com.gestorfinances.app.ui.common.formatEuroCents
+import com.gestorfinances.app.ui.common.movementTitle
 import com.gestorfinances.app.ui.common.parseEuroCents
 import com.gestorfinances.app.ui.common.label
+import com.gestorfinances.app.ui.common.signedAmountCents
 import com.gestorfinances.app.ui.common.SectionHeader
-import com.gestorfinances.app.ui.common.SegmentedControl
 import com.gestorfinances.app.ui.common.TopBarIconButton
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.RoundedCornerShape
+import com.gestorfinances.app.ui.common.FilterSelectorField
 import com.gestorfinances.app.ui.common.categoryIcon
-import com.gestorfinances.app.ui.common.movementTypeIcon
+import com.gestorfinances.app.ui.common.formatMonthYear
 import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.amountColor
 import com.gestorfinances.app.ui.theme.categoryColor
+import java.time.Instant
+import java.time.LocalDate
+import java.time.YearMonth
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 
 @Composable
 fun MovementsScreen(
@@ -120,10 +148,10 @@ private fun MovementDialogs(
     viewModel: MovementsViewModel,
 ) {
     state.detailMovement?.let { movement ->
-        MovementDetailDialog(
+        MovementDetailSheet(
             movement = movement,
-            categoriesById = state.categories.associateBy { it.id },
             refunds = state.detailRefunds,
+            accounts = state.accounts,
             onDismiss = viewModel::onDetailDismissed,
             onEdit = { viewModel.onEditClicked(movement) },
             onArchive = { viewModel.onArchiveClicked(movement) },
@@ -143,7 +171,7 @@ private fun MovementDialogs(
     }
 
     state.form?.let { form ->
-        MovementFormDialog(
+        MovementFormSheet(
             form = form,
             accounts = state.accounts,
             categories = state.categories,
@@ -155,6 +183,13 @@ private fun MovementDialogs(
             onTagSelected = viewModel::onTagSelected,
             onSharedToggled = viewModel::onSharedToggled,
             onSplitEditorChange = viewModel::onSplitEditorChanged,
+            onSettlementToggled = viewModel::onSettlementToggled,
+            onSettlementPersonSelected = viewModel::onSettlementPersonSelected,
+            onOtherPersonSelected = viewModel::onOtherPersonSelected,
+            onRecurringToggled = viewModel::onRecurringToggled,
+            onRecurringFrequencyChanged = viewModel::onRecurringFrequencyChanged,
+            onAdvancedToggled = viewModel::onAdvancedToggled,
+            onCreatePersonInSplit = viewModel::onCreatePersonInSplit,
             onDismiss = viewModel::onFormDismissed,
             onSave = viewModel::onSaveClicked,
             onOverride = viewModel::onDuplicateOverrideClicked,
@@ -191,7 +226,6 @@ private fun MovementsContent(
 ) {
     var filtersExpanded by remember { mutableStateOf(false) }
     val visibleMovements = state.visibleMovements
-    val categoriesById = remember(state.categories) { state.categories.associateBy { it.id } }
     val grouped = remember(visibleMovements) {
         visibleMovements.groupBy { it.date }.toList()
     }
@@ -291,9 +325,8 @@ private fun MovementsContent(
                     DateGroupHeader(iso = date)
                 }
                 items(items = movements, key = { it.id }) { movement ->
-                    MovementRow(
+                    MovementListItem(
                         movement = movement,
-                        category = movement.categoryId?.let { categoriesById[it] },
                         onClick = { onDetail(movement) },
                     )
                 }
@@ -307,6 +340,7 @@ private fun MovementTypeFilterRow(
     selected: MovementType?,
     onSelected: (MovementType?) -> Unit,
 ) {
+    val colors = FinanceTheme.colors
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         FinanceFilterChip(
             selected = selected == null,
@@ -318,11 +352,18 @@ private fun MovementTypeFilterRow(
                 selected = selected == type,
                 label = type.filterLabel(),
                 onClick = { onSelected(type) },
+                selectedColor = when (type) {
+                    MovementType.EXPENSE -> colors.expense
+                    MovementType.INCOME -> colors.income
+                    MovementType.TRANSFER -> colors.transfer
+                    else -> MaterialTheme.colorScheme.onSurface
+                }
             )
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MovementFiltersCard(
     filters: MovementFilters,
@@ -333,10 +374,48 @@ private fun MovementFiltersCard(
     onFiltersChange: (MovementFilters) -> Unit,
     onClearFilters: () -> Unit,
 ) {
+    var activeSheet by remember { mutableStateOf<FilterSheetType?>(null) }
+
+    val allAccountsLabel = stringResource(R.string.movement_filter_all_accounts)
+    val selectedAccountName = remember(filters.accountId, accounts, allAccountsLabel) {
+        if (filters.accountId == null) {
+            null
+        } else {
+            accounts.firstOrNull { it.id == filters.accountId }?.name
+        }
+    } ?: allAccountsLabel
+
+    val noCategoryLabel = stringResource(R.string.common_no_category)
+    val allCategoriesLabel = stringResource(R.string.movement_filter_all_categories)
+    val selectedCategoryName = remember(filters.categoryId, filters.uncategorizedOnly, categories, noCategoryLabel, allCategoriesLabel) {
+        when {
+            filters.uncategorizedOnly -> noCategoryLabel
+            filters.categoryId != null -> categories.firstOrNull { it.id == filters.categoryId }?.name
+            else -> null
+        }
+    } ?: allCategoriesLabel
+
+    val allTripsLabel = stringResource(R.string.trip_filter_all)
+    val selectedTripTagValue = remember(filters.tripId, filters.tagId, trips, tags, allTripsLabel) {
+        if (filters.tripId == null) {
+            null
+        } else {
+            val tripName = trips.firstOrNull { it.id == filters.tripId }?.name ?: "Viatge desconegut"
+            if (filters.tagId != null) {
+                val tagName = tags.firstOrNull { it.id == filters.tagId }?.name ?: "Etiqueta"
+                "$tripName · $tagName"
+            } else {
+                tripName
+            }
+        }
+    } ?: allTripsLabel
+
+    val selectedPeriodValue = filters.formattedPeriod()
+
     FinanceCard(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -344,8 +423,15 @@ private fun MovementFiltersCard(
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f),
                 )
-                TextButton(onClick = onClearFilters) {
-                    Text(text = stringResource(R.string.common_clear_filters))
+                TextButton(
+                    onClick = onClearFilters,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.common_clear_filters),
+                        style = MaterialTheme.typography.labelMedium
+                    )
                 }
             }
             filters.errorRes?.let {
@@ -355,171 +441,102 @@ private fun MovementFiltersCard(
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
-            ChipFlowSection(label = stringResource(R.string.movement_filter_account)) {
-                FinanceFilterChip(
-                    selected = filters.accountId == null,
-                    label = stringResource(R.string.movement_filter_all_accounts),
-                    onClick = { onFiltersChange(filters.copy(accountId = null)) },
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterSelectorField(
+                    label = stringResource(R.string.movement_filter_account),
+                    value = selectedAccountName,
+                    active = filters.accountId != null,
+                    onClick = { activeSheet = FilterSheetType.ACCOUNT },
+                    onClear = { onFiltersChange(filters.copy(accountId = null)) },
+                    modifier = Modifier.weight(1f)
                 )
-                accounts.forEach { account ->
-                    FinanceFilterChip(
-                        selected = filters.accountId == account.id,
-                        label = account.name,
-                        onClick = { onFiltersChange(filters.copy(accountId = account.id)) },
-                    )
-                }
+                FilterSelectorField(
+                    label = stringResource(R.string.movement_filter_category),
+                    value = selectedCategoryName,
+                    active = filters.categoryId != null || filters.uncategorizedOnly,
+                    onClick = { activeSheet = FilterSheetType.CATEGORY },
+                    onClear = { onFiltersChange(filters.copy(categoryId = null, uncategorizedOnly = false)) },
+                    modifier = Modifier.weight(1f)
+                )
             }
-            ChipFlowSection(label = stringResource(R.string.movement_filter_category)) {
-                FinanceFilterChip(
-                    selected = filters.categoryId == null && !filters.uncategorizedOnly,
-                    label = stringResource(R.string.movement_filter_all_categories),
-                    onClick = {
-                        onFiltersChange(
-                            filters.copy(
-                                categoryId = null,
-                                uncategorizedOnly = false,
-                            ),
-                        )
-                    },
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterSelectorField(
+                    label = stringResource(R.string.movement_field_trip),
+                    value = selectedTripTagValue,
+                    active = filters.tripId != null,
+                    onClick = { activeSheet = FilterSheetType.TRIP },
+                    onClear = { onFiltersChange(filters.copy(tripId = null, tagId = null)) },
+                    modifier = Modifier.weight(1f)
                 )
-                FinanceFilterChip(
-                    selected = filters.uncategorizedOnly,
-                    label = stringResource(R.string.common_no_category),
-                    onClick = {
-                        onFiltersChange(
-                            filters.copy(
-                                categoryId = null,
-                                uncategorizedOnly = true,
-                            ),
-                        )
-                    },
-                )
-                categories.forEach { category ->
-                    FinanceFilterChip(
-                        selected = filters.categoryId == category.id,
-                        label = category.name,
-                        onClick = {
-                            onFiltersChange(
-                                filters.copy(
-                                    categoryId = category.id,
-                                    uncategorizedOnly = false,
-                                ),
-                            )
-                        },
-                    )
-                }
-            }
-            ChipFlowSection(label = stringResource(R.string.movement_field_trip)) {
-                FinanceFilterChip(
-                    selected = filters.tripId == null,
-                    label = stringResource(R.string.trip_filter_all),
-                    onClick = { onFiltersChange(filters.copy(tripId = null, tagId = null)) },
-                )
-                trips.forEach { trip ->
-                    FinanceFilterChip(
-                        selected = filters.tripId == trip.id,
-                        label = trip.name,
-                        onClick = { onFiltersChange(filters.copy(tripId = trip.id, tagId = null)) },
-                    )
-                }
-            }
-            if (filters.tripId != null) {
-                ChipFlowSection(label = stringResource(R.string.movement_field_tag)) {
-                    FinanceFilterChip(
-                        selected = filters.tagId == null,
-                        label = stringResource(R.string.tag_picker_none),
-                        onClick = { onFiltersChange(filters.copy(tagId = null)) },
-                    )
-                    tags.filter { it.supportsTrip(filters.tripId) }.forEach { tag ->
-                        FinanceFilterChip(
-                            selected = filters.tagId == tag.id,
-                            label = tag.name,
-                            onClick = { onFiltersChange(filters.copy(tagId = tag.id)) },
-                        )
-                    }
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = filters.dateFrom,
-                    onValueChange = { onFiltersChange(filters.copy(dateFrom = it)) },
-                    label = { Text(text = stringResource(R.string.movement_filter_date_from)) },
-                    singleLine = true,
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.weight(1f),
-                )
-                OutlinedTextField(
-                    value = filters.dateTo,
-                    onValueChange = { onFiltersChange(filters.copy(dateTo = it)) },
-                    label = { Text(text = stringResource(R.string.movement_filter_date_to)) },
-                    singleLine = true,
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.weight(1f),
+                FilterSelectorField(
+                    label = stringResource(R.string.movement_filter_period),
+                    value = selectedPeriodValue,
+                    active = filters.dateFrom.isNotBlank() || filters.dateTo.isNotBlank(),
+                    onClick = { activeSheet = FilterSheetType.PERIOD },
+                    onClear = { onFiltersChange(filters.copy(dateFrom = "", dateTo = "")) },
+                    modifier = Modifier.weight(1f)
                 )
             }
         }
     }
-}
 
-@Composable
-private fun MovementRow(
-    movement: MovementSummary,
-    category: CategoryRecord?,
-    onClick: () -> Unit,
-) {
-    val visual = movement.chipVisual(category)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        IconChip(
-            icon = visual.first,
-            contentDescription = null,
-            color = visual.second,
-        )
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Text(
-                    text = movement.title(),
-                    style = MaterialTheme.typography.titleSmall,
-                )
-                if (movement.isShared) {
-                    Icon(
-                        imageVector = Icons.Outlined.Group,
-                        contentDescription = stringResource(R.string.movement_shared_badge),
-                        tint = FinanceTheme.colors.mutedText,
-                        modifier = Modifier.size(15.dp),
-                    )
-                }
-                if (movement.isOneTime) {
-                    Icon(
-                        imageVector = Icons.Outlined.Bolt,
-                        contentDescription = stringResource(R.string.movement_one_time_badge),
-                        tint = FinanceTheme.colors.mutedText,
-                        modifier = Modifier.size(15.dp),
-                    )
-                }
-            }
-            Text(
-                text = movement.subtitle(),
-                color = FinanceTheme.colors.mutedText,
-                style = MaterialTheme.typography.bodyMedium,
+    when (activeSheet) {
+        FilterSheetType.ACCOUNT -> {
+            AccountFilterSheet(
+                accounts = accounts,
+                selectedAccountId = filters.accountId,
+                onSelect = { accountId ->
+                    onFiltersChange(filters.copy(accountId = accountId))
+                },
+                onDismiss = { activeSheet = null }
             )
         }
-        Spacer(modifier = Modifier.width(12.dp))
-        MoneyText(
-            cents = movement.signedAmountCents(),
-            color = FinanceTheme.colors.amountColor(movement.type),
-            style = MaterialTheme.typography.titleMedium,
-            signed = movement.type != MovementType.EXPENSE && movement.type != MovementType.TRANSFER,
-        )
+        FilterSheetType.CATEGORY -> {
+            CategoryFilterSheet(
+                categories = categories,
+                selectedCategoryId = filters.categoryId,
+                uncategorizedOnly = filters.uncategorizedOnly,
+                onSelect = { categoryId, uncategorizedOnly ->
+                    onFiltersChange(
+                        filters.copy(
+                            categoryId = categoryId,
+                            uncategorizedOnly = uncategorizedOnly
+                        )
+                    )
+                },
+                onDismiss = { activeSheet = null }
+            )
+        }
+        FilterSheetType.TRIP -> {
+            TripFilterSheet(
+                trips = trips,
+                tags = tags,
+                selectedTripId = filters.tripId,
+                selectedTagId = filters.tagId,
+                onSelect = { tripId, tagId ->
+                    onFiltersChange(filters.copy(tripId = tripId, tagId = tagId))
+                },
+                onDismiss = { activeSheet = null }
+            )
+        }
+        FilterSheetType.PERIOD -> {
+            PeriodFilterSheet(
+                dateFrom = filters.dateFrom,
+                dateTo = filters.dateTo,
+                onSelect = { dateFrom, dateTo ->
+                    onFiltersChange(filters.copy(dateFrom = dateFrom, dateTo = dateTo))
+                },
+                onDismiss = { activeSheet = null }
+            )
+        }
+        null -> Unit
     }
 }
 
@@ -569,154 +586,16 @@ private fun NoFilteredMovementsCard(onClearFilters: () -> Unit) {
     }
 }
 
+
+
+private val PillShape = RoundedCornerShape(percent = 50)
+
 @Composable
-private fun MovementDetailDialog(
-    movement: MovementSummary,
-    categoriesById: Map<String, CategoryRecord>,
-    refunds: List<com.gestorfinances.app.data.repository.RefundSummary>,
-    onDismiss: () -> Unit,
-    onEdit: () -> Unit,
-    onArchive: () -> Unit,
-    onAddRefund: () -> Unit,
-) {
-    val category = movement.categoryId?.let { categoriesById[it] }
-    val visual = movement.chipVisual(category)
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconChip(
-                    icon = visual.first,
-                    contentDescription = null,
-                    color = visual.second,
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Column {
-                    Text(
-                        text = movement.title(),
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                    MoneyText(
-                        cents = movement.signedAmountCents(),
-                        color = FinanceTheme.colors.amountColor(movement.type),
-                        style = MaterialTheme.typography.titleLarge,
-                        signed = movement.type != MovementType.EXPENSE &&
-                            movement.type != MovementType.TRANSFER,
-                    )
-                }
-            }
-        },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                DetailLine(
-                    label = stringResource(R.string.movement_field_type),
-                    value = movement.type.label(),
-                )
-                DetailLine(
-                    label = stringResource(R.string.movement_field_date),
-                    value = movement.date,
-                )
-                DetailLine(
-                    label = stringResource(R.string.movement_detail_account),
-                    value = movement.accountName,
-                )
-                movement.destinationAccountName?.let {
-                    DetailLine(
-                        label = stringResource(R.string.movement_detail_destination_account),
-                        value = it,
-                    )
-                }
-                if (movement.type != MovementType.TRANSFER && movement.type != MovementType.SETTLEMENT) {
-                    DetailLine(
-                        label = stringResource(R.string.movement_detail_category),
-                        value = movement.categoryName ?: stringResource(R.string.common_no_category),
-                    )
-                }
-                movement.tripName?.let {
-                    DetailLine(
-                        label = stringResource(R.string.movement_field_trip),
-                        value = it,
-                    )
-                }
-                movement.tagName?.let {
-                    DetailLine(
-                        label = stringResource(R.string.movement_field_tag),
-                        value = it,
-                    )
-                }
-                if (movement.type == MovementType.SETTLEMENT) {
-                    movement.settlementPersonName?.let { person ->
-                        DetailLine(
-                            label = stringResource(
-                                when (movement.settlementDirection) {
-                                    SettlementDirection.PERSON_TO_USER -> R.string.settlement_direction_person_to_user
-                                    SettlementDirection.USER_TO_PERSON -> R.string.settlement_direction_user_to_person
-                                    null -> R.string.settlement_field_person
-                                },
-                            ),
-                            value = person,
-                        )
-                    }
-                }
-                movement.paidByPersonName?.let {
-                    DetailLine(
-                        label = stringResource(R.string.split_payer_title),
-                        value = stringResource(R.string.movement_paid_by_person, it),
-                    )
-                }
-                movement.payee?.let {
-                    DetailLine(label = stringResource(R.string.movement_detail_payee), value = it)
-                }
-                movement.notes?.let {
-                    DetailLine(label = stringResource(R.string.movement_detail_notes), value = it)
-                }
-                if (movement.type == MovementType.EXPENSE) {
-                    if (refunds.isNotEmpty()) {
-                        Text(
-                            text = stringResource(R.string.refund_list_title),
-                            color = FinanceTheme.colors.mutedText,
-                            style = MaterialTheme.typography.labelMedium,
-                        )
-                        refunds.forEach { refund ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(
-                                    text = refund.date,
-                                    modifier = Modifier.weight(1f),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                )
-                                MoneyText(
-                                    cents = refund.amountCents,
-                                    color = FinanceTheme.colors.refund,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    signed = true,
-                                )
-                            }
-                        }
-                    }
-                    PrimaryButton(
-                        text = stringResource(R.string.refund_add_title),
-                        onClick = onAddRefund,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onEdit) {
-                Text(text = stringResource(R.string.common_edit))
-            }
-        },
-        dismissButton = {
-            DestructiveTextButton(onClick = onArchive) {
-                Text(text = stringResource(R.string.common_archive))
-            }
-        },
+private fun ColorDot(colorHex: String?, size: androidx.compose.ui.unit.Dp) {
+    Box(
+        modifier = Modifier
+            .size(size)
+            .background(categoryColor(colorHex), PillShape)
     )
 }
 
@@ -864,315 +743,6 @@ private fun RefundFormDialog(
 }
 
 @Composable
-private fun MovementFormDialog(
-    form: MovementFormState,
-    accounts: List<AccountSummary>,
-    categories: List<CategoryRecord>,
-    people: List<PersonSummary>,
-    trips: List<TripSummary>,
-    tags: List<TagSummary>,
-    onFormChange: (MovementFormState) -> Unit,
-    onTripSelected: (String?) -> Unit,
-    onTagSelected: (String?) -> Unit,
-    onSharedToggled: (Boolean) -> Unit,
-    onSplitEditorChange: (SplitEditorState) -> Unit,
-    onDismiss: () -> Unit,
-    onSave: () -> Unit,
-    onOverride: () -> Unit,
-) {
-    val sharedEnabled = form.splitEditor != null || (form.existingSplit && !form.removeExistingSplit)
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = stringResource(
-                    if (form.id == null) R.string.movement_add_title else R.string.movement_edit_title,
-                ),
-            )
-        },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                form.errorRes?.let {
-                    Text(
-                        text = stringResource(it),
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-                form.errorMessage?.let {
-                    Text(
-                        text = it,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-                if (form.duplicateWarning) {
-                    InlineBanner(
-                        kind = BannerKind.Alert,
-                        text = stringResource(R.string.movement_duplicate_warning),
-                    )
-                }
-                SegmentedControl(
-                    options = phaseOneTypes,
-                    selected = form.type,
-                    label = { it.label() },
-                    onSelect = { onFormChange(form.copy(type = it)) },
-                )
-                OutlinedTextField(
-                    value = form.amount,
-                    onValueChange = { onFormChange(form.copy(amount = it)) },
-                    label = { Text(text = stringResource(R.string.movement_field_amount)) },
-                    prefix = { Text(text = "€") },
-                    textStyle = MaterialTheme.typography.titleMedium,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true,
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = form.date,
-                    onValueChange = { onFormChange(form.copy(date = it)) },
-                    label = { Text(text = stringResource(R.string.movement_field_date)) },
-                    supportingText = { Text(text = stringResource(R.string.movement_date_format_hint)) },
-                    singleLine = true,
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                ChipFlowSection(
-                    label = if (form.type == MovementType.TRANSFER) {
-                        stringResource(R.string.movement_field_origin_account)
-                    } else {
-                        stringResource(R.string.movement_field_account)
-                    },
-                ) {
-                    if (accounts.isEmpty()) {
-                        Text(
-                            text = stringResource(R.string.movement_no_accounts_title),
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                    accounts.forEach { account ->
-                        FinanceFilterChip(
-                            selected = form.accountId == account.id,
-                            label = account.name,
-                            onClick = { onFormChange(form.copy(accountId = account.id)) },
-                        )
-                    }
-                }
-                ChipFlowSection(label = stringResource(R.string.movement_field_trip)) {
-                    FinanceFilterChip(
-                        selected = form.tripId == null,
-                        label = stringResource(R.string.trip_filter_all),
-                        onClick = { onTripSelected(null) },
-                    )
-                    trips.forEach { trip ->
-                        FinanceFilterChip(
-                            selected = form.tripId == trip.id,
-                            label = trip.name,
-                            onClick = { onTripSelected(trip.id) },
-                        )
-                    }
-                }
-                val tagOptions = tags.filter { it.supportsTrip(form.tripId) }
-                if (form.tripId == null) {
-                    InlineBanner(
-                        kind = BannerKind.Info,
-                        text = stringResource(R.string.movement_tag_disabled_no_trip),
-                    )
-                } else {
-                    ChipFlowSection(label = stringResource(R.string.movement_field_tag)) {
-                        FinanceFilterChip(
-                            selected = form.tagId == null,
-                            label = stringResource(R.string.tag_picker_none),
-                            onClick = { onTagSelected(null) },
-                        )
-                        tagOptions.forEach { tag ->
-                            FinanceFilterChip(
-                                selected = form.tagId == tag.id,
-                                label = tag.name,
-                                onClick = { onTagSelected(tag.id) },
-                            )
-                        }
-                    }
-                }
-                if (form.type == MovementType.TRANSFER) {
-                    ChipFlowSection(
-                        label = stringResource(R.string.movement_field_destination_account),
-                    ) {
-                        accounts.forEach { account ->
-                            FinanceFilterChip(
-                                selected = form.destinationAccountId == account.id,
-                                label = account.name,
-                                onClick = { onFormChange(form.copy(destinationAccountId = account.id)) },
-                            )
-                        }
-                    }
-                } else {
-                    val options = categories.filter { it.supports(form.type) }
-                    ChipFlowSection(label = stringResource(R.string.movement_field_category)) {
-                        FinanceFilterChip(
-                            selected = form.categoryId == null,
-                            label = stringResource(R.string.common_no_category),
-                            onClick = { onFormChange(form.copy(categoryId = null)) },
-                        )
-                        options.forEach { category ->
-                            FinanceFilterChip(
-                                selected = form.categoryId == category.id,
-                                label = category.name,
-                                onClick = { onFormChange(form.copy(categoryId = category.id)) },
-                            )
-                        }
-                    }
-                }
-                OutlinedTextField(
-                    value = form.name,
-                    onValueChange = { onFormChange(form.copy(name = it)) },
-                    label = { Text(text = stringResource(R.string.movement_field_name)) },
-                    singleLine = true,
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = form.payee,
-                    onValueChange = { onFormChange(form.copy(payee = it)) },
-                    label = { Text(text = stringResource(R.string.movement_field_payee)) },
-                    singleLine = true,
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = form.notes,
-                    onValueChange = { onFormChange(form.copy(notes = it)) },
-                    label = { Text(text = stringResource(R.string.movement_field_notes)) },
-                    minLines = 2,
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                if (form.type == MovementType.EXPENSE) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(
-                            checked = form.isOneTime,
-                            onCheckedChange = { onFormChange(form.copy(isOneTime = it)) },
-                        )
-                        Text(text = stringResource(R.string.movement_field_one_time))
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(
-                            checked = sharedEnabled,
-                            onCheckedChange = onSharedToggled,
-                        )
-                        Column {
-                            Text(text = stringResource(R.string.movement_field_shared))
-                            Text(
-                                text = stringResource(R.string.movement_field_shared_support),
-                                color = FinanceTheme.colors.mutedText,
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                        }
-                    }
-                    if (form.splitEditor != null) {
-                        SplitEditorCard(
-                            splitEditor = form.splitEditor,
-                            people = people,
-                            amountInput = form.amount,
-                            onChange = onSplitEditorChange,
-                        )
-                    } else if (sharedEnabled) {
-                        InlineBanner(
-                            kind = BannerKind.Info,
-                            text = stringResource(R.string.movement_existing_split_unchanged),
-                        )
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            Button(onClick = if (form.duplicateWarning) onOverride else onSave) {
-                Text(
-                    text = when {
-                        form.duplicateWarning -> stringResource(R.string.movement_duplicate_override)
-                        form.id == null -> stringResource(R.string.movement_save_new)
-                        else -> stringResource(R.string.movement_save_changes)
-                    },
-                )
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.common_cancel))
-            }
-        },
-    )
-}
-
-@Composable
-private fun MovementSummary.title(): String =
-    name ?: payee ?: categoryName ?: type.label()
-
-@Composable
-private fun MovementSummary.subtitle(): String =
-    when (type) {
-        MovementType.TRANSFER -> listOfNotNull(
-            stringResource(
-                R.string.movement_transfer_accounts,
-                accountName,
-                destinationAccountName ?: stringResource(R.string.movement_destination_missing),
-            ),
-            tripName,
-            tagName,
-        ).joinToString(separator = " · ")
-        MovementType.SETTLEMENT ->
-            listOfNotNull(settlementContext(), accountName).joinToString(separator = " · ")
-        else -> {
-            val category = categoryName ?: stringResource(R.string.common_no_category)
-            val paidBy = paidByPersonName?.let { stringResource(R.string.movement_paid_by_person, it) }
-            listOfNotNull(paidBy, tripName, tagName, category, accountName).joinToString(separator = " · ")
-        }
-    }
-
-@Composable
-private fun MovementSummary.settlementContext(): String? {
-    val person = settlementPersonName ?: return null
-    return when (settlementDirection) {
-        SettlementDirection.PERSON_TO_USER ->
-            stringResource(R.string.movement_settlement_person_to_user, person)
-        SettlementDirection.USER_TO_PERSON ->
-            stringResource(R.string.movement_settlement_user_to_person, person)
-        null -> null
-    }
-}
-
-private fun MovementSummary.signedAmountCents(): Long =
-    when (type) {
-        MovementType.EXPENSE -> -amountCents
-        MovementType.SETTLEMENT ->
-            if (settlementDirection == SettlementDirection.USER_TO_PERSON) -amountCents else amountCents
-        else -> amountCents
-    }
-
-@Composable
-private fun MovementSummary.chipVisual(category: CategoryRecord?): Pair<androidx.compose.ui.graphics.vector.ImageVector, androidx.compose.ui.graphics.Color> {
-    val finance = FinanceTheme.colors
-    return when (type) {
-        MovementType.EXPENSE, MovementType.INCOME ->
-            if (category != null) {
-                categoryIcon(category.icon) to categoryColor(category.color)
-            } else if (type == MovementType.INCOME) {
-                movementTypeIcon(type) to finance.income
-            } else {
-                categoryIcon(null) to categoryColor(null)
-            }
-        MovementType.TRANSFER -> movementTypeIcon(type) to finance.transfer
-        MovementType.SETTLEMENT -> movementTypeIcon(type) to finance.settlement
-        MovementType.REFUND -> movementTypeIcon(type) to finance.refund
-    }
-}
-
-@Composable
 private fun MovementType.filterLabel(): String =
     when (this) {
         MovementType.EXPENSE -> stringResource(R.string.movement_filter_expenses)
@@ -1180,6 +750,7 @@ private fun MovementType.filterLabel(): String =
         MovementType.TRANSFER -> stringResource(R.string.movement_filter_transfers)
         MovementType.SETTLEMENT -> stringResource(R.string.movement_type_settlement)
         MovementType.REFUND -> stringResource(R.string.movement_type_refund)
+        MovementType.EXTERNAL_EXPENSE -> stringResource(R.string.movement_type_external)
     }
 
 private fun CategoryRecord.supports(type: MovementType): Boolean =
@@ -1189,11 +760,730 @@ private fun CategoryRecord.supports(type: MovementType): Boolean =
         else -> false
     }
 
-private fun TagSummary.supportsTrip(tripId: String?): Boolean =
-    tripId != null && (this.tripId == null || this.tripId == tripId)
-
 private val phaseOneTypes = listOf(
     MovementType.EXPENSE,
     MovementType.INCOME,
     MovementType.TRANSFER,
 )
+
+private enum class FilterSheetType {
+    ACCOUNT, CATEGORY, TRIP, PERIOD
+}
+
+@Composable
+private fun MovementFilters.formattedPeriod(): String {
+    if (dateFrom.isBlank() && dateTo.isBlank()) return "Tots"
+    
+    val start = runCatching { LocalDate.parse(dateFrom) }.getOrNull()
+    val end = runCatching { LocalDate.parse(dateTo) }.getOrNull()
+    if (start != null && end != null) {
+        if (start.dayOfMonth == 1 && end == start.plusMonths(1).minusDays(1)) {
+            return formatMonthYear(YearMonth.of(start.year, start.monthValue))
+        }
+        return "${start.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))} - ${end.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))}"
+    }
+    
+    if (start != null) {
+        return "Des de ${start.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))}"
+    }
+    if (end != null) {
+        return "Fins a ${end.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))}"
+    }
+    
+    return "Tots"
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AccountFilterSheet(
+    accounts: List<AccountSummary>,
+    selectedAccountId: String?,
+    onSelect: (String?) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .navigationBarsPadding()
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.movement_filter_account),
+                style = MaterialTheme.typography.titleLarge
+            )
+            
+            val isAllSelected = selectedAccountId == null
+            Surface(
+                onClick = {
+                    onSelect(null)
+                    onDismiss()
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.small,
+                color = if (isAllSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                contentColor = if (isAllSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(R.string.movement_filter_all_accounts),
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (isAllSelected) {
+                        Icon(
+                            imageVector = Icons.Outlined.Check,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+            
+            accounts.forEach { account ->
+                val isSelected = selectedAccountId == account.id
+                Surface(
+                    onClick = {
+                        onSelect(account.id)
+                        onDismiss()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.small,
+                    color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                    contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        ColorDot(colorHex = account.color, size = 12.dp)
+                        Text(
+                            text = account.name,
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (isSelected) {
+                            Icon(
+                                imageVector = Icons.Outlined.Check,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CategoryFilterSheet(
+    categories: List<CategoryRecord>,
+    selectedCategoryId: String?,
+    uncategorizedOnly: Boolean,
+    onSelect: (String?, Boolean) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .navigationBarsPadding()
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.movement_filter_category),
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+            
+            val isAllSelected = selectedCategoryId == null && !uncategorizedOnly
+            Surface(
+                onClick = {
+                    onSelect(null, false)
+                    onDismiss()
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.small,
+                color = if (isAllSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                contentColor = if (isAllSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(R.string.movement_filter_all_categories),
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (isAllSelected) {
+                        Icon(
+                            imageVector = Icons.Outlined.Check,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+            
+            val isUncategorizedSelected = uncategorizedOnly
+            Surface(
+                onClick = {
+                    onSelect(null, true)
+                    onDismiss()
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.small,
+                color = if (isUncategorizedSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                contentColor = if (isUncategorizedSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    IconChip(
+                        icon = categoryIcon(null),
+                        contentDescription = null,
+                        color = categoryColor("#9097A3"),
+                        size = 32.dp
+                    )
+                    Text(
+                        text = stringResource(R.string.common_no_category),
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (isUncategorizedSelected) {
+                        Icon(
+                            imageVector = Icons.Outlined.Check,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+            
+            categories.forEach { category ->
+                val isSelected = selectedCategoryId == category.id
+                Surface(
+                    onClick = {
+                        onSelect(category.id, false)
+                        onDismiss()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.small,
+                    color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                    contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        IconChip(
+                            icon = categoryIcon(category.icon),
+                            contentDescription = null,
+                            color = categoryColor(category.color),
+                            size = 32.dp
+                        )
+                        Text(
+                            text = category.name,
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (isSelected) {
+                            Icon(
+                                imageVector = Icons.Outlined.Check,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TripFilterSheet(
+    trips: List<TripSummary>,
+    tags: List<TagSummary>,
+    selectedTripId: String?,
+    selectedTagId: String?,
+    onSelect: (String?, String?) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var currentTripId by remember { mutableStateOf(selectedTripId) }
+    var currentTagId by remember { mutableStateOf(selectedTagId) }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .navigationBarsPadding()
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.movement_field_trip),
+                style = MaterialTheme.typography.titleLarge
+            )
+            
+            val isAllTripsSelected = currentTripId == null
+            Surface(
+                onClick = {
+                    currentTripId = null
+                    currentTagId = null
+                    onSelect(null, null)
+                    onDismiss()
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.small,
+                color = if (isAllTripsSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                contentColor = if (isAllTripsSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(R.string.trip_filter_all),
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (isAllTripsSelected) {
+                        Icon(
+                            imageVector = Icons.Outlined.Check,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+            
+            trips.forEach { trip ->
+                val isSelected = currentTripId == trip.id
+                Surface(
+                    onClick = {
+                        currentTripId = trip.id
+                        if (currentTripId != selectedTripId) {
+                            currentTagId = null
+                        }
+                        val tripTags = tags.filter { it.supportsTrip(trip.id) }
+                        if (tripTags.isEmpty()) {
+                            onSelect(trip.id, null)
+                            onDismiss()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.small,
+                    color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                    contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = trip.name,
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (isSelected) {
+                            Icon(
+                                imageVector = Icons.Outlined.Check,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
+            }
+            
+            currentTripId?.let { tripId ->
+                val tripTags = tags.filter { it.supportsTrip(tripId) }
+                if (tripTags.isNotEmpty()) {
+                    HorizontalDivider(color = FinanceTheme.colors.cardBorder)
+                    Text(
+                        text = stringResource(R.string.movement_field_tag),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    
+                    val isNoTagSelected = currentTagId == null
+                    Surface(
+                        onClick = {
+                            currentTagId = null
+                            onSelect(tripId, null)
+                            onDismiss()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.small,
+                        color = if (isNoTagSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                        contentColor = if (isNoTagSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = stringResource(R.string.tag_picker_none),
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (isNoTagSelected) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Check,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                    
+                    tripTags.forEach { tag ->
+                        val isTagSelected = currentTagId == tag.id
+                        Surface(
+                            onClick = {
+                                currentTagId = tag.id
+                                onSelect(tripId, tag.id)
+                                onDismiss()
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = MaterialTheme.shapes.small,
+                            color = if (isTagSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                            contentColor = if (isTagSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = tag.name,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                if (isTagSelected) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Check,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            if (currentTripId != null && tags.any { it.supportsTrip(currentTripId) }) {
+                PrimaryButton(
+                    text = stringResource(android.R.string.ok),
+                    onClick = {
+                        onSelect(currentTripId, currentTagId)
+                        onDismiss()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PeriodFilterSheet(
+    dateFrom: String,
+    dateTo: String,
+    onSelect: (String, String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var currentYear by remember {
+        mutableStateOf(
+            runCatching { LocalDate.parse(dateFrom).year }.getOrElse { LocalDate.now().year }
+        )
+    }
+    
+    val months = listOf(
+        "Gener", "Febrer", "Març", "Abril", "Maig", "Juny",
+        "Juliol", "Agost", "Setembre", "Octubre", "Novembre", "Desembre"
+    )
+    
+    var showFromDatePicker by remember { mutableStateOf(false) }
+    var showToDatePicker by remember { mutableStateOf(false) }
+    
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .navigationBarsPadding()
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = stringResource(R.string.movement_filter_period),
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(onClick = {
+                    onSelect("", "")
+                    onDismiss()
+                }) {
+                    Text(text = stringResource(R.string.common_clear_filters))
+                }
+            }
+            
+            Text(
+                text = "Filtra per mes",
+                style = MaterialTheme.typography.titleMedium
+            )
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TopBarIconButton(
+                    icon = Icons.Outlined.ChevronLeft,
+                    contentDescription = "Any anterior",
+                    onClick = { currentYear-- }
+                )
+                Text(
+                    text = currentYear.toString(),
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(horizontal = 24.dp)
+                )
+                TopBarIconButton(
+                    icon = Icons.Outlined.ChevronRight,
+                    contentDescription = "Any següent",
+                    onClick = { currentYear++ }
+                )
+            }
+            
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (row in 0 until 4) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        for (col in 0 until 3) {
+                            val monthIdx = row * 3 + col
+                            val monthName = months[monthIdx]
+                            val monthNum = monthIdx + 1
+                            
+                            val isMonthSelected = remember(dateFrom, dateTo, currentYear) {
+                                runCatching {
+                                    val start = LocalDate.parse(dateFrom)
+                                    val end = LocalDate.parse(dateTo)
+                                    start.year == currentYear && start.monthValue == monthNum &&
+                                    start.dayOfMonth == 1 && end == start.plusMonths(1).minusDays(1)
+                                }.getOrDefault(false)
+                            }
+                            
+                            Surface(
+                                onClick = {
+                                    val start = LocalDate.of(currentYear, monthNum, 1)
+                                    val end = start.plusMonths(1).minusDays(1)
+                                    onSelect(start.toString(), end.toString())
+                                    onDismiss()
+                                },
+                                modifier = Modifier.weight(1f),
+                                shape = MaterialTheme.shapes.small,
+                                color = if (isMonthSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                                contentColor = if (isMonthSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                            ) {
+                                Box(
+                                    modifier = Modifier.padding(vertical = 12.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = monthName,
+                                        style = MaterialTheme.typography.labelLarge
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            HorizontalDivider(color = FinanceTheme.colors.cardBorder)
+            
+            Text(
+                text = "Rang personalitzat",
+                style = MaterialTheme.typography.titleMedium
+            )
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                val displayFrom = remember(dateFrom) {
+                    runCatching {
+                        LocalDate.parse(dateFrom).format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                    }.getOrDefault(dateFrom.ifBlank { "Des de" })
+                }
+                Surface(
+                    onClick = { showFromDatePicker = true },
+                    modifier = Modifier.weight(1f),
+                    shape = MaterialTheme.shapes.small,
+                    border = BorderStroke(1.dp, FinanceTheme.colors.cardBorder),
+                    color = MaterialTheme.colorScheme.surface
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .heightIn(min = 44.dp)
+                            .padding(horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = displayFrom,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = if (dateFrom.isBlank()) FinanceTheme.colors.mutedText else MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Icon(
+                            imageVector = Icons.Outlined.CalendarMonth,
+                            contentDescription = null,
+                            tint = FinanceTheme.colors.mutedText,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+                
+                val displayTo = remember(dateTo) {
+                    runCatching {
+                        LocalDate.parse(dateTo).format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                    }.getOrDefault(dateTo.ifBlank { "Fins a" })
+                }
+                Surface(
+                    onClick = { showToDatePicker = true },
+                    modifier = Modifier.weight(1f),
+                    shape = MaterialTheme.shapes.small,
+                    border = BorderStroke(1.dp, FinanceTheme.colors.cardBorder),
+                    color = MaterialTheme.colorScheme.surface
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .heightIn(min = 44.dp)
+                            .padding(horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = displayTo,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = if (dateTo.isBlank()) FinanceTheme.colors.mutedText else MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Icon(
+                            imageVector = Icons.Outlined.CalendarMonth,
+                            contentDescription = null,
+                            tint = FinanceTheme.colors.mutedText,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
+            
+            if (dateFrom.isNotBlank() || dateTo.isNotBlank()) {
+                PrimaryButton(
+                    text = "Aplica",
+                    onClick = { onDismiss() },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+    }
+    
+    if (showFromDatePicker) {
+        val initialMillis = remember(dateFrom) {
+            runCatching {
+                LocalDate.parse(dateFrom).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+            }.getOrDefault(System.currentTimeMillis())
+        }
+        val pickerState = rememberDatePickerState(initialSelectedDateMillis = initialMillis)
+        DatePickerDialog(
+            onDismissRequest = { showFromDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    pickerState.selectedDateMillis?.let { millis ->
+                        val ld = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate()
+                        onSelect(ld.toString(), dateTo)
+                    }
+                    showFromDatePicker = false
+                }) { Text(stringResource(android.R.string.ok)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showFromDatePicker = false }) {
+                    Text(stringResource(R.string.common_cancel))
+                }
+            },
+        ) {
+            DatePicker(state = pickerState)
+        }
+    }
+    
+    if (showToDatePicker) {
+        val initialMillis = remember(dateTo) {
+            runCatching {
+                LocalDate.parse(dateTo).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+            }.getOrDefault(System.currentTimeMillis())
+        }
+        val pickerState = rememberDatePickerState(initialSelectedDateMillis = initialMillis)
+        DatePickerDialog(
+            onDismissRequest = { showToDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    pickerState.selectedDateMillis?.let { millis ->
+                        val ld = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate()
+                        onSelect(dateFrom, ld.toString())
+                    }
+                    showToDatePicker = false
+                }) { Text(stringResource(android.R.string.ok)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showToDatePicker = false }) {
+                    Text(stringResource(R.string.common_cancel))
+                }
+            },
+        ) {
+            DatePicker(state = pickerState)
+        }
+    }
+}
+

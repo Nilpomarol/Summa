@@ -201,6 +201,24 @@ Run these after building the app to confirm the categories redesign is correct.
 
 ---
 
+## 10. P5R-3 Manual Checklist — Movement form (U3)
+
+Run these after building the app to confirm all four expense types work correctly.
+
+| # | Step | Expected |
+|---|------|----------|
+| 1 | New expense, "Jo" → "Només per a mi", save | Movement list shows it; account balance drops by amount; no split row in DB |
+| 2 | "Jo" → "Compartida", add a person, equal split, save | Movement + split created; person's balance = their share; your actual expense = your share |
+| 3 | "Jo" → "Per a un altre", pick a person, save | Movement + split created; **that person owes the full amount** (`v_person_balance`); your `actual` expense = 0; your account balance drops by full amount |
+| 4 | "Una altra persona" → pick a person, enter 30€, save | No movement in the ledger; **you owe that person 30€** (`v_person_balance`); `actual` expense = 30€; `account_flow` = 0 |
+| 5 | Type-4 with trip + tag selected, save | Appears in trip analysis with the correct tag; `external.tripId` and `external.tagId` populated |
+| 6 | Edit the type-3 expense (Per a un altre), change amount | The person's debt updates; form reloads as "Per a un altre" (round-trip) |
+| 7 | Edit the type-4 expense (Deute), change amount | Your debt updates atomically; **kill the app mid-save and reopen** — old record still intact (C5) |
+| 8 | Duplicate type-1 expense (same account/amount/date/name) | Warning banner appears; tapping "Guarda igualment" saves without block |
+| 9 | Cold-launch on an existing v1 DB (schema_version=1) | App upgrades to v2 (`splits.tag_id` added); existing data intact; Settings shows `schema_version=2` |
+
+---
+
 ## 8. Phase 5R Output
 
 By the end of Phase 5R, Android should have:

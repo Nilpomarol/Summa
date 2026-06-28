@@ -11,6 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 VIEW_FILES = [
     "v_movement_shared.sql",
+    "v_movement_summary.sql",
     "v_account_flow.sql",
     "v_account_balance.sql",
     "v_actual_expense.sql",
@@ -247,7 +248,7 @@ def validate_entrypoint(label: str, path: Path, expect_seeded_meta: bool) -> Non
         conn.close()
 
     if expect_seeded_meta:
-        expected = {"schema_version": "1", "snapshot_version": "0"}
+        expected = {"schema_version": "2", "snapshot_version": "0"}
         if meta != expected:
             fail(f"{label}: expected meta seed {expected}, got {meta}")
     elif meta:

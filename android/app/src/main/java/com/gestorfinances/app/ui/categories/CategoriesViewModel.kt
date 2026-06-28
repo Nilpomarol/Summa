@@ -4,7 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.gestorfinances.app.R
-import com.gestorfinances.app.data.repository.AccountFlowEntry
 import com.gestorfinances.app.data.repository.AnalysisRepository
 import com.gestorfinances.app.data.repository.CategoryDraft
 import com.gestorfinances.app.data.repository.CategoryKind
@@ -12,6 +11,7 @@ import com.gestorfinances.app.data.repository.CategoryNature
 import com.gestorfinances.app.data.repository.CategoryRecord
 import com.gestorfinances.app.data.repository.CategoryRepository
 import com.gestorfinances.app.data.repository.MovementRepository
+import com.gestorfinances.app.data.repository.MovementSummary
 import com.gestorfinances.app.ui.common.EntityColorPalette
 import java.time.Instant
 import java.time.LocalDate
@@ -155,7 +155,7 @@ class CategoriesViewModel(
         )
         viewModelScope.launch {
             val result = withContext(Dispatchers.IO) {
-                runCatching { movementRepository.movementsForCategory(category.id) }
+                runCatching { movementRepository.listActiveForCategory(category.id) }
             }
             _state.value = result.fold(
                 onSuccess = {
@@ -277,7 +277,7 @@ data class CategoriesUiState(
 
 data class CategoryFlowDetailState(
     val category: CategoryRecord,
-    val entries: List<AccountFlowEntry> = emptyList(),
+    val entries: List<MovementSummary> = emptyList(),
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
 )

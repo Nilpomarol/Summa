@@ -43,6 +43,7 @@ INSERT INTO splits(
     description,
     category_id,
     trip_id,
+    tag_id,
     created_at,
     updated_at,
     archived_at
@@ -55,7 +56,8 @@ INSERT INTO splits(
     :date,
     :description,
     :category_id,
-    NULL,
+    :trip_id,
+    :tag_id,
     :created_at,
     :updated_at,
     NULL
@@ -102,8 +104,36 @@ INSERT INTO split_lines(
     :participant_kind,
     :person_id,
     :owed_amount_cents,
-    NULL,
+    :owed_percent,
     :created_at,
     :updated_at,
     NULL
 );
+
+splitWithLinesByMovementId:
+SELECT
+    s.id AS split_id,
+    s.entry_method,
+    sl.participant_kind,
+    sl.person_id,
+    sl.owed_amount_cents,
+    sl.owed_percent
+FROM splits s
+JOIN split_lines sl ON sl.split_id = s.id
+WHERE s.movement_id = :movement_id
+  AND s.archived_at IS NULL
+  AND sl.archived_at IS NULL;
+
+splitWithLinesById:
+SELECT
+    s.id AS split_id,
+    s.entry_method,
+    sl.participant_kind,
+    sl.person_id,
+    sl.owed_amount_cents,
+    sl.owed_percent
+FROM splits s
+JOIN split_lines sl ON sl.split_id = s.id
+WHERE s.id = :id
+  AND s.archived_at IS NULL
+  AND sl.archived_at IS NULL;

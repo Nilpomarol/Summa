@@ -1,6 +1,7 @@
 package com.gestorfinances.app.di
 
 import android.content.Context
+import com.gestorfinances.app.data.db.DataSeeder
 import com.gestorfinances.app.data.db.DatabaseDriverFactory
 import com.gestorfinances.app.data.db.GestorDatabase
 import com.gestorfinances.app.data.repository.AccountRepository
@@ -21,8 +22,16 @@ import com.gestorfinances.app.notifications.NotificationPreferences
 class AppContainer(context: Context) {
     private val appContext = context.applicationContext
 
+    private val driver by lazy {
+        DatabaseDriverFactory(appContext).create()
+    }
+
     private val database: GestorDatabase by lazy {
-        GestorDatabase(DatabaseDriverFactory(appContext).create())
+        GestorDatabase(driver)
+    }
+
+    val dataSeeder: DataSeeder by lazy {
+        DataSeeder(driver)
     }
 
     val accountRepository: AccountRepository by lazy {

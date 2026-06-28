@@ -8,8 +8,8 @@ import com.gestorfinances.app.data.repository.AccountDraft
 import com.gestorfinances.app.data.repository.AccountRepository
 import com.gestorfinances.app.data.repository.AccountSummary
 import com.gestorfinances.app.data.repository.AccountType
-import com.gestorfinances.app.data.repository.AccountFlowEntry
 import com.gestorfinances.app.data.repository.MovementRepository
+import com.gestorfinances.app.data.repository.MovementSummary
 import com.gestorfinances.app.notifications.NotificationRefresher
 import com.gestorfinances.app.ui.common.EntityColorPalette
 import com.gestorfinances.app.ui.common.formatEuroInput
@@ -73,7 +73,7 @@ class AccountsViewModel(
         )
         viewModelScope.launch {
             val result = withContext(Dispatchers.IO) {
-                runCatching { movementRepository.accountFlowForAccount(account.id) }
+                runCatching { movementRepository.listActiveForAccount(account.id) }
             }
             _state.value = result.fold(
                 onSuccess = {
@@ -277,7 +277,7 @@ data class AccountsUiState(
 
 data class AccountFlowDetailState(
     val account: AccountSummary,
-    val entries: List<AccountFlowEntry> = emptyList(),
+    val entries: List<MovementSummary> = emptyList(),
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
 )

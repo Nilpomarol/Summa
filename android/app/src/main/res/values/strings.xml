@@ -242,10 +242,6 @@
     <string name="split_reconcile_remaining">Queden %1$s per assignar</string>
     <string name="split_reconcile_over">Sobra %1$s</string>
     <string name="split_remainder_to_payer">Els cèntims sobrants van a qui ha pagat.</string>
-    <string name="split_paid_by_other_title">Qui ha assumit la despesa</string>
-    <string name="split_variant_manual">Repartiment manual</string>
-    <string name="split_variant_paid_by_other">Pagat per %1$s</string>
-    <string name="split_variant_external">No ha passat per cap compte teu</string>
     <string name="split_save">Desa repartiment</string>
     <string name="split_validation_total_positive">L\'import total ha de ser superior a zero.</string>
     <string name="split_validation_payer_required">Tria qui ha pagat.</string>
@@ -309,12 +305,13 @@
     <string name="movement_archive_confirm_title">Eliminar moviment?</string>
     <string name="movement_archive_warning">El moviment es deixarà de mostrar a les llistes i no comptarà als saldos.</string>
     <string name="movement_add_title">Nou moviment</string>
-    <string name="movement_edit_title">Edita moviment</string>
+    <string name="movement_edit_title">Editant moviment</string>
     <string name="movement_type_expense">Despesa</string>
     <string name="movement_type_income">Ingrés</string>
     <string name="movement_type_transfer">Transferència</string>
     <string name="movement_type_settlement">Liquidació</string>
     <string name="movement_type_refund">Reemborsament</string>
+    <string name="movement_type_external">Pagat per un altre</string>
     <string name="movement_field_type">Tipus</string>
     <string name="movement_field_amount">Import</string>
     <string name="movement_field_date">Data</string>
@@ -326,6 +323,15 @@
     <string name="movement_field_name">Concepte</string>
     <string name="movement_field_payee">Beneficiari</string>
     <string name="movement_field_notes">Notes</string>
+    <string name="movement_whopaid_title">Qui ha pagat?</string>
+    <string name="movement_whopaid_me">Jo</string>
+    <string name="movement_whopaid_other">Una altra persona</string>
+    <string name="movement_forwhom_title">Per a qui?</string>
+    <string name="movement_forwhom_personal">Només per a mi</string>
+    <string name="movement_forwhom_shared">Compartida</string>
+    <string name="movement_forwhom_other">Per a un altre</string>
+    <string name="movement_debt_payer">Persona que ha pagat</string>
+    <string name="movement_debt_amount_help">L\'import que li deus.</string>
     <string name="movement_field_trip">Viatge</string>
     <string name="movement_field_tag">Etiqueta</string>
     <string name="movement_trip_badge">Viatge</string>
@@ -334,8 +340,20 @@
     <string name="movement_field_one_time_support">Marca aquesta despesa per poder-la aïllar de l\'anàlisi.</string>
     <string name="movement_one_time_badge">Extraordinària</string>
     <string name="movement_shared_badge">Compartit</string>
+    <string name="movement_label_paid_by">Pagat per %1$s</string>
+    <string name="movement_label_i_paid_for">He pagat per %1$s</string>
+    <string name="movement_label_shared">Compartit</string>
+    <string name="movement_recurring_badge">Periòdic</string>
+    <string name="movement_total_short">Total %1$s</string>
     <string name="movement_field_shared">Despesa compartida</string>
     <string name="movement_field_shared_support">Reparteix aquesta despesa amb altres persones.</string>
+    <string name="movement_field_settlement">Liquidació</string>
+    <string name="movement_field_recurring">Recurrent</string>
+    <string name="movement_recurring_frequency">Cadència</string>
+    <string name="movement_form_advanced">Opcions avançades</string>
+    <string name="movement_create_person_title">Nova persona</string>
+    <string name="movement_create_person_name_hint">Nom de la persona</string>
+    <string name="movement_no_trip">Sense viatge</string>
     <string name="movement_action_add_split">Afegeix repartiment</string>
     <string name="movement_action_edit_split">Edita repartiment</string>
     <string name="movement_split_summary">%1$d participants · la teva part: %2$s</string>
@@ -694,4 +712,10 @@
     <string name="budget_scope_trip">Viatge</string>
     <string name="budget_trip_title">Pressupost del viatge</string>
     <string name="budget_trip_empty">Aquest viatge encara no té pressupost.</string>
+
+    <!-- Debug / Testing -->
+    <string name="settings_debug_title">Depuració i proves</string>
+    <string name="settings_seed_data_title">Genera dades de prova</string>
+    <string name="settings_seed_data_body">Elimina totes les dades actuals i crea un set de prova complet (comptes, categories, moviments de 3 mesos).</string>
+    <string name="settings_seed_data_action">Genera dades</string>
 </resources>

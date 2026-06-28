@@ -11,6 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 VIEW_FILES = [
     "v_movement_shared.sql",
+    "v_movement_summary.sql",
     "v_account_flow.sql",
     "v_account_balance.sql",
     "v_actual_expense.sql",

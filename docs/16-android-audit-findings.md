@@ -36,35 +36,35 @@ The implementation plan has three tiers:
 
 | ID | Title | Severity | Disposition | Owner | Conf. |
 |---|---|---|---|---|---|
-| **C1** | No DB migration runner | Critical | P5R-3 | Built with the first real migration (external splits) | High |
+| **C1** | No DB migration runner | Critical | **RESOLVED** P5R-3 | Migration 002 (`splits.tag_id`) is the first real migration; SQLDelight `.sqm` runner wired; regression test green | High |
 | **C2** | `DataSeeder` hard-deletes 9 tables, user-reachable | Critical | P8 | Release-prep (remove); DEBUG gate applied when WIP merges (HEAD has no DataSeeder) | High |
 | **C3** | Recurring confirm non-atomic | Critical | P5R-6 | Recurring | High |
 | **C4** | Quick-template-create non-atomic | Critical | P5R-6 | Recurring | High |
-| **C5** | External-split edit non-atomic | Critical | P5R-3 | Movements | High |
+| **C5** | External-split edit non-atomic | Critical | **RESOLVED** P5R-3 | `SplitRepository.replaceExternalSplit` archives + inserts in one TX; rollback test green | High |
 | **C6** | ~~Over-refund CHECK vs "never block"~~ **INVALID — false positive** | — | INVALID | Not a defect; CHECK is correct (see §4) | High |
 | **F1** | `AutoCategorizer` built but unwired | Functional | DESCOPE | P5R-6 / 6C prep | High |
-| **F2** | §2.6 form can't express group bill | Functional | P5R-3 | Movements | High |
+| **F2** | §2.6 form can't express group bill | Functional | **WONTFIX-by-design** P5R-3 | T2-1 decided: type-4 `total = user share`; group-bill case out of scope v1 | High |
 | **F3** | `RecurringAdvancer` while-loop unbounded | Functional | P5R-6 | Recurring | Medium |
 | **F4** | `debt_balance` golden vector has one case | Functional | P5R-5 | Debts | Medium |
 | **F5** | No undo affordance despite spec §5.9 | Functional | P8 | Release polish | Medium |
 | **F6** | Inconsistent warn-vs-block across rules | Functional | P5R-5 / P5R-6 | Split | Medium |
 | **U1** | "Load demo data" destructive trap | Usability | P8 | Release-prep (remove); same WIP-merge timing as C2 | High |
-| **U2** | External-payer form missing share field | Usability | P5R-3 | Movements | High |
+| **U2** | External-payer form missing share field | Usability | **RESOLVED** P5R-3 | 4-type cascade UI built; DEBT path = type-4 (someone else paid, user owes); WONTFIX-by-design on separate share field (F2) | High |
 | **U3** | No P5R-3 manual checklist yet | Usability | P5R-3 | This slice | High |
 | **U4** | No instrumentation/UI tests | Usability | P8 | Optional | Medium |
 | **U5** | Spec §5.9 nav drift (Recurring placement) | Usability | T1 | Doc-only | High |
-| **O1** | `Movements.sq` 4× SQL duplication | Bloat | P5R-3 | With shared/external | High |
+| **O1** | `Movements.sq` 4× SQL duplication | Bloat | **RESOLVED** P5R-3 | `v_movement_summary` view; all 4 queries now `SELECT * FROM v_movement_summary` | High |
 | **O2** | `analysis_actual_breakdown` redundancy | Bloat | P5R-4 | Analysis | Medium |
 | **O3** | `analysis_net_worth` O(N²) self-join | Bloat | P5R-4 | Analysis | Medium |
-| **O4** | Dead branch in `MovementRepository.archive` | Bloat | P5R-3 | Movements | High |
-| **O5** | Dead person split line written, never read | Bloat | P5R-3 | Movements | High |
+| **O4** | Dead branch in `MovementRepository.archive` | Bloat | **RESOLVED** P5R-3 | Dead branch removed from `MovementRepository.archive` | High |
+| **O5** | Dead person split line written, never read | Bloat | **RESOLVED** P5R-3 | `createExternalPaidByPerson` now writes one user line only; no person line | High |
 | **O6** | `validate_shared_sql.py` analysis list drift | Bloat | P5R-4 | Analysis | High |
 | **M1** | C#↔Kotlin procedural-rule drift risks | Maintainability | P8 | Final pass | Medium |
 | **M2** | `MovementsViewModel` / `AnalysisScreen` size | Maintainability | P5R-3 / P5R-4 | Split | Medium |
 | **M3** | No write serialization in ViewModels | Maintainability | WONTFIX | — | Medium |
 | **M4** | Coroutines dep / sqlite-jdbc / proguard | Maintainability | P8 | Release | Medium |
 | **M5** | Untested multi-write paths | Maintainability | T1 + per-fix | Harness + slices | High |
-| **M6** | `external_expense` missing `sl.archived_at` filter | Maintainability | P5R-3 | With O1 | Medium |
+| **M6** | `external_expense` missing `sl.archived_at` filter | Maintainability | **RESOLVED** P5R-3 | Fixed in `v_movement_summary` external branch | Medium |
 
 ---
 
@@ -118,10 +118,10 @@ The implementation plan has three tiers:
 - **Disposition note:** Descope from P5R-3. Engine + golden tests stay as-is. Wiring (suggestion in movement form, no CRUD UI yet) moves to P5R-6, or to a Phase 6C prep line if that lands first. The misleading P5R-3 roadmap note is updated.
 - **Confidence:** High.
 
-#### F2 — §2.6 form can't express group bill
+#### F2 — §2.6 form can't express group bill — **WONTFIX-by-design (P5R-3)**
 - **Evidence:** The external-payer branch of `MovementsViewModel.save` constructs `ExternalSplitDraft` with `totalAmountCents = amount` and `userShareCents = amount` (the same value). `MovementFormSheet` exposes only `externalPayerPersonId` — no separate "total group bill" vs "my share" inputs. Spec §2.6 / §3.7 / data-model `splits` comment explicitly model `total_amount_cents > user share`.
 - **Impact:** The user can only record "X paid, I owe the full amount" — the group-bill-with-my-smaller-share scenario (the point of §2.6) is unreachable. This also makes the O5 person line always 0 cents through the UI.
-- **Fix:** **Requires a design decision first (P5R-3 task T2-1).** Confirm the §2.6 model is kept; then add the form field(s), split `totalAmountCents`/`userShareCents`, and resolve O5 in the same change.
+- **Resolution (P5R-3, T2-1):** Design decision: type-4 ("Deute") stores `total_amount_cents = user_share` always. The group-bill-larger-than-user-share scenario is deliberately out of scope for v1. The 4-type cascade (U2) makes this explicit in the UI: when "Una altra persona" paid, the amount field is labelled as "what you owe." `docs/04-data-model.md` §3 and §5 updated accordingly.
 - **Confidence:** High.
 
 #### F3 — `RecurringAdvancer` while-loop unbounded
@@ -197,9 +197,9 @@ The implementation plan has three tiers:
 - **Fix:** Delete the dead lines. P5R-3 (movements slice).
 - **Confidence:** High.
 
-#### O5 — Dead person split line written, never read
+#### O5 — Dead person split line written, never read — **RESOLVED (P5R-3)**
 - **Evidence:** `SplitRepository.createExternalPaidByPerson` inserts a `person` split_line with `owed_amount_cents = totalAmountCents − userShareCents`. No canonical view reads `participant_kind='person'` lines for `payer_person_id IS NOT NULL` splits (`v_person_balance.sql` and `v_actual_expense.sql` both filter `participant_kind='user'`). Through the UI (F2) the line is always 0 anyway.
-- **Fix:** Stop inserting it. Resolved together with F2's design decision (P5R-3 task T2-1) — if the §2.6 group-bill model is kept, decide whether a future view needs the line; recommend delete (single-user app, other participants aren't the user's concern).
+- **Resolution (P5R-3):** `createExternalPaidByPerson` now writes exactly one user line; the dead person line is gone. The single-user app has no use for other participants in a §2.6 split.
 - **Confidence:** High.
 
 #### O6 — `validate_shared_sql.py` analysis list drift

@@ -8,6 +8,7 @@ internal static class SharedSql
     private static readonly string[] ViewFiles =
     [
         "v_movement_shared.sql",
+        "v_movement_summary.sql",
         "v_account_flow.sql",
         "v_account_balance.sql",
         "v_actual_expense.sql",

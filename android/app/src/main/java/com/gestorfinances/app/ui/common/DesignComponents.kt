@@ -17,12 +17,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.Error
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Warning
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -162,12 +166,13 @@ fun FinanceFilterChip(
     label: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    selectedColor: Color = MaterialTheme.colorScheme.onSurface,
 ) {
     Surface(
         onClick = onClick,
         modifier = modifier,
         shape = PillShape,
-        color = if (selected) MaterialTheme.colorScheme.onSurface else Color.Transparent,
+        color = if (selected) selectedColor else Color.Transparent,
         contentColor = if (selected) {
             MaterialTheme.colorScheme.surface
         } else {
@@ -182,6 +187,74 @@ fun FinanceFilterChip(
                 .padding(horizontal = 14.dp, vertical = 9.dp),
             style = MaterialTheme.typography.labelLarge,
         )
+    }
+}
+
+/**
+ * Compact selector field for filters.
+ * active = emphasized border and text color.
+ */
+@Composable
+fun FilterSelectorField(
+    label: String,
+    value: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    active: Boolean = false,
+    onClear: (() -> Unit)? = null,
+) {
+    val borderColor = if (active) MaterialTheme.colorScheme.primary else FinanceTheme.colors.cardBorder
+    val contentColor = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+
+    Surface(
+        onClick = onClick,
+        modifier = modifier,
+        shape = MaterialTheme.shapes.extraSmall,
+        border = BorderStroke(1.dp, borderColor),
+        color = Color.Transparent,
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(horizontal = 10.dp, vertical = 8.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = FinanceTheme.colors.mutedText,
+                )
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = contentColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (active && onClear != null) {
+                IconButton(
+                    onClick = { onClear() },
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = stringResource(R.string.common_remove),
+                        modifier = Modifier.size(16.dp),
+                        tint = FinanceTheme.colors.mutedText
+                    )
+                }
+            } else {
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = FinanceTheme.colors.mutedText
+                )
+            }
+        }
     }
 }
 
@@ -471,3 +544,52 @@ private fun bannerIcon(kind: BannerKind): ImageVector =
         BannerKind.Alert -> Icons.Outlined.Warning
         BannerKind.Error -> Icons.Outlined.Error
     }
+
+/** Labeled compact selection block for filters (label + value + chevron). */
+@Composable
+fun FilterSelectorField(
+    label: String,
+    value: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier,
+        shape = MaterialTheme.shapes.small,
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, FinanceTheme.colors.cardBorder),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = FinanceTheme.colors.mutedText,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Icon(
+                imageVector = Icons.Outlined.ExpandMore,
+                contentDescription = null,
+                tint = FinanceTheme.colors.mutedText,
+                modifier = Modifier.size(16.dp),
+            )
+        }
+    }
+}
+

@@ -108,6 +108,7 @@ CREATE TABLE splits (
     description        TEXT,                                                -- §2.6 only; movement-backed splits use movements.name/notes
     category_id        TEXT    REFERENCES categories(id),                   -- §2.6 only; movement-backed splits use movements.category_id
     trip_id            TEXT    REFERENCES trips(id),                        -- §2.6 only; movement-backed splits use movements.trip_id
+    tag_id             TEXT    REFERENCES tags(id),                         -- §2.6 only; one trip tag max, only when trip_id set (mirrors movements)
 
     created_at         TEXT    NOT NULL,
     updated_at         TEXT    NOT NULL,
@@ -115,17 +116,19 @@ CREATE TABLE splits (
 
     -- exactly two valid configurations:
     --   user fronted   : payer_person_id IS NULL  AND movement_id IS NOT NULL  (normal, incl. "paid by other" §2.5)
-    --                    movement owns date/category/trip/description/total
+    --                    movement owns date/category/trip/description/total; tag_id is NULL
     --   person paid ext: payer_person_id IS NOT NULL AND movement_id IS NULL   (§2.6, no user-account movement)
-    --                    split owns date/category/trip/description/total
+    --                    split owns date/category/trip/description/total (and tag_id, when trip_id set)
     CHECK (
         (payer_person_id IS NULL AND movement_id IS NOT NULL
          AND total_amount_cents IS NULL AND date IS NULL
-         AND description IS NULL AND category_id IS NULL AND trip_id IS NULL)
+         AND description IS NULL AND category_id IS NULL AND trip_id IS NULL
+         AND tag_id IS NULL)
         OR
         (payer_person_id IS NOT NULL AND movement_id IS NULL
          AND total_amount_cents IS NOT NULL AND date IS NOT NULL)
-    )
+    ),
+    CHECK ( tag_id IS NULL OR trip_id IS NOT NULL )   -- tag only meaningful when trip set (spec §3.13)
 );
 CREATE UNIQUE INDEX idx_splits_movement ON splits(movement_id) WHERE movement_id IS NOT NULL;  -- one split per movement
 CREATE INDEX idx_splits_payer ON splits(payer_person_id) WHERE payer_person_id IS NOT NULL;
@@ -160,12 +163,12 @@ CREATE UNIQUE INDEX idx_split_lines_one_person
 |---|---|---|---|---|
 | **Normal shared expense** (user paid) | set | NULL | user's share + each other person's share (Σ = `amount_cents`) | each person owes the user their share; the user's own line feeds *actual* analysis |
 | **"Paid by other"** §2.5 (through the user's account) | set | NULL | user line = 0, one person line = full | money left the user's account; that person owes it all back. UI labels it "pagat per X" when the user's line is 0 |
-| **Paid by person externally** §2.6 | NULL | the payer | at least the **user's own** line (= the user's share) | no ledger movement; the user *owes* the payer their share. Other participants aren't the user's concern (single-user app), so they need not be stored. `total_amount_cents` is the informational group bill |
+| **Paid by person externally** §2.6 | NULL | the payer | exactly one **user line** (`owed_amount_cents = total_amount_cents`) | no ledger movement; the user *owes* the payer their share. `total_amount_cents = user share` always — group-bill-larger-than-user-share is out of scope v1 (F2 WONTFIX). `tag_id` is supported when `trip_id` is set. |
 
 ### Reconciliation rules (app-enforced; not all are cross-row CHECKable)
 
 - **User-fronted split** (`movement_id` set): `Σ split_lines.owed_amount_cents = movements.amount_cents`, and a **user line must exist** (it is what `actual` analysis reads). Date/category/trip/description live only on the parent movement.
-- **§2.6 split** (`payer_person_id` set): the user's line holds the user's share; `total_amount_cents` may exceed it (group bill). Date/category/trip live on the split because there is no parent movement.
+- **§2.6 split** (`payer_person_id` set): exactly one user line with `owed_amount_cents = total_amount_cents` (group-bill support is out of scope v1, F2 WONTFIX). Date/category/trip/`tag_id` live on the split because there is no parent movement.
 - **Participant uniqueness:** at most one active user line per split and at most one active line per person per split.
 - **Equal-split rounding:** computed in integer cents; remainder cent(s) to the payer so the lines reconcile exactly (spec §3.7).
 - **Only expenses are shared:** a `splits` row may reference only an `expense` movement (spec §3.0 "only expense may be shared"; §3.5 "transfers are never shared"). SQLite can't cross-row CHECK the target's type, so the app enforces it — the same pattern as the refund-target-type rule (§2).
@@ -339,7 +342,8 @@ CREATE TABLE meta (                                    -- key/value; no mixin
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
--- seed: ('schema_version','1'), ('snapshot_version','0'); also app settings (theme, default lead days, ...).
+-- seed: ('schema_version','2'), ('snapshot_version','0'); also app settings (theme, default lead days, ...).
+-- schema_version=2: migration 002_add_splits_tag_id.sql adds tag_id to splits (C1).
 ```
 
 ---
