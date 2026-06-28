@@ -384,12 +384,13 @@
     <string name="dashboard_month_expenses">Despeses del mes</string>
     <string name="dashboard_net_flow">Flux net</string>
     <string name="dashboard_savings_rate">Taxa d\'estalvi</string>
+    <string name="dashboard_savings_short">Estalvi</string>
     <string name="dashboard_savings_rate_unavailable">No disponible</string>
-    <string name="dashboard_daily_flow_title">Evolució diària</string>
     <string name="dashboard_accounts_title">Comptes</string>
     <string name="dashboard_category_breakdown_title">Categories del mes</string>
+    <string name="dashboard_categories_expenses">Despeses</string>
+    <string name="dashboard_categories_income">Ingressos</string>
     <string name="dashboard_latest_movements_title">Últims moviments</string>
-    <string name="dashboard_quick_actions_title">Accions ràpides</string>
     <string name="dashboard_view_analysis">Veure anàlisi</string>
     <string name="dashboard_no_data">Encara no hi ha dades per aquest període.</string>
     <string name="dashboard_empty_title">Encara no hi ha activitat aquest mes</string>

@@ -6,7 +6,6 @@ import androidx.lifecycle.viewModelScope
 import com.gestorfinances.app.data.repository.AccountRepository
 import com.gestorfinances.app.data.repository.AccountSummary
 import com.gestorfinances.app.data.repository.AnalysisCategoryTotal
-import com.gestorfinances.app.data.repository.AnalysisIncomeExpenseBucket
 import com.gestorfinances.app.data.repository.AnalysisPeriodTotals
 import com.gestorfinances.app.data.repository.AnalysisRepository
 import com.gestorfinances.app.data.repository.MovementRepository
@@ -21,6 +20,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+enum class CategoryDisplayMode { EXPENSES, INCOME }
+
 class DashboardViewModel(
     private val analysisRepository: AnalysisRepository,
     private val accountRepository: AccountRepository,
@@ -33,6 +34,14 @@ class DashboardViewModel(
 
     fun onScreenShown() {
         refresh()
+    }
+
+    fun onHeroAccountSelected(id: String?) {
+        _state.value = _state.value.copy(selectedHeroAccountId = id)
+    }
+
+    fun onCategoryModeChanged(mode: CategoryDisplayMode) {
+        _state.value = _state.value.copy(categoryMode = mode)
     }
 
     fun refresh() {
@@ -53,10 +62,6 @@ class DashboardViewModel(
                             fromDate = fromDate.toString(),
                             toDate = toDate.toString(),
                         ).take(6),
-                        dailyFlow = analysisRepository.dailyIncomeVsExpense(
-                            fromDate = fromDate.toString(),
-                            toDate = toDate.toString(),
-                        ),
                         accounts = accountRepository.listActive(),
                         latestMovements = movementRepository.listActive().take(5),
                     )
@@ -68,7 +73,6 @@ class DashboardViewModel(
                         month = it.month,
                         totals = it.totals,
                         categories = it.categories,
-                        dailyFlow = it.dailyFlow,
                         accounts = it.accounts,
                         latestMovements = it.latestMovements,
                         isLoading = false,
@@ -114,9 +118,10 @@ data class DashboardUiState(
         savingsRateBasisPoints = 0,
     ),
     val categories: List<AnalysisCategoryTotal> = emptyList(),
-    val dailyFlow: List<AnalysisIncomeExpenseBucket> = emptyList(),
     val accounts: List<AccountSummary> = emptyList(),
     val latestMovements: List<MovementSummary> = emptyList(),
+    val selectedHeroAccountId: String? = null,
+    val categoryMode: CategoryDisplayMode = CategoryDisplayMode.EXPENSES,
     val isLoading: Boolean = true,
     val errorMessage: String? = null,
 ) {
@@ -128,7 +133,6 @@ private data class DashboardLoadedData(
     val month: YearMonth,
     val totals: AnalysisPeriodTotals,
     val categories: List<AnalysisCategoryTotal>,
-    val dailyFlow: List<AnalysisIncomeExpenseBucket>,
     val accounts: List<AccountSummary>,
     val latestMovements: List<MovementSummary>,
 )
