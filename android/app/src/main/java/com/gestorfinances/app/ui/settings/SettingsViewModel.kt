@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.gestorfinances.app.R
+import com.gestorfinances.app.data.db.DataSeeder
 import com.gestorfinances.app.notifications.NotificationPreferences
 import com.gestorfinances.app.notifications.NotificationRefresher
 import com.gestorfinances.app.notifications.NotificationSettings
@@ -17,6 +18,7 @@ import kotlinx.coroutines.withContext
 
 class SettingsViewModel(
     private val preferences: NotificationPreferences,
+    private val dataSeeder: DataSeeder,
     private val notificationRefresher: NotificationRefresher = NotificationRefresher.NoOp,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
@@ -49,6 +51,16 @@ class SettingsViewModel(
         saveSettings(preferences.loadSettings().copy(lowBalanceAlertsEnabled = enabled))
     }
 
+    fun onSeedDataRequested(onFinished: () -> Unit) {
+        viewModelScope.launch {
+            withContext(ioDispatcher) {
+                dataSeeder.seed()
+                notificationRefresher.refreshNotifications()
+            }
+            onFinished()
+        }
+    }
+
     private fun saveSettings(settings: NotificationSettings) {
         preferences.saveSettings(settings)
         _state.value = SettingsUiState.fromSettings(settings)
@@ -61,6 +73,7 @@ class SettingsViewModel(
 
     class Factory(
         private val preferences: NotificationPreferences,
+        private val dataSeeder: DataSeeder,
         private val notificationRefresher: NotificationRefresher,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
@@ -68,6 +81,7 @@ class SettingsViewModel(
             if (modelClass.isAssignableFrom(SettingsViewModel::class.java)) {
                 return SettingsViewModel(
                     preferences = preferences,
+                    dataSeeder = dataSeeder,
                     notificationRefresher = notificationRefresher,
                 ) as T
             }

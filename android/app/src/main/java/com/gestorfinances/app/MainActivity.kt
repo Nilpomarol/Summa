@@ -255,7 +255,9 @@ private fun LedgerShell(
                 personRepository = appContainer.personRepository,
                 tripRepository = appContainer.tripRepository,
                 tagRepository = appContainer.tagRepository,
+                splitRepository = appContainer.splitRepository,
                 notificationRefresher = appContainer.notificationCoordinator,
+                templateRepository = appContainer.templateRepository,
             ),
         )[MovementsViewModel::class.java]
     }
@@ -300,6 +302,7 @@ private fun LedgerShell(
             viewModelStoreOwner,
             SettingsViewModel.Factory(
                 preferences = appContainer.notificationPreferences,
+                dataSeeder = appContainer.dataSeeder,
                 notificationRefresher = appContainer.notificationCoordinator,
             ),
         )[SettingsViewModel::class.java]

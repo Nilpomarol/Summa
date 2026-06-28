@@ -30,6 +30,7 @@ import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -58,9 +59,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.R
-import com.gestorfinances.app.data.repository.AccountFlowEntry
 import com.gestorfinances.app.data.repository.AccountSummary
 import com.gestorfinances.app.data.repository.AccountType
 import com.gestorfinances.app.data.repository.MovementType
@@ -410,23 +411,28 @@ private fun AccountCard(
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = account.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         Text(
-                            text = account.name,
-                            style = MaterialTheme.typography.titleMedium,
+                            text = account.type.label(),
+                            color = FinanceTheme.colors.mutedText,
+                            style = MaterialTheme.typography.bodyMedium,
                         )
                         if (account.isDefault) {
-                            NeutralPill(text = stringResource(R.string.account_default_badge))
+                            NeutralPill(
+                                text = stringResource(R.string.account_default_badge),
+                                leadingIcon = Icons.Outlined.PushPin,
+                            )
                         }
                     }
-                    Text(
-                        text = account.type.label(),
-                        color = FinanceTheme.colors.mutedText,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
                 }
                 MoneyText(
                     cents = account.currentBalanceCents,
@@ -686,28 +692,33 @@ private fun AccountPreviewCard(form: AccountFormState) {
         ) {
             IconChip(icon = icon, contentDescription = null, color = color)
             Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = nameText,
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = if (form.name.isBlank()) {
+                        FinanceTheme.colors.mutedText
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
+                )
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     Text(
-                        text = nameText,
-                        style = MaterialTheme.typography.titleSmall,
-                        color = if (form.name.isBlank()) {
-                            FinanceTheme.colors.mutedText
-                        } else {
-                            MaterialTheme.colorScheme.onSurface
-                        },
+                        text = form.type.label(),
+                        color = FinanceTheme.colors.mutedText,
+                        style = MaterialTheme.typography.bodyMedium,
                     )
                     if (form.isDefault) {
-                        NeutralPill(text = stringResource(R.string.account_default_badge))
+                        NeutralPill(
+                            text = stringResource(R.string.account_default_badge),
+                            leadingIcon = Icons.Outlined.PushPin,
+                        )
                     }
                 }
-                Text(
-                    text = form.type.label(),
-                    color = FinanceTheme.colors.mutedText,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
             }
             MoneyText(
                 cents = balanceCents,
@@ -878,8 +889,8 @@ private fun AccountFlowSheet(
                             .fillMaxWidth(),
                         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
                     ) {
-                        items(detail.entries) { entry ->
-                            MovementListItem(entry = entry)
+                        items(detail.entries) { movement ->
+                            MovementListItem(movement = movement)
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                         }
                     }

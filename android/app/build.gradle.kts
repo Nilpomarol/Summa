@@ -12,9 +12,13 @@ val generatedSharedSql = layout.projectDirectory.file(
 val generatedAnalysisSql = layout.projectDirectory.file(
     "src/main/sqldelight/com/gestorfinances/app/data/db/Analysis.sq",
 )
+val generatedMigration1 = layout.projectDirectory.file(
+    "src/main/sqldelight/com/gestorfinances/app/data/db/1.sqm",
+)
 
 val sharedViewFiles = listOf(
     "v_movement_shared.sql",
+    "v_movement_summary.sql",
     "v_account_flow.sql",
     "v_account_balance.sql",
     "v_actual_expense.sql",
@@ -36,14 +40,17 @@ val sharedAnalysisQueryFiles = listOf(
 val syncSharedSqlForSqlDelight by tasks.registering {
     val sharedRoot = rootProject.layout.projectDirectory.dir("../shared")
     val sharedBaselineMigration = sharedRoot.file("migrations/001_initial.sql")
+    val sharedMigration002 = sharedRoot.file("migrations/002_add_splits_tag_id.sql")
     val sharedViews = sharedViewFiles.map { sharedRoot.file("queries/$it") }
     val sharedAnalysisQueries = sharedAnalysisQueryFiles.map { sharedRoot.file("queries/${it.first}") }
 
     inputs.file(sharedBaselineMigration)
+    inputs.file(sharedMigration002)
     inputs.files(sharedViews)
     inputs.files(sharedAnalysisQueries)
     outputs.file(generatedSharedSql)
     outputs.file(generatedAnalysisSql)
+    outputs.file(generatedMigration1)
 
     doLast {
         val sharedOutputFile = generatedSharedSql.asFile
@@ -82,6 +89,14 @@ val syncSharedSqlForSqlDelight by tasks.registering {
                     if (!endsWith("\n")) appendLine()
                     appendLine()
                 }
+            },
+        )
+        generatedMigration1.asFile.writeText(
+            buildString {
+                appendLine("-- Generated from ../../shared/migrations/002_add_splits_tag_id.sql.")
+                appendLine("-- Do not edit directly; edit the shared SQL file instead.")
+                appendLine()
+                append(sharedMigration002.asFile.readText())
             },
         )
     }

@@ -1138,8 +1138,8 @@ private fun CategoryFlowSheet(
                             .fillMaxWidth(),
                         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
                     ) {
-                        items(detail.entries) { entry ->
-                            MovementListItem(entry = entry)
+                        items(detail.entries) { movement ->
+                            MovementListItem(movement = movement)
                             HorizontalDivider(
                                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
                             )

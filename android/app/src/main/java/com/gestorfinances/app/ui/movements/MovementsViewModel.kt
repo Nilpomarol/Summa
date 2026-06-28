@@ -10,21 +10,34 @@ import com.gestorfinances.app.data.repository.CategoryKind
 import com.gestorfinances.app.data.repository.CategoryNature
 import com.gestorfinances.app.data.repository.CategoryRecord
 import com.gestorfinances.app.data.repository.CategoryRepository
+import com.gestorfinances.app.data.repository.ExternalSplitDraft
 import com.gestorfinances.app.data.repository.MovementDraft
 import com.gestorfinances.app.data.repository.MovementRepository
 import com.gestorfinances.app.data.repository.MovementSummary
 import com.gestorfinances.app.data.repository.MovementSplitWrite
+import com.gestorfinances.app.data.repository.MovementSplitDraft
+import com.gestorfinances.app.data.repository.SplitEntryMethod
+import com.gestorfinances.app.data.repository.SplitLineDraft
 import com.gestorfinances.app.data.repository.MovementType
+import com.gestorfinances.app.data.repository.PersonDraft
 import com.gestorfinances.app.data.repository.PersonRepository
 import com.gestorfinances.app.data.repository.RefundDraft
 import com.gestorfinances.app.data.repository.RefundSummary
 import com.gestorfinances.app.data.repository.PersonSummary
+import com.gestorfinances.app.data.repository.SettlementDirection
+import com.gestorfinances.app.data.repository.SettlementDraft
+import com.gestorfinances.app.data.repository.SplitRepository
+import com.gestorfinances.app.data.repository.SplitParticipantKind
 import com.gestorfinances.app.data.repository.TagRepository
 import com.gestorfinances.app.data.repository.TagSummary
+import com.gestorfinances.app.data.repository.TemplateDraft
+import com.gestorfinances.app.data.repository.TemplateRepository
+import com.gestorfinances.app.data.repository.TemplateStatus
 import com.gestorfinances.app.data.repository.TripRepository
 import com.gestorfinances.app.data.repository.TripSummary
 import com.gestorfinances.app.domain.rules.DuplicateDetector
 import com.gestorfinances.app.domain.rules.DuplicateMovement
+import com.gestorfinances.app.domain.rules.RecurrenceFrequency
 import com.gestorfinances.app.notifications.NotificationRefresher
 import com.gestorfinances.app.ui.common.formatEuroInput
 import com.gestorfinances.app.ui.common.parseEuroCents
@@ -47,8 +60,10 @@ class MovementsViewModel(
     private val personRepository: PersonRepository,
     private val tripRepository: TripRepository,
     private val tagRepository: TagRepository,
+    private val splitRepository: SplitRepository? = null,
     private val notificationRefresher: NotificationRefresher = NotificationRefresher.NoOp,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val templateRepository: TemplateRepository? = null,
 ) : ViewModel() {
     private val _state = MutableStateFlow(MovementsUiState())
     val state: StateFlow<MovementsUiState> = _state.asStateFlow()
@@ -94,10 +109,22 @@ class MovementsViewModel(
     }
 
     fun onEditClicked(movement: MovementSummary) {
-        _state.value = _state.value.copy(
-            form = movement.toFormState(),
-            detailMovement = null,
-        )
+        if (movement.type == MovementType.SETTLEMENT || movement.type == MovementType.REFUND) return
+        viewModelScope.launch {
+            val splitDraft = when {
+                movement.isShared -> withContext(ioDispatcher) {
+                    splitRepository?.getForMovement(movement.id)
+                }
+                movement.type == MovementType.EXTERNAL_EXPENSE -> withContext(ioDispatcher) {
+                    splitRepository?.getForMovementById(movement.id)
+                }
+                else -> null
+            }
+            _state.value = _state.value.copy(
+                form = movement.toFormState(splitDraft),
+                detailMovement = null
+            )
+        }
     }
 
     fun onArchiveClicked(movement: MovementSummary) {
@@ -237,7 +264,14 @@ class MovementsViewModel(
         val now = Instant.now().toString()
         viewModelScope.launch {
             val result = withContext(ioDispatcher) {
-                runCatching { movementRepository.archive(movement.id, archivedAt = now) }
+                runCatching {
+                    if (movement.type == MovementType.EXTERNAL_EXPENSE) {
+                        requireNotNull(splitRepository) { "split repository unavailable" }
+                            .archiveExternalSplit(movement.id, archivedAt = now)
+                    } else {
+                        movementRepository.archive(movement.id, archivedAt = now)
+                    }
+                }
             }
             result.fold(
                 onSuccess = {
@@ -281,11 +315,13 @@ class MovementsViewModel(
         val form = _state.value.form ?: return
         val nextForm = if (enabled) {
             form.copy(
+                expenseKind = ExpenseKind.SHARED,
                 splitEditor = form.splitEditor ?: SplitEditorState(),
                 removeExistingSplit = false,
             )
         } else {
             form.copy(
+                expenseKind = ExpenseKind.PERSONAL,
                 splitEditor = null,
                 removeExistingSplit = form.existingSplit,
             )
@@ -296,6 +332,69 @@ class MovementsViewModel(
     fun onSplitEditorChanged(splitEditor: SplitEditorState) {
         val form = _state.value.form ?: return
         onFormChanged(form.copy(splitEditor = splitEditor, removeExistingSplit = false))
+    }
+
+    fun onSettlementToggled(enabled: Boolean) {
+        val form = _state.value.form ?: return
+        onFormChanged(form.copy(isSettlement = enabled, settlementPersonId = if (enabled) form.settlementPersonId else null))
+    }
+
+    fun onSettlementPersonSelected(personId: String?) {
+        val form = _state.value.form ?: return
+        onFormChanged(form.copy(settlementPersonId = personId))
+    }
+
+    fun onOtherPersonSelected(personId: String?) {
+        val form = _state.value.form ?: return
+        onFormChanged(form.copy(forOtherPersonId = personId))
+    }
+
+    fun onRecurringToggled(enabled: Boolean) {
+        val form = _state.value.form ?: return
+        onFormChanged(form.copy(isRecurring = enabled))
+    }
+
+    fun onRecurringFrequencyChanged(frequency: RecurrenceFrequency) {
+        val form = _state.value.form ?: return
+        onFormChanged(form.copy(recurringFrequency = frequency))
+    }
+
+    fun onAdvancedToggled() {
+        val form = _state.value.form ?: return
+        _state.value = _state.value.copy(form = form.copy(showAdvanced = !form.showAdvanced))
+    }
+
+    fun onCreatePersonInSplit(name: String) {
+        val trimmedName = name.trim()
+        if (trimmedName.isEmpty()) return
+        viewModelScope.launch {
+            val now = Instant.now().toString()
+            val personId = UUID.randomUUID().toString()
+            val result = withContext(ioDispatcher) {
+                runCatching {
+                    personRepository.create(
+                        PersonDraft(id = personId, name = trimmedName, avatar = null, color = null, notes = null),
+                        createdAt = now,
+                    )
+                    personRepository.listActive()
+                }
+            }
+            result.fold(
+                onSuccess = { newPeople ->
+                    val form = _state.value.form ?: return@fold
+                    val updatedSplit = form.splitEditor?.withPersonToggled(personId)
+                    _state.value = _state.value.copy(
+                        people = newPeople,
+                        form = form.copy(splitEditor = updatedSplit ?: form.splitEditor),
+                    )
+                },
+                onFailure = {
+                    _state.value = _state.value.copy(
+                        form = _state.value.form?.copy(errorMessage = it.message ?: it.javaClass.simpleName),
+                    )
+                },
+            )
+        }
     }
 
     fun onFormDismissed() {
@@ -309,9 +408,125 @@ class MovementsViewModel(
 
     private fun attemptSave(forceSave: Boolean) {
         val form = _state.value.form ?: return
+
+        // Settlement save path (income + liquidació toggle)
+        if (form.type == MovementType.INCOME && form.isSettlement) {
+            val amount = parseEuroCents(form.amount, allowNegative = false)
+            val date = parseDate(form.date)
+            val activeAccountIds = _state.value.accounts.map { it.id }.toSet()
+            val activePersonIds = _state.value.people.map { it.id }.toSet()
+            val errorRes = when {
+                amount == null -> R.string.movement_validation_amount_required
+                amount <= 0L -> R.string.movement_validation_amount_positive
+                form.date.isBlank() -> R.string.movement_validation_date_required
+                date == null -> R.string.movement_validation_date_invalid
+                form.accountId == null || form.accountId !in activeAccountIds ->
+                    R.string.movement_validation_account_required
+                form.settlementPersonId == null || form.settlementPersonId !in activePersonIds ->
+                    R.string.settlement_validation_person_required
+                else -> null
+            }
+            if (errorRes != null) {
+                _state.value = _state.value.copy(form = form.copy(errorRes = errorRes))
+                return
+            }
+            val now = Instant.now().toString()
+            val draft = SettlementDraft(
+                id = UUID.randomUUID().toString(),
+                personId = requireNotNull(form.settlementPersonId),
+                direction = SettlementDirection.PERSON_TO_USER,
+                amountCents = requireNotNull(amount),
+                accountId = requireNotNull(form.accountId),
+                date = requireNotNull(date).toString(),
+                notes = form.notes.nullIfBlank(),
+            )
+            viewModelScope.launch {
+                val result = withContext(ioDispatcher) {
+                    runCatching { movementRepository.createSettlement(draft, createdAt = now) }
+                }
+                result.fold(
+                    onSuccess = {
+                        _state.value = _state.value.copy(form = null)
+                        refresh(dataChanged = true)
+                        refreshNotifications()
+                    },
+                    onFailure = {
+                        _state.value = _state.value.copy(
+                            form = form.copy(errorMessage = it.message ?: it.javaClass.simpleName),
+                        )
+                    },
+                )
+            }
+            return
+        }
+
+        // DEBT path (type 4): someone else paid — stored as an external split.
+        if (form.type == MovementType.EXPENSE && form.expenseKind == ExpenseKind.DEBT) {
+            val amount = parseEuroCents(form.amount, allowNegative = false)
+            val date = parseDate(form.date)
+            val activePersonIds = _state.value.people.map { it.id }.toSet()
+            val errorRes = when {
+                amount == null -> R.string.movement_validation_amount_required
+                amount <= 0L -> R.string.movement_validation_amount_positive
+                form.date.isBlank() -> R.string.movement_validation_date_required
+                date == null -> R.string.movement_validation_date_invalid
+                form.forOtherPersonId == null || form.forOtherPersonId !in activePersonIds ->
+                    R.string.settlement_validation_person_required
+                else -> null
+            }
+            if (errorRes != null) {
+                _state.value = _state.value.copy(form = form.copy(errorRes = errorRes))
+                return
+            }
+            val now = Instant.now().toString()
+            val draft = ExternalSplitDraft(
+                id = UUID.randomUUID().toString(),
+                payerPersonId = requireNotNull(form.forOtherPersonId),
+                totalAmountCents = requireNotNull(amount),
+                userShareCents = requireNotNull(amount),
+                date = requireNotNull(date).toString(),
+                description = form.name.nullIfBlank(),
+                categoryId = form.categoryId,
+                tripId = form.tripId,
+                tagId = form.tagId,
+            )
+            val repo = splitRepository
+            if (repo == null) {
+                _state.value = _state.value.copy(
+                    form = form.copy(errorMessage = "Internal error: split repository unavailable"),
+                )
+                return
+            }
+            viewModelScope.launch {
+                val result = withContext(ioDispatcher) {
+                    runCatching {
+                        if (form.id == null) {
+                            repo.createExternalPaidByPerson(draft, createdAt = now)
+                        } else {
+                            repo.replaceExternalSplit(form.id, draft, now)
+                        }
+                    }
+                }
+                result.fold(
+                    onSuccess = {
+                        _state.value = _state.value.copy(form = null)
+                        refresh(dataChanged = true)
+                        refreshNotifications()
+                    },
+                    onFailure = {
+                        _state.value = _state.value.copy(
+                            form = form.copy(errorMessage = it.message ?: it.javaClass.simpleName),
+                        )
+                    },
+                )
+            }
+            return
+        }
+
         val amount = parseEuroCents(form.amount, allowNegative = false)
         val date = parseDate(form.date)
         val activeAccountIds = _state.value.accounts.map { it.id }.toSet()
+        val activePersonIds = _state.value.people.map { it.id }.toSet()
         val category = form.categoryId?.let { categoryId ->
             _state.value.categories.firstOrNull { it.id == categoryId }
         }
@@ -335,6 +550,9 @@ class MovementsViewModel(
             category != null && !category.supports(form.type) -> R.string.movement_validation_category_invalid
             form.tagId != null && (form.tripId == null || tag == null || !tag.supportsTrip(form.tripId)) ->
                 R.string.tag_validation_trip_required
+            form.expenseKind == ExpenseKind.FOR_OTHER &&
+                (form.forOtherPersonId == null || form.forOtherPersonId !in activePersonIds) ->
+                R.string.settlement_validation_person_required
             form.splitEditor != null && splitDraft == null ->
                 form.splitEditor.calculation(amount).errorRes ?: R.string.split_validation_reconcile
             else -> null
@@ -353,6 +571,16 @@ class MovementsViewModel(
         }
 
         val now = Instant.now().toString()
+        // A new recurring movement seeds a template and links to it, so the saved movement reads as
+        // recurring (🔁) and future occurrences are scheduled.
+        // We also allow toggling recurrence ON for an existing movement that wasn't recurring.
+        val isNewRecurrence = form.isRecurring && form.templateId == null
+        val recurringTemplateId = if (isNewRecurrence && templateRepository != null) {
+            UUID.randomUUID().toString()
+        } else {
+            form.templateId.takeIf { form.isRecurring }
+        }
+
         val draft = MovementDraft(
             id = form.id ?: UUID.randomUUID().toString(),
             type = form.type,
@@ -368,15 +596,39 @@ class MovementsViewModel(
             notes = form.notes.nullIfBlank(),
             isOneTime = form.type == MovementType.EXPENSE && form.isOneTime,
             splitWrite = when {
-                form.splitEditor != null -> MovementSplitWrite.Replace(requireNotNull(splitDraft))
+                form.expenseKind == ExpenseKind.FOR_OTHER && form.forOtherPersonId != null ->
+                    MovementSplitWrite.Replace(
+                        MovementSplitDraft(
+                            entryMethod = SplitEntryMethod.EXACT,
+                            lines = listOf(
+                                SplitLineDraft(SplitParticipantKind.USER, null, 0L),
+                                SplitLineDraft(SplitParticipantKind.PERSON, form.forOtherPersonId, requireNotNull(amount)),
+                            ),
+                        ),
+                    )
+                form.splitEditor != null -> MovementSplitWrite.Replace(requireNotNull(splitDraft).let { d ->
+                    // Preserve percentages if the method is PERCENTAGE
+                    if (d.entryMethod == SplitEntryMethod.PERCENTAGE) {
+                        d.copy(lines = d.lines.map { line ->
+                            val participantId = line.personId ?: USER_PARTICIPANT_ID
+                            val rawPercent = form.splitEditor.percentages[participantId].orEmpty()
+                            line.copy(owedPercent = parsePercentBasisPoints(rawPercent)?.toDouble()?.div(100.0))
+                        })
+                    } else d
+                })
                 form.removeExistingSplit -> MovementSplitWrite.Remove
                 else -> MovementSplitWrite.KeepExisting
             },
+            templateId = recurringTemplateId,
         )
 
         viewModelScope.launch {
             val result = withContext(ioDispatcher) {
                 runCatching {
+                    // Template first so the movement's template_id FK resolves and the link is atomic.
+                    if (isNewRecurrence && recurringTemplateId != null) {
+                        createQuickTemplate(recurringTemplateId, form, requireNotNull(amount), requireNotNull(date), now)
+                    }
                     if (form.id == null) {
                         movementRepository.create(draft, createdAt = now)
                     } else {
@@ -397,6 +649,51 @@ class MovementsViewModel(
                 },
             )
         }
+    }
+
+    private fun createQuickTemplate(
+        templateId: String,
+        form: MovementFormState,
+        amountCents: Long,
+        date: LocalDate,
+        createdAt: String,
+    ) {
+        val repo = templateRepository ?: return
+        val nextDue = when (form.recurringFrequency) {
+            RecurrenceFrequency.WEEKLY -> date.plusDays(7)
+            RecurrenceFrequency.FORTNIGHTLY -> date.plusDays(14)
+            RecurrenceFrequency.MONTHLY -> date.plusMonths(1)
+            RecurrenceFrequency.YEARLY -> date.plusYears(1)
+            RecurrenceFrequency.CUSTOM -> date.plusMonths(1)
+        }
+        val dayOfMonth: Long? = when (form.recurringFrequency) {
+            RecurrenceFrequency.MONTHLY, RecurrenceFrequency.YEARLY -> date.dayOfMonth.toLong()
+            else -> null
+        }
+        val draft = TemplateDraft(
+            id = templateId,
+            type = form.type,
+            amountCents = amountCents,
+            accountId = requireNotNull(form.accountId),
+            destAccountId = form.destinationAccountId.takeIf { form.type == MovementType.TRANSFER },
+            categoryId = form.categoryId.takeIf { form.type != MovementType.TRANSFER },
+            name = form.name.nullIfBlank(),
+            payee = form.payee.nullIfBlank(),
+            notes = null,
+            splitConfig = null,
+            frequency = form.recurringFrequency,
+            intervalCount = null,
+            customUnit = null,
+            dayOfMonth = dayOfMonth,
+            weekday = null,
+            nextDueDate = nextDue.toString(),
+            amountIsVariable = false,
+            amountFlexCents = null,
+            dateFlexDays = null,
+            leadNotificationDays = null,
+            status = TemplateStatus.ACTIVE,
+        )
+        repo.create(draft, createdAt = createdAt)
     }
 
     private fun refresh(dataChanged: Boolean = false) {
@@ -455,40 +752,86 @@ class MovementsViewModel(
     }
 
     private fun normalizeForm(form: MovementFormState): MovementFormState {
-        val typeChangedForm = when (form.type) {
-            MovementType.TRANSFER -> form.copy(
-                categoryId = null,
-                isOneTime = false,
-                splitEditor = null,
-                removeExistingSplit = form.existingSplit || form.removeExistingSplit,
-            )
-            MovementType.INCOME -> form.copy(
-                isOneTime = false,
-                splitEditor = null,
-                removeExistingSplit = form.existingSplit || form.removeExistingSplit,
-            )
-            MovementType.EXPENSE -> form
-            else -> form
+        var normalized = form
+
+        when (form.type) {
+            MovementType.TRANSFER -> {
+                normalized = normalized.copy(
+                    categoryId = null,
+                    isOneTime = false,
+                    splitEditor = null,
+                    removeExistingSplit = form.existingSplit || form.removeExistingSplit,
+                    isSettlement = false,
+                    settlementPersonId = null,
+                    expenseKind = null,
+                    forOtherPersonId = null,
+                )
+            }
+            MovementType.INCOME -> {
+                normalized = normalized.copy(
+                    isOneTime = false,
+                    splitEditor = null,
+                    removeExistingSplit = form.existingSplit || form.removeExistingSplit,
+                    expenseKind = null,
+                    forOtherPersonId = null,
+                )
+            }
+            MovementType.EXPENSE -> {
+                normalized = normalized.copy(
+                    isSettlement = false,
+                    settlementPersonId = null,
+                )
+                when (form.expenseKind) {
+                    ExpenseKind.DEBT -> {
+                        // Someone else paid — no account, no split editor.
+                        normalized = normalized.copy(
+                            accountId = null,
+                            destinationAccountId = null,
+                            isOneTime = false,
+                            splitEditor = null,
+                            removeExistingSplit = form.existingSplit || form.removeExistingSplit,
+                        )
+                    }
+                    ExpenseKind.FOR_OTHER -> {
+                        // I paid, one person owes the full amount — no split editor.
+                        normalized = normalized.copy(
+                            splitEditor = null,
+                            removeExistingSplit = false,
+                        )
+                    }
+                    ExpenseKind.SHARED -> {
+                        normalized = normalized.copy(forOtherPersonId = null)
+                    }
+                    ExpenseKind.PERSONAL, null -> {
+                        normalized = normalized.copy(
+                            splitEditor = null,
+                            forOtherPersonId = null,
+                        )
+                    }
+                }
+            }
+            else -> {}
         }
-        val category = typeChangedForm.categoryId?.let { categoryId ->
-            _state.value.categories.firstOrNull { it.id == categoryId }
-        }
-        val tag = typeChangedForm.tagId?.let { tagId ->
-            _state.value.tags.firstOrNull { it.id == tagId }
-        }
-        val categoryId = if (category != null && !category.supports(typeChangedForm.type)) {
-            null
+
+        // Category compatibility against the effective type.
+        val effectiveType = if (normalized.type == MovementType.EXPENSE && normalized.expenseKind == ExpenseKind.DEBT) {
+            MovementType.EXTERNAL_EXPENSE
         } else {
-            typeChangedForm.categoryId
+            normalized.type
         }
-        val tagId = if (typeChangedForm.tripId == null || tag == null || !tag.supportsTrip(typeChangedForm.tripId)) {
-            null
-        } else {
-            typeChangedForm.tagId
+        val category = normalized.categoryId?.let { catId ->
+            _state.value.categories.firstOrNull { it.id == catId }
         }
-        return typeChangedForm.copy(
-            categoryId = categoryId,
-            tagId = tagId,
+        val tag = normalized.tagId?.let { tId ->
+            _state.value.tags.firstOrNull { it.id == tId }
+        }
+
+        val finalCategoryId = if (category != null && !category.supports(effectiveType)) null else normalized.categoryId
+        val finalTagId = if (normalized.tripId == null || tag == null || !tag.supportsTrip(normalized.tripId)) null else normalized.tagId
+
+        return normalized.copy(
+            categoryId = finalCategoryId,
+            tagId = finalTagId,
             errorRes = null,
             errorMessage = null,
             duplicateWarning = false,
@@ -510,7 +853,7 @@ class MovementsViewModel(
             val existingDate = parseDate(existing.date) ?: return@any false
             DuplicateDetector.isDuplicate(
                 existing = DuplicateMovement(
-                    accountId = existing.accountId,
+                    accountId = existing.accountId.orEmpty(),
                     amountCents = existing.amountCents,
                     date = existingDate,
                     name = existing.name ?: existing.payee ?: "",
@@ -527,7 +870,9 @@ class MovementsViewModel(
         private val personRepository: PersonRepository,
         private val tripRepository: TripRepository,
         private val tagRepository: TagRepository,
+        private val splitRepository: SplitRepository? = null,
         private val notificationRefresher: NotificationRefresher = NotificationRefresher.NoOp,
+        private val templateRepository: TemplateRepository? = null,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -539,7 +884,9 @@ class MovementsViewModel(
                     personRepository = personRepository,
                     tripRepository = tripRepository,
                     tagRepository = tagRepository,
+                    splitRepository = splitRepository,
                     notificationRefresher = notificationRefresher,
+                    templateRepository = templateRepository,
                 ) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
@@ -607,6 +954,13 @@ enum class MovementOneTimeMode {
     ONLY,
 }
 
+enum class ExpenseKind {
+    PERSONAL,   // type 1: Jo paid, just me
+    SHARED,     // type 2: Jo paid, split with others
+    FOR_OTHER,  // type 3: Jo paid, the other person owes the full amount
+    DEBT,       // type 4: Una altra persona paid, I owe them
+}
+
 data class MovementFormState(
     val id: String? = null,
     val type: MovementType = MovementType.EXPENSE,
@@ -627,6 +981,14 @@ data class MovementFormState(
     val duplicateWarning: Boolean = false,
     val errorRes: Int? = null,
     val errorMessage: String? = null,
+    val isSettlement: Boolean = false,
+    val settlementPersonId: String? = null,
+    val expenseKind: ExpenseKind? = null,
+    val forOtherPersonId: String? = null,
+    val isRecurring: Boolean = false,
+    val recurringFrequency: RecurrenceFrequency = RecurrenceFrequency.MONTHLY,
+    val templateId: String? = null,
+    val showAdvanced: Boolean = false,
 )
 
 data class RefundFormState(
@@ -681,7 +1043,13 @@ private fun MovementFilters.withDateValidation(): MovementFilters {
 }
 
 private fun MovementFilters.matches(movement: MovementSummary): Boolean {
-    if (type != null && movement.type != type) return false
+    if (type != null) {
+        val matchesType = when (type) {
+            MovementType.EXPENSE -> movement.type == MovementType.EXPENSE || movement.type == MovementType.EXTERNAL_EXPENSE
+            else -> movement.type == type
+        }
+        if (!matchesType) return false
+    }
     if (sourceMode == MovementSourceMode.ACTUAL && movement.type !in actualMovementTypes) return false
     if (accountId != null && movement.accountId != accountId && movement.destinationAccountId != accountId) {
         return false
@@ -718,8 +1086,83 @@ private fun MovementFilters.matches(movement: MovementSummary): Boolean {
     return true
 }
 
-private fun MovementSummary.toFormState(): MovementFormState =
-    MovementFormState(
+private fun MovementSummary.toFormState(splitDraft: MovementSplitDraft? = null): MovementFormState {
+    // DEBT (type 4): stored as EXTERNAL_EXPENSE — map back to EXPENSE + expenseKind=DEBT.
+    if (type == MovementType.EXTERNAL_EXPENSE) {
+        return MovementFormState(
+            id = id,
+            type = MovementType.EXPENSE,
+            amount = formatEuroInput(amountCents),
+            date = date,
+            categoryId = categoryId,
+            tripId = tripId,
+            tagId = tagId,
+            name = name.orEmpty(),
+            expenseKind = ExpenseKind.DEBT,
+            forOtherPersonId = payerId,
+        )
+    }
+
+    val userLine = splitDraft?.lines?.firstOrNull { it.participantKind == SplitParticipantKind.USER }
+    val personLines = splitDraft?.lines?.filter { it.participantKind == SplitParticipantKind.PERSON } ?: emptyList()
+
+    // FOR_OTHER (type 3): user owes 0, exactly one person owes the full amount.
+    if (userLine != null && userLine.owedAmountCents == 0L &&
+        personLines.size == 1 && personLines.first().owedAmountCents == amountCents
+    ) {
+        return MovementFormState(
+            id = id,
+            type = type,
+            amount = formatEuroInput(amountCents),
+            date = date,
+            accountId = accountId,
+            categoryId = categoryId,
+            tripId = tripId,
+            tagId = tagId,
+            name = name.orEmpty(),
+            payee = payee.orEmpty(),
+            notes = notes.orEmpty(),
+            isOneTime = isOneTime,
+            existingSplit = true,
+            expenseKind = ExpenseKind.FOR_OTHER,
+            forOtherPersonId = personLines.first().personId,
+            showAdvanced = isOneTime || !payee.isNullOrEmpty() || !notes.isNullOrEmpty(),
+        )
+    }
+
+    // SHARED (type 2): split exists; PERSONAL (type 1): no split.
+    val splitEditor = splitDraft?.let { draft ->
+        SplitEditorState(
+            method = draft.entryMethod,
+            selectedPersonIds = personLines.mapNotNull { it.personId },
+            payerParticipantId = USER_PARTICIPANT_ID,
+            exactAmounts = if (draft.entryMethod == SplitEntryMethod.EXACT) {
+                draft.lines.associate { line ->
+                    (line.personId ?: USER_PARTICIPANT_ID) to formatEuroInput(line.owedAmountCents)
+                }
+            } else {
+                emptyMap()
+            },
+            percentages = if (draft.entryMethod == SplitEntryMethod.PERCENTAGE) {
+                draft.lines.associate { line ->
+                    val participantId = line.personId ?: USER_PARTICIPANT_ID
+                    val percentStr = line.owedPercent?.let { "%.2f".format(it).replace(".", ",") }
+                        ?: if (amountCents > 0) "%.2f".format(line.owedAmountCents.toDouble() * 100.0 / amountCents).replace(".", ",") else ""
+                    participantId to percentStr
+                }
+            } else {
+                emptyMap()
+            },
+        )
+    }
+
+    val expenseKind = when {
+        type != MovementType.EXPENSE -> null
+        splitEditor != null -> ExpenseKind.SHARED
+        else -> ExpenseKind.PERSONAL
+    }
+
+    return MovementFormState(
         id = id,
         type = type,
         amount = formatEuroInput(amountCents),
@@ -734,17 +1177,20 @@ private fun MovementSummary.toFormState(): MovementFormState =
         notes = notes.orEmpty(),
         isOneTime = isOneTime,
         existingSplit = isShared,
+        splitEditor = splitEditor,
+        isRecurring = isRecurring,
+        templateId = templateId,
+        expenseKind = expenseKind,
+        showAdvanced = isOneTime || isRecurring || isShared || !payee.isNullOrEmpty() || !notes.isNullOrEmpty(),
     )
+}
 
 private fun CategoryRecord.supports(type: MovementType): Boolean =
     when (type) {
-        MovementType.EXPENSE -> kind == CategoryKind.EXPENSE || kind == CategoryKind.BOTH
+        MovementType.EXPENSE, MovementType.EXTERNAL_EXPENSE -> kind == CategoryKind.EXPENSE || kind == CategoryKind.BOTH
         MovementType.INCOME -> kind == CategoryKind.INCOME || kind == CategoryKind.BOTH
         else -> false
     }
-
-private fun TagSummary.supportsTrip(tripId: String?): Boolean =
-    tripId != null && (this.tripId == null || this.tripId == tripId)
 
 private fun parseDate(raw: String): LocalDate? =
     try {
@@ -763,4 +1209,5 @@ private val actualMovementTypes = setOf(
     MovementType.EXPENSE,
     MovementType.INCOME,
     MovementType.REFUND,
+    MovementType.EXTERNAL_EXPENSE,
 )

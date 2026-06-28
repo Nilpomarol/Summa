@@ -824,6 +824,7 @@ private fun MovementType.label(): String =
         MovementType.TRANSFER -> stringResource(R.string.movement_type_transfer)
         MovementType.SETTLEMENT -> stringResource(R.string.movement_type_settlement)
         MovementType.REFUND -> stringResource(R.string.movement_type_refund)
+        MovementType.EXTERNAL_EXPENSE -> stringResource(R.string.movement_type_external)
     }
 
 @Composable
@@ -867,7 +868,7 @@ private fun TemplateSummary.cadenceLabel(): String =
 
 private fun TemplateSummary.signedAmountCents(): Long {
     val amount = amountCents ?: 0L
-    return if (type == MovementType.EXPENSE) -amount else amount
+    return if (type == MovementType.EXPENSE || type == MovementType.EXTERNAL_EXPENSE) -amount else amount
 }
 
 private fun CategoryRecord.supportsType(type: MovementType): Boolean =

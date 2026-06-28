@@ -172,12 +172,35 @@ class MovementUiStateSmokeTest {
         assertEquals(listOf("uncategorized"), state.visibleMovements.map { it.id })
     }
 
+    @Test
+    fun expenseFilterIncludesExternalExpense() {
+        val state = MovementsUiState(
+            movements = listOf(
+                movement(
+                    id = "expense",
+                    type = MovementType.EXPENSE,
+                    accountId = "checking",
+                    accountName = "Compte",
+                ),
+                movement(
+                    id = "external",
+                    type = MovementType.EXTERNAL_EXPENSE,
+                    accountId = "",
+                    accountName = "",
+                ),
+            ),
+            filters = MovementFilters(type = MovementType.EXPENSE),
+        )
+
+        assertEquals(listOf("expense", "external"), state.visibleMovements.map { it.id })
+    }
+
     private fun movement(
         id: String,
         type: MovementType,
         date: String = "2026-01-01",
-        accountId: String,
-        accountName: String,
+        accountId: String?,
+        accountName: String?,
         destinationAccountId: String? = null,
         destinationAccountName: String? = null,
         categoryId: String? = null,
@@ -198,12 +221,17 @@ class MovementUiStateSmokeTest {
             categoryId = categoryId,
             categoryName = categoryName,
             categoryNature = categoryNature,
+            categoryIcon = null,
+            categoryColor = null,
             name = name,
             payee = null,
             notes = null,
             isOneTime = isOneTime,
             isShared = false,
+            userShareCents = -1L,
+            isRecurring = false,
             paidByPersonName = null,
+            payerId = null,
             settlementDirection = null,
             settlementPersonName = null,
             createdAt = "2026-01-01T00:00:00Z",

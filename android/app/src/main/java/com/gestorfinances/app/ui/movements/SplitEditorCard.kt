@@ -10,14 +10,20 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -28,9 +34,7 @@ import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.PersonSummary
 import com.gestorfinances.app.data.repository.SplitEntryMethod
 import com.gestorfinances.app.ui.common.BannerKind
-import com.gestorfinances.app.ui.common.ChipFlowSection
 import com.gestorfinances.app.ui.common.FinanceCard
-import com.gestorfinances.app.ui.common.FinanceFilterChip
 import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.SegmentedControl
@@ -39,6 +43,8 @@ import com.gestorfinances.app.ui.common.formatEuroCents
 import com.gestorfinances.app.ui.common.parseEuroCents
 import com.gestorfinances.app.ui.theme.FinanceTheme
 
+private const val ADD_CREATE_PERSON = "__create_person__"
+
 @Composable
 fun SplitEditorCard(
     splitEditor: SplitEditorState,
@@ -46,56 +52,34 @@ fun SplitEditorCard(
     amountInput: String,
     onChange: (SplitEditorState) -> Unit,
     modifier: Modifier = Modifier,
+    onCreatePerson: (String) -> Unit = {},
 ) {
     val totalCents = remember(amountInput) {
         parseEuroCents(amountInput, allowNegative = false)
     }
     val calculation = splitEditor.calculation(totalCents)
+    var showCreatePersonDialog by remember { mutableStateOf(false) }
 
     FinanceCard(modifier = modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            SplitEditorHeader(splitEditor = splitEditor, calculation = calculation)
-            SplitVariantSection(
-                splitEditor = splitEditor,
-                people = people,
-                onChange = onChange,
+            SplitSummaryHeader(splitEditor = splitEditor, calculation = calculation)
+
+            SegmentedControl(
+                options = SplitEntryMethod.entries,
+                selected = splitEditor.method,
+                label = { it.label() },
+                onSelect = { onChange(splitEditor.withMethod(it)) },
             )
-            if (splitEditor.paidByPersonId == null) {
-                SegmentedControl(
-                    options = SplitEntryMethod.entries,
-                    selected = splitEditor.method,
-                    label = { it.label() },
-                    onSelect = { onChange(splitEditor.withMethod(it)) },
-                )
-                ChipFlowSection(label = stringResource(R.string.split_participants_title)) {
-                    people.forEach { person ->
-                        FinanceFilterChip(
-                            selected = person.id in splitEditor.selectedPersonIds,
-                            label = person.name,
-                            onClick = { onChange(splitEditor.withPersonToggled(person.id)) },
-                        )
-                    }
-                }
-                ChipFlowSection(label = stringResource(R.string.split_payer_title)) {
-                    splitEditor.participantIds.forEach { participantId ->
-                        FinanceFilterChip(
-                            selected = splitEditor.payerParticipantId == participantId,
-                            label = participantLabel(participantId, people),
-                            onClick = { onChange(splitEditor.withPayer(participantId)) },
-                        )
-                    }
-                }
-            } else {
-                val paidByName = participantLabel(splitEditor.paidByPersonId, people)
-                InlineBanner(
-                    kind = BannerKind.Info,
-                    text = stringResource(R.string.split_variant_paid_by_other, paidByName),
-                )
-            }
+
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = stringResource(R.string.split_participants_title),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = FinanceTheme.colors.mutedText,
+                )
                 splitEditor.participantIds.forEach { participantId ->
                     SplitParticipantRow(
                         participantId = participantId,
@@ -103,77 +87,152 @@ fun SplitEditorCard(
                         people = people,
                         calculation = calculation,
                         onChange = onChange,
+                        readOnly = false,
                     )
                 }
             }
-            if (splitEditor.method == SplitEntryMethod.EQUAL && splitEditor.paidByPersonId == null) {
+
+            AddParticipantSelect(
+                splitEditor = splitEditor,
+                people = people,
+                onAdd = { onChange(splitEditor.withPersonToggled(it)) },
+                onCreatePerson = { showCreatePersonDialog = true },
+            )
+
+            if (splitEditor.participantIds.size > 1) {
+                PayerSelect(
+                    splitEditor = splitEditor,
+                    people = people,
+                    onChange = onChange,
+                )
+            }
+
+            if (splitEditor.method == SplitEntryMethod.EQUAL) {
                 Text(
                     text = stringResource(R.string.split_remainder_to_payer),
                     color = FinanceTheme.colors.mutedText,
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
+
             InlineBanner(
                 kind = if (calculation.valid) BannerKind.Info else BannerKind.Alert,
                 text = calculation.reconcileText(),
             )
         }
     }
-}
 
-@Composable
-private fun SplitVariantSection(
-    splitEditor: SplitEditorState,
-    people: List<PersonSummary>,
-    onChange: (SplitEditorState) -> Unit,
-) {
-    if (people.isEmpty()) return
-
-    ChipFlowSection(label = stringResource(R.string.split_paid_by_other_title)) {
-        FinanceFilterChip(
-            selected = splitEditor.paidByPersonId == null,
-            label = stringResource(R.string.split_variant_manual),
-            onClick = { onChange(splitEditor.withManualSplit()) },
+    if (showCreatePersonDialog) {
+        CreatePersonDialog(
+            onConfirm = {
+                onCreatePerson(it)
+                showCreatePersonDialog = false
+            },
+            onDismiss = { showCreatePersonDialog = false },
         )
-        people.forEach { person ->
-            FinanceFilterChip(
-                selected = splitEditor.paidByPersonId == person.id,
-                label = stringResource(R.string.split_variant_paid_by_other, person.name),
-                onClick = { onChange(splitEditor.withPaidByOther(person.id)) },
-            )
-        }
     }
 }
 
 @Composable
-private fun SplitEditorHeader(
+private fun SplitSummaryHeader(
     splitEditor: SplitEditorState,
     calculation: SplitEditorCalculation,
 ) {
     val userShare = calculation.sharesCentsByParticipantId[USER_PARTICIPANT_ID]
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(
-            text = stringResource(R.string.split_editor_shared_expense_title),
-            style = MaterialTheme.typography.titleMedium,
-        )
-        if (userShare != null) {
-            Text(
-                text = stringResource(
-                    R.string.movement_split_summary,
-                    splitEditor.participantIds.size,
-                    formatEuroCents(userShare),
-                ),
-                color = FinanceTheme.colors.mutedText,
-                style = MaterialTheme.typography.bodyMedium,
+    Text(
+        text = if (userShare != null) {
+            stringResource(
+                R.string.movement_split_summary,
+                splitEditor.participantIds.size,
+                formatEuroCents(userShare),
             )
         } else {
-            Text(
-                text = stringResource(R.string.movement_field_shared_support),
-                color = FinanceTheme.colors.mutedText,
-                style = MaterialTheme.typography.bodyMedium,
+            stringResource(R.string.movement_field_shared_support)
+        },
+        color = FinanceTheme.colors.mutedText,
+        style = MaterialTheme.typography.bodyMedium,
+    )
+}
+
+/** "Qui ha pagat": which participant advanced the money (rounding remainder lands on them). */
+@Composable
+private fun PayerSelect(
+    splitEditor: SplitEditorState,
+    people: List<PersonSummary>,
+    onChange: (SplitEditorState) -> Unit,
+) {
+    FormSelect(
+        label = stringResource(R.string.split_payer_title),
+        options = splitEditor.participantIds.map { participantId ->
+            SelectOption(
+                id = participantId,
+                label = participantLabel(participantId, people),
+                leading = {
+                    PersonMonogram(
+                        label = participantInitial(participantId, people),
+                        colorHex = participantColor(participantId, people),
+                        size = 24.dp,
+                    )
+                },
             )
-        }
-    }
+        },
+        selectedId = splitEditor.payerParticipantId,
+        onSelect = { id -> id?.let { onChange(splitEditor.withPayer(it)) } },
+    )
+}
+
+/** Adds a not-yet-included person, or opens the inline create-person dialog. No value held. */
+@Composable
+private fun AddParticipantSelect(
+    splitEditor: SplitEditorState,
+    people: List<PersonSummary>,
+    onAdd: (String) -> Unit,
+    onCreatePerson: () -> Unit,
+) {
+    val addable = people.filter { it.id !in splitEditor.selectedPersonIds }
+    FormSelect(
+        label = "",
+        options = buildList {
+            addable.forEach { person ->
+                add(
+                    SelectOption(
+                        id = person.id,
+                        label = person.name,
+                        leading = {
+                            PersonMonogram(
+                                label = personInitial(person.name),
+                                colorHex = person.color,
+                                size = 24.dp,
+                            )
+                        },
+                    ),
+                )
+            }
+            add(
+                SelectOption(
+                    id = ADD_CREATE_PERSON,
+                    label = stringResource(R.string.movement_create_person_title),
+                    leading = {
+                        Icon(
+                            imageVector = Icons.Outlined.Add,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    },
+                ),
+            )
+        },
+        selectedId = null,
+        onSelect = { id ->
+            when (id) {
+                ADD_CREATE_PERSON -> onCreatePerson()
+                null -> Unit
+                else -> onAdd(id)
+            }
+        },
+        placeholder = stringResource(R.string.split_add_person),
+    )
 }
 
 @Composable
@@ -183,12 +242,18 @@ private fun SplitParticipantRow(
     people: List<PersonSummary>,
     calculation: SplitEditorCalculation,
     onChange: (SplitEditorState) -> Unit,
+    readOnly: Boolean,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
+        PersonMonogram(
+            label = participantInitial(participantId, people),
+            colorHex = participantColor(participantId, people),
+            size = 32.dp,
+        )
         Text(
             text = participantLabel(participantId, people),
             modifier = Modifier.weight(1f),
@@ -196,45 +261,37 @@ private fun SplitParticipantRow(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
-        if (splitEditor.paidByPersonId != null) {
+        if (readOnly || splitEditor.method == SplitEntryMethod.EQUAL) {
             MoneyText(
                 cents = calculation.sharesCentsByParticipantId[participantId] ?: 0L,
                 color = FinanceTheme.colors.mutedText,
                 style = MaterialTheme.typography.bodyMedium,
             )
         } else when (splitEditor.method) {
-            SplitEntryMethod.EQUAL -> MoneyText(
-                cents = calculation.sharesCentsByParticipantId[participantId] ?: 0L,
-                color = FinanceTheme.colors.mutedText,
-                style = MaterialTheme.typography.bodyMedium,
-            )
             SplitEntryMethod.EXACT -> OutlinedTextField(
                 value = splitEditor.exactAmounts[participantId].orEmpty(),
                 onValueChange = { onChange(splitEditor.withExactAmount(participantId, it)) },
-                label = {
-                    Text(text = participantShareLabel(participantId, people))
-                },
                 prefix = { Text(text = "€") },
                 singleLine = true,
                 shape = MaterialTheme.shapes.small,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                modifier = Modifier.width(148.dp),
+                modifier = Modifier.width(120.dp),
             )
             SplitEntryMethod.PERCENTAGE -> OutlinedTextField(
                 value = splitEditor.percentages[participantId].orEmpty(),
                 onValueChange = { onChange(splitEditor.withPercentage(participantId, it)) },
-                label = { Text(text = stringResource(R.string.split_field_percent)) },
                 suffix = { Text(text = "%") },
                 singleLine = true,
                 shape = MaterialTheme.shapes.small,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                modifier = Modifier.width(116.dp),
+                modifier = Modifier.width(96.dp),
             )
+            SplitEntryMethod.EQUAL -> Unit
         }
-        if (participantId != USER_PARTICIPANT_ID) {
+        if (!readOnly && participantId != USER_PARTICIPANT_ID) {
             IconButton(
                 onClick = { onChange(splitEditor.withPersonToggled(participantId)) },
-                modifier = Modifier.size(36.dp),
+                modifier = Modifier.size(32.dp),
             ) {
                 Icon(
                     imageVector = Icons.Outlined.Close,
@@ -243,10 +300,40 @@ private fun SplitParticipantRow(
                     modifier = Modifier.size(18.dp),
                 )
             }
-        } else {
-            Spacer(modifier = Modifier.size(36.dp))
+        } else if (!readOnly) {
+            Spacer(modifier = Modifier.size(32.dp))
         }
     }
+}
+
+@Composable
+private fun CreatePersonDialog(
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var personName by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.movement_create_person_title)) },
+        text = {
+            OutlinedTextField(
+                value = personName,
+                onValueChange = { personName = it },
+                label = { Text(stringResource(R.string.movement_create_person_name_hint)) },
+                singleLine = true,
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { if (personName.isNotBlank()) onConfirm(personName.trim()) },
+            ) { Text(stringResource(R.string.common_save)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
+        },
+    )
 }
 
 @Composable
@@ -269,14 +356,19 @@ private fun participantLabel(
     }
 
 @Composable
-private fun participantShareLabel(
+private fun participantInitial(
     participantId: String,
     people: List<PersonSummary>,
-): String =
+): String = personInitial(participantLabel(participantId, people))
+
+private fun participantColor(
+    participantId: String,
+    people: List<PersonSummary>,
+): String? =
     if (participantId == USER_PARTICIPANT_ID) {
-        stringResource(R.string.split_field_user_share)
+        null
     } else {
-        stringResource(R.string.split_field_person_share, participantLabel(participantId, people))
+        people.firstOrNull { it.id == participantId }?.color
     }
 
 @Composable

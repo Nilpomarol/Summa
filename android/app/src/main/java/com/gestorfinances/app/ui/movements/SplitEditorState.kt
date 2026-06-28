@@ -15,7 +15,6 @@ data class SplitEditorState(
     val method: SplitEntryMethod = SplitEntryMethod.EQUAL,
     val payerParticipantId: String = USER_PARTICIPANT_ID,
     val selectedPersonIds: List<String> = emptyList(),
-    val paidByPersonId: String? = null,
     val exactAmounts: Map<String, String> = emptyMap(),
     val percentages: Map<String, String> = emptyMap(),
 ) {
@@ -23,24 +22,11 @@ data class SplitEditorState(
         get() = listOf(USER_PARTICIPANT_ID) + selectedPersonIds
 
     fun withMethod(nextMethod: SplitEntryMethod): SplitEditorState =
-        copy(method = nextMethod, paidByPersonId = null)
-
-    fun withManualSplit(): SplitEditorState =
-        copy(paidByPersonId = null, payerParticipantId = USER_PARTICIPANT_ID)
-
-    fun withPaidByOther(personId: String): SplitEditorState =
-        copy(
-            method = SplitEntryMethod.EXACT,
-            payerParticipantId = personId,
-            selectedPersonIds = listOf(personId),
-            paidByPersonId = personId,
-            exactAmounts = emptyMap(),
-            percentages = emptyMap(),
-        )
+        copy(method = nextMethod)
 
     fun withPayer(nextPayerParticipantId: String): SplitEditorState =
         if (nextPayerParticipantId in participantIds) {
-            copy(payerParticipantId = nextPayerParticipantId, paidByPersonId = null)
+            copy(payerParticipantId = nextPayerParticipantId)
         } else {
             this
         }
@@ -62,7 +48,6 @@ data class SplitEditorState(
         return copy(
             selectedPersonIds = selected,
             payerParticipantId = nextPayer,
-            paidByPersonId = null,
             exactAmounts = nextExactAmounts,
             percentages = nextPercentages,
         )
@@ -73,10 +58,7 @@ data class SplitEditorState(
         amount: String,
     ): SplitEditorState =
         if (participantId in participantIds) {
-            copy(
-                paidByPersonId = null,
-                exactAmounts = exactAmounts + (participantId to amount),
-            )
+            copy(exactAmounts = exactAmounts + (participantId to amount))
         } else {
             this
         }
@@ -86,10 +68,7 @@ data class SplitEditorState(
         percentage: String,
     ): SplitEditorState =
         if (participantId in participantIds) {
-            copy(
-                paidByPersonId = null,
-                percentages = percentages + (participantId to percentage),
-            )
+            copy(percentages = percentages + (participantId to percentage))
         } else {
             this
         }
@@ -100,9 +79,6 @@ data class SplitEditorState(
                 valid = false,
                 errorRes = R.string.split_validation_total_positive,
             )
-        }
-        paidByPersonId?.takeIf { it in selectedPersonIds }?.let { paidByPersonId ->
-            return paidByOtherCalculation(totalCents, paidByPersonId)
         }
         if (selectedPersonIds.isEmpty()) {
             return SplitEditorCalculation(
@@ -134,7 +110,7 @@ data class SplitEditorState(
         if (!calculation.valid) return null
 
         return MovementSplitDraft(
-            entryMethod = if (paidByPersonId == null) method else SplitEntryMethod.EXACT,
+            entryMethod = method,
             lines = participantIds.map { participantId ->
                 val amount = requireNotNull(calculation.sharesCentsByParticipantId[participantId])
                 if (participantId == USER_PARTICIPANT_ID) {
@@ -153,17 +129,6 @@ data class SplitEditorState(
             },
         )
     }
-
-    private fun paidByOtherCalculation(
-        totalCents: Long,
-        paidByPersonId: String,
-    ): SplitEditorCalculation =
-        SplitEditorCalculation(
-            valid = true,
-            sharesCentsByParticipantId = participantIds.associateWith { participantId ->
-                if (participantId == paidByPersonId) totalCents else 0L
-            },
-        )
 
     private fun exactCalculation(
         totalCents: Long,

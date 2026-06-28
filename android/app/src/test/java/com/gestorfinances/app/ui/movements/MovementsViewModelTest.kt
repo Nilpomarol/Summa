@@ -176,6 +176,7 @@ class MovementsViewModelTest {
                     amount = "10",
                     date = "2026-01-01",
                     accountId = "checking",
+                    expenseKind = ExpenseKind.SHARED,
                     splitEditor = splitEditor,
                 ),
             )
@@ -202,6 +203,7 @@ class MovementsViewModelTest {
                     date = "2026-01-01",
                     accountId = "checking",
                     name = "Sopar",
+                    expenseKind = ExpenseKind.SHARED,
                     splitEditor = SplitEditorState().withPersonToggled("laura"),
                 ),
             )
@@ -230,7 +232,8 @@ class MovementsViewModelTest {
                     date = "2026-01-01",
                     accountId = "checking",
                     name = "Entrades",
-                    splitEditor = SplitEditorState().withPaidByOther("laura"),
+                    expenseKind = ExpenseKind.FOR_OTHER,
+                    forOtherPersonId = "laura",
                 ),
             )
             viewModel.onSaveClicked()

@@ -263,6 +263,7 @@ CREATE TABLE splits (
     description        TEXT,
     category_id        TEXT    REFERENCES categories(id),
     trip_id            TEXT    REFERENCES trips(id),
+    tag_id             TEXT    REFERENCES tags(id),
     created_at         TEXT    NOT NULL,
     updated_at         TEXT    NOT NULL,
     archived_at        TEXT,
@@ -270,11 +271,13 @@ CREATE TABLE splits (
     CHECK (
         (payer_person_id IS NULL AND movement_id IS NOT NULL
          AND total_amount_cents IS NULL AND date IS NULL
-         AND description IS NULL AND category_id IS NULL AND trip_id IS NULL)
+         AND description IS NULL AND category_id IS NULL AND trip_id IS NULL
+         AND tag_id IS NULL)
         OR
         (payer_person_id IS NOT NULL AND movement_id IS NULL
          AND total_amount_cents IS NOT NULL AND date IS NOT NULL)
-    )
+    ),
+    CHECK ( tag_id IS NULL OR trip_id IS NOT NULL )
 );
 
 CREATE UNIQUE INDEX idx_splits_movement

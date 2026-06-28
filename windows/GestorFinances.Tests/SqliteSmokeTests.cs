@@ -42,7 +42,7 @@ public sealed class SqliteSmokeTests
 
         var meta = connection.Query<MetaRow>("SELECT key AS Key, value AS Value FROM meta ORDER BY key;").ToList();
         CollectionAssert.AreEqual(
-            new[] { "schema_version=1", "snapshot_version=0" },
+            new[] { "schema_version=2", "snapshot_version=0" },
             meta.Select(row => $"{row.Key}={row.Value}").ToArray());
 
         var viewNames = connection.Query<string>(
@@ -60,6 +60,7 @@ public sealed class SqliteSmokeTests
                 "v_actual_expense",
                 "v_actual_income",
                 "v_movement_shared",
+                "v_movement_summary",
                 "v_person_balance"
             },
             viewNames);
