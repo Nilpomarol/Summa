@@ -36,7 +36,13 @@ active_groups AS (
             ELSE NULL
         END AS trip_id,
         r.expense_cents,
-        r.income_cents
+        r.income_cents,
+        c.name  AS category_name,
+        c.kind  AS category_kind,
+        c.nature AS category_nature,
+        c.icon  AS category_icon,
+        c.color AS category_color,
+        t.name  AS trip_name
     FROM actual_rows r
     LEFT JOIN categories c
         ON c.id = r.category_id
@@ -45,7 +51,7 @@ active_groups AS (
         ON t.id = r.trip_id
        AND t.archived_at IS NULL
     WHERE (
-        (r.expense_cents > 0 AND (
+        (r.expense_cents <> 0 AND (
             :one_time_mode = 'include'
             OR (:one_time_mode = 'exclude' AND r.is_one_time = 0)
             OR (:one_time_mode = 'only' AND r.is_one_time = 1)
@@ -57,31 +63,23 @@ active_groups AS (
 SELECT
     ag.row_kind,
     CAST(ag.category_id AS TEXT) AS category_id,
-    c.name AS category_name,
-    c.kind AS category_kind,
-    c.nature AS category_nature,
-    c.icon AS category_icon,
-    c.color AS category_color,
+    MAX(ag.category_name) AS category_name,
+    MAX(ag.category_kind) AS category_kind,
+    MAX(ag.category_nature) AS category_nature,
+    MAX(ag.category_icon) AS category_icon,
+    MAX(ag.category_color) AS category_color,
     CAST(ag.trip_id AS TEXT) AS trip_id,
-    t.name AS trip_name,
+    MAX(ag.trip_name) AS trip_name,
     SUM(ag.expense_cents) AS expense_cents,
     SUM(ag.income_cents) AS income_cents,
     SUM(ag.income_cents) - SUM(ag.expense_cents) AS net_cents
 FROM active_groups ag
-LEFT JOIN categories c ON c.id = ag.category_id
-LEFT JOIN trips t ON t.id = ag.trip_id
 GROUP BY
     ag.row_kind,
     ag.category_id,
-    c.name,
-    c.kind,
-    c.nature,
-    c.icon,
-    c.color,
-    ag.trip_id,
-    t.name
+    ag.trip_id
 HAVING SUM(ag.expense_cents) <> 0
     OR SUM(ag.income_cents) <> 0
 ORDER BY
     ABS(SUM(ag.expense_cents)) + ABS(SUM(ag.income_cents)) DESC,
-    lower(COALESCE(t.name, c.name, '')) ASC;
+    lower(COALESCE(MAX(ag.trip_name), MAX(ag.category_name), '')) ASC;

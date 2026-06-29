@@ -98,7 +98,7 @@ Phase 5R should proceed in dependency order, not purely visual navigation order.
 
    *Audit IDs owned here (P5R-4):* `O2` (`analysis_actual_breakdown` redundancy), `O3` (`analysis_net_worth` O(N²) self-join → window function), `O6` (`validate_shared_sql.py` list drift — do this first), `M2` (`AnalysisScreen` split).
 
-   **Dashboard redesign + polish — complete.** `DashboardScreen` fully rewritten: combined account+KPI hero card (dark `heroSurface`, account icon chip, 40sp balance); `HeroKpiBlock` has two rows — (1) Ingressos / Despeses (`FinanceTheme.colors.debt`, red, for dark-surface contrast) / Patrimoni (`netWorthCents`); (2) savings rate `LinearProgressIndicator` (`drawStopIndicator = {}`) with "Estalvi X%" label and "Flux net ±Y" (`netActualCents`) value; account section: 2-column `AccountGrid` (FinanceCard cells with colored icon, name, type label, and balance) replaces `PatrimoniCard`; category section with Despeses/Ingressos toggle (% of month total, `LinearProgressIndicator`); latest movements via `MovementListItem`; quick actions and daily flow chart removed. `DashboardViewModel` extended with `CategoryDisplayMode`, `selectedHeroAccountId`, and pure-state handlers. Analysis redesign is next.
+   **Dashboard + analysis redesign — complete** (see `docs/15` §11 for manual checklist). Dashboard: combined account+KPI hero card (dark `heroSurface`, account icon chip, 40sp balance); `HeroKpiBlock` two rows — (1) Ingressos / Despeses (`FinanceTheme.colors.debt`, red) / Patrimoni; (2) savings `LinearProgressIndicator` (`drawStopIndicator = {}`) + "Flux net ±Y" (`netActualCents`); 2-column `AccountGrid` (FinanceCard cells: icon, name, type, balance) replaces `PatrimoniCard`; category % toggle; `MovementListItem`. Analysis: `analysis_actual_breakdown.sql` refund bug fixed + redundant joins removed + GROUP BY reduced to ids + test assertion added; expense/negative colors use `FinanceTheme.colors.debt` throughout summary cards and breakdown rows; `AnalysisScreen.kt` split into `AnalysisControls.kt`, `AnalysisSummaryGrid.kt`, `AnalysisWidgets.kt`.
 
 5. **People, splits, debts, and settlements**
    These depend on movement correctness and include the most sensitive derived debt logic.
@@ -218,6 +218,42 @@ Run these after building the app to confirm all four expense types work correctl
 | 7 | Edit the type-4 expense (Deute), change amount | Your debt updates atomically; **kill the app mid-save and reopen** — old record still intact (C5) |
 | 8 | Duplicate type-1 expense (same account/amount/date/name) | Warning banner appears; tapping "Guarda igualment" saves without block |
 | 9 | Cold-launch on an existing v1 DB (schema_version=1) | App upgrades to v2 (`splits.tag_id` added); existing data intact; Settings shows `schema_version=2` |
+
+---
+
+## 11. P5R-4 Manual Checklist — Dashboard and Analysis
+
+Run these after building the app to confirm the redesigned dashboard and analysis screens are correct.
+
+### Dashboard
+
+| # | Step | Expected |
+|---|------|----------|
+| 1 | Open Inici with ≥ 1 account and transactions this month | Hero card shows account name, big balance, and three KPI cells: Ingressos (green), Despeses (red), Patrimoni |
+| 2 | Hero card has income and expenses | Second row shows "Estalvi X%" label + savings `LinearProgressIndicator` (no trailing green dot) and "Flux net ±Y" in green or red |
+| 3 | No income this month | Savings label shows no percentage; progress bar at 0 |
+| 4 | Tap the Ingressos KPI cell | Navigates to Moviments with actual-income filter for the current month |
+| 5 | Tap the Despeses KPI cell | Navigates to Moviments with actual-expense filter for the current month |
+| 6 | Two or more accounts exist | Account section shows a 2-column grid; each cell shows colored icon, account name, type label, and balance |
+| 7 | Account with negative balance | Balance shown in red (`FinanceTheme.colors.debt`) in its grid cell |
+| 8 | Tap an account cell | Navigates to Anàlisi with account filter pre-applied |
+| 9 | Category section | Despeses/Ingressos toggle chips; each category row has icon, name, % progress bar, amount |
+| 10 | Latest movements section | Shows recent movements as `MovementListItem` rows; tapping navigates to detail |
+
+### Analysis
+
+| # | Step | Expected |
+|---|------|----------|
+| 1 | Open Anàlisi | Summary grid shows Despeses (red) and Ingressos (green) cards top row; Net + Estalvi % bottom row |
+| 2 | Net is negative | Net card amount is red |
+| 3 | Enable "Comparar anterior" | Previous period amounts appear below current in each card; delta shown in green (positive) or red (negative) |
+| 4 | Change scope to Year | Period selector updates; breakdown re-groups by month |
+| 5 | Change mode to Flux | Summary shows Patrimoni and Flux net; breakdown shows per-account flow rows |
+| 6 | Category breakdown row for an expense-heavy category | Row shows colored icon, name, signed net amount (green if income-positive, red if expense-heavy), and a progress bar |
+| 7 | A category has refund movements this period | Breakdown amount correctly deducts refunds (net actual, not gross expense) |
+| 8 | Widgets: open a year-range period with ≥ 2 months of income | "Estalvi per mes" section shows per-month savings rate rows with progress bars |
+| 9 | Largest expenses widget | Shows up to N expenses sorted by amount descending; tapping drills to movements |
+| 10 | Filter by account (from AccountsScreen "Anàlisi" tap) | `FinanceFilterChip` "Compte: [name]" appears; data scoped to that account; tapping chip clears it |
 
 ---
 

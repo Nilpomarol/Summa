@@ -196,6 +196,21 @@ def validate_analysis_queries() -> None:
             ("2026-06", 258_500),
         ]:
             fail(f"analysis_net_worth_over_time.sql: unexpected rows {[dict(r) for r in net_worth]}")
+
+        breakdown = conn.execute(
+            analysis_query("analysis_actual_breakdown.sql"),
+            {**params, "group_trips": 0},
+        ).fetchall()
+        breakdown_totals = {
+            row["category_id"]: (row["row_kind"], row["expense_cents"], row["income_cents"], row["net_cents"])
+            for row in breakdown
+        }
+        if breakdown_totals != {
+            "salary": ("category", 0, 250_000, 250_000),
+            "electronics": ("category", 5_000, 0, -5_000),
+            "groceries": ("category", 1_500, 0, -1_500),
+        }:
+            fail(f"analysis_actual_breakdown.sql: unexpected rows {breakdown_totals}")
     except sqlite3.Error as exc:
         fail(f"analysis query validation: {exc}")
     finally:

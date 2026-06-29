@@ -132,7 +132,7 @@ internal fun CategoryBreakdownRow(
             Spacer(modifier = Modifier.width(10.dp))
             MoneyText(
                 cents = displayAmount,
-                color = if (amount >= 0) FinanceTheme.colors.income else MaterialTheme.colorScheme.onSurface,
+                color = if (amount >= 0) FinanceTheme.colors.income else FinanceTheme.colors.debt,
                 signed = true,
             )
         }
@@ -177,7 +177,7 @@ internal fun AccountFlowBreakdownRow(
         Spacer(modifier = Modifier.width(10.dp))
         MoneyText(
             cents = displayAmount,
-            color = if (flow.deltaCents >= 0) FinanceTheme.colors.income else MaterialTheme.colorScheme.onSurface,
+            color = if (flow.deltaCents >= 0) FinanceTheme.colors.income else FinanceTheme.colors.debt,
             signed = true,
         )
     }
@@ -374,7 +374,7 @@ internal fun SavingsRateRow(
                 color = if (bucket.savingsRateBasisPoints >= 0) {
                     FinanceTheme.colors.income
                 } else {
-                    MaterialTheme.colorScheme.onSurface
+                    FinanceTheme.colors.debt
                 },
                 style = MaterialTheme.typography.titleSmall,
             )
