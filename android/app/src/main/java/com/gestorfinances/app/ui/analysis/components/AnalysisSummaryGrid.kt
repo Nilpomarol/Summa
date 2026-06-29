@@ -107,7 +107,7 @@ internal fun ActualSummaryGrid(
                 label = stringResource(R.string.analysis_summary_expense),
                 cents = state.displayCents(-state.totals.actualExpenseCents),
                 previousCents = previous?.let { state.displayPreviousCents(-it.actualExpenseCents) },
-                color = MaterialTheme.colorScheme.onSurface,
+                color = FinanceTheme.colors.debt,
                 onClick = {
                     state.periodFilters(type = MovementType.EXPENSE)?.let(onDrillDown)
                 },
@@ -132,7 +132,7 @@ internal fun ActualSummaryGrid(
                 color = if (state.totals.netActualCents >= 0) {
                     FinanceTheme.colors.income
                 } else {
-                    MaterialTheme.colorScheme.onSurface
+                    FinanceTheme.colors.debt
                 },
                 signed = true,
                 onClick = {
@@ -171,7 +171,7 @@ internal fun FlowSummaryGrid(
             color = if (state.totals.accountFlowCents >= 0) {
                 FinanceTheme.colors.income
             } else {
-                MaterialTheme.colorScheme.onSurface
+                FinanceTheme.colors.debt
             },
             signed = true,
             onClick = {
@@ -245,7 +245,7 @@ internal fun ComparisonMoney(
     )
     MoneyText(
         cents = delta,
-        color = if (delta >= 0) FinanceTheme.colors.income else MaterialTheme.colorScheme.onSurface,
+        color = if (delta >= 0) FinanceTheme.colors.income else FinanceTheme.colors.debt,
         style = MaterialTheme.typography.labelMedium,
         signed = true,
     )
@@ -284,7 +284,7 @@ internal fun RateMetricCard(
                 color = if (currentBasisPoints >= 0) {
                     FinanceTheme.colors.income
                 } else {
-                    MaterialTheme.colorScheme.onSurface
+                    FinanceTheme.colors.debt
                 },
                 style = MaterialTheme.typography.titleMedium,
             )
@@ -307,7 +307,7 @@ internal fun RateMetricCard(
                 val delta = currentBasisPoints - it
                 Text(
                     text = formatBasisPoints(delta),
-                    color = if (delta >= 0) FinanceTheme.colors.income else MaterialTheme.colorScheme.onSurface,
+                    color = if (delta >= 0) FinanceTheme.colors.income else FinanceTheme.colors.debt,
                     style = MaterialTheme.typography.labelMedium,
                 )
             }

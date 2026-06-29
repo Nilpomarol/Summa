@@ -54,13 +54,13 @@ The implementation plan has three tiers:
 | **U4** | No instrumentation/UI tests | Usability | P8 | Optional | Medium |
 | **U5** | Spec §5.9 nav drift (Recurring placement) | Usability | T1 | Doc-only | High |
 | **O1** | `Movements.sq` 4× SQL duplication | Bloat | **RESOLVED** P5R-3 | `v_movement_summary` view; all 4 queries now `SELECT * FROM v_movement_summary` | High |
-| **O2** | `analysis_actual_breakdown` redundancy | Bloat | P5R-4 | Analysis | Medium |
-| **O3** | `analysis_net_worth` O(N²) self-join | Bloat | P5R-4 | Analysis | Medium |
+| **O2** | `analysis_actual_breakdown` redundancy | Bloat | **RESOLVED** P5R-4 | Refund bug fixed (`> 0` → `<> 0`); category columns carried through `active_groups`; outer joins + 9-column GROUP BY removed; GROUP BY now `(row_kind, category_id, trip_id)`; breakdown test added to `validate_shared_sql.py` | Medium |
+| **O3** | `analysis_net_worth` O(N²) self-join | Bloat | **RESOLVED** P5R-4 | Window function `SUM(delta_cents) OVER (ORDER BY bucket)` already in place | Medium |
 | **O4** | Dead branch in `MovementRepository.archive` | Bloat | **RESOLVED** P5R-3 | Dead branch removed from `MovementRepository.archive` | High |
 | **O5** | Dead person split line written, never read | Bloat | **RESOLVED** P5R-3 | `createExternalPaidByPerson` now writes one user line only; no person line | High |
-| **O6** | `validate_shared_sql.py` analysis list drift | Bloat | P5R-4 | Analysis | High |
+| **O6** | `validate_shared_sql.py` analysis list drift | Bloat | **RESOLVED** P5R-4 | `analysis_actual_breakdown.sql` added to `ANALYSIS_QUERY_FILES`; breakdown assertion added to `validate_analysis_queries()` | High |
 | **M1** | C#↔Kotlin procedural-rule drift risks | Maintainability | P8 | Final pass | Medium |
-| **M2** | `MovementsViewModel` / `AnalysisScreen` size | Maintainability | P5R-3 / P5R-4 | Split | Medium |
+| **M2** | `MovementsViewModel` / `AnalysisScreen` size | Maintainability | **RESOLVED** P5R-3 / P5R-4 | `MovementDraftBuilder` + `MovementSaveCoordinator` extracted (P5R-3); `AnalysisScreen.kt` split into `AnalysisControls.kt`, `AnalysisSummaryGrid.kt`, `AnalysisWidgets.kt` (P5R-4) | Medium |
 | **M3** | No write serialization in ViewModels | Maintainability | WONTFIX | — | Medium |
 | **M4** | Coroutines dep / sqlite-jdbc / proguard | Maintainability | P8 | Release | Medium |
 | **M5** | Untested multi-write paths | Maintainability | T1 + per-fix | Harness + slices | High |
@@ -181,16 +181,13 @@ The implementation plan has three tiers:
 - **Fix:** Define `v_movement_summary` in `shared/queries/`; refactor the four queries onto it. Pulls M6 in with it.
 - **Confidence:** High.
 
-#### O2 — `analysis_actual_breakdown` redundancy
-- **Evidence:** `shared/queries/analysis_actual_breakdown.sql` joins `categories` three times (once per UNION branch + once in `active_groups`) and GROUPs BY denormalized columns (`category_name, kind, nature, icon, color, trip_name`) functionally dependent on the id.
-- **Fix:** Join once in `active_groups`; GROUP BY ids only. P5R-4.
-- **Confidence:** Medium.
+#### O2 — `analysis_actual_breakdown` redundancy — **RESOLVED (P5R-4)**
+- **Evidence:** `shared/queries/analysis_actual_breakdown.sql` joins `categories` twice (once in `active_groups`, once in the outer SELECT) and GROUPs BY denormalized columns (`category_name, kind, nature, icon, color, trip_name`) functionally dependent on the id. Additional pre-existing bug: `r.expense_cents > 0` in the WHERE clause incorrectly excluded refund rows (which have `amount_cents < 0` in `v_actual_expense`), causing `analysis_actual_breakdown` to differ from `analysis_actual_by_category` for the same data.
+- **Resolution (P5R-4):** Refund filter changed to `r.expense_cents <> 0`; category and trip columns (`name`, `kind`, `nature`, `icon`, `color`) now carried through `active_groups`; outer `LEFT JOIN categories` and `LEFT JOIN trips` removed; `GROUP BY` reduced from 9 columns to `(row_kind, category_id, trip_id)` with `MAX()` aggregation for the display columns; `ORDER BY` updated to reference `MAX(ag.trip_name)` and `MAX(ag.category_name)`. Assertion test added to `validate_shared_sql.py`. `Analysis.sq` synced identically.
 
-#### O3 — `analysis_net_worth` O(N²) self-join
-- **Evidence:** `shared/queries/analysis_net_worth_over_time.sql` computes the running balance via a correlated self-join: `SELECT SUM(prior.delta_cents) FROM bucket_flow prior WHERE prior.bucket <= bf.bucket`.
-- **Impact:** Quadratic in number of buckets; fine at monthly granularity, slow at daily over years (spec §4.8 calls for daily evolution).
-- **Fix:** Window function `SUM(delta_cents) OVER (ORDER BY bucket)` (SQLite ≥ 3.25; minSdk 26 is fine). P5R-4.
-- **Confidence:** Medium.
+#### O3 — `analysis_net_worth` O(N²) self-join — **RESOLVED (P5R-4)**
+- **Evidence:** `shared/queries/analysis_net_worth_over_time.sql` computed the running balance via a correlated self-join.
+- **Resolution:** Window function `SUM(delta_cents) OVER (ORDER BY bucket ASC)` already in place prior to the P5R-4 slice.
 
 #### O4 — Dead branch in `MovementRepository.archive`
 - **Evidence:** `MovementRepository.archive` calls `splitQueries?.archiveSplitLines(split_id = id, …)` and `archiveMovementSplit(id = id, …)` passing the **movement's** id as a `splits.id` PK. Movement-backed splits get their own UUID at creation (not the movement id); external splits get a fresh UUID too. The comment "id matches split_id in UNION" is wrong — the UNION selects `s.id` (the split PK), which never equals a movement id. The preceding `archiveMovementSplit(id)` already handles movement-backed splits correctly via `WHERE movement_id = :id`.
@@ -202,11 +199,9 @@ The implementation plan has three tiers:
 - **Resolution (P5R-3):** `createExternalPaidByPerson` now writes exactly one user line; the dead person line is gone. The single-user app has no use for other participants in a §2.6 split.
 - **Confidence:** High.
 
-#### O6 — `validate_shared_sql.py` analysis list drift
-- **Evidence:** `tools/validate_shared_sql.py` lists 8 analysis query files (missing `analysis_actual_breakdown.sql`); `tools/validate_sql_parity.py` enforces 9; `windows/…/SharedSql.cs` has 9.
-- **Impact:** The Python runner doesn't execute the breakdown query — the very query the trips-as-blocks toggle (P5-5) depends on. CI is green but coverage is silently incomplete.
-- **Fix:** Add the missing file to the Python list; ideally derive all three lists from one source. P5R-4.
-- **Confidence:** High.
+#### O6 — `validate_shared_sql.py` analysis list drift — **RESOLVED (P5R-4)**
+- **Evidence:** `tools/validate_shared_sql.py` listed 8 analysis query files (missing `analysis_actual_breakdown.sql`); `tools/validate_sql_parity.py` enforced 9; `windows/…/SharedSql.cs` had 9.
+- **Resolution:** `analysis_actual_breakdown.sql` added to `ANALYSIS_QUERY_FILES`; `validate_analysis_queries()` now includes a full assertion block for this query (verifying category totals with refunds applied against the standard seed fixture).
 
 ### Maintainability & Architecture
 
@@ -215,9 +210,10 @@ The implementation plan has three tiers:
 - **Fix:** Add bounds on `interval_count` at the schema; add a non-ASCII dedup golden vector. P8 final pass.
 - **Confidence:** Medium.
 
-#### M2 — `MovementsViewModel` / `AnalysisScreen` size
-- **Evidence:** `MovementsViewModel.kt` ~1145 lines mixing validation, draft building, recurring/template logic, external splits, refresh, and 9 constructor deps. `AnalysisScreen.kt` ~1442 lines.
-- **Fix:** P5R-3 extracts `MovementDraftBuilder` (pure) + `MovementSaveCoordinator` (TX orchestration) out of `MovementsViewModel`. The coordinator shape must make the deferred C3/C4 fixes (P5R-6) one-liners — i.e. it should accept a lambda that runs within its transaction so `advanceCursor`/`createQuickTemplate` can later be pulled inside. P5R-4 splits `AnalysisScreen`.
+#### M2 — `MovementsViewModel` / `AnalysisScreen` size — **RESOLVED (P5R-3 / P5R-4)**
+- **Evidence:** `MovementsViewModel.kt` ~1145 lines; `AnalysisScreen.kt` ~1442 lines.
+- **Resolution (P5R-3):** `MovementDraftBuilder` (pure) + `MovementSaveCoordinator` (TX orchestration) extracted from `MovementsViewModel`; coordinator accepts a lambda within its transaction so C3/C4 (P5R-6) are one-liners.
+- **Resolution (P5R-4):** `AnalysisScreen.kt` split: `AnalysisControls.kt` (period selector, mode/filter controls, custom dates, compare row), `AnalysisSummaryGrid.kt` (summary metric cards), `AnalysisWidgets.kt` (breakdown rows, widget composables, heatmap, trends).
 - **Confidence:** Medium.
 
 #### M3 — No write serialization in ViewModels
