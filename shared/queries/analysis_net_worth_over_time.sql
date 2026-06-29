@@ -38,11 +38,7 @@ SELECT
     bf.bucket,
     CAST(
         (SELECT opening_cents FROM opening)
-        + COALESCE((
-            SELECT SUM(prior.delta_cents)
-            FROM bucket_flow prior
-            WHERE prior.bucket <= bf.bucket
-        ), 0)
+        + SUM(bf.delta_cents) OVER (ORDER BY bf.bucket ASC)
         AS INTEGER
     ) AS net_worth_cents
 FROM bucket_flow bf

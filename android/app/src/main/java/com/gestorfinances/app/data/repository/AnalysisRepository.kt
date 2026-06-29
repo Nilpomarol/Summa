@@ -402,9 +402,9 @@ private fun mapCategoryTrendPoint(
 
 private fun mapNetWorthPoint(
     bucket: String,
-    netWorthCents: Long,
+    netWorthCents: Long?,
 ): AnalysisNetWorthPoint =
     AnalysisNetWorthPoint(
         bucket = bucket,
-        netWorthCents = netWorthCents,
+        netWorthCents = netWorthCents ?: 0L,
     )

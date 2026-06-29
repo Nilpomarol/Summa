@@ -20,6 +20,7 @@ VIEW_FILES = [
 ]
 ANALYSIS_QUERY_FILES = [
     "analysis_actual_by_category.sql",
+    "analysis_actual_breakdown.sql",
     "analysis_account_flow_over_time.sql",
     "analysis_income_vs_expense.sql",
     "analysis_period_totals.sql",
