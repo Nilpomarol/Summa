@@ -1,6 +1,5 @@
 package com.gestorfinances.app.ui.dashboard
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -9,17 +8,13 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Settings
@@ -41,7 +36,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -62,6 +56,7 @@ import com.gestorfinances.app.ui.common.TopBarIconButton
 import com.gestorfinances.app.ui.common.accountIcon
 import com.gestorfinances.app.ui.common.accountTypeIcon
 import com.gestorfinances.app.ui.common.categoryIcon
+import com.gestorfinances.app.ui.common.label
 import com.gestorfinances.app.ui.common.formatBasisPoints
 import com.gestorfinances.app.ui.common.formatMonthYear
 import com.gestorfinances.app.ui.movements.MovementFilters
@@ -162,10 +157,7 @@ private fun DashboardContent(
             }
         } else {
             item {
-                PatrimoniCard(
-                    accounts = state.accounts,
-                    onDrillDown = onDrillDown,
-                )
+                AccountGrid(accounts = state.accounts, onDrillDown = onDrillDown)
             }
         }
 
@@ -356,46 +348,103 @@ private fun HeroKpiBlock(
 ) {
     val income = state.totals.actualIncomeCents
     val expense = state.totals.actualExpenseCents
+    val netWorth = state.totals.netWorthCents
+    val flux = state.totals.netActualCents
     val incomeColor = FinanceTheme.colors.income
+    val savingsProgress = if (income > 0) {
+        (state.totals.savingsRateBasisPoints / 10000f).coerceIn(0f, 1f)
+    } else 0f
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        HeroKpiCell(
-            label = stringResource(R.string.dashboard_categories_income),
-            onClick = { onDrillDown(state.month.actualPeriodFilters(type = MovementType.INCOME)) },
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        // Row 1: income | expenses | patrimoni
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            MoneyText(
-                cents = income,
+            HeroKpiCell(
+                label = stringResource(R.string.dashboard_categories_income),
+                onClick = { onDrillDown(state.month.actualPeriodFilters(type = MovementType.INCOME)) },
+            ) {
+                MoneyText(
+                    cents = income,
+                    color = incomeColor,
+                    style = MaterialTheme.typography.titleMedium,
+                    signed = true,
+                )
+            }
+            HeroKpiCell(
+                label = stringResource(R.string.dashboard_categories_expenses),
+                onClick = { onDrillDown(state.month.actualPeriodFilters(type = MovementType.EXPENSE)) },
+            ) {
+                MoneyText(
+                    cents = -expense,
+                    color = FinanceTheme.colors.debt,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+            }
+            HeroKpiCell(
+                label = stringResource(R.string.dashboard_net_worth),
+                alignEnd = true,
+                onClick = null,
+            ) {
+                MoneyText(
+                    cents = netWorth,
+                    color = if (netWorth < 0) FinanceTheme.colors.debt
+                            else FinanceTheme.colors.heroOnSurface,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+            }
+        }
+
+        // Row 2: savings progress bar + flux net
+        Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.dashboard_savings_short),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = FinanceTheme.colors.heroOnSurfaceMuted,
+                    )
+                    if (income > 0) {
+                        Text(
+                            text = formatBasisPoints(state.totals.savingsRateBasisPoints),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = FinanceTheme.colors.heroOnSurface,
+                        )
+                    }
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.dashboard_net_flow),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = FinanceTheme.colors.heroOnSurfaceMuted,
+                    )
+                    MoneyText(
+                        cents = flux,
+                        color = if (flux >= 0) incomeColor else FinanceTheme.colors.debt,
+                        style = MaterialTheme.typography.bodySmall,
+                        signed = true,
+                    )
+                }
+            }
+            LinearProgressIndicator(
+                progress = { savingsProgress },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(5.dp),
                 color = incomeColor,
-                style = MaterialTheme.typography.titleMedium,
-                signed = true,
-            )
-        }
-        HeroKpiCell(
-            label = stringResource(R.string.dashboard_categories_expenses),
-            onClick = { onDrillDown(state.month.actualPeriodFilters(type = MovementType.EXPENSE)) },
-        ) {
-            MoneyText(
-                cents = -expense,
-                color = FinanceTheme.colors.heroOnSurface,
-                style = MaterialTheme.typography.titleMedium,
-            )
-        }
-        HeroKpiCell(
-            label = stringResource(R.string.dashboard_savings_short),
-            alignEnd = true,
-            onClick = null,
-        ) {
-            Text(
-                text = if (income > 0) {
-                    formatBasisPoints(state.totals.savingsRateBasisPoints)
-                } else {
-                    stringResource(R.string.dashboard_savings_rate_unavailable)
-                },
-                color = FinanceTheme.colors.heroOnSurface,
-                style = MaterialTheme.typography.titleMedium,
+                trackColor = FinanceTheme.colors.heroOnSurface.copy(alpha = 0.2f),
+                drawStopIndicator = {},
             )
         }
     }
@@ -427,125 +476,83 @@ private fun RowScope.HeroKpiCell(
 }
 
 // ---------------------------------------------------------------------------
-// Patrimoni overview card (light)
+// Account 2-column grid
 // ---------------------------------------------------------------------------
 
 @Composable
-private fun PatrimoniCard(
+private fun AccountGrid(
     accounts: List<AccountSummary>,
     onDrillDown: (MovementFilters) -> Unit,
 ) {
-    val netWorthCents = accounts.sumOf { it.currentBalanceCents }
-    val positiveAccounts = accounts.filter { it.currentBalanceCents > 0 }
-
-    FinanceCard(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            Text(
-                text = stringResource(R.string.dashboard_net_worth),
-                style = MaterialTheme.typography.labelMedium,
-                color = FinanceTheme.colors.mutedText,
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            MoneyText(
-                cents = netWorthCents,
-                color = if (netWorthCents < 0) FinanceTheme.colors.debt
-                        else MaterialTheme.colorScheme.onSurface,
-                style = MaterialTheme.typography.headlineMedium,
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            if (positiveAccounts.isNotEmpty()) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(6.dp)
-                        .clip(RoundedCornerShape(3.dp)),
-                ) {
-                    positiveAccounts.forEach { account ->
-                        Box(
-                            modifier = Modifier
-                                .weight(account.currentBalanceCents.toFloat())
-                                .fillMaxHeight()
-                                .background(categoryColor(account.color)),
-                        )
-                    }
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        accounts.chunked(2).forEach { pair ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                pair.forEach { account ->
+                    AccountGridCell(
+                        account = account,
+                        onClick = {
+                            onDrillDown(
+                                MovementFilters(
+                                    accountId = account.id,
+                                    sourceMode = MovementSourceMode.FLOW,
+                                ),
+                            )
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
                 }
-                Spacer(modifier = Modifier.height(14.dp))
-            }
-
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-            Spacer(modifier = Modifier.height(6.dp))
-
-            accounts.forEach { account ->
-                PatrimoniAccountRow(
-                    account = account,
-                    netWorthCents = netWorthCents,
-                    onClick = {
-                        onDrillDown(
-                            MovementFilters(
-                                accountId = account.id,
-                                sourceMode = MovementSourceMode.FLOW,
-                            ),
-                        )
-                    },
-                )
+                if (pair.size == 1) Spacer(modifier = Modifier.weight(1f))
             }
         }
     }
 }
 
 @Composable
-private fun PatrimoniAccountRow(
+private fun AccountGridCell(
     account: AccountSummary,
-    netWorthCents: Long,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val accountColor = categoryColor(account.color)
-    val fraction = if (netWorthCents > 0 && account.currentBalanceCents > 0) {
-        account.currentBalanceCents.toFloat() / netWorthCents.toFloat()
-    } else 0f
-    val percentText = when {
-        account.currentBalanceCents <= 0 -> null
-        fraction < 0.01f -> "<1%"
-        else -> "${(fraction * 100).toInt()}%"
-    }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Box(
-            modifier = Modifier
-                .size(8.dp)
-                .background(accountColor, CircleShape),
-        )
-        Text(
-            text = account.name,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.weight(1f),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        if (percentText != null) {
+    FinanceCard(modifier = modifier.clickable(onClick = onClick)) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                IconChip(
+                    icon = if (account.icon != null) accountIcon(account.icon)
+                           else accountTypeIcon(account.type),
+                    contentDescription = null,
+                    color = accountColor,
+                    size = 28.dp,
+                )
+                Text(
+                    text = account.name,
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             Text(
-                text = percentText,
-                style = MaterialTheme.typography.labelSmall,
+                text = account.type.label(),
                 color = FinanceTheme.colors.mutedText,
+                style = MaterialTheme.typography.labelSmall,
+            )
+            MoneyText(
+                cents = account.currentBalanceCents,
+                color = if (account.currentBalanceCents < 0) FinanceTheme.colors.debt
+                        else MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.titleSmall,
+                signed = account.currentBalanceCents < 0,
             )
         }
-        MoneyText(
-            cents = account.currentBalanceCents,
-            color = if (account.currentBalanceCents < 0) FinanceTheme.colors.debt
-                    else MaterialTheme.colorScheme.onSurface,
-            style = MaterialTheme.typography.titleSmall,
-            signed = account.currentBalanceCents < 0,
-        )
     }
 }
 
