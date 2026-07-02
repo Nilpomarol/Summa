@@ -242,6 +242,9 @@ private fun LedgerShell(
             AnalysisViewModel.Factory(
                 analysisRepository = appContainer.analysisRepository,
                 templateRepository = appContainer.templateRepository,
+                accountRepository = appContainer.accountRepository,
+                categoryRepository = appContainer.categoryRepository,
+                movementRepository = appContainer.movementRepository,
             ),
         )[AnalysisViewModel::class.java]
     }
@@ -467,15 +470,6 @@ private fun LedgerShell(
             )
             TopLevelSection.ANALYSIS -> AnalysisScreen(
                 viewModel = analysisViewModel,
-                onDrillDown = openMovements,
-                onTripDetail = { tripId ->
-                    tripsViewModel.onDetailClicked(tripId)
-                    showManagement(ManagementDestination.EVENTS)
-                },
-                onManageBudgets = {
-                    nav = nav.copy(overlay = AppOverlay.Budgets(tripId = null))
-                },
-                onClearCategoryFilter = analysisViewModel::clearCategoryFilter,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),

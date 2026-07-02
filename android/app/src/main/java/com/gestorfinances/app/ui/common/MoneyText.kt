@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import com.gestorfinances.app.ui.theme.asFigures
+import kotlin.math.roundToInt
 
 /**
  * Renders a money amount as a ledger figure (Geist Mono + tabular numerals, design §3).
@@ -81,6 +82,25 @@ internal fun formatEuroCents(cents: Long): String {
     val whole = groupThousands(absolute / 100)
     val fraction = (absolute % 100).toString().padStart(2, '0')
     return "$sign$whole,$fraction €"
+}
+
+/** Compact euro label for chart axis ticks: "2k €", "1,5k €", "500 €", "0". */
+internal fun formatEuroCompact(cents: Long): String {
+    if (cents == 0L) return "0"
+    val sign = if (cents < 0) "-" else ""
+    val absEuros = kotlin.math.abs(cents) / 100.0
+    return when {
+        absEuros >= 1_000.0 -> {
+            val thousands = absEuros / 1_000.0
+            val text = if (thousands >= 10.0) {
+                thousands.roundToInt().toString()
+            } else {
+                "%.1f".format(thousands).replace('.', ',').removeSuffix(",0")
+            }
+            "$sign${text}k €"
+        }
+        else -> "$sign${absEuros.roundToInt()} €"
+    }
 }
 
 // Locale formatting (design §3): thousands dot, decimal comma — e.g. 18.420,15 €.

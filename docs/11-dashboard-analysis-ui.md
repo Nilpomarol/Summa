@@ -9,7 +9,7 @@
 P2 turns the Phase 1 ledger into useful insight:
 
 - show a current-month dashboard;
-- add a broader analysis screen with time scopes, comparison, grouping, toggles, filters, and drill-down;
+- add a broader analysis screen with time scopes, comparison, grouping, toggles, filters, and inspectable charts;
 - keep all totals view-backed through shared SQL introduced in P2-2;
 - keep charts focused: daily income vs. expense first, then additional widgets.
 
@@ -28,7 +28,7 @@ Rules:
 
 - money remains integer cents; formatting happens only at the UI edge;
 - dashboard and analysis must not recompute balances, actuals, or flow in app code;
-- each aggregate must carry enough filter context to open the underlying movement list in P2-7;
+- top-level Analysis aggregates are display-only and must not recompute balances, actuals, or flow outside the shared SQL results;
 - archived/deleted rows stay excluded through canonical SQL filters;
 - flow and net-worth figures are account-level and intentionally ignore the actual-only filters (category nature, one-time); those toggles apply in actual mode only. Net worth is a balance (stock), so it ignores the period entirely.
 
@@ -94,7 +94,7 @@ Empty states:
 
 ## 5. Analysis Screen
 
-Purpose: the main workspace for comparing periods, changing the question, and drilling into the ledger.
+Purpose: the main workspace for comparing periods and changing the question without leaving the analysis surface.
 
 Top controls:
 
@@ -117,7 +117,7 @@ Primary result area:
    - group by category (actual mode) or account (flow mode); trip-block grouping is deferred to Phase 5 with trips;
    - percentage bar per row;
    - amount and delta vs. comparison period when enabled;
-   - tap opens drill-down movements.
+   - rows are display-only and do not open movements or trip detail.
 
 Mode controls:
 
@@ -149,19 +149,11 @@ These widgets can arrive incrementally through P2-8. The Analysis screen should 
 
 ---
 
-## 6. Drill-Down Contract
+## 6. Aggregate Interaction Contract
 
-Every aggregate row or chart element must be able to describe:
+Top-level Analysis aggregate rows and chart elements are not navigation links. Tapping summary cards, chart bars/points, treemap blocks, breakdown rows, or comparison waterfall bars must keep the user on `Anàlisi`. This keeps charts available for their own gestures and avoids opening movement lists whose raw ledger rows may not faithfully add up to netted actual aggregates.
 
-- date range;
-- source mode: actual or flow;
-- grouping key, if any;
-- active filters;
-- included movement types.
-
-P2-7 uses that context to open the movement list with matching filters. Until P2-7 is implemented, tapping aggregates can be inert; do not fake the result with app-side filtering that diverges from shared SQL.
-
-Drill-down opens the **contributing movements** for the aggregate's scope (date range, source mode, filters), not a re-derived figure: the listed movement amounts are raw ledger amounts and will legitimately not sum to a netted "actual" aggregate (which folds in split shares and refunds-as-negative). Aggregates that have no faithful movement-list filter stay inert rather than open a diverging list — e.g. merchant rows, heatmap cells, and trend points (no payee/per-cell filter exists). Note: once external splits land (Phase 3), a "largest expense" sourced from a split has no backing movement; its drill-down must stay inert.
+Filters, period controls, custom date controls, scope/value toggles, tabs, and inbound account/category filters remain interactive. Navigation into Analysis from Dashboard, Accounts, or Categories may still pre-apply filters because those links originate outside the Analysis page.
 
 ---
 
@@ -194,6 +186,6 @@ Strings are Catalan. Keep implementation code in English and keep all visible co
 - Dashboard and Analysis responsibilities are separated.
 - Actual vs. flow is explicit and view-backed.
 - Dashboard stays current-month focused.
-- Analysis defines scopes, comparison, grouping, toggles, filters, widgets, and drill-down.
+- Analysis defines scopes, comparison, grouping, toggles, filters, and display-only widgets.
 - Android resource strings exist for the planned screens.
 - P2-1 remains documentation and resource preparation; no SQL/query implementation is expected in this task.

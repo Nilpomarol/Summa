@@ -28,6 +28,8 @@ ANALYSIS_QUERY_FILES = [
     "analysis_largest_expenses.sql",
     "analysis_net_worth_over_time.sql",
     "analysis_top_merchants.sql",
+    "analysis_category_frequency.sql",
+    "analysis_weekday_spend.sql",
 ]
 
 

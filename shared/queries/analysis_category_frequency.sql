@@ -1,16 +1,11 @@
--- Net actual expense per category, bucketed over time (day/month/year).
--- Mirrors analysis_actual_by_category (refunds count as negative) but split by bucket,
--- so the UI can draw a trend line per category. Income categories never appear here.
+-- Per-category actual expense frequency vs volume: how many expense movements occurred
+-- and how much they total in the period. Refund/credit rows (amount_cents <= 0) are
+-- excluded so the count reflects real purchases. Feeds the frequency-vs-volume scatter.
 WITH expense_rows AS (
     SELECT
         CAST(CASE WHEN c.id IS NULL THEN NULL ELSE e.category_id END AS TEXT) AS category_id,
         c.name AS category_name,
         c.color AS category_color,
-        CASE :bucket
-            WHEN 'month' THEN substr(e.date, 1, 7)
-            WHEN 'year' THEN substr(e.date, 1, 4)
-            ELSE e.date
-        END AS bucket,
         e.amount_cents
     FROM v_actual_expense e
     LEFT JOIN categories c
@@ -20,6 +15,7 @@ WITH expense_rows AS (
         ON m.id = e.source_id
     WHERE e.date >= :from_date
       AND e.date < :to_date
+      AND e.amount_cents > 0
       AND (
           :one_time_mode = 'include'
           OR (:one_time_mode = 'exclude' AND e.is_one_time = 0)
@@ -33,9 +29,9 @@ SELECT
     category_id,
     category_name,
     category_color,
-    bucket,
-    SUM(amount_cents) AS expense_cents
+    COUNT(*) AS movement_count,
+    SUM(amount_cents) AS total_cents
 FROM expense_rows
-GROUP BY category_id, category_name, category_color, bucket
+GROUP BY category_id, category_name, category_color
 HAVING SUM(amount_cents) <> 0
-ORDER BY bucket ASC, expense_cents DESC;
+ORDER BY total_cents DESC;

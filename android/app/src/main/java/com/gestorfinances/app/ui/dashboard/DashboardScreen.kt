@@ -533,18 +533,20 @@ private fun AccountGridCell(
                     color = accountColor,
                     size = 28.dp,
                 )
-                Text(
-                    text = account.name,
-                    style = MaterialTheme.typography.titleSmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = account.name,
+                        style = MaterialTheme.typography.titleSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = account.type.label(),
+                        color = FinanceTheme.colors.mutedText,
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
             }
-            Text(
-                text = account.type.label(),
-                color = FinanceTheme.colors.mutedText,
-                style = MaterialTheme.typography.labelSmall,
-            )
             MoneyText(
                 cents = account.currentBalanceCents,
                 color = if (account.currentBalanceCents < 0) FinanceTheme.colors.debt
@@ -702,6 +704,7 @@ private fun CategoryBreakdownRow(
                 .height(5.dp),
             color = color,
             trackColor = MaterialTheme.colorScheme.surfaceVariant,
+            drawStopIndicator = {},
         )
     }
 }

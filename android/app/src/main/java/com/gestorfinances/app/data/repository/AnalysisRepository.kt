@@ -70,6 +70,21 @@ data class AnalysisNetWorthPoint(
     val netWorthCents: Long,
 )
 
+/** Total actual expense for a single weekday (0 = Sunday … 6 = Saturday), net of refunds. */
+data class AnalysisWeekdaySpend(
+    val weekday: Int,
+    val expenseCents: Long,
+)
+
+/** Per-category purchase count and spend volume, for the frequency-vs-volume scatter. */
+data class AnalysisCategoryFrequency(
+    val categoryId: String?,
+    val categoryName: String?,
+    val categoryColor: String?,
+    val movementCount: Long,
+    val totalCents: Long,
+)
+
 enum class AnalysisBucket(val queryValue: String) {
     DAY("day"),
     MONTH("month"),
@@ -109,12 +124,16 @@ class AnalysisRepository(
         toDate: String,
         oneTimeMode: AnalysisOneTimeMode = AnalysisOneTimeMode.INCLUDE,
         categoryNature: AnalysisCategoryNature? = null,
+        accountId: String? = null,
+        categoryId: String? = null,
     ): AnalysisPeriodTotals =
         queries.analysisPeriodTotals(
             from_date = fromDate,
             to_date = toDate,
             one_time_mode = oneTimeMode.queryValue,
             category_nature = categoryNature?.queryValue,
+            account_id = accountId,
+            category_id = categoryId,
             mapper = ::mapPeriodTotals,
         ).executeAsOne()
 
@@ -124,10 +143,14 @@ class AnalysisRepository(
         oneTimeMode: AnalysisOneTimeMode = AnalysisOneTimeMode.INCLUDE,
         categoryNature: AnalysisCategoryNature? = null,
         groupTrips: Boolean = true,
+        accountId: String? = null,
+        categoryId: String? = null,
     ): List<AnalysisCategoryTotal> =
         queries.analysisActualBreakdown(
             from_date = fromDate,
             to_date = toDate,
+            account_id = accountId,
+            category_id = categoryId,
             one_time_mode = oneTimeMode.queryValue,
             category_nature = categoryNature?.queryValue,
             group_trips = if (groupTrips) 1L else 0L,
@@ -139,12 +162,16 @@ class AnalysisRepository(
         toDate: String,
         oneTimeMode: AnalysisOneTimeMode = AnalysisOneTimeMode.INCLUDE,
         categoryNature: AnalysisCategoryNature? = null,
+        accountId: String? = null,
+        categoryId: String? = null,
     ): List<AnalysisCategoryTotal> =
         queries.analysisActualByCategory(
             from_date = fromDate,
             to_date = toDate,
             one_time_mode = oneTimeMode.queryValue,
             category_nature = categoryNature?.queryValue,
+            account_id = accountId,
+            category_id = categoryId,
             mapper = ::mapCategoryTotal,
         ).executeAsList()
 
@@ -168,14 +195,54 @@ class AnalysisRepository(
         oneTimeMode: AnalysisOneTimeMode = AnalysisOneTimeMode.INCLUDE,
         categoryNature: AnalysisCategoryNature? = null,
         bucket: AnalysisBucket = AnalysisBucket.DAY,
+        accountId: String? = null,
+        categoryId: String? = null,
     ): List<AnalysisIncomeExpenseBucket> =
         queries.analysisIncomeVsExpense(
             from_date = fromDate,
             to_date = toDate,
             one_time_mode = oneTimeMode.queryValue,
             category_nature = categoryNature?.queryValue,
+            account_id = accountId,
+            category_id = categoryId,
             bucket = bucket.queryValue,
             mapper = ::mapIncomeExpenseBucket,
+        ).executeAsList()
+
+    fun weekdaySpend(
+        fromDate: String,
+        toDate: String,
+        oneTimeMode: AnalysisOneTimeMode = AnalysisOneTimeMode.INCLUDE,
+        categoryNature: AnalysisCategoryNature? = null,
+        accountId: String? = null,
+        categoryId: String? = null,
+    ): List<AnalysisWeekdaySpend> =
+        queries.analysisWeekdaySpend(
+            from_date = fromDate,
+            to_date = toDate,
+            one_time_mode = oneTimeMode.queryValue,
+            category_nature = categoryNature?.queryValue,
+            account_id = accountId,
+            category_id = categoryId,
+            mapper = ::mapWeekdaySpend,
+        ).executeAsList()
+
+    fun categoryFrequency(
+        fromDate: String,
+        toDate: String,
+        oneTimeMode: AnalysisOneTimeMode = AnalysisOneTimeMode.INCLUDE,
+        categoryNature: AnalysisCategoryNature? = null,
+        accountId: String? = null,
+        categoryId: String? = null,
+    ): List<AnalysisCategoryFrequency> =
+        queries.analysisCategoryFrequency(
+            from_date = fromDate,
+            to_date = toDate,
+            one_time_mode = oneTimeMode.queryValue,
+            category_nature = categoryNature?.queryValue,
+            account_id = accountId,
+            category_id = categoryId,
+            mapper = ::mapCategoryFrequency,
         ).executeAsList()
 
     fun accountFlowOverTime(
@@ -230,6 +297,8 @@ class AnalysisRepository(
         bucket: AnalysisBucket = AnalysisBucket.MONTH,
         oneTimeMode: AnalysisOneTimeMode = AnalysisOneTimeMode.INCLUDE,
         categoryNature: AnalysisCategoryNature? = null,
+        accountId: String? = null,
+        categoryId: String? = null,
     ): List<AnalysisCategoryTrendPoint> =
         queries.analysisCategoryTrends(
             bucket = bucket.queryValue,
@@ -237,6 +306,8 @@ class AnalysisRepository(
             to_date = toDate,
             one_time_mode = oneTimeMode.queryValue,
             category_nature = categoryNature?.queryValue,
+            account_id = accountId,
+            category_id = categoryId,
             mapper = ::mapCategoryTrendPoint,
         ).executeAsList()
 
@@ -407,4 +478,28 @@ private fun mapNetWorthPoint(
     AnalysisNetWorthPoint(
         bucket = bucket,
         netWorthCents = netWorthCents ?: 0L,
+    )
+
+private fun mapWeekdaySpend(
+    weekday: Long?,
+    expenseCents: Long?,
+): AnalysisWeekdaySpend =
+    AnalysisWeekdaySpend(
+        weekday = (weekday ?: 0L).toInt(),
+        expenseCents = expenseCents ?: 0L,
+    )
+
+private fun mapCategoryFrequency(
+    categoryId: String?,
+    categoryName: String?,
+    categoryColor: String?,
+    movementCount: Long,
+    totalCents: Long?,
+): AnalysisCategoryFrequency =
+    AnalysisCategoryFrequency(
+        categoryId = categoryId,
+        categoryName = categoryName,
+        categoryColor = categoryColor,
+        movementCount = movementCount,
+        totalCents = totalCents ?: 0L,
     )

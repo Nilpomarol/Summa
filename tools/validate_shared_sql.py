@@ -28,6 +28,8 @@ ANALYSIS_QUERY_FILES = [
     "analysis_largest_expenses.sql",
     "analysis_net_worth_over_time.sql",
     "analysis_top_merchants.sql",
+    "analysis_category_frequency.sql",
+    "analysis_weekday_spend.sql",
 ]
 VIEW_NAMES = [path.removesuffix(".sql") for path in VIEW_FILES]
 
@@ -69,6 +71,7 @@ def validate_analysis_queries() -> None:
             "category_nature": None,
             "bucket": "month",
             "account_id": None,
+            "category_id": None,
         }
 
         category_rows = conn.execute(
@@ -211,6 +214,50 @@ def validate_analysis_queries() -> None:
             "groceries": ("category", 1_500, 0, -1_500),
         }:
             fail(f"analysis_actual_breakdown.sql: unexpected rows {breakdown_totals}")
+
+        # Frequency vs volume: expense-only counts (the -500 refund is excluded by amount > 0).
+        frequency = conn.execute(
+            analysis_query("analysis_category_frequency.sql"),
+            params,
+        ).fetchall()
+        frequency_totals = {
+            row["category_id"]: (row["movement_count"], row["total_cents"]) for row in frequency
+        }
+        if frequency_totals != {
+            "electronics": (1, 5_000),
+            "groceries": (1, 2_000),
+        }:
+            fail(f"analysis_category_frequency.sql: unexpected rows {frequency_totals}")
+
+        # Weekday spend nets refunds: groceries (06-05) and its refund (06-12) fall on the same
+        # weekday → 1_500; the laptop (06-10) lands on another weekday → 5_000.
+        weekday = conn.execute(
+            analysis_query("analysis_weekday_spend.sql"),
+            params,
+        ).fetchall()
+        weekday_totals = sorted(row["expense_cents"] for row in weekday)
+        if weekday_totals != [1_500, 5_000]:
+            fail(f"analysis_weekday_spend.sql: unexpected rows {weekday_totals}")
+
+        # Account filter: every actual row lives on 'checking', so 'savings' narrows to nothing.
+        savings_rows = conn.execute(
+            analysis_query("analysis_actual_by_category.sql"),
+            {**params, "account_id": "savings"},
+        ).fetchall()
+        if savings_rows:
+            fail(f"analysis_actual_by_category.sql: account filter leaked {[dict(r) for r in savings_rows]}")
+
+        # Category filter: narrowing to groceries keeps only that net-of-refund total.
+        groceries_rows = conn.execute(
+            analysis_query("analysis_actual_by_category.sql"),
+            {**params, "category_id": "groceries"},
+        ).fetchall()
+        groceries_totals = {
+            row["category_id"]: (row["expense_cents"], row["income_cents"], row["net_cents"])
+            for row in groceries_rows
+        }
+        if groceries_totals != {"groceries": (1_500, 0, -1_500)}:
+            fail(f"analysis_actual_by_category.sql: category filter unexpected {groceries_totals}")
     except sqlite3.Error as exc:
         fail(f"analysis query validation: {exc}")
     finally:

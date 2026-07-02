@@ -35,6 +35,8 @@ val sharedAnalysisQueryFiles = listOf(
     "analysis_largest_expenses.sql" to "analysisLargestExpenses",
     "analysis_net_worth_over_time.sql" to "analysisNetWorthOverTime",
     "analysis_top_merchants.sql" to "analysisTopMerchants",
+    "analysis_category_frequency.sql" to "analysisCategoryFrequency",
+    "analysis_weekday_spend.sql" to "analysisWeekdaySpend",
 )
 
 val syncSharedSqlForSqlDelight by tasks.registering {

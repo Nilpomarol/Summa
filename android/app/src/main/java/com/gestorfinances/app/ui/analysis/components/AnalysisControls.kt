@@ -1,186 +1,474 @@
 package com.gestorfinances.app.ui.analysis.components
 
-import androidx.annotation.StringRes
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Autorenew
-import androidx.compose.material.icons.outlined.Flight
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.Calculate
+import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.FilterList
+import androidx.compose.material.icons.outlined.Functions
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.R
-import com.gestorfinances.app.data.repository.AnalysisAccountFlowBucket
-import com.gestorfinances.app.data.repository.AnalysisBreakdownKind
-import com.gestorfinances.app.data.repository.AnalysisBucket
-import com.gestorfinances.app.data.repository.AnalysisCategoryTotal
-import com.gestorfinances.app.data.repository.AnalysisCategoryTrendPoint
-import com.gestorfinances.app.data.repository.AnalysisIncomeExpenseBucket
-import com.gestorfinances.app.data.repository.AnalysisLargestExpense
-import com.gestorfinances.app.data.repository.AnalysisMerchantTotal
-import com.gestorfinances.app.data.repository.AnalysisNetWorthPoint
-import com.gestorfinances.app.data.repository.AnalysisOneTimeMode
-import com.gestorfinances.app.data.repository.AnalysisPeriodTotals
-import com.gestorfinances.app.data.repository.CategoryNature
-import com.gestorfinances.app.data.repository.MovementType
+import com.gestorfinances.app.ui.analysis.AnalysisNatureFilter
+import com.gestorfinances.app.ui.analysis.AnalysisScope
+import com.gestorfinances.app.ui.analysis.AnalysisUiState
+import com.gestorfinances.app.ui.analysis.AnalysisValueMode
+import com.gestorfinances.app.ui.analysis.fallbackPeriodLabel
+import com.gestorfinances.app.ui.analysis.formatForScope
+import com.gestorfinances.app.ui.analysis.labelRes
 import com.gestorfinances.app.ui.common.BannerKind
-import com.gestorfinances.app.ui.common.ChipFlowSection
-import com.gestorfinances.app.ui.common.FinanceCard
-import com.gestorfinances.app.ui.common.FinanceFilterChip
-import com.gestorfinances.app.ui.common.IconChip
-import com.gestorfinances.app.ui.common.IncomeExpenseChart
-import com.gestorfinances.app.ui.common.IncomeExpenseChartPoint
+import com.gestorfinances.app.ui.common.FilterSelectorField
 import com.gestorfinances.app.ui.common.InlineBanner
-import com.gestorfinances.app.ui.common.MoneyText
-import com.gestorfinances.app.ui.common.SectionHeader
 import com.gestorfinances.app.ui.common.SegmentedControl
-import com.gestorfinances.app.ui.common.TrendLineChart
-import com.gestorfinances.app.ui.common.TrendSeries
-import com.gestorfinances.app.ui.common.categoryIcon
-import com.gestorfinances.app.ui.common.formatBasisPoints
-import com.gestorfinances.app.ui.common.formatEuroCents
+import com.gestorfinances.app.ui.common.TopBarIconButton
 import com.gestorfinances.app.ui.common.formatLongDate
 import com.gestorfinances.app.ui.common.formatMonthYear
-import com.gestorfinances.app.ui.movements.MovementFilters
-import com.gestorfinances.app.ui.movements.MovementOneTimeMode as MovementFilterOneTimeMode
-import com.gestorfinances.app.ui.movements.MovementSourceMode
 import com.gestorfinances.app.ui.theme.FinanceTheme
-import com.gestorfinances.app.ui.theme.categoryColor
+import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
-import kotlin.math.abs
+import java.time.ZoneOffset
 
-import com.gestorfinances.app.ui.analysis.*
-
+/** The persistent two-row analysis header: scope + totals/averages + filter button, then period navigator. */
 @Composable
-internal fun AnalysisModeControls(
+internal fun AnalysisHeader(
     state: AnalysisUiState,
-    onAnalysisModeSelected: (AnalysisMode) -> Unit,
+    onScopeSelected: (AnalysisScope) -> Unit,
     onValueModeSelected: (AnalysisValueMode) -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        SegmentedControl(
-            options = AnalysisMode.entries,
-            selected = state.analysisMode,
-            label = { stringResource(it.labelRes()) },
-            onSelect = onAnalysisModeSelected,
-        )
-        SegmentedControl(
-            options = AnalysisValueMode.entries,
-            selected = state.valueMode,
-            label = { stringResource(it.labelRes()) },
-            onSelect = onValueModeSelected,
-        )
-    }
-}
-
-@Composable
-internal fun ActualFilterControls(
-    state: AnalysisUiState,
-    onNatureFilterSelected: (AnalysisNatureFilter) -> Unit,
-    onOneTimeModeSelected: (AnalysisOneTimeMode) -> Unit,
-    onGroupTripsAsBlocksChange: (Boolean) -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        FinanceCard(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Checkbox(
-                    checked = state.groupTripsAsBlocks,
-                    onCheckedChange = onGroupTripsAsBlocksChange,
-                )
-                Text(
-                    text = stringResource(R.string.trip_analysis_group_as_block),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-        }
-        ChipFlowSection(label = stringResource(R.string.analysis_filter_nature)) {
-            AnalysisNatureFilter.entries.forEach { filter ->
-                FinanceFilterChip(
-                    selected = state.natureFilter == filter,
-                    label = stringResource(filter.labelRes()),
-                    onClick = { onNatureFilterSelected(filter) },
-                )
-            }
-        }
-        ChipFlowSection(label = stringResource(R.string.movement_field_one_time)) {
-            AnalysisOneTimeMode.entries.forEach { mode ->
-                FinanceFilterChip(
-                    selected = state.oneTimeMode == mode,
-                    label = stringResource(mode.labelRes()),
-                    onClick = { onOneTimeModeSelected(mode) },
-                )
-            }
-        }
-    }
-}
-
-@Composable
-internal fun PeriodSelector(
-    state: AnalysisUiState,
     onPreviousPeriod: () -> Unit,
     onNextPeriod: () -> Unit,
+    onMonthSelected: (YearMonth) -> Unit,
+    onYearSelected: (Int) -> Unit,
+    onCustomFromChange: (String) -> Unit,
+    onCustomToChange: (String) -> Unit,
+    onOpenFilters: () -> Unit,
 ) {
-    FinanceCard(modifier = Modifier.fillMaxWidth()) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        // Row 1 — scope + totals/averages toggle + filter button.
         Row(
-            modifier = Modifier.padding(14.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            if (state.canMovePeriod) {
-                TextButton(onClick = onPreviousPeriod) {
-                    Text(text = stringResource(R.string.common_back))
+            Box(modifier = Modifier.weight(1f)) {
+                SegmentedControl(
+                    options = AnalysisScope.entries,
+                    selected = state.scope,
+                    label = { stringResource(it.labelRes()) },
+                    onSelect = onScopeSelected,
+                    itemHeight = 40.dp,
+                )
+            }
+            ValueModeToggle(
+                valueMode = state.valueMode,
+                onValueModeSelected = onValueModeSelected,
+            )
+            FilterButton(active = state.hasActiveFilters, onClick = onOpenFilters)
+        }
+        // Row 2 — period navigator.
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Box(modifier = Modifier.weight(1f)) {
+                PeriodNavigator(
+                    state = state,
+                    onPreviousPeriod = onPreviousPeriod,
+                    onNextPeriod = onNextPeriod,
+                    onMonthSelected = onMonthSelected,
+                    onYearSelected = onYearSelected,
+                    onCustomFromChange = onCustomFromChange,
+                    onCustomToChange = onCustomToChange,
+                )
+            }
+        }
+        state.customErrorRes?.let { res ->
+            InlineBanner(kind = BannerKind.Error, text = stringResource(res))
+        }
+    }
+}
+
+@Composable
+private fun ValueModeToggle(
+    valueMode: AnalysisValueMode,
+    onValueModeSelected: (AnalysisValueMode) -> Unit,
+) {
+    val nextMode = when (valueMode) {
+        AnalysisValueMode.TOTALS -> AnalysisValueMode.AVERAGES
+        AnalysisValueMode.AVERAGES -> AnalysisValueMode.TOTALS
+    }
+    val text = when (valueMode) {
+        AnalysisValueMode.TOTALS -> "Tot"
+        AnalysisValueMode.AVERAGES -> "Mit"
+    }
+    val contentDescription = stringResource(
+        when (valueMode) {
+            AnalysisValueMode.TOTALS -> R.string.analysis_mode_total
+            AnalysisValueMode.AVERAGES -> R.string.analysis_mode_average
+        }
+    )
+    Surface(
+        onClick = { onValueModeSelected(nextMode) },
+        modifier = Modifier.size(40.dp),
+        shape = MaterialTheme.shapes.small,
+        color = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                maxLines = 1,
+            )
+        }
+    }
+}
+
+@Composable
+private fun FilterButton(active: Boolean, onClick: () -> Unit) {
+    Box {
+        TopBarIconButton(
+            icon = Icons.Outlined.FilterList,
+            contentDescription = stringResource(R.string.analysis_filters_open),
+            onClick = onClick,
+        )
+        if (active) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = (-4).dp, y = 4.dp)
+                    .size(8.dp)
+                    .background(MaterialTheme.colorScheme.primary, CircleShape),
+            )
+        }
+    }
+}
+
+@Composable
+private fun PeriodNavigator(
+    state: AnalysisUiState,
+    onPreviousPeriod: () -> Unit,
+    onNextPeriod: () -> Unit,
+    onMonthSelected: (YearMonth) -> Unit,
+    onYearSelected: (Int) -> Unit,
+    onCustomFromChange: (String) -> Unit,
+    onCustomToChange: (String) -> Unit,
+) {
+    when (state.scope) {
+        AnalysisScope.CUSTOM -> CustomDateRow(
+            state = state,
+            onCustomFromChange = onCustomFromChange,
+            onCustomToChange = onCustomToChange,
+        )
+        AnalysisScope.ALL_TIME -> Text(
+            text = stringResource(R.string.analysis_scope_all_time),
+            style = MaterialTheme.typography.titleMedium,
+        )
+        AnalysisScope.MONTH, AnalysisScope.YEAR -> SteppedPeriod(
+            state = state,
+            onPreviousPeriod = onPreviousPeriod,
+            onNextPeriod = onNextPeriod,
+            onMonthSelected = onMonthSelected,
+            onYearSelected = onYearSelected,
+        )
+    }
+}
+
+/**
+ * The comparison-period selector. Mirrors the active scope's granularity: a month picker, a year
+ * picker, or a custom date pair. Defaults to the immediately preceding period and tracks it until
+ * the user manually picks, after which a "Restableix" action re-seeds the default.
+ */
+@Composable
+internal fun ComparisonNavigator(
+    state: AnalysisUiState,
+    onComparisonMonthSelected: (YearMonth) -> Unit,
+    onComparisonYearSelected: (Int) -> Unit,
+    onComparisonCustomFromChange: (String) -> Unit,
+    onComparisonCustomToChange: (String) -> Unit,
+    onResetComparison: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            text = stringResource(R.string.analysis_compare_with_label),
+            style = MaterialTheme.typography.labelMedium,
+            color = FinanceTheme.colors.mutedText,
+        )
+        when (state.scope) {
+            AnalysisScope.MONTH -> ComparisonMonthRow(
+                state = state,
+                onComparisonMonthSelected = onComparisonMonthSelected,
+                onResetComparison = onResetComparison,
+            )
+            AnalysisScope.YEAR -> ComparisonYearRow(
+                state = state,
+                onComparisonYearSelected = onComparisonYearSelected,
+                onResetComparison = onResetComparison,
+            )
+            AnalysisScope.CUSTOM -> ComparisonCustomRow(
+                state = state,
+                onComparisonCustomFromChange = onComparisonCustomFromChange,
+                onComparisonCustomToChange = onComparisonCustomToChange,
+                onResetComparison = onResetComparison,
+            )
+            AnalysisScope.ALL_TIME -> {}
+        }
+    }
+}
+
+@Composable
+private fun ComparisonMonthRow(
+    state: AnalysisUiState,
+    onComparisonMonthSelected: (YearMonth) -> Unit,
+    onResetComparison: () -> Unit,
+) {
+    var showPicker by remember { mutableStateOf(false) }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Box(modifier = Modifier.weight(1f)) {
+            FilterSelectorField(
+                label = stringResource(R.string.analysis_period_previous),
+                value = formatMonthYear(state.comparisonMonth),
+                onClick = { showPicker = true },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            DropdownMenu(expanded = showPicker, onDismissRequest = { showPicker = false }) {
+                MonthPickerContent(
+                    initial = state.comparisonMonth,
+                    onSelect = { onComparisonMonthSelected(it); showPicker = false },
+                )
+            }
+        }
+        if (state.comparisonTouched) {
+            TextButton(onClick = onResetComparison) {
+                Text(stringResource(R.string.analysis_compare_reset))
+            }
+        }
+    }
+}
+
+@Composable
+private fun ComparisonYearRow(
+    state: AnalysisUiState,
+    onComparisonYearSelected: (Int) -> Unit,
+    onResetComparison: () -> Unit,
+) {
+    var showPicker by remember { mutableStateOf(false) }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Box(modifier = Modifier.weight(1f)) {
+            FilterSelectorField(
+                label = stringResource(R.string.analysis_period_previous),
+                value = state.comparisonYear.toString(),
+                onClick = { showPicker = true },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            DropdownMenu(expanded = showPicker, onDismissRequest = { showPicker = false }) {
+                YearPickerContent(
+                    initial = state.comparisonYear,
+                    onSelect = { onComparisonYearSelected(it); showPicker = false },
+                )
+            }
+        }
+        if (state.comparisonTouched) {
+            TextButton(onClick = onResetComparison) {
+                Text(stringResource(R.string.analysis_compare_reset))
+            }
+        }
+    }
+}
+
+@Composable
+private fun ComparisonCustomRow(
+    state: AnalysisUiState,
+    onComparisonCustomFromChange: (String) -> Unit,
+    onComparisonCustomToChange: (String) -> Unit,
+    onResetComparison: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        DateTrigger(
+            label = stringResource(R.string.movement_filter_date_from),
+            iso = state.comparisonCustomFrom,
+            onChange = onComparisonCustomFromChange,
+            modifier = Modifier.weight(1f),
+        )
+        DateTrigger(
+            label = stringResource(R.string.movement_filter_date_to),
+            iso = state.comparisonCustomTo,
+            onChange = onComparisonCustomToChange,
+            modifier = Modifier.weight(1f),
+        )
+        if (state.comparisonTouched) {
+            TextButton(onClick = onResetComparison) {
+                Text(stringResource(R.string.analysis_compare_reset))
+            }
+        }
+    }
+}
+
+@Composable
+private fun SteppedPeriod(
+    state: AnalysisUiState,
+    onPreviousPeriod: () -> Unit,
+    onNextPeriod: () -> Unit,
+    onMonthSelected: (YearMonth) -> Unit,
+    onYearSelected: (Int) -> Unit,
+) {
+    var showPicker by remember { mutableStateOf(false) }
+    val label = state.currentRange?.formatForScope(state.scope) ?: state.fallbackPeriodLabel()
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        IconButton(
+            onClick = onPreviousPeriod,
+            modifier = Modifier.size(40.dp),
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowLeft,
+                contentDescription = stringResource(R.string.common_back),
+                modifier = Modifier.size(20.dp),
+            )
+        }
+        Box(modifier = Modifier.weight(1f)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 40.dp)
+                    .clickable { showPicker = true }
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Icon(
+                    imageVector = Icons.Outlined.ExpandMore,
+                    contentDescription = null,
+                    tint = FinanceTheme.colors.mutedText,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+            DropdownMenu(expanded = showPicker, onDismissRequest = { showPicker = false }) {
+                if (state.scope == AnalysisScope.MONTH) {
+                    MonthPickerContent(
+                        initial = state.month,
+                        onSelect = { onMonthSelected(it); showPicker = false },
+                    )
+                } else {
+                    YearPickerContent(
+                        initial = state.year,
+                        onSelect = { onYearSelected(it); showPicker = false },
+                    )
                 }
             }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.analysis_period_current),
-                    color = FinanceTheme.colors.mutedText,
-                    style = MaterialTheme.typography.labelMedium,
-                )
-                Text(
-                    text = state.currentRange?.formatForScope(state.scope)
-                        ?: state.fallbackPeriodLabel(),
-                    style = MaterialTheme.typography.titleMedium,
-                )
+        }
+        IconButton(
+            onClick = onNextPeriod,
+            modifier = Modifier.size(40.dp),
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                contentDescription = stringResource(R.string.common_next),
+                modifier = Modifier.size(20.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun MonthPickerContent(
+    initial: YearMonth,
+    onSelect: (YearMonth) -> Unit,
+) {
+    var displayYear by remember { mutableStateOf(initial.year) }
+    val monthLabels = androidx.compose.ui.res.stringArrayResource(R.array.analysis_month_short)
+    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = { displayYear-- }) {
+                Icon(Icons.AutoMirrored.Outlined.KeyboardArrowLeft, contentDescription = stringResource(R.string.common_back))
             }
-            if (state.canMovePeriod) {
-                TextButton(onClick = onNextPeriod) {
-                    Text(text = stringResource(R.string.common_next))
+            Text(
+                text = displayYear.toString(),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.weight(1f),
+            )
+            IconButton(onClick = { displayYear++ }) {
+                Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, contentDescription = stringResource(R.string.common_next))
+            }
+        }
+        for (row in 0 until 4) {
+            Row {
+                for (col in 0 until 3) {
+                    val monthIndex = row * 3 + col + 1
+                    val month = YearMonth.of(displayYear, monthIndex)
+                    val selected = month == initial
+                    TextButton(
+                        onClick = { onSelect(month) },
+                        modifier = Modifier.width(72.dp),
+                    ) {
+                        Text(
+                            text = monthLabels.getOrElse(monthIndex - 1) { monthIndex.toString() },
+                            color = if (selected) MaterialTheme.colorScheme.onSurface else FinanceTheme.colors.mutedText,
+                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
             }
         }
@@ -188,58 +476,87 @@ internal fun PeriodSelector(
 }
 
 @Composable
-internal fun CustomDateFields(
+private fun YearPickerContent(
+    initial: Int,
+    onSelect: (Int) -> Unit,
+) {
+    Column(modifier = Modifier.padding(horizontal = 8.dp)) {
+        (initial + 2 downTo initial - 9).forEach { year ->
+            TextButton(onClick = { onSelect(year) }, modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = year.toString(),
+                    color = if (year == initial) MaterialTheme.colorScheme.onSurface else FinanceTheme.colors.mutedText,
+                    fontWeight = if (year == initial) FontWeight.SemiBold else FontWeight.Normal,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CustomDateRow(
     state: AnalysisUiState,
     onCustomFromChange: (String) -> Unit,
     onCustomToChange: (String) -> Unit,
 ) {
-    FinanceCard(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = state.customFrom,
-                    onValueChange = onCustomFromChange,
-                    label = { Text(text = stringResource(R.string.movement_filter_date_from)) },
-                    supportingText = { Text(text = stringResource(R.string.movement_date_format_hint)) },
-                    singleLine = true,
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.weight(1f),
-                )
-                OutlinedTextField(
-                    value = state.customTo,
-                    onValueChange = onCustomToChange,
-                    label = { Text(text = stringResource(R.string.movement_filter_date_to)) },
-                    supportingText = { Text(text = stringResource(R.string.movement_date_format_hint)) },
-                    singleLine = true,
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-        }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        DateTrigger(
+            label = stringResource(R.string.movement_filter_date_from),
+            iso = state.customFrom,
+            onChange = onCustomFromChange,
+            modifier = Modifier.weight(1f),
+        )
+        DateTrigger(
+            label = stringResource(R.string.movement_filter_date_to),
+            iso = state.customTo,
+            onChange = onCustomToChange,
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun ComparePreviousRow(
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
+private fun DateTrigger(
+    label: String,
+    iso: String,
+    onChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    FinanceCard(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
+    var showDialog by remember { mutableStateOf(false) }
+    val parsed = runCatching { LocalDate.parse(iso) }.getOrNull()
+    FilterSelectorField(
+        label = label,
+        value = parsed?.let { formatLongDate(it.toString()) } ?: iso.ifBlank { "—" },
+        onClick = { showDialog = true },
+        modifier = modifier,
+    )
+    if (showDialog) {
+        val pickerState = androidx.compose.material3.rememberDatePickerState(
+            initialSelectedDateMillis = parsed
+                ?.atStartOfDay(ZoneOffset.UTC)?.toInstant()?.toEpochMilli(),
+        )
+        DatePickerDialog(
+            onDismissRequest = { showDialog = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    pickerState.selectedDateMillis?.let { millis ->
+                        val date = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate()
+                        onChange(date.toString())
+                    }
+                    showDialog = false
+                }) {
+                    Text(text = stringResource(android.R.string.ok))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDialog = false }) {
+                    Text(text = stringResource(android.R.string.cancel))
+                }
+            },
         ) {
-            Checkbox(
-                checked = checked,
-                onCheckedChange = onCheckedChange,
-            )
-            Text(
-                text = stringResource(R.string.analysis_compare_previous),
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            DatePicker(state = pickerState)
         }
     }
 }

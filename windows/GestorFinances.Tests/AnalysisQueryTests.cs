@@ -37,7 +37,15 @@ public sealed class AnalysisQueryTests
 
         var row = connection.QuerySingle(
             SharedSql.ReadAnalysisQuery("analysis_period_totals.sql"),
-            new { from_date = From, to_date = To, one_time_mode = "include", category_nature = (string?)null });
+            new
+            {
+                from_date = From,
+                to_date = To,
+                one_time_mode = "include",
+                category_nature = (string?)null,
+                account_id = (string?)null,
+                category_id = (string?)null
+            });
 
         Assert.AreEqual(258_500L, (long)row.net_worth_cents);
         Assert.AreEqual(250_000L, (long)row.actual_income_cents);
@@ -77,6 +85,8 @@ public sealed class AnalysisQueryTests
                 to_date = To,
                 one_time_mode = "include",
                 category_nature = (string?)null,
+                account_id = (string?)null,
+                category_id = (string?)null,
                 group_trips = 1
             }).ToList();
 
@@ -94,6 +104,8 @@ public sealed class AnalysisQueryTests
                 to_date = To,
                 one_time_mode = "include",
                 category_nature = (string?)null,
+                account_id = (string?)null,
+                category_id = (string?)null,
                 group_trips = 0
             }).ToList();
 
@@ -114,6 +126,8 @@ public sealed class AnalysisQueryTests
                 to_date = To,
                 one_time_mode = "include",
                 category_nature = (string?)null,
+                account_id = (string?)null,
+                category_id = (string?)null,
                 bucket = "month"
             }).ToList();
 
@@ -202,6 +216,8 @@ public sealed class AnalysisQueryTests
                 to_date = To,
                 one_time_mode = "include",
                 category_nature = (string?)null,
+                account_id = (string?)null,
+                category_id = (string?)null,
                 bucket = "month"
             }).ToList();
 
@@ -225,14 +241,91 @@ public sealed class AnalysisQueryTests
         Assert.AreEqual(258_500L, (long)rows[0].net_worth_cents);
     }
 
+    [TestMethod]
+    public void CategoryFrequencyCountsPurchasesExcludingRefunds()
+    {
+        using var connection = SeededConnection();
+
+        var rows = connection.Query(
+            SharedSql.ReadAnalysisQuery("analysis_category_frequency.sql"),
+            new
+            {
+                from_date = From,
+                to_date = To,
+                one_time_mode = "include",
+                category_nature = (string?)null,
+                account_id = (string?)null,
+                category_id = (string?)null
+            }).ToList();
+
+        var byCategory = rows.ToDictionary(
+            r => (string)r.category_id,
+            r => ((long)r.movement_count, (long)r.total_cents));
+        Assert.AreEqual((1L, 5_000L), byCategory["electronics"]);
+        Assert.AreEqual((1L, 2_000L), byCategory["groceries"]);
+    }
+
+    [TestMethod]
+    public void WeekdaySpendNetsRefundsOnTheirOriginalWeekday()
+    {
+        using var connection = SeededConnection();
+
+        var rows = connection.Query(
+            SharedSql.ReadAnalysisQuery("analysis_weekday_spend.sql"),
+            new
+            {
+                from_date = From,
+                to_date = To,
+                one_time_mode = "include",
+                category_nature = (string?)null,
+                account_id = (string?)null,
+                category_id = (string?)null
+            }).ToList();
+
+        // groceries (06-05) and its refund (06-12) share a weekday → 1_500; laptop (06-10) → 5_000.
+        var totals = rows.Select(r => (long)r.expense_cents).OrderBy(v => v).ToArray();
+        CollectionAssert.AreEqual(new[] { 1_500L, 5_000L }, totals);
+    }
+
+    [TestMethod]
+    public void ActualByCategoryHonoursAccountAndCategoryFilters()
+    {
+        using var connection = SeededConnection();
+
+        // Every actual row lives on 'checking', so 'savings' narrows to nothing.
+        Assert.AreEqual(0, ByCategory(connection, "include", null, accountId: "savings", categoryId: null).Count);
+
+        var groceriesOnly = ByCategory(connection, "include", null, accountId: null, categoryId: "groceries");
+        CollectionAssert.AreEquivalent(new[] { "groceries" }, groceriesOnly.Keys.ToArray());
+        Assert.AreEqual((1_500L, 0L, -1_500L), groceriesOnly["groceries"]);
+    }
+
     private static Dictionary<string, (long Expense, long Income, long Net)> ByCategory(
         SqliteConnection connection,
         string oneTimeMode,
         string? categoryNature)
     {
+        return ByCategory(connection, oneTimeMode, categoryNature, accountId: null, categoryId: null);
+    }
+
+    private static Dictionary<string, (long Expense, long Income, long Net)> ByCategory(
+        SqliteConnection connection,
+        string oneTimeMode,
+        string? categoryNature,
+        string? accountId,
+        string? categoryId)
+    {
         return connection.Query(
                 SharedSql.ReadAnalysisQuery("analysis_actual_by_category.sql"),
-                new { from_date = From, to_date = To, one_time_mode = oneTimeMode, category_nature = categoryNature })
+                new
+                {
+                    from_date = From,
+                    to_date = To,
+                    one_time_mode = oneTimeMode,
+                    category_nature = categoryNature,
+                    account_id = accountId,
+                    category_id = categoryId
+                })
             .Where(r => r.category_id != null)
             .ToDictionary(
                 r => (string)r.category_id,

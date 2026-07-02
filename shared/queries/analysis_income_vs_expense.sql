@@ -7,6 +7,8 @@ WITH actual_rows AS (
     LEFT JOIN categories c
         ON c.id = e.category_id
        AND c.archived_at IS NULL
+    LEFT JOIN movements m
+        ON m.id = e.source_id
     WHERE e.date >= :from_date
       AND e.date < :to_date
       AND (
@@ -15,6 +17,8 @@ WITH actual_rows AS (
           OR (:one_time_mode = 'only' AND e.is_one_time = 1)
       )
       AND (:category_nature IS NULL OR c.nature = :category_nature)
+      AND (:account_id IS NULL OR m.account_id = :account_id)
+      AND (:category_id IS NULL OR e.category_id = :category_id)
 
     UNION ALL
 
@@ -26,10 +30,14 @@ WITH actual_rows AS (
     LEFT JOIN categories c
         ON c.id = i.category_id
        AND c.archived_at IS NULL
+    LEFT JOIN movements m
+        ON m.id = i.source_id
     WHERE i.date >= :from_date
       AND i.date < :to_date
       AND :one_time_mode != 'only'
       AND (:category_nature IS NULL OR c.nature = :category_nature)
+      AND (:account_id IS NULL OR m.account_id = :account_id)
+      AND (:category_id IS NULL OR i.category_id = :category_id)
 ),
 bucketed_actual AS (
     SELECT
