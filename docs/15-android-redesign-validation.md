@@ -94,11 +94,13 @@ Phase 5R should proceed in dependency order, not purely visual navigation order.
    *Audit IDs owned here (P5R-3):* `C1` (migration runner — built here with the first real migration, since external-split finality needs a schema change), `C5` (atomic external-split edit), `F2` + `U2` (§2.6 form — group bill vs my share), `O1` (`Movements.sq` 4× duplication → `v_movement_summary`), `O4` (dead `archive` branch), `O5` (dead person split line), `M2` (`MovementsViewModel` split → `MovementDraftBuilder` + `MovementSaveCoordinator`), `M6` (`sl.archived_at` filter). `F1` (AutoCategorizer wiring) is **descoped** to P5R-6 / 6C prep — only the roadmap note is updated here. Start with the T2-1 design decision (`docs/16` §4 F2/O5) before any code.
 
 4. **Dashboard and analysis**
-   Once ledger behavior is clean, validate the derived reading surfaces, drill-down paths, trip grouping, budget entry points, and chart language.
+   Once ledger behavior is clean, validate the derived reading surfaces, non-navigating Analysis aggregates, trip grouping, budget entry points, and chart language.
 
    *Audit IDs owned here (P5R-4):* `O2` (`analysis_actual_breakdown` redundancy), `O3` (`analysis_net_worth` O(N²) self-join → window function), `O6` (`validate_shared_sql.py` list drift — do this first), `M2` (`AnalysisScreen` split).
 
-   **Dashboard + analysis redesign — complete** (see `docs/15` §11 for manual checklist). Dashboard: combined account+KPI hero card (dark `heroSurface`, account icon chip, 40sp balance); `HeroKpiBlock` two rows — (1) Ingressos / Despeses (`FinanceTheme.colors.debt`, red) / Patrimoni; (2) savings `LinearProgressIndicator` (`drawStopIndicator = {}`) + "Flux net ±Y" (`netActualCents`); 2-column `AccountGrid` (FinanceCard cells: icon, name, type, balance) replaces `PatrimoniCard`; category % toggle; `MovementListItem`. Analysis: `analysis_actual_breakdown.sql` refund bug fixed + redundant joins removed + GROUP BY reduced to ids + test assertion added; expense/negative colors use `FinanceTheme.colors.debt` throughout summary cards and breakdown rows; `AnalysisScreen.kt` split into `AnalysisControls.kt`, `AnalysisSummaryGrid.kt`, `AnalysisWidgets.kt`.
+   **Dashboard + analysis redesign — complete** (see `docs/15` §11 for manual checklist). Dashboard: combined account+KPI hero card (dark `heroSurface`, account icon chip, 40sp balance); `HeroKpiBlock` two rows — (1) Ingressos / Despeses (`FinanceTheme.colors.debt`, red) / Patrimoni; (2) savings `LinearProgressIndicator` (`drawStopIndicator = {}`) + "Flux net ±Y" (`netActualCents`); 2-column `AccountGrid` (FinanceCard cells: icon, name, type, balance) replaces `PatrimoniCard`; category % toggle; `MovementListItem`. Analysis: `analysis_actual_breakdown.sql` refund bug fixed + redundant joins removed + GROUP BY reduced to ids + test assertion added; expense/negative colors use `FinanceTheme.colors.debt` throughout summary cards and breakdown rows; `AnalysisScreen.kt` split into `AnalysisControls.kt`, `AnalysisSummaryGrid.kt`, `AnalysisWidgets.kt`; aggregate cards, charts, treemaps, rows, and waterfall bars are display-only on the top-level Analysis page.
+
+   **Follow-up — Analysis rebuilt as 5 tabs** (`Resum` · `Categories` · `Comparativa` · `Històric` · `Fix/Var`, each its own file under `ui/analysis/components/`): *Comparativa* gained an in-tab comparison-period picker, 4 KPI cards with real-period-name deltas, a comparative cumulative chart (current solid / comparison desaturated), Notable Swings chips, a dual-bar category list, and the waterfall — `QuadrantCard` removed. *Històric* gained a buffer/runway hero, net-worth trend, savings-rate trend, heatmap, weekday radar, and category trends. *Fix/Var* was rebuilt as a cost-structure dashboard: the buffer card moved to `Històric`; the gauge gained a fixed-%-of-income line with a 50/30/20-style status pill; a new "Recurrents més antics" section lists the oldest active fixed-cost templates with monthly amount, active-since month, and real movement count (`MovementRepository.countsByTemplate()`); the Sankey diagram was redesigned (rounded nodes, app typography, per-node euro amounts, collision-safe labels — name always shown, amount dropped first under pressure); new Fixes/Variables category-breakdown cards show a magnitude bar per category (bar length = share of the group total) plus a header total+percentage; "Cost dels periòdics" got the same bar treatment plus each item's next due date; "Propers periòdics" was removed (now owned by the Recurring/Periòdics page). See `docs/06-roadmap.md` P5R-4 for the full file-level breakdown and the new shared chart components (`SankeyDiagram`, `RadarChart`, `SavingsRateChart`, `Sparkline`, `SpendingHeatmap`, `Treemap`, `WaterfallChart`). Manual checklist updated in `docs/15` §11.
 
 5. **People, splits, debts, and settlements**
    These depend on movement correctness and include the most sensitive derived debt logic.
@@ -242,18 +244,24 @@ Run these after building the app to confirm the redesigned dashboard and analysi
 
 ### Analysis
 
+Analysis is 5 tabs — `Resum` · `Categories` · `Comparativa` (Compara) · `Històric` · `Fix/Var` — sharing one header (scope, period, filters). Every top-level aggregate, chart, and row across all 5 tabs is display-only (§6 Aggregate Interaction Contract, `docs/11`): tapping never opens a movement list or trip detail, only filters/controls respond.
+
 | # | Step | Expected |
 |---|------|----------|
-| 1 | Open Anàlisi | Summary grid shows Despeses (red) and Ingressos (green) cards top row; Net + Estalvi % bottom row |
-| 2 | Net is negative | Net card amount is red |
-| 3 | Enable "Comparar anterior" | Previous period amounts appear below current in each card; delta shown in green (positive) or red (negative) |
-| 4 | Change scope to Year | Period selector updates; breakdown re-groups by month |
-| 5 | Change mode to Flux | Summary shows Patrimoni and Flux net; breakdown shows per-account flow rows |
-| 6 | Category breakdown row for an expense-heavy category | Row shows colored icon, name, signed net amount (green if income-positive, red if expense-heavy), and a progress bar |
-| 7 | A category has refund movements this period | Breakdown amount correctly deducts refunds (net actual, not gross expense) |
-| 8 | Widgets: open a year-range period with ≥ 2 months of income | "Estalvi per mes" section shows per-month savings rate rows with progress bars |
-| 9 | Largest expenses widget | Shows up to N expenses sorted by amount descending; tapping drills to movements |
-| 10 | Filter by account (from AccountsScreen "Anàlisi" tap) | `FinanceFilterChip` "Compte: [name]" appears; data scoped to that account; tapping chip clears it |
+| 1 | Open Anàlisi | 5 tabs render (`Resum`, `Categories`, `Compara`, `Històric`, `Fix/Var`); shared header (scope, period, filters) stays visible across tab switches |
+| 2 | **Resum** — open with data | Summary grid shows Despeses (red) and Ingressos (green) cards top row; Net + Estalvi % bottom row; main chart shows daily (month) or per-bucket (year/all-time) income vs. expense |
+| 3 | **Resum** — Net is negative | Net card amount is red |
+| 4 | **Categories** — expense-heavy category row | Row shows colored icon, name, signed net amount, a progress bar, and a sparkline; a category with refunds this period nets them out (not gross expense) |
+| 5 | **Comparativa** — pick a comparison period | In-tab "Compara amb" picker (scope-matched: month/year/custom date pair); KPI cards show current large + comparison small + a colored delta chip (abs + %, or "Nou"/"-100%" edge cases); comparative chart overlays current (solid) vs. comparison (desaturated ghost), index-aligned |
+| 6 | **Comparativa** — step the main period | Comparison period stays put (does not auto-follow); "Restableix" appears once the comparison has been manually touched, and resets it to the period immediately preceding the current main period |
+| 7 | **Comparativa** — Despeses/Ingressos toggle | Category comparison list switches mode; each row shows a thick current bar + thin comparison bar + delta %; Notable Swings chips above the list show the top-3 categories by absolute impact; waterfall renders at the bottom, always visible |
+| 8 | **Històric** — open with ≥ 2 months of data | Buffer/runway hero card (days of net-worth runway at average expense, or "Sense dades" when unavailable); net-worth trend; savings-rate trend with progress bars; spending heatmap (bounded spans only); weekday radar; category trend lines |
+| 9 | **Fix/Var** — open with fixed and variable expenses this period | Gauge shows fixed/variable amounts + % of expenses, plus a one-line fixed-%-of-income status (icon + percentage + a "Dins del marge" or "Supera el 50%" pill, colored by threshold); no separate "Dies de marge" card (moved to `Històric`) |
+| 10 | **Fix/Var** — "Recurrents més antics" section | Lists the oldest active fixed-cost templates (by creation date) with monthly amount, "Actiu des de: [mes any]", and real movement count; empty state when none exist |
+| 11 | **Fix/Var** — Sankey diagram | Income → Fix/Variable/Estalvi → top categories, each node showing its name and euro amount; non-interactive (no tap/selection); small/crowded nodes still show a name even when the amount is dropped for space |
+| 12 | **Fix/Var** — Fixes/Variables category cards | Each category row shows a magnitude bar sized to its share of the group total (bar length = the % shown); section header shows the group's total and % of total expenses |
+| 13 | **Fix/Var** — "Cost dels periòdics" | Header shows the total monthly recurring cost; each item shows a magnitude bar, its % share, and its next due date; no "Propers periòdics" section anywhere in the tab |
+| 14 | Filter by account (from AccountsScreen "Anàlisi" tap) | `FinanceFilterChip` "Compte: [name]" appears; data scoped to that account across all tabs; tapping chip clears it |
 
 ---
 

@@ -44,6 +44,14 @@ LEFT JOIN categories
 WHERE v_account_flow.account_id = :account_id
 ORDER BY v_account_flow.date DESC, movements.created_at DESC;
 
+movementCountsByTemplate:
+SELECT
+    template_id,
+    COUNT(*) AS movement_count
+FROM v_movement_summary
+WHERE template_id IS NOT NULL
+GROUP BY template_id;
+
 movementsForCategory:
 SELECT
     movements.account_id,

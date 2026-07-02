@@ -431,7 +431,7 @@
     <string name="analysis_flow_positive">Entrades</string>
     <string name="analysis_flow_negative">Sortides</string>
     <string name="analysis_breakdown_title">Desglossament</string>
-    <string name="analysis_income_vs_expense_title">Ingressos vs despeses</string>
+    <string name="analysis_income_vs_expense_title">Ingressos i despeses acumulats</string>
     <string name="analysis_account_flow_title">Evolució de comptes</string>
     <string name="analysis_top_merchants_title">Despeses freqüents</string>
     <string name="analysis_largest_expenses_title">Despeses més grans</string>
@@ -451,6 +451,94 @@
         <item quantity="one">%1$d moviment</item>
         <item quantity="other">%1$d moviments</item>
     </plurals>
+
+    <!-- Phase 5R: Analysis 5-tab redesign -->
+    <string name="analysis_tab_resum">Resum</string>
+    <string name="analysis_tab_categories">Categories</string>
+    <string name="analysis_tab_comparativa">Compara</string>
+    <string name="analysis_tab_historic">Històric</string>
+    <string name="analysis_tab_fix_variable">Fix/Var</string>
+    <string name="analysis_filters_open">Obre filtres</string>
+    <string name="analysis_filter_account">Compte</string>
+    <string name="analysis_filter_category">Categoria</string>
+    <string name="analysis_filter_account_all">Tots els comptes</string>
+    <string name="analysis_filter_category_all">Totes les categories</string>
+    <string name="analysis_filter_reset">Restableix els filtres</string>
+    <string name="analysis_period_pick_month">Tria el mes</string>
+    <string name="analysis_period_pick_year">Tria l\'any</string>
+    <string name="analysis_top_categories_title">Categories principals</string>
+    <string name="analysis_treemap_title">Distribució de despesa</string>
+    <string name="analysis_scatter_title">Freqüència vs volum</string>
+    <string name="analysis_scatter_x">Nombre de moviments</string>
+    <string name="analysis_scatter_y">Import total</string>
+    <string name="analysis_scatter_bubble_hint">Mida = mitjana per moviment</string>
+    <string name="analysis_waterfall_title">Pont del període</string>
+    <string name="analysis_comparativa_deltas_title">Canvis principals</string>
+    <string name="analysis_comparativa_unavailable">La comparativa no està disponible per a tot l\'històric.</string>
+    <string name="analysis_compare_with_label">Compara amb</string>
+    <string name="analysis_compare_reset">Restableix</string>
+    <string name="analysis_comparison_chart_title">Acumulat comparat</string>
+    <string name="analysis_comparison_expense_label">Despeses</string>
+    <string name="analysis_comparison_income_label">Ingressos</string>
+    <string name="analysis_comparison_net_label">Net</string>
+    <string name="analysis_notable_swings_title">Canvis destacats</string>
+    <string name="analysis_category_comparison_title">Per categoria</string>
+    <string name="analysis_kpi_vs_previous">vs %1$s</string>
+    <string name="analysis_delta_new">Nou</string>
+    <string name="analysis_delta_eliminated">-100%</string>
+    <string name="analysis_savings_rate_delta_suffix">" pp"</string>
+    <string name="analysis_stacked_title">Evolució per categoria</string>
+    <string name="analysis_weekday_title">Despesa per dia de la setmana</string>
+    <string name="analysis_sankey_title">Flux de diners</string>
+    <string name="analysis_sankey_income">Ingressos</string>
+    <string name="analysis_sankey_fixed">Fix</string>
+    <string name="analysis_sankey_variable">Variable</string>
+    <string name="analysis_sankey_savings">Estalvi</string>
+    <string name="analysis_fixvar_gauge_title">Fix vs variable</string>
+    <string name="analysis_fixvar_fixed">Fix</string>
+    <string name="analysis_fixvar_variable">Variable</string>
+    <string name="analysis_fixvar_income_ratio">%1$s dels ingressos</string>
+    <string name="analysis_fixvar_income_unavailable">Ingressos no disponibles</string>
+    <string name="analysis_fixvar_insight_ok">Dins del marge</string>
+    <string name="analysis_fixvar_insight_warning">Supera el 50%%</string>
+    <string name="analysis_fixvar_oldest_title">Recurrents més antics</string>
+    <string name="analysis_fixvar_oldest_active_since">Des de: %1$s</string>
+    <string name="analysis_fixvar_oldest_empty">No hi ha recurrents actius per mostrar.</string>
+    <string name="analysis_fixvar_group_fixed">Fixes</string>
+    <string name="analysis_fixvar_group_variable">Variables</string>
+    <string name="analysis_fixvar_group_pct_of_expenses">%1$s de les despeses</string>
+    <string name="analysis_buffer_title">Dies de marge</string>
+    <string name="analysis_buffer_days_value">%1$d dies</string>
+    <string name="analysis_buffer_no_expense_data">Sense dades de despesa suficients per calcular-ho.</string>
+    <string name="analysis_buffer_basis_caption">Basat en la despesa mitjana total del període</string>
+    <string name="analysis_savings_rate_average_title">Taxa d\'estalvi mitjana</string>
+    <string name="analysis_savings_rate_surplus">Superàvit</string>
+    <string name="analysis_savings_rate_deficit">Dèficit</string>
+    <string name="analysis_other">Altres</string>
+    <string name="analysis_delta_percent">%1$s%%</string>
+    <string-array name="analysis_weekday_short">
+        <item>Dg</item>
+        <item>Dl</item>
+        <item>Dt</item>
+        <item>Dc</item>
+        <item>Dj</item>
+        <item>Dv</item>
+        <item>Ds</item>
+    </string-array>
+    <string-array name="analysis_month_short">
+        <item>Gen</item>
+        <item>Feb</item>
+        <item>Març</item>
+        <item>Abr</item>
+        <item>Maig</item>
+        <item>Juny</item>
+        <item>Jul</item>
+        <item>Ag</item>
+        <item>Set</item>
+        <item>Oct</item>
+        <item>Nov</item>
+        <item>Des</item>
+    </string-array>
     <plurals name="account_flow_movement_count">
         <item quantity="one">%1$d moviment</item>
         <item quantity="other">%1$d moviments</item>
@@ -493,7 +581,6 @@
     <string name="recurring_empty_title">Encara no tens moviments periòdics</string>
     <string name="recurring_empty_body">Crea una plantilla per repetir despeses, ingressos o transferències.</string>
     <string name="recurring_cost_summary_title">Cost dels periòdics</string>
-    <string name="recurring_cost_summary_body">Gastes %1$s al mes en moviments periòdics.</string>
 
     <!-- Add/Edit template -->
     <string name="template_new_title">Nou periòdic</string>

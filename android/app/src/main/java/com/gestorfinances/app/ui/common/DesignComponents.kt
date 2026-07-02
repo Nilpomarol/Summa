@@ -266,6 +266,7 @@ fun <T> SegmentedControl(
     label: @Composable (T) -> String,
     onSelect: (T) -> Unit,
     modifier: Modifier = Modifier,
+    itemHeight: Dp = 36.dp,
 ) {
     Row(
         modifier = modifier
@@ -290,7 +291,7 @@ fun <T> SegmentedControl(
             ) {
                 Box(
                     modifier = Modifier
-                        .heightIn(min = 36.dp)
+                        .heightIn(min = itemHeight)
                         .fillMaxWidth()
                         .padding(horizontal = 8.dp),
                     contentAlignment = Alignment.Center,

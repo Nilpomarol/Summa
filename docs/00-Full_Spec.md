@@ -477,7 +477,7 @@ A person's balance is **computed** from shared expenses, expenses-paid-by-them, 
 **Lifecycle / states:** N/A.
 
 **Business rules:**
-- When grouping is on (default), trip movements roll up into one "Trip: X" line in category/total views; drilling in expands to the trip's own analysis (§3.11).
+- When grouping is on (default), trip movements roll up into one "Trip: X" line in category/total views; the trip's own analysis stays available from the Events/trip surfaces rather than by tapping the top-level Analysis block (§3.11).
 - When off, trip movements appear under their individual categories like any other.
 
 **Edge cases & open questions:**
@@ -616,7 +616,7 @@ The heart of the app. Requirements:
 
 - **Time scopes:** monthly, yearly, all-time, and custom period.
 - **Comparison:** any period vs. another (e.g. this month vs. last, this year vs. last).
-- **Grouping & breakdown:** group by category (with subcategory drill-down, §3.2), by trip-as-block (§3.12), by account; full category breakdown within any scope.
+- **Grouping & breakdown:** group by category (including subcategories, §3.2), by trip-as-block (§3.12), by account; full category breakdown within any scope.
 - **Account flow view:** month-to-month and day-to-day balance evolution per account and overall.
 - **Averages vs. totals:** on yearly/all-time scopes, the option to view **averages** (e.g. average monthly spend per category) instead of raw totals.
 - **Fixed vs. variable (+ one-time):** split any view by the category's fixed/variable nature; and **isolate or exclude `is_one_time` (extraordinary) spend** — included by default, with a toggle to take extraordinary purchases out of the analysis.
@@ -624,7 +624,7 @@ The heart of the app. Requirements:
 - **People/debt analysis:** outstanding balances, history with each person, who owes what.
 - **Future forecasting:** projection combining (a) known recurring templates and (b) historical averages / learned patterns, to estimate upcoming months. Clearly labeled as estimate.
 - **Filtering:** filter *everything* — by category, period, account, type (expense/income/transfer/settlement), nature (fixed/variable), recurring vs. one-off, person involved, trip, tag, amount range, text search.
-- **Drill-down everywhere:** every aggregate is clickable down to the underlying movements.
+- **Interaction:** top-level Analysis aggregates, chart elements, and breakdown rows are display/inspection surfaces and do not navigate. Explicit entry points outside the Analysis page (for example Dashboard KPIs, account/category sheets, or movement lists) may still open filtered movement or detail views.
 - **Additional analysis widgets (v1):** top merchants / most-frequent expenses; largest expenses in a period; spending **heatmap** (calendar); category **trend lines** over time; **net worth** total across all accounts over time; **income-vs-expense (savings rate)** per period; **recurring-cost summary** ("you spend €X/month on subscriptions"). *(Top merchants groups by the `payee` field; richer merchant analytics improve with the v1.5 payee entity, §3.0.)*
 
 #### 4.8b Dashboard / home screen

@@ -1,25 +1,33 @@
 WITH actual_rows AS (
     SELECT
-        category_id,
-        trip_id,
-        amount_cents AS expense_cents,
+        e.category_id,
+        e.trip_id,
+        e.amount_cents AS expense_cents,
         0 AS income_cents,
-        is_one_time
-    FROM v_actual_expense
-    WHERE date >= :from_date
-      AND date < :to_date
+        e.is_one_time
+    FROM v_actual_expense e
+    LEFT JOIN movements m
+        ON m.id = e.source_id
+    WHERE e.date >= :from_date
+      AND e.date < :to_date
+      AND (:account_id IS NULL OR m.account_id = :account_id)
+      AND (:category_id IS NULL OR e.category_id = :category_id)
 
     UNION ALL
 
     SELECT
-        category_id,
-        trip_id,
+        i.category_id,
+        i.trip_id,
         0 AS expense_cents,
-        amount_cents AS income_cents,
+        i.amount_cents AS income_cents,
         0 AS is_one_time
-    FROM v_actual_income
-    WHERE date >= :from_date
-      AND date < :to_date
+    FROM v_actual_income i
+    LEFT JOIN movements m
+        ON m.id = i.source_id
+    WHERE i.date >= :from_date
+      AND i.date < :to_date
+      AND (:account_id IS NULL OR m.account_id = :account_id)
+      AND (:category_id IS NULL OR i.category_id = :category_id)
 ),
 active_groups AS (
     SELECT

@@ -1,94 +1,86 @@
 package com.gestorfinances.app.ui.analysis.components
 
-import androidx.annotation.StringRes
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ArrowDownward
+import androidx.compose.material.icons.outlined.ArrowUpward
 import androidx.compose.material.icons.outlined.Autorenew
 import androidx.compose.material.icons.outlined.Flight
-import androidx.compose.material3.Checkbox
+import androidx.compose.material.icons.outlined.Savings
+import androidx.compose.material.icons.outlined.Shield
+import androidx.compose.material.icons.outlined.SwapVert
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.gestorfinances.app.R
-import com.gestorfinances.app.data.repository.AnalysisAccountFlowBucket
 import com.gestorfinances.app.data.repository.AnalysisBreakdownKind
-import com.gestorfinances.app.data.repository.AnalysisBucket
 import com.gestorfinances.app.data.repository.AnalysisCategoryTotal
 import com.gestorfinances.app.data.repository.AnalysisCategoryTrendPoint
 import com.gestorfinances.app.data.repository.AnalysisIncomeExpenseBucket
-import com.gestorfinances.app.data.repository.AnalysisLargestExpense
-import com.gestorfinances.app.data.repository.AnalysisMerchantTotal
 import com.gestorfinances.app.data.repository.AnalysisNetWorthPoint
-import com.gestorfinances.app.data.repository.AnalysisOneTimeMode
 import com.gestorfinances.app.data.repository.AnalysisPeriodTotals
-import com.gestorfinances.app.data.repository.CategoryNature
-import com.gestorfinances.app.data.repository.MovementType
-import com.gestorfinances.app.ui.common.BannerKind
-import com.gestorfinances.app.ui.common.ChipFlowSection
+import com.gestorfinances.app.data.repository.AnalysisWeekdaySpend
+import com.gestorfinances.app.ui.analysis.RecurringCostItem
+import com.gestorfinances.app.ui.analysis.RecurringCostSummary
+import com.gestorfinances.app.ui.analysis.divideCents
 import com.gestorfinances.app.ui.common.FinanceCard
-import com.gestorfinances.app.ui.common.FinanceFilterChip
+import com.gestorfinances.app.ui.common.HeatmapCell
 import com.gestorfinances.app.ui.common.IconChip
-import com.gestorfinances.app.ui.common.IncomeExpenseChart
-import com.gestorfinances.app.ui.common.IncomeExpenseChartPoint
-import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.MoneyText
+import com.gestorfinances.app.ui.common.RadarAxis
+import com.gestorfinances.app.ui.common.RadarChart
+import com.gestorfinances.app.ui.common.SavingsRateBar
+import com.gestorfinances.app.ui.common.SavingsRateChart
 import com.gestorfinances.app.ui.common.SectionHeader
-import com.gestorfinances.app.ui.common.SegmentedControl
+import com.gestorfinances.app.ui.common.SpendingHeatmap
 import com.gestorfinances.app.ui.common.TrendLineChart
 import com.gestorfinances.app.ui.common.TrendSeries
 import com.gestorfinances.app.ui.common.categoryIcon
 import com.gestorfinances.app.ui.common.formatBasisPoints
-import com.gestorfinances.app.ui.common.formatEuroCents
 import com.gestorfinances.app.ui.common.formatLongDate
-import com.gestorfinances.app.ui.common.formatMonthYear
-import com.gestorfinances.app.ui.movements.MovementFilters
-import com.gestorfinances.app.ui.movements.MovementOneTimeMode as MovementFilterOneTimeMode
-import com.gestorfinances.app.ui.movements.MovementSourceMode
+import com.gestorfinances.app.ui.common.formatMonth
 import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.categoryColor
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
-import com.gestorfinances.app.ui.analysis.*
+const val MAX_TREND_SERIES = 4
+const val MAX_RECURRING_COST_ITEMS = 3
 
+/** A category (or trip) row: icon, name, net amount, and a weight bar (design §6). */
 @Composable
 internal fun CategoryBreakdownRow(
     category: AnalysisCategoryTotal,
     maxCents: Long,
     divisor: Long,
-    onClick: () -> Unit,
+    totalCents: Long,
 ) {
     val color = if (category.rowKind == AnalysisBreakdownKind.TRIP) {
         FinanceTheme.colors.transfer
@@ -97,6 +89,11 @@ internal fun CategoryBreakdownRow(
     }
     val amount = category.netCents
     val displayAmount = amount.divideCents(divisor)
+    val fraction = (abs(amount).toFloat() / totalCents.toFloat()).coerceIn(0f, 1f)
+    val pctText = when {
+        fraction < 0.005f -> "<1%"
+        else -> "${(fraction * 100).roundToInt()}%"
+    }
     val title = if (category.rowKind == AnalysisBreakdownKind.TRIP) {
         category.tripName?.let { stringResource(R.string.trip_analysis_block_title, it) }
             ?: stringResource(R.string.nav_trips)
@@ -106,7 +103,6 @@ internal fun CategoryBreakdownRow(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
             .padding(vertical = 7.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
@@ -130,11 +126,19 @@ internal fun CategoryBreakdownRow(
                 overflow = TextOverflow.Ellipsis,
             )
             Spacer(modifier = Modifier.width(10.dp))
-            MoneyText(
-                cents = displayAmount,
-                color = if (amount >= 0) FinanceTheme.colors.income else FinanceTheme.colors.debt,
-                signed = true,
-            )
+            Column(horizontalAlignment = Alignment.End) {
+                MoneyText(
+                    cents = displayAmount,
+                    color = if (amount >= 0) FinanceTheme.colors.income else FinanceTheme.colors.debt,
+                    signed = true,
+                )
+                Text(
+                    text = pctText,
+                    color = FinanceTheme.colors.mutedText,
+                    style = MaterialTheme.typography.labelSmall,
+                    textAlign = TextAlign.End,
+                )
+            }
         }
         LinearProgressIndicator(
             progress = { (abs(amount).toFloat() / maxCents.toFloat()).coerceIn(0f, 1f) },
@@ -143,43 +147,164 @@ internal fun CategoryBreakdownRow(
                 .height(5.dp),
             color = color,
             trackColor = MaterialTheme.colorScheme.surfaceVariant,
+            drawStopIndicator = {},
         )
     }
 }
 
 @Composable
-internal fun AccountFlowBreakdownRow(
-    flow: AnalysisAccountFlowBucket,
+internal fun SummaryKPIsCard(
+    totals: AnalysisPeriodTotals,
     divisor: Long,
-    onClick: () -> Unit,
 ) {
-    val displayAmount = flow.deltaCents.divideCents(divisor)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    val net = (totals.actualIncomeCents - totals.actualExpenseCents).divideCents(divisor)
+    val savingsPositive = totals.savingsRateBasisPoints >= 0
+    FinanceCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                KpiCell(
+                    modifier = Modifier.weight(1f),
+                    icon = Icons.Outlined.ArrowUpward,
+                    accent = FinanceTheme.colors.income,
+                    label = stringResource(R.string.analysis_summary_income),
+                ) {
+                    MoneyText(
+                        cents = totals.actualIncomeCents.divideCents(divisor),
+                        color = FinanceTheme.colors.income,
+                        style = MaterialTheme.typography.titleLarge,
+                    )
+                }
+                KpiCell(
+                    modifier = Modifier.weight(1f),
+                    icon = Icons.Outlined.ArrowDownward,
+                    accent = FinanceTheme.colors.debt,
+                    label = stringResource(R.string.analysis_summary_expense),
+                ) {
+                    MoneyText(
+                        cents = (-totals.actualExpenseCents).divideCents(divisor),
+                        color = FinanceTheme.colors.debt,
+                        style = MaterialTheme.typography.titleLarge,
+                    )
+                }
+            }
+            // Proportional income (green) vs expense (red) split — the period balance at a glance.
+            IncomeExpenseSplitBar(
+                incomeCents = totals.actualIncomeCents,
+                expenseCents = totals.actualExpenseCents,
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                KpiCell(
+                    modifier = Modifier.weight(1f),
+                    icon = Icons.Outlined.SwapVert,
+                    accent = if (net >= 0) FinanceTheme.colors.income else FinanceTheme.colors.debt,
+                    label = stringResource(R.string.dashboard_net_flow),
+                ) {
+                    MoneyText(
+                        cents = net,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        style = MaterialTheme.typography.titleMedium,
+                        signed = true,
+                    )
+                }
+                KpiCell(
+                    modifier = Modifier.weight(1f),
+                    icon = Icons.Outlined.Savings,
+                    accent = if (savingsPositive) FinanceTheme.colors.income else FinanceTheme.colors.debt,
+                    label = stringResource(R.string.dashboard_savings_short),
+                ) {
+                    Text(
+                        text = if (totals.actualIncomeCents > 0) {
+                            formatBasisPoints(totals.savingsRateBasisPoints)
+                        } else {
+                            stringResource(R.string.dashboard_savings_rate_unavailable)
+                        },
+                        color = if (savingsPositive) FinanceTheme.colors.income else FinanceTheme.colors.debt,
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** A KPI tile: tinted icon chip + label on top, the value composable below at full cell width. */
+@Composable
+private fun KpiCell(
+    icon: ImageVector,
+    accent: Color,
+    label: String,
+    modifier: Modifier = Modifier,
+    value: @Composable () -> Unit,
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Column(modifier = Modifier.weight(1f)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            IconChip(icon = icon, contentDescription = null, color = accent, size = 34.dp)
             Text(
-                text = flow.accountName,
-                style = MaterialTheme.typography.titleSmall,
+                text = label,
+                color = FinanceTheme.colors.mutedText,
+                style = MaterialTheme.typography.labelMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(
-                text = flow.bucket,
-                color = FinanceTheme.colors.mutedText,
-                style = MaterialTheme.typography.bodyMedium,
-            )
         }
-        Spacer(modifier = Modifier.width(10.dp))
-        MoneyText(
-            cents = displayAmount,
-            color = if (flow.deltaCents >= 0) FinanceTheme.colors.income else FinanceTheme.colors.debt,
-            signed = true,
-        )
+        value()
+    }
+}
+
+/** Horizontal bar whose green/red widths are the income/expense proportions of the period. */
+@Composable
+private fun IncomeExpenseSplitBar(
+    incomeCents: Long,
+    expenseCents: Long,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(8.dp)
+            .clip(MaterialTheme.shapes.small),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        if (incomeCents + expenseCents <= 0L) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+            )
+        } else {
+            if (incomeCents > 0L) {
+                Box(
+                    modifier = Modifier
+                        .weight(incomeCents.toFloat())
+                        .fillMaxHeight()
+                        .background(FinanceTheme.colors.income),
+                )
+            }
+            if (expenseCents > 0L) {
+                Box(
+                    modifier = Modifier
+                        .weight(expenseCents.toFloat())
+                        .fillMaxHeight()
+                        .background(FinanceTheme.colors.debt),
+                )
+            }
+        }
     }
 }
 
@@ -203,208 +328,182 @@ internal fun EmptyAnalysisCard() {
     }
 }
 
+/**
+ * Històric tab hero: "how financially safe am I?" — days of runway the current net worth would
+ * cover at the scope's average daily expense, plus the average savings rate for the same scope.
+ * Stronger visual treatment than regular widgets (dark [FinanceTheme.colors.heroSurface], design
+ * §7) so it reads as the tab's headline, not another chart card.
+ */
 @Composable
-internal fun RecurringCostSummaryWidget(summary: RecurringCostSummary) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        SectionHeader(title = stringResource(R.string.recurring_cost_summary_title))
-        FinanceCard(modifier = Modifier.fillMaxWidth()) {
-            Column(
-                modifier = Modifier.padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconChip(
-                        icon = Icons.Outlined.Autorenew,
-                        contentDescription = null,
-                        color = MaterialTheme.colorScheme.primary,
-                        size = 36.dp,
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = stringResource(
-                            R.string.recurring_cost_summary_body,
-                            formatEuroCents(summary.monthlyExpenseCents),
-                        ),
-                        modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-                summary.items.take(MAX_RECURRING_COST_ITEMS).forEach { item ->
-                    RecurringCostItemRow(item = item)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-internal fun RecurringCostItemRow(item: RecurringCostItem) {
-    val title = item.label
-        ?: item.categoryName
-        ?: stringResource(R.string.common_no_category)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 3.dp),
-        verticalAlignment = Alignment.CenterVertically,
+internal fun BufferHeroCard(
+    daysOfBuffer: Long?,
+    savingsRateBasisPoints: Long,
+    hasIncome: Boolean,
+) {
+    val savingsPositive = savingsRateBasisPoints >= 0
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = FinanceTheme.colors.heroSurface,
+        contentColor = FinanceTheme.colors.heroOnSurface,
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleSmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            item.categoryName?.takeIf { it != title }?.let { category ->
+        Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconChip(
+                    icon = Icons.Outlined.Shield,
+                    contentDescription = null,
+                    color = FinanceTheme.colors.income,
+                    size = 34.dp,
+                )
+                Spacer(modifier = Modifier.width(10.dp))
                 Text(
-                    text = category,
-                    color = FinanceTheme.colors.mutedText,
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                    text = stringResource(R.string.analysis_buffer_title),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = FinanceTheme.colors.heroOnSurfaceMuted,
+                )
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            if (daysOfBuffer != null) {
+                Text(
+                    text = stringResource(R.string.analysis_buffer_days_value, daysOfBuffer),
+                    color = FinanceTheme.colors.heroOnSurface,
+                    style = MaterialTheme.typography.displayMedium.copy(fontSize = 36.sp, lineHeight = 40.sp),
+                )
+                Text(
+                    // Disambiguates from the Fix/Var tab's own "Dies de marge" card, which is
+                    // based on fixed recurring costs only — this one uses total actual expense.
+                    text = stringResource(R.string.analysis_buffer_basis_caption),
+                    color = FinanceTheme.colors.heroOnSurfaceMuted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            } else {
+                Text(
+                    text = stringResource(R.string.analysis_buffer_no_expense_data),
+                    color = FinanceTheme.colors.heroOnSurfaceMuted,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+            }
+            Spacer(modifier = Modifier.height(14.dp))
+            HorizontalDivider(color = FinanceTheme.colors.heroOnSurface.copy(alpha = 0.15f))
+            Spacer(modifier = Modifier.height(14.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.analysis_savings_rate_average_title),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = FinanceTheme.colors.heroOnSurfaceMuted,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    text = if (hasIncome) {
+                        formatBasisPoints(savingsRateBasisPoints)
+                    } else {
+                        stringResource(R.string.dashboard_savings_rate_unavailable)
+                    },
+                    style = MaterialTheme.typography.titleMedium,
+                    color = if (!hasIncome) {
+                        FinanceTheme.colors.heroOnSurfaceMuted
+                    } else if (savingsPositive) {
+                        FinanceTheme.colors.income
+                    } else {
+                        FinanceTheme.colors.debt
+                    },
                 )
             }
         }
-        Spacer(modifier = Modifier.width(10.dp))
-        MoneyText(
-            cents = item.monthlyExpenseCents,
-            color = MaterialTheme.colorScheme.onSurface,
-            style = MaterialTheme.typography.titleSmall,
-        )
     }
 }
 
+/**
+ * Històric tab: "am I saving more or less over time?" — one bar per historical period from
+ * [buckets] (already at the scope's natural bucket granularity), positive/negative colored by
+ * surplus vs. deficit, with a smoothed trend line (see [SavingsRateChart]).
+ */
 @Composable
-internal fun LargestExpenseRow(
-    expense: AnalysisLargestExpense,
-    onClick: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        IconChip(
-            icon = categoryIcon(expense.categoryIcon),
-            contentDescription = null,
-            color = categoryColor(expense.categoryColor),
-            size = 36.dp,
-        )
-        Spacer(modifier = Modifier.width(10.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = expense.label
-                    ?: expense.categoryName
-                    ?: stringResource(R.string.common_no_category),
-                style = MaterialTheme.typography.titleSmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = formatLongDate(expense.date),
-                color = FinanceTheme.colors.mutedText,
-                style = MaterialTheme.typography.bodyMedium,
-            )
+internal fun SavingsRateTrendWidget(buckets: List<AnalysisIncomeExpenseBucket>) {
+    val bars = buckets
+        .sortedBy { it.bucket }
+        .map { SavingsRateBar(label = formatBucketLabel(it.bucket), basisPoints = it.savingsRateBasisPoints) }
+    SavingsRateChart(
+        title = stringResource(R.string.analysis_savings_rate_period_title),
+        bars = bars,
+        positiveColor = FinanceTheme.colors.income,
+        negativeColor = FinanceTheme.colors.debt,
+        positiveLabel = stringResource(R.string.analysis_savings_rate_surplus),
+        negativeLabel = stringResource(R.string.analysis_savings_rate_deficit),
+        emptyText = stringResource(R.string.dashboard_no_data),
+    )
+}
+
+/** Short display label for an `analysisIncomeVsExpense` bucket string ("YYYY-MM-DD"/"YYYY-MM"/"YYYY"). */
+private fun formatBucketLabel(bucket: String): String =
+    when (bucket.length) {
+        10 -> runCatching { LocalDate.parse(bucket).dayOfMonth.toString() }.getOrDefault(bucket)
+        7 -> runCatching { formatMonth(YearMonth.parse(bucket)) }.getOrDefault(bucket)
+        else -> bucket
+    }
+
+/** Històric tab: spending heatmap wrapped in the same section-header + card shell as the other widgets. */
+@Composable
+internal fun SpendingHeatmapWidget(cells: List<HeatmapCell>) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        SectionHeader(title = stringResource(R.string.analysis_heatmap_title))
+        FinanceCard(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                SpendingHeatmap(cells = cells)
+            }
         }
-        Spacer(modifier = Modifier.width(10.dp))
-        MoneyText(
-            cents = expense.amountCents,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
     }
 }
 
+/** Històric tab: day-of-week radar wrapped in the same section-header + card shell as the other widgets. */
 @Composable
-internal fun MerchantRow(merchant: AnalysisMerchantTotal) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = merchant.merchantLabel ?: stringResource(R.string.analysis_merchant_none),
-                style = MaterialTheme.typography.titleSmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = pluralStringResource(
-                    R.plurals.analysis_merchant_count,
-                    merchant.movementCount.toInt(),
-                    merchant.movementCount.toInt(),
-                ),
-                color = FinanceTheme.colors.mutedText,
-                style = MaterialTheme.typography.bodyMedium,
-            )
+internal fun WeekdayRadarWidget(weekday: List<AnalysisWeekdaySpend>) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        SectionHeader(title = stringResource(R.string.analysis_weekday_title))
+        FinanceCard(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                val labels = stringArrayResource(R.array.analysis_weekday_short)
+                val byWeekday = weekday.associate { it.weekday to it.expenseCents }
+                val axes = (0..6).map { day ->
+                    RadarAxis(
+                        label = labels.getOrElse(day) { day.toString() },
+                        value = (byWeekday[day] ?: 0L).coerceAtLeast(0L) / 100f,
+                    )
+                }
+                RadarChart(axes = axes, color = MaterialTheme.colorScheme.primary)
+            }
         }
-        Spacer(modifier = Modifier.width(10.dp))
-        MoneyText(
-            cents = merchant.totalCents,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-    }
-}
-
-@Composable
-internal fun SavingsRateRow(
-    bucket: AnalysisIncomeExpenseBucket,
-    onClick: () -> Unit,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 7.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = bucket.bucket,
-                modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.titleSmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = formatBasisPoints(bucket.savingsRateBasisPoints),
-                color = if (bucket.savingsRateBasisPoints >= 0) {
-                    FinanceTheme.colors.income
-                } else {
-                    FinanceTheme.colors.debt
-                },
-                style = MaterialTheme.typography.titleSmall,
-            )
-        }
-        LinearProgressIndicator(
-            progress = {
-                (bucket.savingsRateBasisPoints.toFloat() / 10000f).coerceIn(0f, 1f)
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(5.dp),
-            color = FinanceTheme.colors.income,
-            trackColor = MaterialTheme.colorScheme.surfaceVariant,
-        )
     }
 }
 
 @Composable
 internal fun NetWorthTrendWidget(points: List<AnalysisNetWorthPoint>) {
+    val sorted = points.sortedBy { it.bucket }
     val series = listOf(
         TrendSeries(
             label = stringResource(R.string.analysis_net_worth_title),
             color = MaterialTheme.colorScheme.primary,
-            pointsEuros = points.sortedBy { it.bucket }.map { it.netWorthCents / 100f },
+            pointsEuros = sorted.map { it.netWorthCents / 100f },
         ),
     )
+    val latest = sorted.lastOrNull()?.netWorthCents
     TrendLineChart(
         title = stringResource(R.string.analysis_net_worth_title),
         series = series,
+        labels = sorted.map { formatBucketLabel(it.bucket) },
         emptyText = stringResource(R.string.dashboard_no_data),
+        trailing = latest?.let {
+            {
+                MoneyText(
+                    cents = it,
+                    color = if (it >= 0) FinanceTheme.colors.income else FinanceTheme.colors.debt,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+            }
+        },
     )
 }
 
@@ -425,151 +524,119 @@ internal fun CategoryTrendsWidget(trends: List<AnalysisCategoryTrendPoint>) {
         )
     }
     TrendLineChart(
-        title = stringResource(R.string.analysis_category_trends_title),
+        title = stringResource(R.string.analysis_stacked_title),
         series = series,
+        labels = buckets.map { formatBucketLabel(it) },
         emptyText = stringResource(R.string.dashboard_no_data),
     )
 }
 
+/**
+ * "Cost dels periòdics" — the monthly-equivalent cost of active fixed recurring templates.
+ * The header carries the total (design §6 trailing slot); each row below is sized by a magnitude
+ * bar proportional to its share of that total (bar length = the percentage shown), so the biggest
+ * recurring commitments read visually rather than as a plain list of numbers.
+ */
 @Composable
-internal fun SpendingHeatmapWidget(cells: List<HeatmapCell>) {
-    val maxCents = cells.maxOfOrNull { it.expenseCents }?.coerceAtLeast(1L) ?: 1L
-    // Spend intensity is a neutral ink ramp: expense is ink, not a hue, and indigo is
-    // reserved for action (design §2.4 / §2.3). Darker cell = more spent that day.
-    val base = MaterialTheme.colorScheme.surfaceVariant
-    val ink = MaterialTheme.colorScheme.onSurface
+internal fun RecurringCostSummaryWidget(summary: RecurringCostSummary) {
+    val items = summary.items.take(MAX_RECURRING_COST_ITEMS)
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        SectionHeader(title = stringResource(R.string.analysis_heatmap_title))
+        SectionHeader(
+            title = stringResource(R.string.recurring_cost_summary_title),
+            trailing = {
+                MoneyText(
+                    cents = summary.monthlyExpenseCents,
+                    color = FinanceTheme.colors.debt,
+                    style = MaterialTheme.typography.titleSmall,
+                )
+            },
+        )
         FinanceCard(modifier = Modifier.fillMaxWidth()) {
-            Column(
-                modifier = Modifier.padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                HeatmapGrid(cells = cells, maxCents = maxCents, base = base, ink = ink)
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    Text(
-                        text = stringResource(R.string.analysis_heatmap_legend_less),
-                        color = FinanceTheme.colors.mutedText,
-                        style = MaterialTheme.typography.labelSmall,
-                    )
-                    listOf(0f, 0.33f, 0.66f, 1f).forEach { intensity ->
-                        Box(
-                            modifier = Modifier
-                                .size(12.dp)
-                                .background(
-                                    color = heatColor(intensity, base, ink),
-                                    shape = MaterialTheme.shapes.extraSmall,
-                                ),
+            Column(modifier = Modifier.padding(14.dp)) {
+                items.forEachIndexed { index, item ->
+                    RecurringCostItemRow(item = item, totalCents = summary.monthlyExpenseCents)
+                    if (index != items.lastIndex) {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 2.dp),
+                            color = FinanceTheme.colors.cardBorder,
                         )
                     }
-                    Text(
-                        text = stringResource(R.string.analysis_heatmap_legend_more),
-                        color = FinanceTheme.colors.mutedText,
-                        style = MaterialTheme.typography.labelSmall,
-                    )
                 }
             }
         }
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun HeatmapGrid(
-    cells: List<HeatmapCell>,
-    maxCents: Long,
-    base: androidx.compose.ui.graphics.Color,
-    ink: androidx.compose.ui.graphics.Color,
-) {
-    FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+private fun RecurringCostItemRow(item: RecurringCostItem, totalCents: Long) {
+    val title = item.label
+        ?: item.categoryName
+        ?: stringResource(R.string.common_no_category)
+    val shareOfTotal = if (totalCents > 0) {
+        (item.monthlyExpenseCents.toFloat() / totalCents.toFloat()).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        cells.forEach { cell ->
-            val intensity = cell.expenseCents.toFloat() / maxCents.toFloat()
-            Box(
-                modifier = Modifier
-                    .size(14.dp)
-                    .background(
-                        color = heatColor(intensity, base, ink),
-                        shape = MaterialTheme.shapes.extraSmall,
-                    ),
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconChip(
+                icon = Icons.Outlined.Autorenew,
+                contentDescription = null,
+                color = FinanceTheme.colors.debt,
+                size = 36.dp,
             )
+            Spacer(modifier = Modifier.width(10.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                val nextDueText = stringResource(R.string.recurring_next_due, formatLongDate(item.nextDueDate))
+                val subtitle = item.categoryName?.takeIf { it != title }?.let { category ->
+                    "$category · $nextDueText"
+                } ?: nextDueText
+                Text(
+                    text = subtitle,
+                    color = FinanceTheme.colors.mutedText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Spacer(modifier = Modifier.width(10.dp))
+            Column(horizontalAlignment = Alignment.End) {
+                MoneyText(
+                    cents = item.monthlyExpenseCents,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                Text(
+                    text = formatRecurringCostSharePercent(shareOfTotal),
+                    color = FinanceTheme.colors.mutedText,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
         }
+        LinearProgressIndicator(
+            progress = { shareOfTotal },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(5.dp),
+            color = FinanceTheme.colors.debt,
+            trackColor = MaterialTheme.colorScheme.surfaceVariant,
+            drawStopIndicator = {},
+        )
     }
 }
 
-internal fun heatColor(
-    intensity: Float,
-    base: androidx.compose.ui.graphics.Color,
-    ink: androidx.compose.ui.graphics.Color,
-): androidx.compose.ui.graphics.Color {
-    if (intensity <= 0f) return base
-    return lerp(base, ink, (0.15f + 0.85f * intensity.coerceIn(0f, 1f)))
-}
-
-internal fun LazyListScope.analysisWidgets(
-    state: AnalysisUiState,
-    onDrillDown: (MovementFilters) -> Unit,
-) {
-    if (state.recurringCostSummary.hasCosts) {
-        item {
-            RecurringCostSummaryWidget(summary = state.recurringCostSummary)
-        }
-    }
-
-    if (state.netWorthPoints.size >= 2) {
-        item {
-            NetWorthTrendWidget(points = state.netWorthPoints)
-        }
-    }
-
-    if (state.largestExpenses.isNotEmpty()) {
-        item {
-            SectionHeader(title = stringResource(R.string.analysis_largest_expenses_title))
-        }
-        items(items = state.largestExpenses, key = { it.sourceId }) { expense ->
-            LargestExpenseRow(
-                expense = expense,
-                onClick = { state.largestExpenseFilters(expense)?.let(onDrillDown) },
-            )
-        }
-    }
-
-    if (state.topMerchants.isNotEmpty()) {
-        item {
-            SectionHeader(title = stringResource(R.string.analysis_top_merchants_title))
-        }
-        items(items = state.topMerchants, key = { it.merchantLabel ?: "_none" }) { merchant ->
-            MerchantRow(merchant = merchant)
-        }
-    }
-
-    val savingsBuckets = state.chartBuckets.filter { it.incomeCents > 0 }
-    if (savingsBuckets.size >= 2) {
-        item {
-            SectionHeader(title = stringResource(R.string.analysis_savings_rate_period_title))
-        }
-        items(items = savingsBuckets, key = { it.bucket }) { bucket ->
-            SavingsRateRow(
-                bucket = bucket,
-                onClick = { state.savingsBucketFilters(bucket.bucket)?.let(onDrillDown) },
-            )
-        }
-    }
-
-    if (state.categoryTrends.isNotEmpty()) {
-        item {
-            CategoryTrendsWidget(trends = state.categoryTrends)
-        }
-    }
-
-    if (state.heatmapDays.isNotEmpty() && state.currentRange != null) {
-        item {
-            SpendingHeatmapWidget(cells = state.heatmapCells())
-        }
-    }
+private fun formatRecurringCostSharePercent(fraction: Float): String = when {
+    fraction < 0.005f -> "<1%"
+    else -> "${(fraction * 100).roundToInt()}%"
 }

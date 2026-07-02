@@ -76,6 +76,62 @@ class RecurringCostSummaryTest {
         assertEquals(listOf("two-weeks", "two-months"), summary.items.map { it.templateId })
     }
 
+    @Test
+    fun oldestRecurringItemsSortsOldestFirstAndRespectsLimit() {
+        val items = buildOldestRecurringItems(
+            listOf(
+                template("newest", amount = 1_000, frequency = RecurrenceFrequency.MONTHLY, createdAt = "2026-03-01T00:00:00Z"),
+                template("oldest", amount = 2_000, frequency = RecurrenceFrequency.MONTHLY, createdAt = "2024-01-15T00:00:00Z"),
+                template("middle", amount = 3_000, frequency = RecurrenceFrequency.MONTHLY, createdAt = "2025-06-10T00:00:00Z"),
+            ),
+            limit = 2,
+        )
+
+        assertEquals(listOf("oldest", "middle"), items.map { it.templateId })
+        assertEquals(java.time.LocalDate.of(2024, 1, 15), items[0].activeSince)
+    }
+
+    @Test
+    fun oldestRecurringItemsAppliesSameEligibilityFilterAsCostSummary() {
+        val items = buildOldestRecurringItems(
+            listOf(
+                template("active", amount = 2_000, frequency = RecurrenceFrequency.MONTHLY, createdAt = "2024-01-01T00:00:00Z"),
+                template("income", amount = 3_000, frequency = RecurrenceFrequency.MONTHLY, type = MovementType.INCOME, createdAt = "2023-01-01T00:00:00Z"),
+                template("transfer", amount = 4_000, frequency = RecurrenceFrequency.MONTHLY, type = MovementType.TRANSFER, createdAt = "2023-01-01T00:00:00Z"),
+                template(
+                    "paused",
+                    amount = 5_000,
+                    frequency = RecurrenceFrequency.MONTHLY,
+                    status = TemplateStatus.PAUSED,
+                    createdAt = "2023-01-01T00:00:00Z",
+                ),
+                template(
+                    "variable",
+                    amount = null,
+                    frequency = RecurrenceFrequency.MONTHLY,
+                    amountIsVariable = true,
+                    createdAt = "2023-01-01T00:00:00Z",
+                ),
+            ),
+        )
+
+        assertEquals(listOf("active"), items.map { it.templateId })
+    }
+
+    @Test
+    fun oldestRecurringItemsPopulatesMovementCountFromMapAndDefaultsToZero() {
+        val items = buildOldestRecurringItems(
+            listOf(
+                template("counted", amount = 1_000, frequency = RecurrenceFrequency.MONTHLY, createdAt = "2024-01-01T00:00:00Z"),
+                template("uncounted", amount = 2_000, frequency = RecurrenceFrequency.MONTHLY, createdAt = "2025-01-01T00:00:00Z"),
+            ),
+            movementCountsByTemplate = mapOf("counted" to 12L),
+        )
+
+        assertEquals(12L, items.first { it.templateId == "counted" }.movementCount)
+        assertEquals(0L, items.first { it.templateId == "uncounted" }.movementCount)
+    }
+
     private fun template(
         id: String,
         amount: Long?,
@@ -85,6 +141,7 @@ class RecurringCostSummaryTest {
         amountIsVariable: Boolean = false,
         intervalCount: Long? = null,
         customUnit: CustomRecurrenceUnit? = null,
+        createdAt: String = NOW,
     ): TemplateSummary =
         TemplateSummary(
             id = id,
@@ -111,7 +168,7 @@ class RecurringCostSummaryTest {
             dateFlexDays = null,
             leadNotificationDays = null,
             status = status,
-            createdAt = NOW,
+            createdAt = createdAt,
             updatedAt = NOW,
             archivedAt = null,
         )
