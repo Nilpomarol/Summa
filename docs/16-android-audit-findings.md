@@ -45,9 +45,9 @@ The implementation plan has three tiers:
 | **F1** | `AutoCategorizer` built but unwired | Functional | DESCOPE | P5R-6 / 6C prep | High |
 | **F2** | §2.6 form can't express group bill | Functional | **WONTFIX-by-design** P5R-3 | T2-1 decided: type-4 `total = user share`; group-bill case out of scope v1 | High |
 | **F3** | `RecurringAdvancer` while-loop unbounded | Functional | P5R-6 | Recurring | Medium |
-| **F4** | `debt_balance` golden vector has one case | Functional | P5R-5 | Debts | Medium |
+| **F4** | `debt_balance` golden vector has one case | Functional | **RESOLVED** P5R-5 | Canonical external, archived-row, partial/multi-settlement, and over-settlement vectors added | Medium |
 | **F5** | No undo affordance despite spec §5.9 | Functional | P8 | Release polish | Medium |
-| **F6** | Inconsistent warn-vs-block across rules | Functional | P5R-5 / P5R-6 | Split | Medium |
+| **F6** | Inconsistent warn-vs-block across rules | Functional | **RESOLVED (settlement)** P5R-5 / P5R-6 (refund) | Settlement side confirmed warn-not-block; refund side still open | Medium |
 | **U1** | "Load demo data" destructive trap | Usability | P8 | Release-prep (remove); same WIP-merge timing as C2 | High |
 | **U2** | External-payer form missing share field | Usability | **RESOLVED** P5R-3 | 4-type cascade UI built; DEBT path = type-4 (someone else paid, user owes); WONTFIX-by-design on separate share field (F2) | High |
 | **U3** | No P5R-3 manual checklist yet | Usability | P5R-3 | This slice | High |
@@ -119,8 +119,8 @@ The implementation plan has three tiers:
 - **Confidence:** High.
 
 #### F2 — §2.6 form can't express group bill — **WONTFIX-by-design (P5R-3)**
-- **Evidence:** The external-payer branch of `MovementsViewModel.save` constructs `ExternalSplitDraft` with `totalAmountCents = amount` and `userShareCents = amount` (the same value). `MovementFormSheet` exposes only `externalPayerPersonId` — no separate "total group bill" vs "my share" inputs. Spec §2.6 / §3.7 / data-model `splits` comment explicitly model `total_amount_cents > user share`.
-- **Impact:** The user can only record "X paid, I owe the full amount" — the group-bill-with-my-smaller-share scenario (the point of §2.6) is unreachable. This also makes the O5 person line always 0 cents through the UI.
+- **Evidence:** The external-payer branch of `MovementsViewModel.save` constructs `ExternalSplitDraft` with `totalAmountCents = amount` and `userShareCents = amount` (the same value). The People flow now follows the same v1 rule and `SplitRepository` rejects unequal values.
+- **Impact:** The user can only record "X paid, I owe the full amount" — the group-bill-with-my-smaller-share scenario is deliberately out of scope for v1.
 - **Resolution (P5R-3, T2-1):** Design decision: type-4 ("Deute") stores `total_amount_cents = user_share` always. The group-bill-larger-than-user-share scenario is deliberately out of scope for v1. The 4-type cascade (U2) makes this explicit in the UI: when "Una altra persona" paid, the amount field is labelled as "what you owe." `docs/04-data-model.md` §3 and §5 updated accordingly.
 - **Confidence:** High.
 
@@ -133,7 +133,7 @@ The implementation plan has three tiers:
 #### F4 — `debt_balance` golden vector has one case
 - **Evidence:** `shared/golden/debt_balance.json` contains exactly one mixed scenario. No archived split lines, no multiple/partial settlements, no settlement exceeding debt.
 - **Impact:** The differentiator feature (spec goal #4) is the least-tested money rule; the never-block over-settle behavior is invisible to CI.
-- **Fix:** Add 3-4 cases (archived line, multi-settlement, partial settlement, over-settle).
+- **Resolution (P5R-5):** Added coverage for canonical external splits, archived movements/splits/split lines/settlements, partial and multi-direction settlements, and an over-settlement that flips the balance sign. Android and Windows golden harnesses now load optional `archived_at` fields for these rows.
 - **Confidence:** Medium.
 
 #### F5 — No undo affordance despite spec §5.9
@@ -144,6 +144,7 @@ The implementation plan has three tiers:
 #### F6 — Inconsistent warn-vs-block across "warn" rules
 - **Evidence:** Manual-entry duplicate detection (`MovementsViewModel.save` `isDuplicate`) implements the never-block warning correctly. But the analogous settlement-exceeds-debt (§3.9) and over-refund (§3.3b) are either schema-hard-blocked (C6) or not surfaced as dismissible banners.
 - **Fix:** C6 unblocks the refund side; P5R-5 audits the settlement side. Both must warn, not block.
+- **Resolution (P5R-5, settlement side):** Confirmed already correct and re-verified after the `SettlementDialog` → `SettlementSheet` bottom-sheet conversion: `PeopleViewModel.onSettlementSaveClicked` never validates the amount against the outstanding balance (only amount-positive/account/date), and `PeopleScreen.kt`'s `SettlementSheet` shows a dismissible `InlineBanner` (`settlement_warning_overpay`) when the entered amount exceeds `form.outstandingCents`, without blocking save. Refund side (F6-refund) remains open for P5R-6.
 - **Confidence:** Medium.
 
 ### Usability

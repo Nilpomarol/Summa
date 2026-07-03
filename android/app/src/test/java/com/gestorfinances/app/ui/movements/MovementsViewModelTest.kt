@@ -339,6 +339,34 @@ class MovementsViewModelTest {
     }
 
     @Test
+    fun addClickedWithDebtPayerPrefillsDebtFormEvenWithoutAccounts() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.people.create(personDraft("laura"), createdAt = NOW)
+            val viewModel = viewModel(store)
+
+            viewModel.onAddClicked(tripId = null, debtPayerPersonId = "laura")
+            advanceUntilIdle()
+
+            val form = viewModel.form()
+            assertEquals(ExpenseKind.DEBT, form.expenseKind)
+            assertEquals("laura", form.forOtherPersonId)
+        }
+    }
+
+    @Test
+    fun addClickedWithoutDebtPayerStillRequiresAnAccount() = runTest(dispatcher) {
+        freshStore().use { store ->
+            // No account seeded, and no debt payer — a regular new movement still can't open.
+            val viewModel = viewModel(store)
+
+            viewModel.onAddClicked(tripId = null)
+            advanceUntilIdle()
+
+            assertNull(viewModel.state.value.form)
+        }
+    }
+
+    @Test
     fun overRefundIsWarnedButNotBlocked() = runTest(dispatcher) {
         freshStore().use { store ->
             store.accounts.create(accountDraft("checking"), createdAt = NOW)

@@ -24,8 +24,8 @@ class SplitRepository(
     ) {
         require(draft.totalAmountCents > 0L) { "External split total must be positive." }
         require(draft.userShareCents >= 0L) { "External split user share must be non-negative." }
-        require(draft.userShareCents <= draft.totalAmountCents) {
-            "External split user share cannot exceed the total."
+        require(draft.userShareCents == draft.totalAmountCents) {
+            "External split total must equal the user share in v1."
         }
         require(draft.payerPersonId.isNotBlank()) { "External split payer person is required." }
         require(draft.tagId == null || draft.tripId != null) {
@@ -68,8 +68,8 @@ class SplitRepository(
     ) {
         require(draft.totalAmountCents > 0L) { "External split total must be positive." }
         require(draft.userShareCents >= 0L) { "External split user share must be non-negative." }
-        require(draft.userShareCents <= draft.totalAmountCents) {
-            "External split user share cannot exceed the total."
+        require(draft.userShareCents == draft.totalAmountCents) {
+            "External split total must equal the user share in v1."
         }
         require(draft.payerPersonId.isNotBlank()) { "External split payer person is required." }
         require(draft.tagId == null || draft.tripId != null) {

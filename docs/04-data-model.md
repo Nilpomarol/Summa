@@ -103,7 +103,7 @@ CREATE TABLE splits (
     payer_person_id    TEXT    REFERENCES people(id),                       -- NULL ⇒ the user fronted it
     entry_method       TEXT    NOT NULL CHECK (entry_method IN ('equal','exact','percentage')),
     total_amount_cents INTEGER CHECK (total_amount_cents IS NULL OR total_amount_cents > 0),
-                         -- required only when movement_id IS NULL (§2.6 group bill)
+                         -- required only when movement_id IS NULL (§2.6); v1 total = user share
     date               TEXT,                                                -- required only when movement_id IS NULL
     description        TEXT,                                                -- §2.6 only; movement-backed splits use movements.name/notes
     category_id        TEXT    REFERENCES categories(id),                   -- §2.6 only; movement-backed splits use movements.category_id

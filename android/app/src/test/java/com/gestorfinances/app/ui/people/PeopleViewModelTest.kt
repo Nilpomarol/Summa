@@ -103,41 +103,6 @@ class PeopleViewModelTest {
     }
 
     @Test
-    fun externalSplitSaveRefreshesPersonDebt() = runTest(dispatcher) {
-        freshStore().use { store ->
-            store.people.create(
-                PersonDraft(
-                    id = "laura",
-                    name = "Laura",
-                    avatar = null,
-                    color = null,
-                    notes = null,
-                ),
-                createdAt = NOW,
-            )
-            val viewModel = viewModel(store)
-            viewModel.onScreenShown()
-            advanceUntilIdle()
-
-            val person = viewModel.state.value.people.single()
-            viewModel.onPersonPaidForMeClicked(person)
-            viewModel.onExternalSplitFormChanged(
-                viewModel.state.value.externalSplitForm!!.copy(
-                    totalAmount = "10",
-                    userShare = "4",
-                    date = "2026-01-01",
-                    description = "Sopar",
-                ),
-            )
-            viewModel.onExternalSplitSaveClicked()
-            advanceUntilIdle()
-
-            assertNull(viewModel.state.value.externalSplitForm)
-            assertEquals(-400L, viewModel.state.value.people.single().balanceCents)
-        }
-    }
-
-    @Test
     fun personDetailLoadsBalanceBreakdown() = runTest(dispatcher) {
         freshStore().use { store ->
             seedUserFrontedSplit(store)
@@ -155,6 +120,45 @@ class PeopleViewModelTest {
             assertNull(detail.errorMessage)
             assertEquals(listOf(PersonBalanceItemType.USER_PAID), detail.items.map { it.type })
             assertEquals(listOf(600L), detail.items.map { it.effectCents })
+            assertEquals(1, detail.history.size)
+            assertEquals("dinner", detail.history.single().movement.id)
+        }
+    }
+
+    @Test
+    fun personDetailHistoryResolvesExternalSplitAsSyntheticExternalExpense() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.people.create(
+                PersonDraft(id = "laura", name = "Laura", avatar = null, color = null, notes = null),
+                createdAt = NOW,
+            )
+            store.splits.createExternalPaidByPerson(
+                ExternalSplitDraft(
+                    id = "ext",
+                    payerPersonId = "laura",
+                    totalAmountCents = 600,
+                    userShareCents = 600,
+                    date = "2026-01-01",
+                    description = "Taxi",
+                    categoryId = null,
+                ),
+                createdAt = NOW,
+            )
+            val viewModel = viewModel(store)
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+
+            viewModel.onPersonDetailClicked(viewModel.state.value.people.single())
+            advanceUntilIdle()
+
+            val detail = viewModel.state.value.detail!!
+            assertEquals(listOf(PersonBalanceItemType.PERSON_PAID), detail.items.map { it.type })
+            assertEquals(listOf(-600L), detail.items.map { it.effectCents })
+            assertEquals(1, detail.history.size)
+            val entry = detail.history.single()
+            assertEquals("ext", entry.movement.id)
+            assertEquals(MovementType.EXTERNAL_EXPENSE, entry.movement.type)
+            assertEquals(-600L, entry.item.effectCents)
         }
     }
 
@@ -205,6 +209,43 @@ class PeopleViewModelTest {
     }
 
     @Test
+    fun copyMessageClickedPopulatesDetailMessageForSeededScenario() = runTest(dispatcher) {
+        freshStore().use { store ->
+            seedUserFrontedSplit(store)
+            val viewModel = viewModel(store)
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+
+            viewModel.onPersonDetailClicked(viewModel.state.value.people.single())
+            advanceUntilIdle()
+
+            viewModel.onCopyMessageClicked()
+
+            val message = viewModel.state.value.detail!!.copyMessage!!
+            assertEquals(DebtMessageDirection.PERSON_OWES_USER, message.direction)
+            assertEquals(1, message.items.size)
+            assertNull(message.carryForwardCents)
+            assertEquals(600L, message.totalCents)
+        }
+    }
+
+    @Test
+    fun saveClickedPersistsChosenColor() = runTest(dispatcher) {
+        freshStore().use { store ->
+            val viewModel = viewModel(store)
+            viewModel.onAddClicked()
+            viewModel.onFormChanged(
+                viewModel.state.value.form!!.copy(name = "Laura", color = "#3344E0"),
+            )
+            viewModel.onSaveClicked()
+            advanceUntilIdle()
+
+            val created = viewModel.state.value.people.single()
+            assertEquals("#3344E0", created.color)
+        }
+    }
+
+    @Test
     fun settlementRequiresAnAccount() = runTest(dispatcher) {
         freshStore().use { store ->
             // No account seeded; only a person with a debt via an external split.
@@ -216,7 +257,7 @@ class PeopleViewModelTest {
                 ExternalSplitDraft(
                     id = "ext",
                     payerPersonId = "laura",
-                    totalAmountCents = 1_000,
+                    totalAmountCents = 600,
                     userShareCents = 600,
                     date = "2026-01-01",
                     description = null,
@@ -248,8 +289,6 @@ class PeopleViewModelTest {
     private fun viewModel(store: TestStore): PeopleViewModel =
         PeopleViewModel(
             personRepository = store.people,
-            categoryRepository = store.categories,
-            splitRepository = store.splits,
             movementRepository = store.movements,
             accountRepository = store.accounts,
             ioDispatcher = dispatcher,

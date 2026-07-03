@@ -427,7 +427,8 @@ internal static class GoldenDatabaseExtensions
             personId: row.OptionalString("person_id"),
             settlementDirection: row.OptionalString("settlement_direction"),
             refundsExpenseId: row.OptionalString("refunds_expense_id"),
-            actualRefundCents: row.OptionalLong("actual_refund_cents"));
+            actualRefundCents: row.OptionalLong("actual_refund_cents"),
+            archivedAt: row.OptionalString("archived_at"));
 
     public static void InsertMovement(
         this SqliteConnection connection,
@@ -440,17 +441,18 @@ internal static class GoldenDatabaseExtensions
         string? personId = null,
         string? settlementDirection = null,
         string? refundsExpenseId = null,
-        long? actualRefundCents = null) =>
+        long? actualRefundCents = null,
+        string? archivedAt = null) =>
         connection.Execute(
             """
             INSERT INTO movements
                 (id, type, account_id, dest_account_id, amount_cents, date,
                  person_id, settlement_direction, refunds_expense_id, actual_refund_cents,
-                 created_at, updated_at)
+                 created_at, updated_at, archived_at)
             VALUES
                 (@Id, @Type, @AccountId, @DestAccountId, @AmountCents, @Date,
                  @PersonId, @SettlementDirection, @RefundsExpenseId, @ActualRefundCents,
-                 @Now, @Now);
+                 @Now, @Now, @ArchivedAt);
             """,
             new
             {
@@ -464,6 +466,7 @@ internal static class GoldenDatabaseExtensions
                 SettlementDirection = settlementDirection,
                 RefundsExpenseId = refundsExpenseId,
                 ActualRefundCents = actualRefundCents,
+                ArchivedAt = archivedAt,
                 Now
             });
 
@@ -472,10 +475,10 @@ internal static class GoldenDatabaseExtensions
             """
             INSERT INTO splits
                 (id, movement_id, payer_person_id, entry_method,
-                 total_amount_cents, date, created_at, updated_at)
+                 total_amount_cents, date, created_at, updated_at, archived_at)
             VALUES
                 (@Id, @MovementId, @PayerPersonId, 'equal',
-                 @TotalAmountCents, @Date, @Now, @Now);
+                 @TotalAmountCents, @Date, @Now, @Now, @ArchivedAt);
             """,
             new
             {
@@ -484,6 +487,7 @@ internal static class GoldenDatabaseExtensions
                 PayerPersonId = row.OptionalString("payer_person_id"),
                 TotalAmountCents = row.OptionalLong("total_amount_cents"),
                 Date = row.OptionalString("date"),
+                ArchivedAt = row.OptionalString("archived_at"),
                 Now
             });
 
@@ -492,10 +496,10 @@ internal static class GoldenDatabaseExtensions
             """
             INSERT INTO split_lines
                 (id, split_id, participant_kind, person_id,
-                 owed_amount_cents, created_at, updated_at)
+                 owed_amount_cents, created_at, updated_at, archived_at)
             VALUES
                 (@Id, @SplitId, @ParticipantKind, @PersonId,
-                 @OwedAmountCents, @Now, @Now);
+                 @OwedAmountCents, @Now, @Now, @ArchivedAt);
             """,
             new
             {
@@ -504,6 +508,7 @@ internal static class GoldenDatabaseExtensions
                 ParticipantKind = row.String("participant_kind"),
                 PersonId = row.OptionalString("person_id"),
                 OwedAmountCents = row.Long("owed_amount_cents"),
+                ArchivedAt = row.OptionalString("archived_at"),
                 Now
             });
 

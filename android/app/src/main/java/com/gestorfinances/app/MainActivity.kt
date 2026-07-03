@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStoreOwner
 import com.gestorfinances.app.data.repository.DatabaseMeta
+import com.gestorfinances.app.data.repository.PersonSummary
 import com.gestorfinances.app.di.AppContainer
 import com.gestorfinances.app.ui.accounts.AccountsScreen
 import com.gestorfinances.app.ui.accounts.AccountsViewModel
@@ -269,8 +270,6 @@ private fun LedgerShell(
             viewModelStoreOwner,
             PeopleViewModel.Factory(
                 personRepository = appContainer.personRepository,
-                categoryRepository = appContainer.categoryRepository,
-                splitRepository = appContainer.splitRepository,
                 movementRepository = appContainer.movementRepository,
                 accountRepository = appContainer.accountRepository,
                 notificationRefresher = appContainer.notificationCoordinator,
@@ -413,6 +412,19 @@ private fun LedgerShell(
         showTopLevel(TopLevelSection.MOVEMENTS)
     }
 
+    val openDebtSource: (String) -> Unit = { sourceId ->
+        peopleViewModel.onPersonDetailDismissed()
+        movementsViewModel.onDetailSourceClicked(sourceId)
+        showTopLevel(TopLevelSection.MOVEMENTS)
+    }
+
+    val openExternalExpenseForm: (PersonSummary) -> Unit = { person ->
+        peopleViewModel.onPersonDetailDismissed()
+        movementsViewModel.onAddClicked(tripId = null, debtPayerPersonId = person.id)
+        // MovementDialogHost (rendered globally below, regardless of nav.section) shows the form —
+        // stay on the current tab instead of switching to Moviments.
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -503,6 +515,13 @@ private fun LedgerShell(
                 )
                 ManagementDestination.PEOPLE -> PeopleScreen(
                     viewModel = peopleViewModel,
+                    onOpenDebtSource = openDebtSource,
+                    onAddDebtForPerson = openExternalExpenseForm,
+                    onMessageCopied = { message ->
+                        coroutineScope.launch {
+                            snackbarHostState.showSnackbar(message)
+                        }
+                    },
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),

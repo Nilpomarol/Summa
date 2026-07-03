@@ -6,18 +6,14 @@ import androidx.lifecycle.viewModelScope
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountRepository
 import com.gestorfinances.app.data.repository.AccountSummary
-import com.gestorfinances.app.data.repository.CategoryKind
-import com.gestorfinances.app.data.repository.CategoryRecord
-import com.gestorfinances.app.data.repository.CategoryRepository
-import com.gestorfinances.app.data.repository.ExternalSplitDraft
 import com.gestorfinances.app.data.repository.MovementRepository
+import com.gestorfinances.app.data.repository.MovementSummary
 import com.gestorfinances.app.data.repository.PersonBalanceItem
 import com.gestorfinances.app.data.repository.PersonDraft
 import com.gestorfinances.app.data.repository.PersonRepository
 import com.gestorfinances.app.data.repository.PersonSummary
 import com.gestorfinances.app.data.repository.SettlementDirection
 import com.gestorfinances.app.data.repository.SettlementDraft
-import com.gestorfinances.app.data.repository.SplitRepository
 import com.gestorfinances.app.notifications.NotificationRefresher
 import com.gestorfinances.app.ui.common.formatEuroInput
 import com.gestorfinances.app.ui.common.parseEuroCents
@@ -35,8 +31,6 @@ import kotlinx.coroutines.withContext
 
 class PeopleViewModel(
     private val personRepository: PersonRepository,
-    private val categoryRepository: CategoryRepository,
-    private val splitRepository: SplitRepository,
     private val movementRepository: MovementRepository,
     private val accountRepository: AccountRepository,
     private val notificationRefresher: NotificationRefresher = NotificationRefresher.NoOp,
@@ -55,16 +49,6 @@ class PeopleViewModel(
 
     fun onEditClicked(person: PersonSummary) {
         _state.value = _state.value.copy(form = person.toFormState())
-    }
-
-    fun onPersonPaidForMeClicked(person: PersonSummary) {
-        _state.value = _state.value.copy(
-            externalSplitForm = ExternalSplitFormState(
-                payerPersonId = person.id,
-                payerPersonName = person.name,
-                date = LocalDate.now().toString(),
-            ),
-        )
     }
 
     fun onSettleUpClicked(person: PersonSummary) {
@@ -159,9 +143,16 @@ class PeopleViewModel(
             val result = withContext(ioDispatcher) {
                 runCatching {
                     val currentPerson = personRepository.getActive(person.id) ?: person
+                    val items = personRepository.balanceItemsForPerson(person.id)
+                    val history = items.mapNotNull { item ->
+                        movementRepository.getActive(item.sourceId)?.let { movement ->
+                            PersonHistoryEntry(item, movement)
+                        }
+                    }
                     PersonDetailState(
                         person = currentPerson,
-                        items = personRepository.balanceItemsForPerson(person.id),
+                        items = items,
+                        history = history,
                     )
                 }
             }
@@ -181,6 +172,17 @@ class PeopleViewModel(
 
     fun onPersonDetailDismissed() {
         _state.value = _state.value.copy(detail = null)
+    }
+
+    fun onCopyMessageClicked() {
+        val detail = _state.value.detail ?: return
+        val message = buildPersonDebtMessage(detail.items, detail.person.balanceCents)
+        _state.value = _state.value.copy(detail = detail.copy(copyMessage = message))
+    }
+
+    fun onCopyMessageHandled() {
+        val detail = _state.value.detail ?: return
+        _state.value = _state.value.copy(detail = detail.copy(copyMessage = null))
     }
 
     fun onArchiveClicked(person: PersonSummary) {
@@ -221,71 +223,6 @@ class PeopleViewModel(
         _state.value = _state.value.copy(form = null)
     }
 
-    fun onExternalSplitFormChanged(form: ExternalSplitFormState) {
-        _state.value = _state.value.copy(
-            externalSplitForm = form.copy(errorRes = null, errorMessage = null),
-        )
-    }
-
-    fun onExternalSplitDismissed() {
-        _state.value = _state.value.copy(externalSplitForm = null)
-    }
-
-    fun onExternalSplitSaveClicked() {
-        val form = _state.value.externalSplitForm ?: return
-        val total = parseEuroCents(form.totalAmount, allowNegative = false)
-        val userShare = parseEuroCents(form.userShare, allowNegative = false)
-        val date = parseDate(form.date)
-        val category = form.categoryId?.let { categoryId ->
-            _state.value.categories.firstOrNull { it.id == categoryId }
-        }
-
-        val errorRes = when {
-            total == null -> R.string.movement_validation_amount_required
-            total <= 0L -> R.string.split_validation_total_positive
-            userShare == null -> R.string.split_validation_user_share_required
-            userShare > total -> R.string.split_validation_user_share_not_over_total
-            form.date.isBlank() -> R.string.movement_validation_date_required
-            date == null -> R.string.movement_validation_date_invalid
-            category != null && !category.supportsExpense -> R.string.movement_validation_category_invalid
-            else -> null
-        }
-
-        if (errorRes != null) {
-            _state.value = _state.value.copy(externalSplitForm = form.copy(errorRes = errorRes))
-            return
-        }
-
-        val now = Instant.now().toString()
-        val draft = ExternalSplitDraft(
-            id = UUID.randomUUID().toString(),
-            payerPersonId = form.payerPersonId,
-            totalAmountCents = requireNotNull(total),
-            userShareCents = requireNotNull(userShare),
-            date = requireNotNull(date).toString(),
-            description = form.description.trim().ifBlank { null },
-            categoryId = form.categoryId,
-        )
-
-        viewModelScope.launch {
-            val result = withContext(ioDispatcher) {
-                runCatching { splitRepository.createExternalPaidByPerson(draft, createdAt = now) }
-            }
-            result.fold(
-                onSuccess = {
-                    _state.value = _state.value.copy(externalSplitForm = null)
-                    refreshPeople()
-                    refreshNotifications()
-                },
-                onFailure = {
-                    _state.value = _state.value.copy(
-                        externalSplitForm = form.copy(errorMessage = it.message ?: it.javaClass.simpleName),
-                    )
-                },
-            )
-        }
-    }
-
     fun onSaveClicked() {
         val form = _state.value.form ?: return
         val name = form.name.trim()
@@ -303,7 +240,7 @@ class PeopleViewModel(
             id = form.id ?: UUID.randomUUID().toString(),
             name = name,
             avatar = null,
-            color = null,
+            color = form.color,
             notes = notes,
         )
 
@@ -338,7 +275,6 @@ class PeopleViewModel(
                 runCatching {
                     LoadedPeopleData(
                         people = personRepository.listActive(),
-                        categories = categoryRepository.listActive(),
                         accounts = accountRepository.listActive(),
                     )
                 }
@@ -347,7 +283,6 @@ class PeopleViewModel(
                 onSuccess = {
                     _state.value.copy(
                         people = it.people,
-                        categories = it.categories,
                         accounts = it.accounts,
                         isLoading = false,
                     )
@@ -372,8 +307,6 @@ class PeopleViewModel(
 
     class Factory(
         private val personRepository: PersonRepository,
-        private val categoryRepository: CategoryRepository,
-        private val splitRepository: SplitRepository,
         private val movementRepository: MovementRepository,
         private val accountRepository: AccountRepository,
         private val notificationRefresher: NotificationRefresher = NotificationRefresher.NoOp,
@@ -383,8 +316,6 @@ class PeopleViewModel(
             if (modelClass.isAssignableFrom(PeopleViewModel::class.java)) {
                 return PeopleViewModel(
                     personRepository = personRepository,
-                    categoryRepository = categoryRepository,
-                    splitRepository = splitRepository,
                     movementRepository = movementRepository,
                     accountRepository = accountRepository,
                     notificationRefresher = notificationRefresher,
@@ -397,40 +328,34 @@ class PeopleViewModel(
 
 data class PeopleUiState(
     val people: List<PersonSummary> = emptyList(),
-    val categories: List<CategoryRecord> = emptyList(),
     val accounts: List<AccountSummary> = emptyList(),
     val isLoading: Boolean = true,
     val errorMessage: String? = null,
     val form: PersonFormState? = null,
-    val externalSplitForm: ExternalSplitFormState? = null,
     val settlementForm: SettlementFormState? = null,
     val detail: PersonDetailState? = null,
     val archiveCandidate: PersonSummary? = null,
 )
 
+data class PersonHistoryEntry(
+    val item: PersonBalanceItem,
+    val movement: MovementSummary,
+)
+
 data class PersonDetailState(
     val person: PersonSummary,
     val items: List<PersonBalanceItem> = emptyList(),
+    val history: List<PersonHistoryEntry> = emptyList(),
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
+    val copyMessage: PersonDebtMessage? = null,
 )
 
 data class PersonFormState(
     val id: String? = null,
     val name: String = "",
     val notes: String = "",
-    val errorRes: Int? = null,
-    val errorMessage: String? = null,
-)
-
-data class ExternalSplitFormState(
-    val payerPersonId: String,
-    val payerPersonName: String,
-    val totalAmount: String = "",
-    val userShare: String = "",
-    val date: String = "",
-    val description: String = "",
-    val categoryId: String? = null,
+    val color: String? = null,
     val errorRes: Int? = null,
     val errorMessage: String? = null,
 )
@@ -450,7 +375,6 @@ data class SettlementFormState(
 
 private data class LoadedPeopleData(
     val people: List<PersonSummary>,
-    val categories: List<CategoryRecord>,
     val accounts: List<AccountSummary>,
 )
 
@@ -468,10 +392,8 @@ private fun PersonSummary.toFormState(): PersonFormState =
         id = id,
         name = name,
         notes = notes.orEmpty(),
+        color = color,
     )
-
-private val CategoryRecord.supportsExpense: Boolean
-    get() = kind == CategoryKind.EXPENSE || kind == CategoryKind.BOTH
 
 private fun parseDate(raw: String): LocalDate? =
     try {

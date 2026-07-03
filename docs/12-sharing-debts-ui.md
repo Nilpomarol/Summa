@@ -41,9 +41,13 @@ Purpose: show who has an open balance and provide the entry point for shared exp
 Content:
 
 - title: People;
-- summary strip with total owed to the user, total the user owes, and net debt position;
-- active person rows sorted by non-zero balance first, absolute balance descending, then name;
-- each row shows monogram/avatar, name, optional context from the latest related item, right-aligned amount, and direction label:
+- a dark hero summary card (P5R-5, matches the Accounts/Dashboard hero language): net balance
+  headline, two tinted stat chips for total owed to the user and total the user owes, and a compact
+  per-person breakdown (colored initial-avatar, name, signed amount) for people with a non-zero
+  balance, capped at 5 rows with a "+N més" trailing line — purely visual, not interactive, same
+  non-interactive convention as `AccountsScreen`'s `PatrimoniHeroCard`;
+- active person rows (below the hero, each its own `FinanceCard`) sorted by non-zero balance first, absolute balance descending, then name;
+- each row shows a round colored monogram/avatar, name, optional context from the latest related item, right-aligned amount, and direction label:
   - positive balance: "owes you";
   - negative balance: "you owe";
   - zero: "settled";
@@ -53,7 +57,10 @@ Actions:
 
 - New person;
 - open person detail;
-- start an external friend-paid expense;
+- start an external friend-paid expense — opens the shared Movement form (the same one Moviments
+  uses) pre-seeded with "Qui ha pagat" = Una altra persona and the payer already selected, rather
+  than a People-specific form; it renders as a global overlay (`MovementDialogHost`) so the People
+  screen stays visible underneath and no tab switch happens (P5R-5);
 - optional filter to hide settled people once the list grows.
 
 Data rules:
@@ -76,13 +83,18 @@ Purpose: explain a person's balance and expose the settlement workflow.
 Content:
 
 - person header with avatar, name, notes when present, and net balance;
-- primary Settle up action when balance is non-zero;
-- itemized breakdown grouped by source:
-  - user-fronted shared expenses where this person owes a line;
-  - friend-paid external splits where the user owes this person;
-  - settlements in either direction;
-- each item shows date, source name/description, category when available, signed debt effect, and source type;
-- history section with the same items in reverse chronological order;
+- quick actions: when balance is non-zero, a full-width primary Settle up button on its own row
+  (tightly spaced above, not the standard section gap), then one row holding the 3 secondary
+  actions (Person paid for me, Copy message, Edit) at equal width; when balance is zero, that
+  secondary row appears alone;
+- a single chronological history (P5R-5) — every `PersonBalanceItem` for this person (user-fronted
+  shares, friend-paid external splits, settlements in either direction) merged into one date-ordered
+  list (most recent first, same ordering `v_person_balance`'s item query already returns), rendered
+  with the same `MovementListItem` card the Moviments list uses (resolved via
+  `MovementRepository.getActive(sourceId)` against `v_movement_summary`, which already covers both
+  real movements and synthetic `external_expense` rows), adapted with an optional per-person amount
+  override so it shows this person's owed share rather than the logged-in user's own share;
+  settlement rows get the settlement type color so they read as visually distinct from expense rows;
 - settled state when net balance is zero.
 
 Actions:
@@ -91,7 +103,12 @@ Actions:
 - Person paid for me;
 - Edit person;
 - Delete person;
-- share/export debt statement later from the same itemized data.
+- Copy message: copies a Catalan pending-debt summary to the clipboard, built from the same
+  itemized `PersonBalanceItem` breakdown (P5R-5). It finds the most recent settlement (if any) and
+  treats it as the cut point — only items after it are listed individually; if that settlement left
+  a remainder, one "Saldo pendent anterior" line stands in for everything before it instead of
+  re-listing older items. A zero balance copies a short settled message instead. The total line
+  always echoes the derived `v_person_balance` amount, never a re-sum of the listed items.
 
 Delete behavior:
 
@@ -168,9 +185,10 @@ Variant C - external friend-paid expense:
 
 - no movement is created at purchase time;
 - payer is a person;
-- split owns total amount, date, description, category, and later optional trip;
-- user's line is required and is what the user owes;
-- it appears in People/debt and actual spending analysis, but not in the account-flow movement list.
+- split owns the canonical user-share total, date, description, category, and later optional trip;
+- user's line is required, equals the split total in v1, and is what the user owes;
+- no row is inserted into `movements`, so it never affects `v_account_flow`;
+- it appears in People/debt, actual spending analysis, and the movement-summary surface as a synthetic `external_expense` row keyed by the split id so detail/drill-down flows can inspect it consistently.
 
 Validation:
 
@@ -215,7 +233,8 @@ Movement list:
 - show the shared badge using `v_movement_shared`;
 - show "paid by X" for the movement-backed paid-by-other variant;
 - show settlement rows with settlement color and person direction context;
-- keep external friend-paid splits out of the movement list because they do not affect account flow.
+- include external friend-paid splits as synthetic `external_expense` summary rows from `v_movement_summary`, with no account label and "paid by X" context;
+- keep external friend-paid splits out of account-flow lists because they do not affect an account.
 
 Movement detail:
 
@@ -227,7 +246,7 @@ Movement detail:
 Drill-down:
 
 - aggregate drill-downs that resolve to real movements open the movement list;
-- aggregates backed only by external splits should open a debt/split detail when implemented, or remain inert until that route exists.
+- aggregates backed only by external splits open the synthetic `external_expense` detail row keyed by the split id.
 
 ---
 
@@ -235,7 +254,13 @@ Drill-down:
 
 Use `docs/08-design-system.md` without new tokens:
 
-- Person rows use the existing person-row debt direction pattern.
+- Person rows use the existing person-row debt direction pattern: a `FinanceCard` row with a round
+  colored monogram avatar (color editable, falling back to a deterministic per-person color when
+  unset), name, latest context, and the balance/direction label (P5R-5).
+- Person detail, add/edit, external-split, and settle-up all use `ModalBottomSheet`, matching the
+  Accounts/Categories recipe (title → errors → live preview where applicable → fields → Cancel/Save
+  row) — none of the P3-era `AlertDialog` forms remain except the destructive archive confirmation
+  (P5R-5).
 - Split participant rows use compact list-card density: avatar chip, participant name, editable amount/percent, remove icon.
 - Settle-up and split editor use mobile bottom sheets when launched from an existing screen; larger edit flows may use full-screen forms if the current Compose structure needs it.
 - Warnings are inline banners, not blocking modals.

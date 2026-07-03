@@ -76,15 +76,15 @@ class MovementsViewModel(
         onAddClicked(tripId = null)
     }
 
-    fun onAddClicked(tripId: String?) {
+    fun onAddClicked(tripId: String?, debtPayerPersonId: String? = null) {
         viewModelScope.launch {
             val result = loadMovementData()
             result.fold(
                 onSuccess = {
-                    val form = if (it.accounts.isEmpty()) {
+                    val form = if (it.accounts.isEmpty() && debtPayerPersonId == null) {
                         null
                     } else {
-                        newMovementForm(it, tripId)
+                        newMovementForm(it, tripId, debtPayerPersonId)
                     }
                     _state.value = _state.value.copy(
                         movements = it.movements,
@@ -138,6 +138,16 @@ class MovementsViewModel(
         _state.value = _state.value.copy(detailMovement = movement, detailRefunds = emptyList())
         if (movement.type == MovementType.EXPENSE) {
             loadDetailRefunds(movement.id)
+        }
+    }
+
+    fun onDetailSourceClicked(sourceId: String) {
+        viewModelScope.launch {
+            val movement = withContext(ioDispatcher) {
+                runCatching { movementRepository.getActive(sourceId) }.getOrNull()
+            } ?: return@launch
+
+            onDetailClicked(movement)
         }
     }
 
@@ -1021,12 +1031,15 @@ private fun defaultAccountId(accounts: List<AccountSummary>): String? =
 private fun newMovementForm(
     data: LoadedMovementData,
     tripId: String?,
+    debtPayerPersonId: String? = null,
 ): MovementFormState {
     val trip = tripId?.let { selectedId -> data.trips.firstOrNull { it.id == selectedId } }
     return MovementFormState(
         accountId = trip?.defaultAccountId ?: defaultAccountId(data.accounts),
         tripId = trip?.id,
         date = LocalDate.now().toString(),
+        expenseKind = if (debtPayerPersonId != null) ExpenseKind.DEBT else null,
+        forOtherPersonId = debtPayerPersonId,
     )
 }
 

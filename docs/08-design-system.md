@@ -192,7 +192,7 @@ Core set: `space_dashboard` · `receipt_long` · `monitoring` · `account_balanc
 
 ### Cards
 
-- **KPI hero:** dark ink `#0B0D12` surface, white text, `r3`; trailing % delta badge in green tint. Net-worth figure in Geist Mono.
+- **KPI hero:** dark ink `#0B0D12` surface, white text, `r3`; trailing % delta badge in green tint. Net-worth figure in Geist Mono. Hero surfaces are always this dark ink regardless of the app's overall light/dark theme, so income/debt content placed on them must always use the **Dark** column functional colors (§2.4) for contrast, never the Light column — Android exposes these as `heroIncome`/`heroDebt` theme tokens, bound to the same dark-mode hex in both themes.
 - **Account / list card:** white, `N150` border, `r3` (13px), icon chip + title + sub + right-aligned mono amount.
 
 ### Transaction row

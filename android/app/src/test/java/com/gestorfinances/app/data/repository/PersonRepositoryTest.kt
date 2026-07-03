@@ -66,7 +66,7 @@ class PersonRepositoryTest {
                 ExternalSplitDraft(
                     id = "external-cinema",
                     payerPersonId = "laura",
-                    totalAmountCents = 1_000,
+                    totalAmountCents = 250,
                     userShareCents = 250,
                     date = "2026-01-03",
                     description = "Cinema",
@@ -171,7 +171,7 @@ class PersonRepositoryTest {
                 ExternalSplitDraft(
                     id = "s2",
                     payerPersonId = "pB",
-                    totalAmountCents = 3_000,
+                    totalAmountCents = 1_500,
                     userShareCents = 1_500,
                     date = "2026-03-03",
                     description = "Taxi",
