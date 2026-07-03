@@ -9,6 +9,8 @@ import java.util.Locale
 private val catalanLocale: Locale = Locale.forLanguageTag("ca")
 private val longDateFormatter: DateTimeFormatter =
     DateTimeFormatter.ofPattern("d MMMM yyyy", catalanLocale)
+private val slashDateFormatter: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("dd/MM", catalanLocale)
 
 /** Parse a stored `'YYYY-MM-DD'` calendar date, or null when malformed. */
 fun parseIsoDateOrNull(iso: String): LocalDate? =
@@ -17,6 +19,25 @@ fun parseIsoDateOrNull(iso: String): LocalDate? =
 /** Catalan long date, e.g. `30 juny 2025`; falls back to the raw value if unparseable. */
 fun formatLongDate(iso: String): String =
     parseIsoDateOrNull(iso)?.format(longDateFormatter) ?: iso
+
+/** Compact day/month date, e.g. `30/06`; falls back to the raw value if unparseable. */
+fun formatSlashDate(iso: String): String =
+    parseIsoDateOrNull(iso)?.format(slashDateFormatter) ?: iso
+
+/**
+ * Compact date format for movement cards: `DD/MM` for current year, `DD/MM/YYYY` for other years.
+ * Falls back to raw value if unparseable.
+ */
+fun formatMovementDate(iso: String): String {
+    val date = parseIsoDateOrNull(iso) ?: return iso
+    val currentYear = LocalDate.now().year
+    return if (date.year == currentYear) {
+        date.format(slashDateFormatter)
+    } else {
+        date.format(DateTimeFormatter.ofPattern("dd/MM/yyyy", catalanLocale))
+    }
+}
+
 
 /**
  * Catalan month name only, capitalized, e.g. `Juny`. Uses the standalone form so it reads "Juny"

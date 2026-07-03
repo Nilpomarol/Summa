@@ -42,6 +42,8 @@ import com.gestorfinances.app.ui.theme.categoryColor as categoryColorFromTheme
 fun MovementListItem(
     movement: MovementSummary,
     onClick: () -> Unit = {},
+    personEffectCents: Long? = null,
+    showDate: Boolean = true,
 ) {
     val visual = movement.chipVisual()
     val typeColor = FinanceTheme.colors.amountColor(movement.type)
@@ -105,7 +107,7 @@ fun MovementListItem(
                 }
             }
             Text(
-                text = movement.contextLine(),
+                text = movement.contextLine(showDate = showDate),
                 color = FinanceTheme.colors.mutedText,
                 style = MaterialTheme.typography.bodySmall,
                 maxLines = 1,
@@ -128,30 +130,43 @@ fun MovementListItem(
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(1.dp),
         ) {
-            val isShared = movement.isShared && movement.type == MovementType.EXPENSE
-            val isExternal = movement.type == MovementType.EXTERNAL_EXPENSE
-
-            if (isShared || isExternal) {
-                // Show my share as primary
+            if (personEffectCents != null) {
                 MoneyText(
-                    cents = if (isExternal) movement.amountCents else movement.userShareCents,
-                    color = typeColor,
+                    cents = personEffectCents,
+                    color = when {
+                        personEffectCents > 0L -> FinanceTheme.colors.income
+                        personEffectCents < 0L -> FinanceTheme.colors.debt
+                        else -> FinanceTheme.colors.mutedText
+                    },
                     style = MaterialTheme.typography.titleMedium,
-                    signed = isExternal, // External shows minus
-                )
-                Text(
-                    text = stringResource(R.string.movement_total_short, formatEuroCents(movement.amountCents)),
-                    color = FinanceTheme.colors.mutedText,
-                    style = MaterialTheme.typography.labelSmall,
-                    textAlign = TextAlign.End,
+                    signed = true,
                 )
             } else {
-                MoneyText(
-                    cents = movement.signedAmountCents(),
-                    color = typeColor,
-                    style = MaterialTheme.typography.titleMedium,
-                    signed = movement.type == MovementType.INCOME || movement.type == MovementType.SETTLEMENT,
-                )
+                val isShared = movement.isShared && movement.type == MovementType.EXPENSE
+                val isExternal = movement.type == MovementType.EXTERNAL_EXPENSE
+
+                if (isShared || isExternal) {
+                    // Show my share as primary
+                    MoneyText(
+                        cents = if (isExternal) movement.amountCents else movement.userShareCents,
+                        color = typeColor,
+                        style = MaterialTheme.typography.titleMedium,
+                        signed = isExternal, // External shows minus
+                    )
+                    Text(
+                        text = stringResource(R.string.movement_total_short, formatEuroCents(movement.amountCents)),
+                        color = FinanceTheme.colors.mutedText,
+                        style = MaterialTheme.typography.labelSmall,
+                        textAlign = TextAlign.End,
+                    )
+                } else {
+                    MoneyText(
+                        cents = movement.signedAmountCents(),
+                        color = typeColor,
+                        style = MaterialTheme.typography.titleMedium,
+                        signed = movement.type == MovementType.INCOME || movement.type == MovementType.SETTLEMENT,
+                    )
+                }
             }
         }
     }
@@ -177,8 +192,9 @@ internal fun MovementSummary.movementTitle(): String =
     name ?: payee ?: categoryName ?: type.label()
 
 @Composable
-internal fun MovementSummary.contextLine(): String =
-    when (type) {
+internal fun MovementSummary.contextLine(showDate: Boolean = true): String {
+    val datePrefix = if (showDate && date.isNotBlank()) formatMovementDate(date) else null
+    val contextText = when (type) {
         MovementType.TRANSFER -> stringResource(
             R.string.movement_transfer_accounts,
             accountName.orEmpty(),
@@ -204,6 +220,8 @@ internal fun MovementSummary.contextLine(): String =
             listOfNotNull(sharingLabel ?: paidBy ?: categoryName, accountName).joinToString(separator = " · ")
         }
     }
+    return listOfNotNull(datePrefix, contextText.ifEmpty { null }).joinToString(separator = " · ")
+}
 
 @Composable
 private fun MovementSummary.settlementContext(): String? {

@@ -171,6 +171,7 @@
     <string name="person_list_total_owed_to_user">Et deuen</string>
     <string name="person_list_total_you_owe">Deus</string>
     <string name="person_list_net_balance">Saldo net</string>
+    <string name="person_summary_more">+%1$d més</string>
     <string name="person_loading">Carregant persones...</string>
     <string name="person_empty_title">Encara no hi ha persones</string>
     <string name="person_empty_body">Afegeix persones per repartir despeses i fer seguiment del que queda pendent.</string>
@@ -180,8 +181,7 @@
     <string name="person_latest_context_empty">Sense moviments compartits</string>
     <string name="person_detail_title">Detall de la persona</string>
     <string name="person_detail_balance">Saldo amb aquesta persona</string>
-    <string name="person_detail_breakdown">Desglossament del deute</string>
-    <string name="person_detail_history">Historial</string>
+    <string name="person_detail_breakdown">Historial</string>
     <string name="person_detail_settled_body">No hi ha cap import pendent amb aquesta persona.</string>
     <string name="person_action_settle_up">Liquidar</string>
     <string name="person_action_external_split">Ha pagat per mi</string>
@@ -200,12 +200,16 @@
     <string name="person_field_color">Color</string>
     <string name="person_field_notes">Notes</string>
     <string name="person_validation_name_required">Introdueix el nom de la persona.</string>
+    <string name="person_action_copy_message">Copia el missatge</string>
+    <string name="person_copy_greeting_owed">Hola %1$s! Et passo el resum pendent:</string>
+    <string name="person_copy_greeting_owe">Hola %1$s! Tinc pendent pagar-te:</string>
+    <string name="person_copy_settled">Hola %1$s! Estem al dia, no hi ha res pendent.</string>
+    <string name="person_copy_carry_forward">Saldo pendent anterior: %1$s</string>
+    <string name="person_copy_total">Total pendent: %1$s</string>
+    <string name="person_copy_success">Missatge copiat</string>
 
     <!-- Debt breakdown -->
     <string name="debt_breakdown_empty">Encara no hi ha cap repartiment ni liquidació amb aquesta persona.</string>
-    <string name="debt_group_user_paid">Despeses pagades per tu</string>
-    <string name="debt_group_person_paid">Despeses pagades per %1$s</string>
-    <string name="debt_group_settlements">Liquidacions</string>
     <string name="debt_source_user_paid">Has pagat tu</string>
     <string name="debt_source_person_paid">Ha pagat %1$s</string>
     <string name="debt_source_settlement_in">T\'ha pagat</string>
@@ -219,7 +223,6 @@
     <!-- Split editor -->
     <string name="split_editor_title">Repartiment</string>
     <string name="split_editor_shared_expense_title">Despesa compartida</string>
-    <string name="split_editor_external_title">Despesa pagada per una persona</string>
     <string name="split_participants_title">Participants</string>
     <string name="split_method_title">Mètode</string>
     <string name="split_method_equal">Parts iguals</string>
@@ -227,14 +230,8 @@
     <string name="split_method_percentage">Percentatges</string>
     <string name="split_payer_title">Qui ha pagat</string>
     <string name="split_payer_user">Jo</string>
-    <string name="split_payer_person">%1$s ha pagat</string>
-    <string name="split_field_total">Import total</string>
-    <string name="split_field_user_share">La teva part</string>
     <string name="split_field_person_share">Part de %1$s</string>
     <string name="split_field_percent">Percentatge</string>
-    <string name="split_field_date">Data de la despesa</string>
-    <string name="split_field_description">Descripció</string>
-    <string name="split_field_category">Categoria</string>
     <string name="split_field_trip">Viatge</string>
     <string name="split_add_person">Afegeix persona</string>
     <string name="split_remove_person">Treu persona</string>
@@ -247,8 +244,6 @@
     <string name="split_validation_payer_required">Tria qui ha pagat.</string>
     <string name="split_validation_participant_required">Tria com a mínim una persona.</string>
     <string name="split_validation_user_line_required">El repartiment ha d\'incloure la teva part.</string>
-    <string name="split_validation_user_share_required">Indica la teva part.</string>
-    <string name="split_validation_user_share_not_over_total">La teva part no pot superar l\'import total.</string>
     <string name="split_validation_reconcile">El repartiment ha de quadrar amb l\'import total.</string>
     <string name="split_warning_existing_settlement">Aquest canvi pot fer que una liquidació existent superi el nou saldo. Pots continuar si és correcte.</string>
 

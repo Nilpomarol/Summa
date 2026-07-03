@@ -39,7 +39,7 @@ class SplitRepositoryTest {
                 ExternalSplitDraft(
                     id = "split-laura-paid",
                     payerPersonId = "laura",
-                    totalAmountCents = 1_000,
+                    totalAmountCents = 400,
                     userShareCents = 400,
                     date = "2026-01-01",
                     description = "Sopar",
@@ -73,6 +73,35 @@ class SplitRepositoryTest {
             assertEquals(400L, totals.actualExpenseCents)
             assertEquals(0L, totals.accountFlowCents)
             assertEquals(400L, categories.getValue("food").expenseCents)
+        }
+    }
+
+    @Test
+    fun `createExternalPaidByPerson requires the canonical v1 user share total`() {
+        freshStore().use { store ->
+            store.people.create(
+                PersonDraft(id = "laura", name = "Laura", avatar = null, color = null, notes = null),
+                createdAt = NOW,
+            )
+
+            val result = runCatching {
+                store.splits.createExternalPaidByPerson(
+                    ExternalSplitDraft(
+                        id = "split-laura-paid",
+                        payerPersonId = "laura",
+                        totalAmountCents = 1_000,
+                        userShareCents = 400,
+                        date = "2026-01-01",
+                        description = "Sopar",
+                        categoryId = null,
+                    ),
+                    createdAt = NOW,
+                )
+            }
+
+            assertTrue(result.isFailure)
+            assertTrue(store.movements.listActive().isEmpty())
+            assertEquals(0L, store.people.getActive("laura")!!.balanceCents)
         }
     }
 

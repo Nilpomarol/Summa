@@ -214,7 +214,7 @@ Run these after building the app to confirm all four expense types work correctl
 | 1 | New expense, "Jo" → "Només per a mi", save | Movement list shows it; account balance drops by amount; no split row in DB |
 | 2 | "Jo" → "Compartida", add a person, equal split, save | Movement + split created; person's balance = their share; your actual expense = your share |
 | 3 | "Jo" → "Per a un altre", pick a person, save | Movement + split created; **that person owes the full amount** (`v_person_balance`); your `actual` expense = 0; your account balance drops by full amount |
-| 4 | "Una altra persona" → pick a person, enter 30€, save | No movement in the ledger; **you owe that person 30€** (`v_person_balance`); `actual` expense = 30€; `account_flow` = 0 |
+| 4 | "Una altra persona" → pick a person, enter 30€, save | No row is inserted into `movements`; the movement summary shows a synthetic `external_expense` row; **you owe that person 30€** (`v_person_balance`); `actual` expense = 30€; `account_flow` = 0 |
 | 5 | Type-4 with trip + tag selected, save | Appears in trip analysis with the correct tag; `external.tripId` and `external.tagId` populated |
 | 6 | Edit the type-3 expense (Per a un altre), change amount | The person's debt updates; form reloads as "Per a un altre" (round-trip) |
 | 7 | Edit the type-4 expense (Deute), change amount | Your debt updates atomically; **kill the app mid-save and reopen** — old record still intact (C5) |
@@ -262,6 +262,31 @@ Analysis is 5 tabs — `Resum` · `Categories` · `Comparativa` (Compara) · `Hi
 | 12 | **Fix/Var** — Fixes/Variables category cards | Each category row shows a magnitude bar sized to its share of the group total (bar length = the % shown); section header shows the group's total and % of total expenses |
 | 13 | **Fix/Var** — "Cost dels periòdics" | Header shows the total monthly recurring cost; each item shows a magnitude bar, its % share, and its next due date; no "Propers periòdics" section anywhere in the tab |
 | 14 | Filter by account (from AccountsScreen "Anàlisi" tap) | `FinanceFilterChip` "Compte: [name]" appears; data scoped to that account across all tabs; tapping chip clears it |
+
+---
+
+## 12. P5R-5 Manual Checklist — People, splits, debts, and settlements
+
+Run these after building the app to confirm the redesigned People screen is correct.
+
+| # | Step | Expected |
+|---|------|----------|
+| 1 | Open Gestió → Persones with ≥ 6 people, mixed positive/negative/zero balances | Dark hero card shows the net balance headline, two tinted stat chips ("Et deuen" green / "Deus" red), and up to 5 per-person rows (colored initial-avatar, name, signed amount) sorted by absolute balance, with a "+N més" line if more than 5 have a non-zero balance; colors read as bright/legible on the dark surface, not muddy |
+| 2 | All people are settled (balance 0) | Hero card shows only the net balance headline — no chips, no person list |
+| 3 | Below the hero, each person row is a `FinanceCard` | Round color avatar, name, latest context, balance + direction label, overflow menu |
+| 4 | Tap a person row | `PersonDetailSheet` (`ModalBottomSheet`) opens with header (avatar, name, notes, balance/direction), then — only when balance ≠ 0 — a full-width Settle up button on its own (tightly spaced) row, followed by one row with Person paid for me / Copy message / Edit at equal width; when balance is 0, only that second row appears |
+| 5 | Debt breakdown below the actions | A single chronological history (most recent first) rendered as `MovementListItem` rows — same visual density as the Moviments list — showing this person's owed share (not the logged-in user's own share) for shared expenses |
+| 6 | Tap a history row | Opens the underlying movement detail, or the synthetic external-expense detail when the row has no backing movement (regression check on `onOpenDebtSource`) |
+| 7 | A settlement appears in the history | Its row uses the settlement type color/icon, visually distinct from the expense-colored debt rows |
+| 8 | Tap "Person paid for me" (from the list row's overflow menu or the detail sheet) | The real Movement form opens as an overlay on top of the current screen (Persones stays visible underneath, no tab switch) pre-seeded with "Qui ha pagat" = Una altra persona and this person already selected as payer; saving returns you to the same screen |
+| 9 | Tap Edit (from the sheet or the row's overflow menu), pick a color, save | `PersonFormSheet` `ColorPickerRow` selection persists; the row, hero list, and detail-sheet avatar all update to the new color |
+| 10 | Create a new person and leave color unset | Avatar shows a deterministic fallback color (not the app's primary/indigo) and the first-initial letter |
+| 11 | Tap Copy message on a person with no settlement history | Clipboard receives every open item plus a "Total pendent" line; snackbar confirms the copy |
+| 12 | Tap Copy message after a settlement that fully clears the balance, followed by a new expense | Only the new expense is listed — older, now-settled items are omitted, no "Saldo pendent anterior" line |
+| 13 | Tap Copy message after a partial settlement, followed by a new expense | New expense listed, plus a "Saldo pendent anterior" line for the pre-settlement remainder, then the total |
+| 14 | Tap Copy message when the balance is exactly 0 | Copies a short settled message instead of an itemized breakdown |
+| 15 | Enter a settlement amount greater than the outstanding balance | Dismissible `InlineBanner` warning appears; Save still succeeds (never-block) |
+| 16 | Archive a person with a non-zero balance | Confirmation is a centered `AlertDialog` (never a bottom sheet), with a warning banner for the non-zero balance |
 
 ---
 

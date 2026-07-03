@@ -68,7 +68,6 @@ import com.gestorfinances.app.data.repository.TagSummary
 import com.gestorfinances.app.data.repository.TripSummary
 import com.gestorfinances.app.ui.common.BannerKind
 import com.gestorfinances.app.ui.common.ChipFlowSection
-import com.gestorfinances.app.ui.common.DateGroupHeader
 import com.gestorfinances.app.ui.common.DestructiveTextButton
 import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.FinanceFilterChip
@@ -226,9 +225,6 @@ private fun MovementsContent(
 ) {
     var filtersExpanded by remember { mutableStateOf(false) }
     val visibleMovements = state.visibleMovements
-    val grouped = remember(visibleMovements) {
-        visibleMovements.groupBy { it.date }.toList()
-    }
 
     LaunchedEffect(state.filters.hasAdvancedFilters) {
         if (state.filters.hasAdvancedFilters) {
@@ -320,16 +316,11 @@ private fun MovementsContent(
             visibleMovements.isEmpty() && state.accounts.isNotEmpty() -> item {
                 NoFilteredMovementsCard(onClearFilters = onClearFilters)
             }
-            else -> grouped.forEach { (date, movements) ->
-                item(key = "header-$date") {
-                    DateGroupHeader(iso = date)
-                }
-                items(items = movements, key = { it.id }) { movement ->
-                    MovementListItem(
-                        movement = movement,
-                        onClick = { onDetail(movement) },
-                    )
-                }
+            else -> items(items = visibleMovements, key = { it.id }) { movement ->
+                MovementListItem(
+                    movement = movement,
+                    onClick = { onDetail(movement) },
+                )
             }
         }
     }

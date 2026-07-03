@@ -1,9 +1,9 @@
 {
   "rule": "debt_balance",
-  "description": "Per-person balance from splits + settlements (v_person_balance, spec §4.1). >0 = person owes the user; <0 = the user owes the person. Load the rows, run v_person_balance, assert expected.",
+  "description": "Per-person balance from splits + settlements (v_person_balance, spec section 4.1). >0 = person owes the user; <0 = the user owes the person. Load the rows, run v_person_balance, assert expected.",
   "cases": [
     {
-      "name": "mixed: user-fronted split, a §2.6 split, and a settlement",
+      "name": "mixed: user-fronted split, canonical external split, and settlement",
       "input": {
         "people": [ { "id": "pA" }, { "id": "pB" } ],
         "movements": [
@@ -12,7 +12,7 @@
         ],
         "splits": [
           { "id": "s1", "movement_id": "mv1", "payer_person_id": null },
-          { "id": "s2", "movement_id": null, "payer_person_id": "pB", "total_amount_cents": 3000, "date": "2026-03-03" }
+          { "id": "s2", "movement_id": null, "payer_person_id": "pB", "total_amount_cents": 1500, "date": "2026-03-03" }
         ],
         "split_lines": [
           { "split_id": "s1", "participant_kind": "user", "person_id": null, "owed_amount_cents": 2500 },
@@ -22,7 +22,66 @@
       },
       "expected": {
         "balance_cents": { "pA": 1500, "pB": -1500 },
-        "explain": { "pA": "+2500 owes user (s1) -1000 settled person->user = 1500", "pB": "-1500 user owes (s2 §2.6)" }
+        "explain": { "pA": "+2500 owes user (s1) -1000 settled person->user = 1500", "pB": "-1500 user owes (canonical external s2)" }
+      }
+    },
+    {
+      "name": "archived movement, split, settlement, and split line are ignored",
+      "input": {
+        "people": [ { "id": "pA" }, { "id": "pB" }, { "id": "pC" } ],
+        "movements": [
+          { "id": "mv-active", "type": "expense", "account_id": "acc-1", "amount_cents": 2000, "date": "2026-04-01" },
+          { "id": "mv-archived", "type": "expense", "account_id": "acc-1", "amount_cents": 2000, "date": "2026-04-02", "archived_at": "2026-04-03T00:00:00Z" },
+          { "id": "settlement-archived", "type": "settlement", "account_id": "acc-1", "amount_cents": 500, "date": "2026-04-04", "person_id": "pA", "settlement_direction": "person_to_user", "archived_at": "2026-04-05T00:00:00Z" }
+        ],
+        "splits": [
+          { "id": "s-active", "movement_id": "mv-active", "payer_person_id": null },
+          { "id": "s-movement-archived", "movement_id": "mv-archived", "payer_person_id": null },
+          { "id": "s-archived", "movement_id": null, "payer_person_id": "pB", "total_amount_cents": 700, "date": "2026-04-06", "archived_at": "2026-04-07T00:00:00Z" },
+          { "id": "s-line-archived", "movement_id": null, "payer_person_id": "pC", "total_amount_cents": 300, "date": "2026-04-08" }
+        ],
+        "split_lines": [
+          { "split_id": "s-active", "participant_kind": "user", "person_id": null, "owed_amount_cents": 1000 },
+          { "split_id": "s-active", "participant_kind": "person", "person_id": "pA", "owed_amount_cents": 1000 },
+          { "split_id": "s-movement-archived", "participant_kind": "user", "person_id": null, "owed_amount_cents": 1000 },
+          { "split_id": "s-movement-archived", "participant_kind": "person", "person_id": "pA", "owed_amount_cents": 1000 },
+          { "split_id": "s-archived", "participant_kind": "user", "person_id": null, "owed_amount_cents": 700 },
+          { "split_id": "s-line-archived", "participant_kind": "user", "person_id": null, "owed_amount_cents": 300, "archived_at": "2026-04-09T00:00:00Z" }
+        ]
+      },
+      "expected": {
+        "balance_cents": { "pA": 1000, "pB": 0, "pC": 0 },
+        "explain": { "pA": "Only active user-fronted person line counts", "pB": "Archived external split ignored", "pC": "Archived external user line ignored" }
+      }
+    },
+    {
+      "name": "settlement directions, partial repayments, and over-settlement",
+      "input": {
+        "people": [ { "id": "pA" }, { "id": "pB" }, { "id": "pC" } ],
+        "movements": [
+          { "id": "exp-a", "type": "expense", "account_id": "acc-1", "amount_cents": 2000, "date": "2026-05-01" },
+          { "id": "pay-a-in", "type": "settlement", "account_id": "acc-1", "amount_cents": 300, "date": "2026-05-02", "person_id": "pA", "settlement_direction": "person_to_user" },
+          { "id": "pay-a-out", "type": "settlement", "account_id": "acc-1", "amount_cents": 200, "date": "2026-05-03", "person_id": "pA", "settlement_direction": "user_to_person" },
+          { "id": "pay-b-out", "type": "settlement", "account_id": "acc-1", "amount_cents": 300, "date": "2026-05-04", "person_id": "pB", "settlement_direction": "user_to_person" },
+          { "id": "exp-c", "type": "expense", "account_id": "acc-1", "amount_cents": 800, "date": "2026-05-05" },
+          { "id": "pay-c-over", "type": "settlement", "account_id": "acc-1", "amount_cents": 900, "date": "2026-05-06", "person_id": "pC", "settlement_direction": "person_to_user" }
+        ],
+        "splits": [
+          { "id": "s-a", "movement_id": "exp-a", "payer_person_id": null },
+          { "id": "s-b", "movement_id": null, "payer_person_id": "pB", "total_amount_cents": 800, "date": "2026-05-01" },
+          { "id": "s-c", "movement_id": "exp-c", "payer_person_id": null }
+        ],
+        "split_lines": [
+          { "split_id": "s-a", "participant_kind": "user", "person_id": null, "owed_amount_cents": 1000 },
+          { "split_id": "s-a", "participant_kind": "person", "person_id": "pA", "owed_amount_cents": 1000 },
+          { "split_id": "s-b", "participant_kind": "user", "person_id": null, "owed_amount_cents": 800 },
+          { "split_id": "s-c", "participant_kind": "user", "person_id": null, "owed_amount_cents": 400 },
+          { "split_id": "s-c", "participant_kind": "person", "person_id": "pC", "owed_amount_cents": 400 }
+        ]
+      },
+      "expected": {
+        "balance_cents": { "pA": 900, "pB": -500, "pC": -500 },
+        "explain": { "pA": "+1000 -300 +200 = 900", "pB": "-800 +300 = -500", "pC": "+400 -900 = -500" }
       }
     }
   ]

@@ -8,8 +8,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -20,18 +24,25 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Handshake
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -43,33 +54,45 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountSummary
-import com.gestorfinances.app.data.repository.CategoryKind
-import com.gestorfinances.app.data.repository.CategoryRecord
 import com.gestorfinances.app.data.repository.PersonBalanceItem
 import com.gestorfinances.app.data.repository.PersonBalanceItemType
 import com.gestorfinances.app.data.repository.PersonSummary
 import com.gestorfinances.app.data.repository.SettlementDirection
 import com.gestorfinances.app.ui.common.BannerKind
 import com.gestorfinances.app.ui.common.ChipFlowSection
+import com.gestorfinances.app.ui.common.ColorPickerRow
 import com.gestorfinances.app.ui.common.DestructiveTextButton
+import com.gestorfinances.app.ui.common.EntityColorPalette
 import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.FinanceFilterChip
 import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.MoneyText
+import com.gestorfinances.app.ui.common.MovementListItem
 import com.gestorfinances.app.ui.common.PrimaryButton
-import com.gestorfinances.app.ui.common.formatLongDate
+import com.gestorfinances.app.ui.common.formatEuroCents
+import com.gestorfinances.app.ui.common.formatSlashDate
 import com.gestorfinances.app.ui.common.parseEuroCents
 import com.gestorfinances.app.ui.theme.FinanceTheme
+import com.gestorfinances.app.ui.theme.categoryColor
+import com.gestorfinances.app.ui.theme.categoryTint
 
 @Composable
 fun PeopleScreen(
     viewModel: PeopleViewModel,
+    onOpenDebtSource: (String) -> Unit,
+    onAddDebtForPerson: (PersonSummary) -> Unit,
+    onMessageCopied: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsState()
@@ -84,12 +107,12 @@ fun PeopleScreen(
         onAdd = viewModel::onAddClicked,
         onEdit = viewModel::onEditClicked,
         onArchive = viewModel::onArchiveClicked,
-        onExternalSplit = viewModel::onPersonPaidForMeClicked,
+        onExternalSplit = onAddDebtForPerson,
         onOpenDetail = viewModel::onPersonDetailClicked,
     )
 
     state.form?.let { form ->
-        PersonFormDialog(
+        PersonFormSheet(
             form = form,
             onFormChange = viewModel::onFormChanged,
             onDismiss = viewModel::onFormDismissed,
@@ -97,33 +120,31 @@ fun PeopleScreen(
         )
     }
 
-    state.externalSplitForm?.let { form ->
-        ExternalSplitDialog(
-            form = form,
-            categories = state.categories,
-            onFormChange = viewModel::onExternalSplitFormChanged,
-            onDismiss = viewModel::onExternalSplitDismissed,
-            onSave = viewModel::onExternalSplitSaveClicked,
-        )
-    }
-
     state.detail?.let { detail ->
-        PersonDetailDialog(
+        PersonDetailSheet(
             detail = detail,
             onDismiss = viewModel::onPersonDetailDismissed,
+            onOpenDebtSource = onOpenDebtSource,
             onExternalSplit = {
                 viewModel.onPersonDetailDismissed()
-                viewModel.onPersonPaidForMeClicked(detail.person)
+                onAddDebtForPerson(detail.person)
             },
             onSettleUp = {
                 viewModel.onPersonDetailDismissed()
                 viewModel.onSettleUpClicked(detail.person)
             },
+            onEdit = {
+                viewModel.onPersonDetailDismissed()
+                viewModel.onEditClicked(detail.person)
+            },
+            onCopyMessageClicked = viewModel::onCopyMessageClicked,
+            onCopyMessageHandled = viewModel::onCopyMessageHandled,
+            onMessageCopied = onMessageCopied,
         )
     }
 
     state.settlementForm?.let { form ->
-        SettlementDialog(
+        SettlementSheet(
             form = form,
             accounts = state.accounts,
             onFormChange = viewModel::onSettlementFormChanged,
@@ -230,57 +251,135 @@ private fun PeopleContent(
     }
 }
 
+private const val PEOPLE_SUMMARY_MAX_ROWS = 5
+
 @Composable
 private fun PeopleSummaryCard(state: PeopleUiState) {
-    FinanceCard(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            DebtMetric(
-                label = stringResource(R.string.person_list_total_owed_to_user),
-                cents = state.totalOwedToUserCents,
-                color = FinanceTheme.colors.income,
+    val netCents = state.netBalanceCents
+    val owedCents = state.totalOwedToUserCents
+    val youOweCents = state.totalUserOwesCents
+    val netColor = when {
+        netCents > 0L -> FinanceTheme.colors.heroIncome
+        netCents < 0L -> FinanceTheme.colors.heroDebt
+        else -> FinanceTheme.colors.heroOnSurface
+    }
+    val nonZeroPeople = state.people.filter { it.balanceCents != 0L }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = FinanceTheme.colors.heroSurface,
+        contentColor = FinanceTheme.colors.heroOnSurface,
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Text(
+                text = stringResource(R.string.person_list_net_balance),
+                style = MaterialTheme.typography.labelMedium,
+                color = FinanceTheme.colors.heroOnSurfaceMuted,
             )
-            DebtMetric(
-                label = stringResource(R.string.person_list_total_you_owe),
-                cents = state.totalUserOwesCents,
-                color = FinanceTheme.colors.debt,
-            )
-            DebtMetric(
-                label = stringResource(R.string.person_list_net_balance),
-                cents = state.netBalanceCents,
-                color = debtDirectionColor(state.netBalanceCents),
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            MoneyText(
+                cents = netCents,
+                color = netColor,
+                style = MaterialTheme.typography.displayMedium,
                 signed = true,
             )
+
+            if (owedCents > 0L || youOweCents > 0L) {
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    PeopleSummaryStatChip(
+                        label = stringResource(R.string.person_list_total_owed_to_user),
+                        cents = owedCents,
+                        color = FinanceTheme.colors.heroIncome,
+                        modifier = Modifier.weight(1f),
+                    )
+                    PeopleSummaryStatChip(
+                        label = stringResource(R.string.person_list_total_you_owe),
+                        cents = youOweCents,
+                        color = FinanceTheme.colors.heroDebt,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+
+                if (nonZeroPeople.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    HorizontalDivider(color = FinanceTheme.colors.heroOnSurface.copy(alpha = 0.12f))
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        nonZeroPeople.take(PEOPLE_SUMMARY_MAX_ROWS).forEach { person ->
+                            PeopleSummaryPersonRow(person = person)
+                        }
+                        val remaining = nonZeroPeople.size - PEOPLE_SUMMARY_MAX_ROWS
+                        if (remaining > 0) {
+                            Text(
+                                text = stringResource(R.string.person_summary_more, remaining),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = FinanceTheme.colors.heroOnSurfaceMuted,
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun DebtMetric(
+private fun PeopleSummaryStatChip(
     label: String,
     cents: Long,
     color: Color,
     modifier: Modifier = Modifier,
-    signed: Boolean = false,
 ) {
-    Row(
-        modifier = modifier,
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    Column(
+        modifier = modifier
+            .clip(MaterialTheme.shapes.medium)
+            .background(categoryTint(color))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
         Text(
             text = label,
-            modifier = Modifier.weight(1f),
-            color = FinanceTheme.colors.mutedText,
-            style = MaterialTheme.typography.labelMedium,
+            style = MaterialTheme.typography.labelSmall,
+            color = color,
         )
+        Spacer(modifier = Modifier.height(2.dp))
         MoneyText(
             cents = cents,
             color = color,
+            style = MaterialTheme.typography.titleMedium,
+        )
+    }
+}
+
+@Composable
+private fun PeopleSummaryPersonRow(person: PersonSummary) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        PersonAvatar(person = person, size = 26.dp)
+        Text(
+            text = person.name,
+            style = MaterialTheme.typography.bodyMedium,
+            color = FinanceTheme.colors.heroOnSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        MoneyText(
+            cents = person.balanceCents,
+            color = if (person.balanceCents > 0L) FinanceTheme.colors.heroIncome else FinanceTheme.colors.heroDebt,
             style = MaterialTheme.typography.titleSmall,
-            signed = signed,
+            signed = true,
         )
     }
 }
@@ -317,62 +416,101 @@ private fun PersonRow(
     onExternalSplit: () -> Unit,
     onOpenDetail: () -> Unit,
 ) {
-    Row(
+    FinanceCard(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onOpenDetail)
-            .padding(vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .clickable(onClick = onOpenDetail),
     ) {
-        PersonAvatar(person = person)
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = person.name,
-                style = MaterialTheme.typography.titleSmall,
-            )
-            Text(
-                text = person.notes?.takeIf { it.isNotBlank() }
-                    ?: stringResource(R.string.person_latest_context_empty),
-                color = FinanceTheme.colors.mutedText,
-                style = MaterialTheme.typography.bodyMedium,
-            )
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                PersonAvatar(person = person)
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = person.name,
+                        style = MaterialTheme.typography.titleSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = person.notes?.takeIf { it.isNotBlank() }
+                            ?: stringResource(R.string.person_latest_context_empty),
+                        color = FinanceTheme.colors.mutedText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Column(horizontalAlignment = Alignment.End) {
+                    MoneyText(
+                        cents = kotlin.math.abs(person.balanceCents),
+                        color = debtDirectionColor(person.balanceCents),
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    Text(
+                        text = person.balanceLabel(),
+                        color = debtDirectionColor(person.balanceCents),
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
+                PersonRowMenu(
+                    onExternalSplit = onExternalSplit,
+                    onEdit = onEdit,
+                    onArchive = onArchive,
+                )
+            }
         }
-        Spacer(modifier = Modifier.width(8.dp))
-        Column(horizontalAlignment = Alignment.End) {
-            MoneyText(
-                cents = kotlin.math.abs(person.balanceCents),
-                color = debtDirectionColor(person.balanceCents),
-                style = MaterialTheme.typography.titleSmall,
-            )
-            Text(
-                text = person.balanceLabel(),
-                color = debtDirectionColor(person.balanceCents),
-                style = MaterialTheme.typography.labelSmall,
-            )
-        }
-        PersonRowMenu(
-            onExternalSplit = onExternalSplit,
-            onEdit = onEdit,
-            onArchive = onArchive,
-        )
     }
 }
 
+// ---------------------------------------------------------------------------
+// Person detail — bottom sheet
+// ---------------------------------------------------------------------------
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PersonDetailDialog(
+private fun PersonDetailSheet(
     detail: PersonDetailState,
     onDismiss: () -> Unit,
+    onOpenDebtSource: (String) -> Unit,
     onExternalSplit: () -> Unit,
     onSettleUp: () -> Unit,
+    onEdit: () -> Unit,
+    onCopyMessageClicked: () -> Unit,
+    onCopyMessageHandled: () -> Unit,
+    onMessageCopied: (String) -> Unit,
 ) {
-    AlertDialog(
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val clipboardManager = LocalClipboardManager.current
+
+    detail.copyMessage?.let { message ->
+        val text = message.toClipboardText(detail.person.name)
+        val successMessage = stringResource(R.string.person_copy_success)
+        LaunchedEffect(message) {
+            clipboardManager.setText(AnnotatedString(text))
+            onMessageCopied(successMessage)
+            onCopyMessageHandled()
+        }
+    }
+
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        title = { Text(text = stringResource(R.string.person_detail_title)) },
-        text = {
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.75f)
+                .navigationBarsPadding()
+                .padding(bottom = 8.dp),
+        ) {
             Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 6.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -406,18 +544,38 @@ private fun PersonDetailDialog(
                     }
                 }
 
-                Text(
-                    text = stringResource(R.string.person_detail_balance),
-                    color = FinanceTheme.colors.mutedText,
-                    style = MaterialTheme.typography.labelMedium,
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (detail.person.balanceCents != 0L) {
+                        PrimaryButton(
+                            text = stringResource(R.string.person_action_settle_up),
+                            onClick = onSettleUp,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
 
-                if (detail.person.balanceCents != 0L) {
-                    PrimaryButton(
-                        text = stringResource(R.string.person_action_settle_up),
-                        onClick = onSettleUp,
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                    )
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        SecondaryActionButton(
+                            icon = Icons.Outlined.Handshake,
+                            label = stringResource(R.string.person_action_external_split),
+                            onClick = onExternalSplit,
+                            modifier = Modifier.weight(1f),
+                        )
+                        SecondaryActionButton(
+                            icon = Icons.Outlined.ContentCopy,
+                            label = stringResource(R.string.person_action_copy_message),
+                            onClick = onCopyMessageClicked,
+                            modifier = Modifier.weight(1f),
+                        )
+                        SecondaryActionButton(
+                            icon = Icons.Outlined.Edit,
+                            label = stringResource(R.string.common_edit),
+                            onClick = onEdit,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
                 }
 
                 if (detail.isLoading) {
@@ -435,7 +593,17 @@ private fun PersonDetailDialog(
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
+            }
 
+            HorizontalDivider()
+
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
                 Text(
                     text = stringResource(R.string.person_detail_breakdown),
                     style = MaterialTheme.typography.titleSmall,
@@ -451,116 +619,124 @@ private fun PersonDetailDialog(
                         color = FinanceTheme.colors.mutedText,
                         style = MaterialTheme.typography.bodyMedium,
                     )
-                } else {
-                    PersonBalanceSection(
-                        title = stringResource(R.string.debt_group_user_paid),
-                        items = detail.items.filter { it.type == PersonBalanceItemType.USER_PAID },
-                        personName = detail.person.name,
-                    )
-                    PersonBalanceSection(
-                        title = stringResource(R.string.debt_group_person_paid, detail.person.name),
-                        items = detail.items.filter { it.type == PersonBalanceItemType.PERSON_PAID },
-                        personName = detail.person.name,
-                    )
-                    PersonBalanceSection(
-                        title = stringResource(R.string.debt_group_settlements),
-                        items = detail.items.filter {
-                            it.type == PersonBalanceItemType.SETTLEMENT_IN ||
-                                it.type == PersonBalanceItemType.SETTLEMENT_OUT
-                        },
-                        personName = detail.person.name,
-                    )
+                } else if (detail.history.isNotEmpty()) {
+                    Column {
+                        detail.history.forEachIndexed { index, entry ->
+                            MovementListItem(
+                                movement = entry.movement,
+                                onClick = { onOpenDebtSource(entry.item.sourceId) },
+                                personEffectCents = entry.item.effectCents,
+                            )
+                            if (index < detail.history.lastIndex) {
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                            }
+                        }
+                    }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun SecondaryActionButton(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = modifier,
+        shape = MaterialTheme.shapes.small,
+        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/** Resolves the copy-to-chat message content into the final Catalan text to place on the clipboard. */
+@Composable
+private fun PersonDebtMessage.toClipboardText(personName: String): String {
+    if (direction == DebtMessageDirection.SETTLED) {
+        return stringResource(R.string.person_copy_settled, personName)
+    }
+
+    val greeting = stringResource(
+        if (direction == DebtMessageDirection.PERSON_OWES_USER) {
+            R.string.person_copy_greeting_owed
+        } else {
+            R.string.person_copy_greeting_owe
         },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.common_done))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onExternalSplit) {
-                Text(text = stringResource(R.string.person_action_external_split))
-            }
-        },
+        personName,
+    )
+
+    val lines = mutableListOf<String>()
+    items.forEach { item ->
+        lines += "- ${formatSlashDate(item.date)} ${item.displayTitle(personName)}: " +
+            formatEuroCents(kotlin.math.abs(item.effectCents))
+    }
+    carryForwardCents?.let { carryForward ->
+        lines += "- " + stringResource(
+            R.string.person_copy_carry_forward,
+            formatEuroCents(kotlin.math.abs(carryForward)),
+        )
+    }
+
+    val totalLine = stringResource(R.string.person_copy_total, formatEuroCents(kotlin.math.abs(totalCents)))
+
+    return buildString {
+        append(greeting)
+        append("\n\n")
+        append(lines.joinToString("\n"))
+        append("\n\n")
+        append(totalLine)
+    }
+}
+
+@Composable
+private fun PersonAvatar(person: PersonSummary, size: Dp = 42.dp) {
+    PersonAvatar(
+        name = person.name,
+        color = person.color?.let { categoryColor(it) } ?: personFallbackColor(person.id),
+        avatarGlyph = person.avatar,
+        size = size,
     )
 }
 
 @Composable
-private fun PersonBalanceSection(
-    title: String,
-    items: List<PersonBalanceItem>,
-    personName: String,
-) {
-    if (items.isEmpty()) return
-
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            text = title,
-            color = FinanceTheme.colors.mutedText,
-            style = MaterialTheme.typography.labelMedium,
-        )
-        items.forEachIndexed { index, item ->
-            PersonBalanceItemRow(item = item, personName = personName)
-            if (index < items.lastIndex) {
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            }
-        }
-    }
-}
-
-@Composable
-private fun PersonBalanceItemRow(
-    item: PersonBalanceItem,
-    personName: String,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
-                text = formatLongDate(item.date),
-                color = FinanceTheme.colors.mutedText,
-                style = MaterialTheme.typography.labelSmall,
-            )
-            Text(
-                text = item.displayTitle(personName),
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Text(
-                text = item.contextLabel(personName),
-                color = FinanceTheme.colors.mutedText,
-                style = MaterialTheme.typography.labelSmall,
-            )
-        }
-        MoneyText(
-            cents = item.effectCents,
-            color = debtDirectionColor(item.effectCents),
-            style = MaterialTheme.typography.bodyLarge,
-            signed = true,
-        )
-    }
-}
-
-@Composable
-private fun PersonAvatar(person: PersonSummary) {
-    val background = person.color?.let(::parseColorOrNull) ?: MaterialTheme.colorScheme.primary
+private fun PersonAvatar(name: String, color: Color, avatarGlyph: String? = null, size: Dp = 42.dp) {
     Box(
         modifier = Modifier
-            .size(42.dp)
+            .size(size)
             .clip(CircleShape)
-            .background(background.copy(alpha = 0.18f)),
+            .background(color.copy(alpha = 0.18f)),
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = person.avatar?.takeIf { it.isNotBlank() } ?: person.name.firstInitial(),
-            color = background,
+            text = avatarGlyph?.takeIf { it.isNotBlank() } ?: name.firstInitial(),
+            color = color,
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
         )
     }
+}
+
+/** Deterministic fallback color for a person with no chosen [PersonSummary.color]. */
+private fun personFallbackColor(id: String): Color {
+    val index = (id.hashCode().mod(EntityColorPalette.size))
+    return categoryColor(EntityColorPalette[index].hex)
 }
 
 @Composable
@@ -600,294 +776,268 @@ private fun PersonRowMenu(
     }
 }
 
-@Composable
-private fun ExternalSplitDialog(
-    form: ExternalSplitFormState,
-    categories: List<CategoryRecord>,
-    onFormChange: (ExternalSplitFormState) -> Unit,
-    onDismiss: () -> Unit,
-    onSave: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(text = stringResource(R.string.split_editor_external_title))
-        },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text(
-                    text = stringResource(R.string.split_payer_person, form.payerPersonName),
-                    color = FinanceTheme.colors.mutedText,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                form.errorRes?.let {
-                    Text(
-                        text = stringResource(it),
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-                form.errorMessage?.let {
-                    Text(
-                        text = it,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-                OutlinedTextField(
-                    value = form.totalAmount,
-                    onValueChange = { onFormChange(form.copy(totalAmount = it)) },
-                    label = { Text(text = stringResource(R.string.split_field_total)) },
-                    prefix = { Text(text = "€") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = form.userShare,
-                    onValueChange = { onFormChange(form.copy(userShare = it)) },
-                    label = { Text(text = stringResource(R.string.split_field_user_share)) },
-                    prefix = { Text(text = "€") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = form.date,
-                    onValueChange = { onFormChange(form.copy(date = it)) },
-                    label = { Text(text = stringResource(R.string.split_field_date)) },
-                    supportingText = { Text(text = stringResource(R.string.movement_date_format_hint)) },
-                    singleLine = true,
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = form.description,
-                    onValueChange = { onFormChange(form.copy(description = it)) },
-                    label = { Text(text = stringResource(R.string.split_field_description)) },
-                    minLines = 2,
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                ChipFlowSection(label = stringResource(R.string.split_field_category)) {
-                    FinanceFilterChip(
-                        selected = form.categoryId == null,
-                        label = stringResource(R.string.common_no_category),
-                        onClick = { onFormChange(form.copy(categoryId = null)) },
-                    )
-                    categories.filter { it.supportsExpense }.forEach { category ->
-                        FinanceFilterChip(
-                            selected = form.categoryId == category.id,
-                            label = category.name,
-                            onClick = { onFormChange(form.copy(categoryId = category.id)) },
-                        )
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            Button(onClick = onSave) {
-                Text(text = stringResource(R.string.split_save))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.common_cancel))
-            }
-        },
-    )
-}
+// ---------------------------------------------------------------------------
+// Settlement — bottom sheet
+// ---------------------------------------------------------------------------
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SettlementDialog(
+private fun SettlementSheet(
     form: SettlementFormState,
     accounts: List<AccountSummary>,
     onFormChange: (SettlementFormState) -> Unit,
     onDismiss: () -> Unit,
     onSave: () -> Unit,
 ) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val parsedAmount = parseEuroCents(form.amount, allowNegative = false)
     val isOverpay = parsedAmount != null && parsedAmount > form.outstandingCents
 
-    AlertDialog(
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        title = {
-            Text(text = stringResource(R.string.settlement_title_with_person, form.personName))
-        },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .navigationBarsPadding()
+                .imePadding()
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.settlement_title_with_person, form.personName),
+                style = MaterialTheme.typography.titleLarge,
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Text(
-                        text = stringResource(
-                            when (form.direction) {
-                                SettlementDirection.PERSON_TO_USER -> R.string.settlement_direction_person_to_user
-                                SettlementDirection.USER_TO_PERSON -> R.string.settlement_direction_user_to_person
-                            },
-                        ),
-                        modifier = Modifier.weight(1f),
-                        color = FinanceTheme.colors.mutedText,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    MoneyText(
-                        cents = form.outstandingCents,
-                        color = when (form.direction) {
-                            SettlementDirection.PERSON_TO_USER -> FinanceTheme.colors.income
-                            SettlementDirection.USER_TO_PERSON -> FinanceTheme.colors.debt
+                Text(
+                    text = stringResource(
+                        when (form.direction) {
+                            SettlementDirection.PERSON_TO_USER -> R.string.settlement_direction_person_to_user
+                            SettlementDirection.USER_TO_PERSON -> R.string.settlement_direction_user_to_person
                         },
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                }
-                form.errorRes?.let {
-                    Text(
-                        text = stringResource(it),
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-                form.errorMessage?.let {
-                    Text(
-                        text = it,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-                OutlinedTextField(
-                    value = form.amount,
-                    onValueChange = { onFormChange(form.copy(amount = it)) },
-                    label = { Text(text = stringResource(R.string.settlement_field_amount)) },
-                    prefix = { Text(text = "€") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth(),
+                    ),
+                    modifier = Modifier.weight(1f),
+                    color = FinanceTheme.colors.mutedText,
+                    style = MaterialTheme.typography.bodyMedium,
                 )
-                if (isOverpay) {
-                    InlineBanner(
-                        kind = BannerKind.Alert,
-                        text = stringResource(R.string.settlement_warning_overpay),
-                    )
-                }
-                ChipFlowSection(label = stringResource(R.string.settlement_field_account)) {
-                    accounts.forEach { account ->
-                        FinanceFilterChip(
-                            selected = form.accountId == account.id,
-                            label = account.name,
-                            onClick = { onFormChange(form.copy(accountId = account.id)) },
-                        )
-                    }
-                }
-                OutlinedTextField(
-                    value = form.date,
-                    onValueChange = { onFormChange(form.copy(date = it)) },
-                    label = { Text(text = stringResource(R.string.settlement_field_date)) },
-                    supportingText = { Text(text = stringResource(R.string.movement_date_format_hint)) },
-                    singleLine = true,
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = form.notes,
-                    onValueChange = { onFormChange(form.copy(notes = it)) },
-                    label = { Text(text = stringResource(R.string.settlement_field_notes)) },
-                    minLines = 2,
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth(),
+                MoneyText(
+                    cents = form.outstandingCents,
+                    color = when (form.direction) {
+                        SettlementDirection.PERSON_TO_USER -> FinanceTheme.colors.income
+                        SettlementDirection.USER_TO_PERSON -> FinanceTheme.colors.debt
+                    },
+                    style = MaterialTheme.typography.titleMedium,
                 )
             }
-        },
-        confirmButton = {
-            Button(onClick = onSave) {
-                Text(text = stringResource(R.string.settlement_save))
+            form.errorRes?.let {
+                Text(
+                    text = stringResource(it),
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
             }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.common_cancel))
+            form.errorMessage?.let {
+                Text(
+                    text = it,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
             }
-        },
-    )
+            OutlinedTextField(
+                value = form.amount,
+                onValueChange = { onFormChange(form.copy(amount = it)) },
+                label = { Text(text = stringResource(R.string.settlement_field_amount)) },
+                prefix = { Text(text = "€") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            if (isOverpay) {
+                InlineBanner(
+                    kind = BannerKind.Alert,
+                    text = stringResource(R.string.settlement_warning_overpay),
+                )
+            }
+            ChipFlowSection(label = stringResource(R.string.settlement_field_account)) {
+                accounts.forEach { account ->
+                    FinanceFilterChip(
+                        selected = form.accountId == account.id,
+                        label = account.name,
+                        onClick = { onFormChange(form.copy(accountId = account.id)) },
+                    )
+                }
+            }
+            OutlinedTextField(
+                value = form.date,
+                onValueChange = { onFormChange(form.copy(date = it)) },
+                label = { Text(text = stringResource(R.string.settlement_field_date)) },
+                supportingText = { Text(text = stringResource(R.string.movement_date_format_hint)) },
+                singleLine = true,
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = form.notes,
+                onValueChange = { onFormChange(form.copy(notes = it)) },
+                label = { Text(text = stringResource(R.string.settlement_field_notes)) },
+                minLines = 2,
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f),
+                    shape = MaterialTheme.shapes.small,
+                ) {
+                    Text(text = stringResource(R.string.common_cancel))
+                }
+                PrimaryButton(
+                    text = stringResource(R.string.settlement_save),
+                    onClick = onSave,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
 }
 
+// ---------------------------------------------------------------------------
+// Person form — bottom sheet
+// ---------------------------------------------------------------------------
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PersonFormDialog(
+private fun PersonFormSheet(
     form: PersonFormState,
     onFormChange: (PersonFormState) -> Unit,
     onDismiss: () -> Unit,
     onSave: () -> Unit,
 ) {
-    AlertDialog(
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        title = {
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .navigationBarsPadding()
+                .imePadding()
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
             Text(
                 text = stringResource(
                     if (form.id == null) R.string.person_form_new_title else R.string.person_form_edit_title,
                 ),
+                style = MaterialTheme.typography.titleLarge,
             )
-        },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                form.errorRes?.let {
-                    Text(
-                        text = stringResource(it),
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-                form.errorMessage?.let {
-                    Text(
-                        text = it,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-                OutlinedTextField(
-                    value = form.name,
-                    onValueChange = { onFormChange(form.copy(name = it, errorRes = null, errorMessage = null)) },
-                    label = { Text(text = stringResource(R.string.person_field_name)) },
-                    singleLine = true,
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = form.notes,
-                    onValueChange = { onFormChange(form.copy(notes = it, errorRes = null, errorMessage = null)) },
-                    label = { Text(text = stringResource(R.string.person_field_notes)) },
-                    minLines = 3,
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth(),
+
+            form.errorRes?.let {
+                Text(
+                    text = stringResource(it),
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
                 )
             }
-        },
-        confirmButton = {
-            Button(onClick = onSave) {
+            form.errorMessage?.let {
                 Text(
+                    text = it,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+
+            PersonPreviewCard(form = form)
+
+            OutlinedTextField(
+                value = form.name,
+                onValueChange = { onFormChange(form.copy(name = it, errorRes = null, errorMessage = null)) },
+                label = { Text(text = stringResource(R.string.person_field_name)) },
+                singleLine = true,
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = form.notes,
+                onValueChange = { onFormChange(form.copy(notes = it, errorRes = null, errorMessage = null)) },
+                label = { Text(text = stringResource(R.string.person_field_notes)) },
+                minLines = 3,
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            ColorPickerRow(
+                label = stringResource(R.string.person_field_color),
+                selectedHex = form.color,
+                onSelect = { onFormChange(form.copy(color = it)) },
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f),
+                    shape = MaterialTheme.shapes.small,
+                ) {
+                    Text(text = stringResource(R.string.common_cancel))
+                }
+                PrimaryButton(
                     text = stringResource(
                         if (form.id == null) R.string.person_save_new else R.string.person_save_changes,
                     ),
+                    onClick = onSave,
+                    modifier = Modifier.weight(1f),
                 )
             }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.common_cancel))
-            }
-        },
-    )
+        }
+    }
+}
+
+@Composable
+private fun PersonPreviewCard(form: PersonFormState) {
+    val color = form.color?.let { categoryColor(it) } ?: personFallbackColor(form.id ?: form.name)
+    val nameText = form.name.ifBlank { stringResource(R.string.person_form_new_title) }
+
+    FinanceCard(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            PersonAvatar(name = form.name, color = color)
+            Text(
+                text = nameText,
+                style = MaterialTheme.typography.titleSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = if (form.name.isBlank()) {
+                    FinanceTheme.colors.mutedText
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+            )
+        }
+    }
 }
 
 @Composable
@@ -911,17 +1061,6 @@ private fun PersonBalanceItem.displayTitle(personName: String): String =
     title?.takeIf { it.isNotBlank() } ?: sourceLabel(personName)
 
 @Composable
-private fun PersonBalanceItem.contextLabel(personName: String): String =
-    listOfNotNull(
-        sourceLabel(personName),
-        categoryName?.takeIf { it.isNotBlank() } ?: when (type) {
-            PersonBalanceItemType.USER_PAID, PersonBalanceItemType.PERSON_PAID ->
-                stringResource(R.string.common_no_category)
-            PersonBalanceItemType.SETTLEMENT_IN, PersonBalanceItemType.SETTLEMENT_OUT -> null
-        },
-    ).joinToString(" · ")
-
-@Composable
 private fun PersonBalanceItem.sourceLabel(personName: String): String =
     when (type) {
         PersonBalanceItemType.USER_PAID -> stringResource(R.string.debt_source_user_paid)
@@ -932,13 +1071,3 @@ private fun PersonBalanceItem.sourceLabel(personName: String): String =
 
 private fun String.firstInitial(): String =
     trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?"
-
-private fun parseColorOrNull(hex: String): Color? =
-    try {
-        Color(android.graphics.Color.parseColor(hex.trim()))
-    } catch (_: IllegalArgumentException) {
-        null
-    }
-
-private val CategoryRecord.supportsExpense: Boolean
-    get() = kind == CategoryKind.EXPENSE || kind == CategoryKind.BOTH

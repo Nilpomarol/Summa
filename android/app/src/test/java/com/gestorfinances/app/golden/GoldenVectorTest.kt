@@ -313,6 +313,7 @@ class GoldenVectorTest {
             settlementDirection = row.optionalString("settlement_direction"),
             refundsExpenseId = row.optionalString("refunds_expense_id"),
             actualRefundCents = row.optionalLong("actual_refund_cents"),
+            archivedAt = row.optionalString("archived_at"),
         )
     }
 
@@ -327,14 +328,15 @@ class GoldenVectorTest {
         settlementDirection: String? = null,
         refundsExpenseId: String? = null,
         actualRefundCents: Long? = null,
+        archivedAt: String? = null,
     ) {
         prepareStatement(
             """
             INSERT INTO movements(
                 id, type, account_id, dest_account_id, amount_cents, date,
                 person_id, settlement_direction, refunds_expense_id, actual_refund_cents,
-                created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                created_at, updated_at, archived_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent(),
         ).use { statement ->
             statement.setString(1, id)
@@ -349,6 +351,7 @@ class GoldenVectorTest {
             statement.setNullableLong(10, actualRefundCents)
             statement.setString(11, NOW)
             statement.setString(12, NOW)
+            statement.setNullableString(13, archivedAt)
             statement.executeUpdate()
         }
     }
@@ -358,8 +361,8 @@ class GoldenVectorTest {
             """
             INSERT INTO splits(
                 id, movement_id, payer_person_id, entry_method,
-                total_amount_cents, date, created_at, updated_at
-            ) VALUES (?, ?, ?, 'equal', ?, ?, ?, ?)
+                total_amount_cents, date, created_at, updated_at, archived_at
+            ) VALUES (?, ?, ?, 'equal', ?, ?, ?, ?, ?)
             """.trimIndent(),
         ).use { statement ->
             statement.setString(1, row.string("id"))
@@ -369,6 +372,7 @@ class GoldenVectorTest {
             statement.setNullableString(5, row.optionalString("date"))
             statement.setString(6, NOW)
             statement.setString(7, NOW)
+            statement.setNullableString(8, row.optionalString("archived_at"))
             statement.executeUpdate()
         }
     }
@@ -381,8 +385,8 @@ class GoldenVectorTest {
             """
             INSERT INTO split_lines(
                 id, split_id, participant_kind, person_id,
-                owed_amount_cents, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                owed_amount_cents, created_at, updated_at, archived_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent(),
         ).use { statement ->
             statement.setString(1, id)
@@ -392,6 +396,7 @@ class GoldenVectorTest {
             statement.setLong(5, row.long("owed_amount_cents"))
             statement.setString(6, NOW)
             statement.setString(7, NOW)
+            statement.setNullableString(8, row.optionalString("archived_at"))
             statement.executeUpdate()
         }
     }
