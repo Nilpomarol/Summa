@@ -13,6 +13,7 @@ import com.gestorfinances.app.data.repository.MovementDraft
 import com.gestorfinances.app.data.repository.MovementRepository
 import com.gestorfinances.app.data.repository.MovementSplitDraft
 import com.gestorfinances.app.data.repository.MovementSplitWrite
+import com.gestorfinances.app.data.repository.MovementSummary
 import com.gestorfinances.app.data.repository.MovementType
 import com.gestorfinances.app.data.repository.SplitEntryMethod
 import com.gestorfinances.app.data.repository.SplitLineDraft
@@ -23,9 +24,15 @@ import com.gestorfinances.app.data.repository.TemplateSplitConfig
 import com.gestorfinances.app.data.repository.TemplateStatus
 import com.gestorfinances.app.data.repository.TemplateSummary
 import com.gestorfinances.app.domain.rules.CustomRecurrenceUnit
+import com.gestorfinances.app.domain.rules.DetectedRecurringCandidate
+import com.gestorfinances.app.domain.rules.DetectedTemplateAction
+import com.gestorfinances.app.domain.rules.ExistingTemplateSignature
 import com.gestorfinances.app.domain.rules.RecurrenceFrequency
 import com.gestorfinances.app.domain.rules.RecurrenceRule
 import com.gestorfinances.app.domain.rules.RecurringAdvancer
+import com.gestorfinances.app.domain.rules.RecurringCandidateMovement
+import com.gestorfinances.app.domain.rules.RecurringPatternDetector
+import com.gestorfinances.app.domain.rules.toRecurrenceRule
 import com.gestorfinances.app.notifications.NotificationRefresher
 import com.gestorfinances.app.ui.common.formatEuroInput
 import com.gestorfinances.app.ui.common.parseEuroCents
@@ -41,10 +48,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-
-/** Movement types a template can carry (templates CHECK: expense/income/transfer). */
-val templateTypes: List<MovementType> =
-    listOf(MovementType.EXPENSE, MovementType.INCOME, MovementType.TRANSFER)
 
 class RecurringViewModel(
     private val templateRepository: TemplateRepository,
@@ -157,8 +160,10 @@ class RecurringViewModel(
         viewModelScope.launch {
             val result = withContext(ioDispatcher) {
                 runCatching {
-                    movementRepository.create(draft, createdAt = now)
-                    templateRepository.advanceCursor(template.id, template.advancedOneStep(), updatedAt = now)
+                    movementRepository.runInTransaction {
+                        movementRepository.create(draft, createdAt = now)
+                        templateRepository.advanceCursor(template.id, template.advancedOneStep(), updatedAt = now)
+                    }
                 }
             }
             result.fold(
@@ -177,18 +182,21 @@ class RecurringViewModel(
     }
 
     fun onSkipClicked(prompt: DuePrompt) {
-        advanceCursorTo(prompt.template.id, prompt.template.advancedOneStep())
+        advanceCursorTo(prompt.template.id) { prompt.template.advancedOneStep() }
     }
 
     fun onSkipAllClicked(prompt: DuePrompt) {
-        advanceCursorTo(prompt.template.id, prompt.template.advancedToToday(today()))
+        advanceCursorTo(prompt.template.id) { prompt.template.advancedToToday(today()) }
     }
 
-    private fun advanceCursorTo(templateId: String, nextDueDate: String) {
+    // computeNextDueDate runs inside the runCatching/ioDispatcher block below, not on the
+    // caller's thread: RecurringAdvancer.advance can throw (F3's occurrence ceiling), and letting
+    // that happen on the UI thread would crash instead of surfacing as a benign error.
+    private fun advanceCursorTo(templateId: String, computeNextDueDate: () -> String) {
         val now = Instant.now().toString()
         viewModelScope.launch {
             val result = withContext(ioDispatcher) {
-                runCatching { templateRepository.advanceCursor(templateId, nextDueDate, updatedAt = now) }
+                runCatching { templateRepository.advanceCursor(templateId, computeNextDueDate(), updatedAt = now) }
             }
             result.fold(
                 onSuccess = {
@@ -201,10 +209,29 @@ class RecurringViewModel(
     }
 
     fun onDeleteClicked(template: TemplateSummary) {
+        _state.value = _state.value.copy(deleteCandidate = template)
+    }
+
+    fun onDeleteDismissed() {
+        _state.value = _state.value.copy(deleteCandidate = null)
+    }
+
+    /** Deleting a template (unlike ending it) severs its movements' links too, atomically: an
+     * archived template is "treated as absent" (invariant #6), so nothing should still claim a
+     * relationship to it — the movements themselves are kept, just as plain non-recurring entries,
+     * and become eligible for [RecurringPatternDetector] again. */
+    fun onDeleteConfirmed() {
+        val template = _state.value.deleteCandidate ?: return
+        _state.value = _state.value.copy(deleteCandidate = null)
         val now = Instant.now().toString()
         viewModelScope.launch {
             val result = withContext(ioDispatcher) {
-                runCatching { templateRepository.archive(template.id, archivedAt = now) }
+                runCatching {
+                    movementRepository.runInTransaction {
+                        movementRepository.unlinkAllForTemplate(template.id, updatedAt = now)
+                        templateRepository.archive(template.id, archivedAt = now)
+                    }
+                }
             }
             result.fold(
                 onSuccess = {
@@ -366,6 +393,96 @@ class RecurringViewModel(
         }
     }
 
+    /** User-triggered, one-shot scan (spec §3.10) — never automatic/background. */
+    fun onDetectRecurringClicked() {
+        _state.value = _state.value.copy(isDetecting = true, errorMessage = null)
+        viewModelScope.launch {
+            val result = withContext(ioDispatcher) {
+                runCatching {
+                    val movements = movementRepository.listActive().mapNotNull { it.toRecurringCandidateMovementOrNull() }
+                    val existingSignatures = templateRepository.listActive().map { it.toExistingTemplateSignature() }
+                    RecurringPatternDetector.detect(movements, existingSignatures, today = today())
+                }
+            }
+            _state.value = result.fold(
+                onSuccess = { candidates ->
+                    _state.value.copy(
+                        isDetecting = false,
+                        detectionReview = DetectionReviewState(
+                            items = candidates.map { DetectionReviewItem(candidate = it) },
+                        ),
+                    )
+                },
+                onFailure = {
+                    _state.value.copy(isDetecting = false, errorMessage = it.message ?: it.javaClass.simpleName)
+                },
+            )
+        }
+    }
+
+    fun onDetectionItemToggled(index: Int, accepted: Boolean) {
+        val review = _state.value.detectionReview ?: return
+        val updated = review.items.toMutableList().also { it[index] = it[index].copy(accepted = accepted) }
+        _state.value = _state.value.copy(detectionReview = review.copy(items = updated))
+    }
+
+    fun onDetectionReviewDismissed() {
+        _state.value = _state.value.copy(detectionReview = null)
+    }
+
+    /** Each accepted item is applied independently (rather than aborting the whole batch on the
+     * first failure) so a single bad candidate can't stop the rest from being confirmed. Any
+     * failures are left checked in the review sheet (skipped/unaccepted items stay as they were)
+     * so retrying only re-attempts what actually failed — an already-applied item is never
+     * resubmitted, which would otherwise create a duplicate template. */
+    fun onDetectionConfirmAllClicked() {
+        val review = _state.value.detectionReview ?: return
+        val accepted = review.items.filter { it.accepted }
+        if (accepted.isEmpty()) {
+            onDetectionReviewDismissed()
+            return
+        }
+        val now = Instant.now().toString()
+        viewModelScope.launch {
+            val failures = withContext(ioDispatcher) {
+                accepted.mapNotNull { item ->
+                    runCatching { applyDetectionItem(item.candidate, now) }.exceptionOrNull()?.let { item to it }
+                }
+            }
+            refresh()
+            refreshNotifications()
+            _state.value = _state.value.copy(
+                detectionReview = if (failures.isEmpty()) {
+                    null
+                } else {
+                    val skipped = review.items.filterNot { it.accepted }
+                    DetectionReviewState(
+                        items = failures.map { it.first } + skipped,
+                        errorMessage = failures.joinToString("; ") { it.second.message ?: it.second.javaClass.simpleName },
+                    )
+                },
+            )
+        }
+    }
+
+    /** Each accepted item is applied independently: the create/update + movement-linking below is
+     * one atomic transaction, but a failure on one item doesn't roll back another — re-running
+     * detection matches an already-created template as an UPDATE rather than proposing a
+     * duplicate. */
+    private fun applyDetectionItem(candidate: DetectedRecurringCandidate, now: String) {
+        val existing = candidate.matchedTemplateId?.let { templateRepository.getActive(it) }
+        val draft = candidate.toTemplateDraft(existing)
+        movementRepository.runInTransaction {
+            when (candidate.action) {
+                DetectedTemplateAction.NEW -> templateRepository.create(draft, createdAt = now)
+                DetectedTemplateAction.UPDATE -> templateRepository.update(draft, updatedAt = now)
+            }
+            // Link the movements that formed this pattern so they stop being re-proposed by
+            // future scans and show as instances of the (now tracked) recurring template.
+            movementRepository.linkToTemplate(candidate.sourceMovementIds, templateId = draft.id, updatedAt = now)
+        }
+    }
+
     private fun refreshNotifications() {
         viewModelScope.launch {
             withContext(ioDispatcher) {
@@ -409,10 +526,31 @@ data class RecurringUiState(
     val form: TemplateFormState? = null,
     val confirmPrompt: ConfirmPromptState? = null,
     val endCandidate: TemplateSummary? = null,
+    val deleteCandidate: TemplateSummary? = null,
+    val isDetecting: Boolean = false,
+    val detectionReview: DetectionReviewState? = null,
 ) {
     val monthlyNetCents: Long get() = monthlyIncomeCents - monthlyExpenseCents
     val hasMonthlySummary: Boolean get() = monthlyExpenseCents != 0L || monthlyIncomeCents != 0L
+
+    /** True while any of this ViewModel's own dialogs (rendered by `RecurringOverlays`) is open --
+     * used to make the auto-triggered due-reminders sheet step aside for them, then reappear. */
+    val hasOpenDialog: Boolean get() =
+        confirmPrompt != null || endCandidate != null || deleteCandidate != null ||
+            form != null || detectionReview != null
 }
+
+/** Review list produced by a "Detecta periòdics" scan (spec §3.10) — nothing is created/updated
+ * until the user confirms; each item is pre-checked and can be unchecked (skipped) individually. */
+data class DetectionReviewState(
+    val items: List<DetectionReviewItem>,
+    val errorMessage: String? = null,
+)
+
+data class DetectionReviewItem(
+    val candidate: DetectedRecurringCandidate,
+    val accepted: Boolean = true,
+)
 
 /** A virtual occurrence due for an active template (not yet in the ledger). */
 data class DuePrompt(
@@ -507,14 +645,6 @@ private fun List<TemplateSummary>.monthlyTotals(today: LocalDate): Pair<Long, Lo
 fun TemplateSummary.effectiveDayOfMonth(): Int =
     dayOfMonth?.toInt() ?: runCatching { LocalDate.parse(nextDueDate).dayOfMonth }.getOrDefault(99)
 
-private fun TemplateSummary.toRecurrenceRule(): RecurrenceRule =
-    RecurrenceRule(
-        frequency = frequency,
-        dayOfMonth = dayOfMonth?.toInt(),
-        intervalCount = intervalCount,
-        customUnit = customUnit,
-    )
-
 /** Cursor after materializing/skipping a single occurrence. */
 private fun TemplateSummary.advancedOneStep(): String {
     val cursor = LocalDate.parse(nextDueDate)
@@ -581,6 +711,68 @@ private fun TemplateSummary.toFormState(): TemplateFormState =
         dateFlex = dateFlexDays?.toString().orEmpty(),
         leadDays = leadNotificationDays?.toString().orEmpty(),
         status = status,
+    )
+
+/** Pattern-detection candidates are scoped to EXPENSE/INCOME (spec §3.10 addendum) — a recurring
+ * transfer's identity also depends on its destination account, which this detector doesn't track. */
+private fun MovementSummary.toRecurringCandidateMovementOrNull(): RecurringCandidateMovement? {
+    val account = accountId ?: return null
+    if (type != MovementType.EXPENSE && type != MovementType.INCOME) return null
+    return RecurringCandidateMovement(
+        movementId = id,
+        accountId = account,
+        type = type,
+        categoryId = categoryId,
+        name = name,
+        payee = payee,
+        amountCents = amountCents,
+        date = LocalDate.parse(date),
+        templateId = templateId,
+    )
+}
+
+private fun TemplateSummary.toExistingTemplateSignature(): ExistingTemplateSignature =
+    ExistingTemplateSignature(
+        templateId = id,
+        accountId = accountId,
+        type = type,
+        categoryId = categoryId,
+        name = name,
+        payee = payee,
+    )
+
+/**
+ * [existing] is the matched template being updated (null for a NEW candidate). The detector only
+ * ever derives schedule/amount/status fields — [TemplateRepository.update] is a full-row overwrite
+ * (see `updateTemplate` in Templates.sq), so anything it doesn't derive (notes, a shared split
+ * config, date flexibility, the lead-notification override) must be carried forward from the
+ * existing row or confirming an "Actualitza" candidate would silently wipe it. `intervalCount`/
+ * `customUnit` are deliberately NOT carried forward: the detector never proposes CUSTOM frequency,
+ * and the templates CHECK constraint requires both to be null whenever frequency isn't CUSTOM.
+ */
+private fun DetectedRecurringCandidate.toTemplateDraft(existing: TemplateSummary?): TemplateDraft =
+    TemplateDraft(
+        id = matchedTemplateId ?: UUID.randomUUID().toString(),
+        type = type,
+        amountCents = amountCents,
+        accountId = accountId,
+        destAccountId = null,
+        categoryId = categoryId,
+        name = name,
+        payee = payee,
+        notes = existing?.notes,
+        splitConfig = existing?.splitConfig,
+        frequency = frequency,
+        intervalCount = null,
+        customUnit = null,
+        dayOfMonth = dayOfMonth?.toLong(),
+        weekday = weekday?.toLong(),
+        nextDueDate = suggestedNextDueDate.toString(),
+        amountIsVariable = amountIsVariable,
+        amountFlexCents = amountFlexCents,
+        dateFlexDays = existing?.dateFlexDays,
+        leadNotificationDays = existing?.leadNotificationDays,
+        status = suggestedStatus,
     )
 
 private fun parseDate(raw: String): LocalDate? =

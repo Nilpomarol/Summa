@@ -111,6 +111,21 @@ class TemplateRepositoryTest {
     }
 
     @Test
+    fun updateAppliesAStatusChangeInTheSameDraft() {
+        // Regression: `updateTemplate`'s SET clause omitted `status`, so editing a template's
+        // status through the add/edit form (or a "Actualitza" detection candidate) silently had
+        // no effect -- only the dedicated pause/resume/end actions (`setStatus`) worked.
+        freshStore().use { store ->
+            seedAccountAndCategory(store)
+            store.templates.create(monthlyRentDraft(), createdAt = NOW)
+
+            store.templates.update(monthlyRentDraft().copy(status = TemplateStatus.ENDED), updatedAt = LATER)
+
+            assertEquals(TemplateStatus.ENDED, store.templates.getActive("rent")!!.status)
+        }
+    }
+
+    @Test
     fun rejectsSchemaInvalidDrafts() {
         freshStore().use { store ->
             seedAccountAndCategory(store)

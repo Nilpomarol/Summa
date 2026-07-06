@@ -2,24 +2,38 @@ package com.gestorfinances.app.ui.movements
 
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import com.gestorfinances.app.R
+import com.gestorfinances.app.data.db.AutoCatRulesQueries
 import com.gestorfinances.app.data.db.GestorDatabase
 import com.gestorfinances.app.data.repository.AccountDraft
 import com.gestorfinances.app.data.repository.AccountRepository
 import com.gestorfinances.app.data.repository.AccountType
 import com.gestorfinances.app.data.repository.AnalysisRepository
+import com.gestorfinances.app.data.repository.AutoCatRuleRepository
+import com.gestorfinances.app.data.repository.CategoryDraft
+import com.gestorfinances.app.data.repository.CategoryKind
+import com.gestorfinances.app.data.repository.CategoryNature
 import com.gestorfinances.app.data.repository.CategoryRepository
 import com.gestorfinances.app.data.repository.MovementDraft
 import com.gestorfinances.app.data.repository.MovementRepository
+import com.gestorfinances.app.data.repository.MovementSplitDraft
+import com.gestorfinances.app.data.repository.MovementSplitWrite
 import com.gestorfinances.app.data.repository.MovementType
 import com.gestorfinances.app.data.repository.PersonDraft
 import com.gestorfinances.app.data.repository.PersonRepository
 import com.gestorfinances.app.data.repository.SplitEntryMethod
+import com.gestorfinances.app.data.repository.SplitLineDraft
+import com.gestorfinances.app.data.repository.SplitParticipantKind
+import com.gestorfinances.app.data.repository.SplitRepository
 import com.gestorfinances.app.data.repository.TagDraft
 import com.gestorfinances.app.data.repository.TagRepository
+import com.gestorfinances.app.data.repository.TemplateRepository
+import com.gestorfinances.app.data.repository.TemplateSplitConfigLine
+import com.gestorfinances.app.data.repository.TemplateStatus
 import com.gestorfinances.app.data.repository.TripDraft
 import com.gestorfinances.app.data.repository.TripRepository
 import com.gestorfinances.app.data.repository.TripStatus
 import com.gestorfinances.app.data.repository.TripType
+import com.gestorfinances.app.domain.rules.RecurrenceFrequency
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -129,6 +143,59 @@ class MovementsViewModelTest {
     }
 
     @Test
+    fun formSuggestsCategoryFromActiveAutoCatRuleButNeverAppliesItAutomatically() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            store.categories.create(
+                CategoryDraft(
+                    id = "groceries",
+                    name = "Alimentació",
+                    kind = CategoryKind.EXPENSE,
+                    nature = CategoryNature.VARIABLE,
+                    parentId = null,
+                    icon = null,
+                    color = null,
+                    displayOrder = 0,
+                ),
+                createdAt = NOW,
+            )
+            store.autoCatRulesQueries.insertAutoCatRule(
+                id = "rule-1",
+                name = "Supermarket",
+                priority = 10,
+                conditions = "{\"text_contains\":\"super\"}",
+                action_category_id = "groceries",
+                action_trip_id = null,
+                source = "user",
+                active = 1,
+                created_at = NOW,
+                updated_at = NOW,
+            )
+            val viewModel = viewModel(store)
+            viewModel.onAddClicked()
+            advanceUntilIdle()
+
+            viewModel.onFormChanged(
+                viewModel.form().copy(
+                    name = "Super Mercat",
+                    amount = "20",
+                    date = "2026-01-01",
+                    accountId = "checking",
+                ),
+            )
+
+            // Suggested, but not applied to categoryId (read-only hint, never auto-applies).
+            assertEquals("groceries", viewModel.form().suggestedCategoryId)
+            assertNull(viewModel.form().categoryId)
+
+            // Tapping the suggestion is the form's onFormChange with categoryId set explicitly.
+            viewModel.onFormChanged(viewModel.form().copy(categoryId = "groceries"))
+            assertEquals("groceries", viewModel.form().categoryId)
+            assertEquals("groceries", viewModel.form().suggestedCategoryId)
+        }
+    }
+
+    @Test
     fun nonDuplicateSavesWithoutWarning() = runTest(dispatcher) {
         freshStore().use { store ->
             store.accounts.create(accountDraft("checking"), createdAt = NOW)
@@ -214,6 +281,273 @@ class MovementsViewModelTest {
             assertTrue(movement.isShared)
             assertEquals(500L, store.people.getActive("laura")!!.balanceCents)
             assertNull(viewModel.state.value.form)
+        }
+    }
+
+    // Regression: a new shared+recurring expense's template must persist split_config so future
+    // confirmed occurrences carry the split forward (RecurringViewModel.toSplitWrite reads it).
+    // createQuickTemplate previously hardcoded splitConfig = null, so every quick-created template
+    // silently lost its split and every subsequent occurrence was confirmed as a plain expense.
+    @Test
+    fun sharedAndRecurringExpenseCarriesSplitConfigIntoTheQuickCreatedTemplate() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            store.people.create(personDraft("laura"), createdAt = NOW)
+            val viewModel = viewModel(store)
+            viewModel.onAddClicked()
+            advanceUntilIdle()
+
+            viewModel.onFormChanged(
+                viewModel.form().copy(
+                    amount = "10",
+                    date = "2026-01-01",
+                    accountId = "checking",
+                    name = "Sopar",
+                    expenseKind = ExpenseKind.SHARED,
+                    splitEditor = SplitEditorState().withPersonToggled("laura"),
+                    isRecurring = true,
+                    recurringFrequency = RecurrenceFrequency.MONTHLY,
+                ),
+            )
+            viewModel.onSaveClicked()
+            advanceUntilIdle()
+
+            val movement = store.movements.listActive().single()
+            val templateId = requireNotNull(movement.templateId) { "movement must link to the quick-created template" }
+            val splitConfig = store.templates.getActive(templateId)!!.splitConfig
+            assertTrue("template.split_config must be persisted, not null", splitConfig != null)
+            assertEquals(1_000L, splitConfig!!.lines.sumOf { it.owedAmountCents })
+            assertEquals(
+                setOf(
+                    TemplateSplitConfigLine(party = "user", owedAmountCents = 500L),
+                    TemplateSplitConfigLine(party = "laura", owedAmountCents = 500L),
+                ),
+                splitConfig.lines.toSet(),
+            )
+        }
+    }
+
+    // Regression: toggling recurring ON for an EDIT of an already-shared movement, when the split
+    // itself isn't being touched (splitWrite resolves to KeepExisting for the movement's own
+    // write), must still read the movement's actual split so the newly-created template gets one
+    // too. Previously this fell through to splitConfig = null just like the create case above.
+    @Test
+    fun togglingRecurringOnAnExistingSharedMovementStillCarriesItsSplitIntoTheNewTemplate() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            store.people.create(personDraft("laura"), createdAt = NOW)
+            store.movements.create(
+                movementDraft(id = "exp", amountCents = 1_000, name = "Sopar").copy(
+                    splitWrite = MovementSplitWrite.Replace(
+                        MovementSplitDraft(
+                            entryMethod = SplitEntryMethod.EQUAL,
+                            lines = listOf(
+                                SplitLineDraft(SplitParticipantKind.USER, personId = null, owedAmountCents = 500L),
+                                SplitLineDraft(SplitParticipantKind.PERSON, personId = "laura", owedAmountCents = 500L),
+                            ),
+                        ),
+                    ),
+                ),
+                createdAt = NOW,
+            )
+            val viewModel = viewModel(store)
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+
+            val existing = store.movements.getActive("exp")!!
+            viewModel.onEditClicked(existing)
+            advanceUntilIdle()
+
+            // Simulate the "unchanged split" path: splitEditor stays null (the split itself isn't
+            // being edited), only isRecurring flips on for the first time.
+            viewModel.onFormChanged(
+                viewModel.form().copy(
+                    splitEditor = null,
+                    existingSplit = true,
+                    isRecurring = true,
+                    recurringFrequency = RecurrenceFrequency.MONTHLY,
+                ),
+            )
+            viewModel.onSaveClicked()
+            advanceUntilIdle()
+
+            val movement = store.movements.getActive("exp")!!
+            assertTrue("edited movement must remain shared", movement.isShared)
+            val templateId = requireNotNull(movement.templateId) { "movement must link to the quick-created template" }
+            val splitConfig = store.templates.getActive(templateId)!!.splitConfig
+            assertTrue("template.split_config must carry the existing split, not null", splitConfig != null)
+            assertEquals(
+                setOf(
+                    TemplateSplitConfigLine(party = "user", owedAmountCents = 500L),
+                    TemplateSplitConfigLine(party = "laura", owedAmountCents = 500L),
+                ),
+                splitConfig!!.lines.toSet(),
+            )
+        }
+    }
+
+    // Deleting a movement never touches its template's due date, except in one provably-safe
+    // case: the movement is exactly the occurrence immediately preceding the template's current
+    // next-due-date (no skip since). Only then does the archive dialog offer to roll it back.
+    @Test
+    fun archivingTheImmediatePriorOccurrenceOffersToRevertTheDueDate() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            val viewModel = viewModel(store)
+            viewModel.onAddClicked()
+            advanceUntilIdle()
+            viewModel.onFormChanged(
+                viewModel.form().copy(
+                    amount = "80",
+                    date = "2026-01-05",
+                    accountId = "checking",
+                    name = "Lloguer",
+                    isRecurring = true,
+                    recurringFrequency = RecurrenceFrequency.MONTHLY,
+                ),
+            )
+            viewModel.onSaveClicked()
+            advanceUntilIdle()
+            val movement = store.movements.listActive().single()
+            val templateId = requireNotNull(movement.templateId)
+            assertEquals("2026-02-05", store.templates.getActive(templateId)!!.nextDueDate)
+
+            viewModel.onArchiveClicked(movement)
+            advanceUntilIdle()
+
+            val candidate = requireNotNull(viewModel.state.value.archiveCandidate)
+            assertEquals(templateId, candidate.revertibleTemplateId)
+        }
+    }
+
+    // Regression (spec-guardian): a paused/ended template isn't scanned for due-prompts, so
+    // silently offering to rewind its due date would be confusing, not useful -- only ACTIVE
+    // templates should ever offer the revert checkbox.
+    @Test
+    fun archivingTheImmediatePriorOccurrenceOfAPausedTemplateDoesNotOfferToRevert() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            val viewModel = viewModel(store)
+            viewModel.onAddClicked()
+            advanceUntilIdle()
+            viewModel.onFormChanged(
+                viewModel.form().copy(
+                    amount = "80",
+                    date = "2026-01-05",
+                    accountId = "checking",
+                    name = "Lloguer",
+                    isRecurring = true,
+                    recurringFrequency = RecurrenceFrequency.MONTHLY,
+                ),
+            )
+            viewModel.onSaveClicked()
+            advanceUntilIdle()
+            val movement = store.movements.listActive().single()
+            val templateId = requireNotNull(movement.templateId)
+            store.templates.setStatus(templateId, TemplateStatus.PAUSED, updatedAt = NOW)
+
+            viewModel.onArchiveClicked(movement)
+            advanceUntilIdle()
+
+            val candidate = requireNotNull(viewModel.state.value.archiveCandidate)
+            assertNull(candidate.revertibleTemplateId)
+        }
+    }
+
+    @Test
+    fun confirmingArchiveWithRevertRollsTheDueDateBackToTheMovementsDate() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            val viewModel = viewModel(store)
+            viewModel.onAddClicked()
+            advanceUntilIdle()
+            viewModel.onFormChanged(
+                viewModel.form().copy(
+                    amount = "80",
+                    date = "2026-01-05",
+                    accountId = "checking",
+                    name = "Lloguer",
+                    isRecurring = true,
+                    recurringFrequency = RecurrenceFrequency.MONTHLY,
+                ),
+            )
+            viewModel.onSaveClicked()
+            advanceUntilIdle()
+            val movement = store.movements.listActive().single()
+            val templateId = requireNotNull(movement.templateId)
+
+            viewModel.onArchiveClicked(movement)
+            advanceUntilIdle()
+            viewModel.onArchiveConfirmed(revertDueDate = true)
+            advanceUntilIdle()
+
+            assertEquals("2026-01-05", store.templates.getActive(templateId)!!.nextDueDate)
+            assertNull(store.movements.getActive(movement.id))
+        }
+    }
+
+    @Test
+    fun confirmingArchiveWithoutRevertLeavesTheDueDateAdvanced() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            val viewModel = viewModel(store)
+            viewModel.onAddClicked()
+            advanceUntilIdle()
+            viewModel.onFormChanged(
+                viewModel.form().copy(
+                    amount = "80",
+                    date = "2026-01-05",
+                    accountId = "checking",
+                    name = "Lloguer",
+                    isRecurring = true,
+                    recurringFrequency = RecurrenceFrequency.MONTHLY,
+                ),
+            )
+            viewModel.onSaveClicked()
+            advanceUntilIdle()
+            val movement = store.movements.listActive().single()
+            val templateId = requireNotNull(movement.templateId)
+
+            viewModel.onArchiveClicked(movement)
+            advanceUntilIdle()
+            viewModel.onArchiveConfirmed()
+            advanceUntilIdle()
+
+            assertEquals("2026-02-05", store.templates.getActive(templateId)!!.nextDueDate)
+        }
+    }
+
+    @Test
+    fun archivingAnOlderLinkedMovementDoesNotOfferToRevertTheDueDate() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            val viewModel = viewModel(store)
+            viewModel.onAddClicked()
+            advanceUntilIdle()
+            viewModel.onFormChanged(
+                viewModel.form().copy(
+                    amount = "80",
+                    date = "2026-01-05",
+                    accountId = "checking",
+                    name = "Lloguer",
+                    isRecurring = true,
+                    recurringFrequency = RecurrenceFrequency.MONTHLY,
+                ),
+            )
+            viewModel.onSaveClicked()
+            advanceUntilIdle()
+            val movement = store.movements.listActive().single()
+            val templateId = requireNotNull(movement.templateId)
+            // Simulate a second cycle having passed (e.g. February's occurrence was separately
+            // confirmed) without touching this specific movement -- January is now two steps
+            // behind the current cursor, not the immediate prior occurrence.
+            store.templates.advanceCursor(templateId, "2026-03-05", updatedAt = NOW)
+
+            viewModel.onArchiveClicked(movement)
+            advanceUntilIdle()
+
+            val candidate = requireNotNull(viewModel.state.value.archiveCandidate)
+            assertNull(candidate.revertibleTemplateId)
         }
     }
 
@@ -405,7 +739,10 @@ class MovementsViewModelTest {
             personRepository = store.people,
             tripRepository = store.trips,
             tagRepository = store.tags,
+            splitRepository = store.splits,
             ioDispatcher = dispatcher,
+            autoCatRuleRepository = store.autoCatRules,
+            templateRepository = store.templates,
         )
 
     private fun freshStore(): TestStore {
@@ -422,6 +759,10 @@ class MovementsViewModelTest {
             people = PersonRepository(database.peopleQueries),
             tags = TagRepository(database.tagsQueries),
             trips = TripRepository(database.tripsQueries),
+            templates = TemplateRepository(database.templatesQueries),
+            splits = SplitRepository(database.splitsQueries),
+            autoCatRules = AutoCatRuleRepository(database.autoCatRulesQueries),
+            autoCatRulesQueries = database.autoCatRulesQueries,
         )
     }
 
@@ -434,6 +775,10 @@ class MovementsViewModelTest {
         val people: PersonRepository,
         val tags: TagRepository,
         val trips: TripRepository,
+        val templates: TemplateRepository,
+        val splits: SplitRepository,
+        val autoCatRules: AutoCatRuleRepository,
+        val autoCatRulesQueries: AutoCatRulesQueries,
     ) : AutoCloseable {
         override fun close() {
             driver.close()

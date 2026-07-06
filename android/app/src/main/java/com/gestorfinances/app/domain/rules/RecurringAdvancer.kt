@@ -1,5 +1,6 @@
 package com.gestorfinances.app.domain.rules
 
+import com.gestorfinances.app.data.repository.TemplateSummary
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -31,6 +32,13 @@ data class RecurrenceAdvance(
 )
 
 object RecurringAdvancer {
+    /**
+     * Defensive ceiling on due-date generation. A correctly configured template never comes close
+     * to this (even daily-custom over decades is in the low thousands); tripping it means
+     * `nextDate` failed to advance the cursor, and we'd rather fail loudly than hang the caller.
+     */
+    private const val MAX_OCCURRENCES = 10_000
+
     fun advance(
         rule: RecurrenceRule,
         cursor: LocalDate,
@@ -40,6 +48,9 @@ object RecurringAdvancer {
         var next = cursor
 
         while (!next.isAfter(today)) {
+            require(dueDates.size < MAX_OCCURRENCES) {
+                "RecurringAdvancer.advance exceeded $MAX_OCCURRENCES occurrences; nextDate is not advancing the cursor."
+            }
             dueDates += next
             next = nextDate(rule, next)
         }
@@ -79,4 +90,19 @@ object RecurringAdvancer {
         val yearMonth = YearMonth.from(date)
         return yearMonth.atDay(anchorDay.coerceAtMost(yearMonth.lengthOfMonth()))
     }
+
+    /** True iff advancing once from [occurrenceDate] lands exactly on [nextDueDate] -- i.e.
+     * confirming (not skipping) [occurrenceDate] is what produced the template's current cursor,
+     * with no skip interleaved. Used to decide whether "undoing" that occurrence can safely roll
+     * the cursor back to [occurrenceDate] itself. */
+    fun isImmediatePriorOccurrence(rule: RecurrenceRule, occurrenceDate: LocalDate, nextDueDate: LocalDate): Boolean =
+        advance(rule, cursor = occurrenceDate, today = occurrenceDate).newCursor == nextDueDate
 }
+
+internal fun TemplateSummary.toRecurrenceRule(): RecurrenceRule =
+    RecurrenceRule(
+        frequency = frequency,
+        dayOfMonth = dayOfMonth?.toInt(),
+        intervalCount = intervalCount,
+        customUnit = customUnit,
+    )

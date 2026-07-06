@@ -152,6 +152,7 @@ SET
     amount_flex_cents = :amount_flex_cents,
     date_flex_days = :date_flex_days,
     lead_notification_days = :lead_notification_days,
+    status = :status,
     updated_at = :updated_at
 WHERE id = :id
   AND archived_at IS NULL;

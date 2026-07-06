@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -42,6 +43,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.R
+import com.gestorfinances.app.data.repository.BudgetEvaluation
+import com.gestorfinances.app.data.repository.BudgetStatus
 import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.TokenColor
 import com.gestorfinances.app.ui.theme.categoryTint
@@ -425,10 +428,12 @@ fun TopBarIconButton(
     contentDescription: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     Surface(
         onClick = onClick,
         modifier = modifier.size(40.dp),
+        enabled = enabled,
         shape = MaterialTheme.shapes.small,
         color = MaterialTheme.colorScheme.surface,
         contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -592,5 +597,51 @@ fun FilterSelectorField(
             )
         }
     }
+}
+
+/** Thin rounded progress track used for budget evaluation (§4.6). Shared by Budgets and any
+ * surface (e.g. category detail) that embeds a budget's progress against its limit. */
+@Composable
+fun BudgetProgressBar(
+    fraction: Float,
+    color: Color,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(6.dp)
+            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(50)),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(fraction)
+                .height(6.dp)
+                .background(color, RoundedCornerShape(50)),
+        )
+    }
+}
+
+@Composable
+fun BudgetStatus.color(): Color =
+    when (this) {
+        BudgetStatus.OK -> FinanceTheme.colors.income
+        BudgetStatus.WARN -> FinanceTheme.colors.alert
+        BudgetStatus.OVER -> FinanceTheme.colors.debt
+    }
+
+@Composable
+fun BudgetStatus.label(): String =
+    when (this) {
+        BudgetStatus.OK -> stringResource(R.string.budget_status_ok)
+        BudgetStatus.WARN -> stringResource(R.string.budget_status_warn)
+        BudgetStatus.OVER -> stringResource(R.string.budget_status_over)
+    }
+
+/** Fraction of the budget's limit consumed so far, clamped to [0, 1] for the progress bar. */
+fun BudgetEvaluation.progressFraction(): Float {
+    val limit = budget.limitAmountCents
+    if (limit <= 0L) return 0f
+    return (actualCents.toFloat() / limit.toFloat()).coerceIn(0f, 1f)
 }
 

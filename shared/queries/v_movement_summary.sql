@@ -25,6 +25,9 @@ SELECT
     movements.created_at,
     movements.updated_at,
     movements.archived_at,
+    movements.refunds_expense_id,
+    refunded_expense.name AS refunds_expense_name,
+    CASE WHEN refunded_expense.archived_at IS NOT NULL THEN 1 ELSE 0 END AS refunds_expense_archived,
     NULLIF((
         SELECT paid_by_people.name
         FROM splits AS paid_by_split
@@ -87,6 +90,8 @@ LEFT JOIN people AS settlement_people
     ON settlement_people.id = movements.person_id
 LEFT JOIN v_movement_shared
     ON v_movement_shared.movement_id = movements.id
+LEFT JOIN movements AS refunded_expense
+    ON refunded_expense.id = movements.refunds_expense_id
 WHERE movements.archived_at IS NULL
 
 UNION ALL
@@ -117,6 +122,9 @@ SELECT
     s.created_at,
     s.updated_at,
     s.archived_at,
+    NULL AS refunds_expense_id,
+    NULL AS refunds_expense_name,
+    0 AS refunds_expense_archived,
     p.name AS paid_by_person_name,
     0 AS is_shared,
     p.id AS payer_id,

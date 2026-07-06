@@ -256,6 +256,12 @@ CREATE TABLE tags (
 );
 CREATE INDEX idx_tags_trip ON tags(trip_id) WHERE trip_id IS NOT NULL;
 
+-- Recurring pattern detection (spec §3.10 [DECIDED] addendum) proposes rows here through the same
+-- create/update path as manual template entry — there is no dedicated detection schema; a
+-- confirmed detected candidate is indistinguishable from a manually created template. Confirming a
+-- candidate also retroactively sets template_id on its source movements (movements.template_id
+-- below), and deleting a template clears it back to NULL on all of them — both via plain bulk
+-- UPDATEs, no new columns.
 CREATE TABLE templates (                              -- recurring movement definitions (spec §3.10)
     id              TEXT    PRIMARY KEY,
     -- pre-fill payload (mirrors movement fields)

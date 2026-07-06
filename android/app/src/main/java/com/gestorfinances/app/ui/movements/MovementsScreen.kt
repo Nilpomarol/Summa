@@ -30,8 +30,10 @@ import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -195,13 +197,31 @@ private fun MovementDialogs(
         )
     }
 
-    state.archiveCandidate?.let {
+    state.archiveCandidate?.let { candidate ->
+        var revertDueDate by remember(candidate) { mutableStateOf(false) }
         AlertDialog(
             onDismissRequest = viewModel::onArchiveDismissed,
             title = { Text(text = stringResource(R.string.movement_archive_confirm_title)) },
-            text = { Text(text = stringResource(R.string.movement_archive_warning)) },
+            text = {
+                Column {
+                    Text(text = stringResource(R.string.movement_archive_warning))
+                    if (candidate.revertibleTemplateId != null) {
+                        val label = candidate.movement.name?.takeIf { it.isNotBlank() }
+                            ?: candidate.movement.payee.orEmpty()
+                        Row(
+                            modifier = Modifier
+                                .clickable { revertDueDate = !revertDueDate }
+                                .padding(top = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(checked = revertDueDate, onCheckedChange = { revertDueDate = it })
+                            Text(text = stringResource(R.string.movement_archive_revert_due_checkbox, label))
+                        }
+                    }
+                }
+            },
             confirmButton = {
-                DestructiveTextButton(onClick = viewModel::onArchiveConfirmed) {
+                DestructiveTextButton(onClick = { viewModel.onArchiveConfirmed(revertDueDate = revertDueDate) }) {
                     Text(text = stringResource(R.string.common_archive))
                 }
             },
@@ -608,6 +628,7 @@ private fun DetailLine(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RefundFormDialog(
     form: RefundFormState,
@@ -619,118 +640,127 @@ private fun RefundFormDialog(
 ) {
     val parsedAmount = parseEuroCents(form.amount, allowNegative = false)
     val isOverRefund = parsedAmount != null && parsedAmount > form.remainingCents
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    AlertDialog(
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        title = { Text(text = stringResource(R.string.refund_add_title)) },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                form.expenseName.takeIf { it.isNotBlank() }?.let {
-                    DetailLine(label = stringResource(R.string.refund_field_linked_expense), value = it)
-                }
-                Text(
-                    text = stringResource(R.string.refund_remaining, formatEuroCents(form.remainingCents)),
-                    color = FinanceTheme.colors.mutedText,
-                    style = MaterialTheme.typography.bodyMedium,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .navigationBarsPadding()
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.refund_add_title),
+                style = MaterialTheme.typography.titleLarge,
+            )
+            form.expenseName.takeIf { it.isNotBlank() }?.let {
+                DetailLine(label = stringResource(R.string.refund_field_linked_expense), value = it)
+            }
+            Text(
+                text = stringResource(R.string.refund_remaining, formatEuroCents(form.remainingCents)),
+                color = FinanceTheme.colors.mutedText,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            form.errorRes?.let {
+                InlineBanner(kind = BannerKind.Error, text = stringResource(it))
+            }
+            form.errorMessage?.let {
+                InlineBanner(kind = BannerKind.Error, text = it)
+            }
+            OutlinedTextField(
+                value = form.amount,
+                onValueChange = { onFormChange(form.copy(amount = it)) },
+                label = { Text(text = stringResource(R.string.refund_field_amount)) },
+                prefix = { Text(text = "€") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            if (isOverRefund) {
+                InlineBanner(
+                    kind = BannerKind.Alert,
+                    text = stringResource(R.string.refund_warning_over),
                 )
-                form.errorRes?.let {
-                    Text(
-                        text = stringResource(it),
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-                form.errorMessage?.let {
-                    Text(
-                        text = it,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
+            }
+            if (form.expenseIsShared) {
                 OutlinedTextField(
-                    value = form.amount,
-                    onValueChange = { onFormChange(form.copy(amount = it)) },
-                    label = { Text(text = stringResource(R.string.refund_field_amount)) },
+                    value = form.actualAmount,
+                    onValueChange = { onFormChange(form.copy(actualAmount = it)) },
+                    label = { Text(text = stringResource(R.string.refund_field_actual)) },
                     prefix = { Text(text = "€") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     shape = MaterialTheme.shapes.small,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                if (isOverRefund) {
-                    InlineBanner(
-                        kind = BannerKind.Alert,
-                        text = stringResource(R.string.refund_warning_over),
-                    )
-                }
-                if (form.expenseIsShared) {
-                    OutlinedTextField(
-                        value = form.actualAmount,
-                        onValueChange = { onFormChange(form.copy(actualAmount = it)) },
-                        label = { Text(text = stringResource(R.string.refund_field_actual)) },
-                        prefix = { Text(text = "€") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        shape = MaterialTheme.shapes.small,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                ChipFlowSection(label = stringResource(R.string.refund_field_account)) {
-                    accounts.forEach { account ->
-                        FinanceFilterChip(
-                            selected = form.accountId == account.id,
-                            label = account.name,
-                            onClick = { onFormChange(form.copy(accountId = account.id)) },
-                        )
-                    }
-                }
-                ChipFlowSection(label = stringResource(R.string.refund_field_category)) {
+            }
+            ChipFlowSection(label = stringResource(R.string.refund_field_account)) {
+                accounts.forEach { account ->
                     FinanceFilterChip(
-                        selected = form.categoryId == null,
-                        label = stringResource(R.string.common_no_category),
-                        onClick = { onFormChange(form.copy(categoryId = null)) },
+                        selected = form.accountId == account.id,
+                        label = account.name,
+                        onClick = { onFormChange(form.copy(accountId = account.id)) },
                     )
-                    categories.filter { it.supports(MovementType.EXPENSE) }.forEach { category ->
-                        FinanceFilterChip(
-                            selected = form.categoryId == category.id,
-                            label = category.name,
-                            onClick = { onFormChange(form.copy(categoryId = category.id)) },
-                        )
-                    }
                 }
-                OutlinedTextField(
-                    value = form.date,
-                    onValueChange = { onFormChange(form.copy(date = it)) },
-                    label = { Text(text = stringResource(R.string.refund_field_date)) },
-                    supportingText = { Text(text = stringResource(R.string.movement_date_format_hint)) },
-                    singleLine = true,
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth(),
+            }
+            ChipFlowSection(label = stringResource(R.string.refund_field_category)) {
+                FinanceFilterChip(
+                    selected = form.categoryId == null,
+                    label = stringResource(R.string.common_no_category),
+                    onClick = { onFormChange(form.copy(categoryId = null)) },
                 )
-                OutlinedTextField(
-                    value = form.notes,
-                    onValueChange = { onFormChange(form.copy(notes = it)) },
-                    label = { Text(text = stringResource(R.string.refund_field_notes)) },
-                    minLines = 2,
+                categories.filter { it.supports(MovementType.EXPENSE) }.forEach { category ->
+                    FinanceFilterChip(
+                        selected = form.categoryId == category.id,
+                        label = category.name,
+                        onClick = { onFormChange(form.copy(categoryId = category.id)) },
+                    )
+                }
+            }
+            OutlinedTextField(
+                value = form.date,
+                onValueChange = { onFormChange(form.copy(date = it)) },
+                label = { Text(text = stringResource(R.string.refund_field_date)) },
+                supportingText = { Text(text = stringResource(R.string.movement_date_format_hint)) },
+                singleLine = true,
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = form.notes,
+                onValueChange = { onFormChange(form.copy(notes = it)) },
+                label = { Text(text = stringResource(R.string.refund_field_notes)) },
+                minLines = 2,
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f),
                     shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(text = stringResource(R.string.common_cancel))
+                }
+                PrimaryButton(
+                    text = stringResource(R.string.refund_save),
+                    onClick = onSave,
+                    modifier = Modifier.weight(1f),
                 )
             }
-        },
-        confirmButton = {
-            Button(onClick = onSave) {
-                Text(text = stringResource(R.string.refund_save))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.common_cancel))
-            }
-        },
-    )
+        }
+    }
 }
 
 @Composable

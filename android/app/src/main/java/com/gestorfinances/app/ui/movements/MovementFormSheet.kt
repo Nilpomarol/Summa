@@ -34,6 +34,7 @@ import com.gestorfinances.app.data.repository.TagSummary
 import com.gestorfinances.app.data.repository.TripSummary
 import com.gestorfinances.app.domain.rules.RecurrenceFrequency
 import com.gestorfinances.app.ui.common.BannerKind
+import com.gestorfinances.app.ui.common.FinanceFilterChip
 import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.PrimaryButton
 import com.gestorfinances.app.ui.common.categoryIcon
@@ -215,6 +216,20 @@ fun MovementFormSheet(
                         selectedId = form.categoryId,
                         onSelect = { onFormChange(form.copy(categoryId = it)) },
                         modifier = Modifier.weight(1.5f),
+                    )
+                }
+            }
+
+            // Read-only auto-categorization hint (audit F1): tap to apply, never auto-applied.
+            if (form.suggestedCategoryId != null && form.suggestedCategoryId != form.categoryId) {
+                val suggestedCategory = remember(form.suggestedCategoryId, categories) {
+                    categories.firstOrNull { it.id == form.suggestedCategoryId }
+                }
+                suggestedCategory?.let { category ->
+                    FinanceFilterChip(
+                        selected = false,
+                        label = stringResource(R.string.movement_category_suggestion, category.name),
+                        onClick = { onFormChange(form.copy(categoryId = category.id)) },
                     )
                 }
             }

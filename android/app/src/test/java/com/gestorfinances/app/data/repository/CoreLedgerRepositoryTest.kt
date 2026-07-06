@@ -99,6 +99,45 @@ class CoreLedgerRepositoryTest {
     }
 
     @Test
+    fun refundExposesLinkedExpenseNameAndArchivedFlagForOrphanWarning() {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft(id = "checking", startingBalanceCents = 0), createdAt = NOW)
+            store.categories.create(categoryDraft(id = "food"), createdAt = NOW)
+            store.movements.create(
+                movementDraft("exp", MovementType.EXPENSE, 20_000, "2026-03-01", "checking", categoryId = "food")
+                    .copy(name = "Weekly shop"),
+                createdAt = NOW,
+            )
+            store.movements.createRefund(
+                RefundDraft(
+                    id = "ref",
+                    refundsExpenseId = "exp",
+                    amountCents = 5_000,
+                    accountId = "checking",
+                    categoryId = "food",
+                    date = "2026-03-02",
+                    name = null,
+                    payee = null,
+                    notes = null,
+                    actualRefundCents = null,
+                ),
+                createdAt = NOW,
+            )
+
+            val beforeArchive = store.movements.getActive("ref")!!
+            assertEquals("exp", beforeArchive.refundsExpenseId)
+            assertEquals("Weekly shop", beforeArchive.refundsExpenseName)
+            assertFalse(beforeArchive.refundsExpenseArchived)
+
+            store.movements.archive("exp", archivedAt = LATER)
+
+            val afterArchive = store.movements.getActive("ref")!!
+            assertEquals("Weekly shop", afterArchive.refundsExpenseName)
+            assertTrue(afterArchive.refundsExpenseArchived)
+        }
+    }
+
+    @Test
     fun settlementMovementExposesDirectionAndPersonNameForDisplay() {
         freshStore().use { store ->
             store.accounts.create(accountDraft(id = "checking", startingBalanceCents = 0), createdAt = NOW)
