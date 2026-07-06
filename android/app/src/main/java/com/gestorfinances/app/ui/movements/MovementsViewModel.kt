@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountRepository
 import com.gestorfinances.app.data.repository.AccountSummary
+import com.gestorfinances.app.data.repository.AutoCatRuleRepository
 import com.gestorfinances.app.data.repository.CategoryKind
 import com.gestorfinances.app.data.repository.CategoryNature
 import com.gestorfinances.app.data.repository.CategoryRecord
@@ -32,12 +33,19 @@ import com.gestorfinances.app.data.repository.TagRepository
 import com.gestorfinances.app.data.repository.TagSummary
 import com.gestorfinances.app.data.repository.TemplateDraft
 import com.gestorfinances.app.data.repository.TemplateRepository
+import com.gestorfinances.app.data.repository.TemplateSplitConfig
+import com.gestorfinances.app.data.repository.TemplateSplitConfigLine
 import com.gestorfinances.app.data.repository.TemplateStatus
 import com.gestorfinances.app.data.repository.TripRepository
 import com.gestorfinances.app.data.repository.TripSummary
+import com.gestorfinances.app.domain.rules.AutoCategorizeMovement
+import com.gestorfinances.app.domain.rules.AutoCategorizeRule
+import com.gestorfinances.app.domain.rules.AutoCategorizer
 import com.gestorfinances.app.domain.rules.DuplicateDetector
 import com.gestorfinances.app.domain.rules.DuplicateMovement
 import com.gestorfinances.app.domain.rules.RecurrenceFrequency
+import com.gestorfinances.app.domain.rules.RecurringAdvancer
+import com.gestorfinances.app.domain.rules.toRecurrenceRule
 import com.gestorfinances.app.notifications.NotificationRefresher
 import com.gestorfinances.app.ui.common.formatEuroInput
 import com.gestorfinances.app.ui.common.parseEuroCents
@@ -64,6 +72,7 @@ class MovementsViewModel(
     private val notificationRefresher: NotificationRefresher = NotificationRefresher.NoOp,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val templateRepository: TemplateRepository? = null,
+    private val autoCatRuleRepository: AutoCatRuleRepository? = null,
 ) : ViewModel() {
     private val _state = MutableStateFlow(MovementsUiState())
     val state: StateFlow<MovementsUiState> = _state.asStateFlow()
@@ -93,6 +102,7 @@ class MovementsViewModel(
                         people = it.people,
                         trips = it.trips,
                         tags = it.tags,
+                        autoCatRules = it.autoCatRules,
                         isLoading = false,
                         errorMessage = null,
                         form = form,
@@ -127,11 +137,28 @@ class MovementsViewModel(
         }
     }
 
+    /** [ArchiveCandidate.revertibleTemplateId] is set only when [movement] is provably the
+     * immediate prior occurrence (see [isImmediatePriorOccurrence]) of a still-ACTIVE template --
+     * the archive dialog then offers to roll that template's due date back to this movement's
+     * date. Paused/ended templates are excluded: their due date isn't currently in play (they're
+     * not scanned for due-prompts), so silently rewinding it would be confusing, not useful. */
     fun onArchiveClicked(movement: MovementSummary) {
-        _state.value = _state.value.copy(
-            archiveCandidate = movement,
-            detailMovement = null,
-        )
+        _state.value = _state.value.copy(detailMovement = null)
+        viewModelScope.launch {
+            val revertibleTemplateId = withContext(ioDispatcher) {
+                movement.templateId?.let { templateId ->
+                    templateRepository?.getActive(templateId)?.takeIf { template ->
+                        template.status == TemplateStatus.ACTIVE &&
+                            RecurringAdvancer.isImmediatePriorOccurrence(
+                                template.toRecurrenceRule(),
+                                LocalDate.parse(movement.date),
+                                LocalDate.parse(template.nextDueDate),
+                            )
+                    }?.id
+                }
+            }
+            _state.value = _state.value.copy(archiveCandidate = ArchiveCandidate(movement, revertibleTemplateId))
+        }
     }
 
     fun onDetailClicked(movement: MovementSummary) {
@@ -269,17 +296,29 @@ class MovementsViewModel(
         _state.value = _state.value.copy(archiveCandidate = null)
     }
 
-    fun onArchiveConfirmed() {
-        val movement = _state.value.archiveCandidate ?: return
+    fun onArchiveConfirmed(revertDueDate: Boolean = false) {
+        val candidate = _state.value.archiveCandidate ?: return
+        val movement = candidate.movement
         val now = Instant.now().toString()
         viewModelScope.launch {
             val result = withContext(ioDispatcher) {
                 runCatching {
-                    if (movement.type == MovementType.EXTERNAL_EXPENSE) {
-                        requireNotNull(splitRepository) { "split repository unavailable" }
-                            .archiveExternalSplit(movement.id, archivedAt = now)
-                    } else {
-                        movementRepository.archive(movement.id, archivedAt = now)
+                    movementRepository.runInTransaction {
+                        if (movement.type == MovementType.EXTERNAL_EXPENSE) {
+                            requireNotNull(splitRepository) { "split repository unavailable" }
+                                .archiveExternalSplit(movement.id, archivedAt = now)
+                        } else {
+                            movementRepository.archive(movement.id, archivedAt = now)
+                        }
+                        if (revertDueDate) {
+                            candidate.revertibleTemplateId?.let { templateId ->
+                                // Passing an earlier date "reverts" the cursor; safe here because
+                                // isImmediatePriorOccurrence already proved movement.date is
+                                // exactly the step immediately preceding the current cursor.
+                                requireNotNull(templateRepository) { "template repository unavailable" }
+                                    .advanceCursor(templateId, movement.date, updatedAt = now)
+                            }
+                        }
                     }
                 }
             }
@@ -635,14 +674,30 @@ class MovementsViewModel(
         viewModelScope.launch {
             val result = withContext(ioDispatcher) {
                 runCatching {
-                    // Template first so the movement's template_id FK resolves and the link is atomic.
-                    if (isNewRecurrence && recurringTemplateId != null) {
-                        createQuickTemplate(recurringTemplateId, form, requireNotNull(amount), requireNotNull(date), now)
-                    }
-                    if (form.id == null) {
-                        movementRepository.create(draft, createdAt = now)
-                    } else {
-                        movementRepository.update(draft, updatedAt = now)
+                    movementRepository.runInTransaction {
+                        // Template first so the movement's template_id FK resolves, both writes atomic.
+                        if (isNewRecurrence && recurringTemplateId != null) {
+                            // draft.splitWrite is KeepExisting when the user toggled "make
+                            // recurring" on an already-shared movement without touching the split
+                            // editor — the movement's own write correctly leaves it untouched, but
+                            // there is no split data in that value to carry into the new template.
+                            // Read the movement's actual current split in that case so the
+                            // template still gets one.
+                            val splitForTemplate = resolveSplitForTemplateCarryForward(form, draft.splitWrite)
+                            createQuickTemplate(
+                                recurringTemplateId,
+                                form,
+                                requireNotNull(amount),
+                                requireNotNull(date),
+                                now,
+                                splitForTemplate,
+                            )
+                        }
+                        if (form.id == null) {
+                            movementRepository.create(draft, createdAt = now)
+                        } else {
+                            movementRepository.update(draft, updatedAt = now)
+                        }
                     }
                 }
             }
@@ -661,12 +716,30 @@ class MovementsViewModel(
         }
     }
 
+    /**
+     * [splitWrite] carries no split data when it's [MovementSplitWrite.KeepExisting] — that value
+     * only means "don't touch the movement's split," which is fine for the movement's own write
+     * but leaves [createQuickTemplate] with nothing to persist into a brand-new template. When
+     * that happens for an edit of an already-shared movement, read the split that's actually
+     * there so the template being created alongside it still carries it forward.
+     */
+    private fun resolveSplitForTemplateCarryForward(
+        form: MovementFormState,
+        splitWrite: MovementSplitWrite,
+    ): MovementSplitWrite {
+        if (splitWrite !is MovementSplitWrite.KeepExisting) return splitWrite
+        val movementId = form.id ?: return splitWrite
+        val existing = splitRepository?.getForMovement(movementId) ?: return splitWrite
+        return MovementSplitWrite.Replace(existing)
+    }
+
     private fun createQuickTemplate(
         templateId: String,
         form: MovementFormState,
         amountCents: Long,
         date: LocalDate,
         createdAt: String,
+        splitWrite: MovementSplitWrite,
     ) {
         val repo = templateRepository ?: return
         val nextDue = when (form.recurringFrequency) {
@@ -690,7 +763,7 @@ class MovementsViewModel(
             name = form.name.nullIfBlank(),
             payee = form.payee.nullIfBlank(),
             notes = null,
-            splitConfig = null,
+            splitConfig = splitWrite.toTemplateSplitConfig(),
             frequency = form.recurringFrequency,
             intervalCount = null,
             customUnit = null,
@@ -724,6 +797,7 @@ class MovementsViewModel(
                         people = it.people,
                         trips = it.trips,
                         tags = it.tags,
+                        autoCatRules = it.autoCatRules,
                         isLoading = false,
                         dataVersion = dataVersion,
                     )
@@ -749,6 +823,7 @@ class MovementsViewModel(
                     people = personRepository.listActive(),
                     trips = tripRepository.listActive(),
                     tags = tagRepository.listActive(),
+                    autoCatRules = autoCatRuleRepository?.listActive().orEmpty(),
                 )
             }
         }
@@ -842,10 +917,30 @@ class MovementsViewModel(
         return normalized.copy(
             categoryId = finalCategoryId,
             tagId = finalTagId,
+            suggestedCategoryId = suggestCategoryId(normalized),
             errorRes = null,
             errorMessage = null,
             duplicateWarning = false,
         )
+    }
+
+    /** Read-only category suggestion (audit F1): matches active `auto_cat_rules` against the
+     * in-progress form. Returns null unless enough fields are filled in to run a match. */
+    private fun suggestCategoryId(form: MovementFormState): String? {
+        if (form.type != MovementType.EXPENSE && form.type != MovementType.INCOME) return null
+        val rules = _state.value.autoCatRules
+        if (rules.isEmpty()) return null
+        val accountId = form.accountId ?: return null
+        val amountCents = parseEuroCents(form.amount, allowNegative = false) ?: return null
+        val date = parseDate(form.date) ?: return null
+        val movement = AutoCategorizeMovement(
+            name = form.name.nullIfBlank(),
+            payee = form.payee.nullIfBlank(),
+            amountCents = amountCents,
+            date = date,
+            accountId = accountId,
+        )
+        return AutoCategorizer.findMatch(movement, rules)?.action?.categoryId
     }
 
     // Warn (never block) when an active movement matches account + amount + date(±1) + name.
@@ -883,6 +978,7 @@ class MovementsViewModel(
         private val splitRepository: SplitRepository? = null,
         private val notificationRefresher: NotificationRefresher = NotificationRefresher.NoOp,
         private val templateRepository: TemplateRepository? = null,
+        private val autoCatRuleRepository: AutoCatRuleRepository? = null,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -897,6 +993,7 @@ class MovementsViewModel(
                     splitRepository = splitRepository,
                     notificationRefresher = notificationRefresher,
                     templateRepository = templateRepository,
+                    autoCatRuleRepository = autoCatRuleRepository,
                 ) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
@@ -911,6 +1008,7 @@ data class MovementsUiState(
     val people: List<PersonSummary> = emptyList(),
     val trips: List<TripSummary> = emptyList(),
     val tags: List<TagSummary> = emptyList(),
+    val autoCatRules: List<AutoCategorizeRule> = emptyList(),
     val filters: MovementFilters = MovementFilters(),
     val isLoading: Boolean = true,
     val errorMessage: String? = null,
@@ -918,12 +1016,25 @@ data class MovementsUiState(
     val detailMovement: MovementSummary? = null,
     val detailRefunds: List<RefundSummary> = emptyList(),
     val refundForm: RefundFormState? = null,
-    val archiveCandidate: MovementSummary? = null,
+    val archiveCandidate: ArchiveCandidate? = null,
     val dataVersion: Long = 0L,
 ) {
     val visibleMovements: List<MovementSummary>
         get() = movements.filter { filters.matches(it) }
+
+    /** True while any of this ViewModel's own dialogs (rendered by `MovementDialogHost`) is open --
+     * used to keep other app-level auto-triggered overlays (e.g. the due-reminders sheet) from
+     * appearing on top of one of these. */
+    val hasOpenDialog: Boolean get() =
+        form != null || detailMovement != null || refundForm != null || archiveCandidate != null
 }
+
+data class ArchiveCandidate(
+    val movement: MovementSummary,
+    /** Non-null iff [movement] is provably the template's immediate prior occurrence -- offers
+     * the "mark it as due again" choice in the archive-confirmation dialog. */
+    val revertibleTemplateId: String? = null,
+)
 
 data class MovementFilters(
     val query: String = "",
@@ -999,6 +1110,8 @@ data class MovementFormState(
     val recurringFrequency: RecurrenceFrequency = RecurrenceFrequency.MONTHLY,
     val templateId: String? = null,
     val showAdvanced: Boolean = false,
+    /** Read-only auto-categorization hint (audit F1); never applied without the user tapping it. */
+    val suggestedCategoryId: String? = null,
 )
 
 data class RefundFormState(
@@ -1023,6 +1136,7 @@ private data class LoadedMovementData(
     val people: List<PersonSummary>,
     val trips: List<TripSummary>,
     val tags: List<TagSummary>,
+    val autoCatRules: List<AutoCategorizeRule> = emptyList(),
 )
 
 private fun defaultAccountId(accounts: List<AccountSummary>): String? =
@@ -1217,6 +1331,27 @@ private fun parseDateOrNull(raw: String): LocalDate? =
 
 private fun String.nullIfBlank(): String? =
     trim().takeIf { it.isNotEmpty() }
+
+/**
+ * Carries a quick-created recurring template's split forward (§4.4): recurring templates can only
+ * be created from [ExpenseKind.PERSONAL]/[ExpenseKind.SHARED]/[ExpenseKind.FOR_OTHER] (DEBT has no
+ * template support), so the user is always the payer. Returns null when the movement itself has no
+ * split (plain personal expense/income/transfer) — `RecurringViewModel.toSplitWrite` already treats
+ * a null `split_config` as "no split to carry forward."
+ */
+private fun MovementSplitWrite.toTemplateSplitConfig(): TemplateSplitConfig? {
+    val draft = (this as? MovementSplitWrite.Replace)?.draft ?: return null
+    return TemplateSplitConfig(
+        entryMethod = draft.entryMethod.dbValue,
+        payer = "user",
+        lines = draft.lines.map { line ->
+            TemplateSplitConfigLine(
+                party = line.personId ?: "user",
+                owedAmountCents = line.owedAmountCents,
+            )
+        },
+    )
+}
 
 private val actualMovementTypes = setOf(
     MovementType.EXPENSE,

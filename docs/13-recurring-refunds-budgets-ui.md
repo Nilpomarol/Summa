@@ -232,7 +232,7 @@ Use `docs/08-design-system.md` without new tokens:
 - Recurring rows reuse the standard list-card row (icon chip, title, subtitle, right-aligned amount); the due treatment uses the existing alert/accent banner pattern.
 - The "variable amount" marker is a neutral pill; cadence/next-due use muted label text.
 - Budget progress bars use the existing green/amber/red semantic roles; the same component is reused in category breakdowns.
-- Forms (template, refund, budget) use the established Add/Edit dialog pattern with `OutlinedTextField`, `SegmentedControl`, and chip selectors, consistent with the movement and settlement forms; date fields carry the `AAAA-MM-DD` format hint.
+- Forms (template, refund, budget) use the established Add/Edit dialog pattern with `OutlinedTextField`, `MovementTypeSelector`, `FormSelect` dropdowns, and `LabeledSegmentedControl` for small fixed choices — the same shared form primitives as the movement form; date fields use `FormDatePicker` (native date picker, `AAAA-MM-DD` format hint on remaining text fields).
 - Over-refund and other warnings are inline banners, never blocking modals.
 - Amounts use Geist Mono/tabular figures and are formatted as euros only at the UI edge.
 
@@ -263,3 +263,74 @@ All values are Catalan. Keep adding strings beside the slice that needs them; do
 - Notification and alert settings are specified as local/offline with a global lead-time default plus budget and low-balance toggles.
 - Android resource strings exist for the planned P4 screens.
 - P4-1 remains documentation and resource preparation; no repository or production screen implementation is expected in this task.
+
+---
+
+## 13. Recurring Pattern Detection (mobile) — added P5R-13
+
+**Purpose:** a user-triggered scan (spec §3.10 addendum) that mines movement history for likely recurring expense/income patterns — both still-ongoing ones and ones that already stopped — and proposes new or updated `templates` for the user to review and confirm. Never automatic; never applies anything without per-item confirmation.
+
+**Trigger:** a `TopBarIconButton` (sparkle/"auto-awesome" icon) trailing the Recurring list's `SectionHeader`, disabled while a scan is running. Tapping it runs the scan on the IO dispatcher against the full active movement + template list, with no other UI change until it completes.
+
+**Review sheet:** a `ModalBottomSheet` listing every detected candidate as a `FinanceCard` row: name, a `NeutralPill` badge ("Nou" for a new template / "Actualitza" for a match against an existing template of any status), cadence + suggested status + occurrence count, and the derived amount (fixed, or a "Variable" pill). Each row has a checkbox, pre-checked; unchecking skips that candidate. Bottom actions: Cancel, and "Confirma els seleccionats" (only shown when there's at least one candidate). An empty-state message shows when nothing was detected.
+
+**Data rules (mirrors the spec §3.10 addendum verbatim):**
+- Scoped to weekly/fortnightly/monthly cadence and expense/income movement types only.
+- Groups movements not yet linked to a template by account + category + normalized name/payee; requires ≥3 occurrences with a consistent gap (tolerates one missed occurrence — see the known limitation below for the boundary of that tolerance).
+- Matches against existing templates of any status (active/paused/ended) for update-vs-create; movements already linked to a template are excluded from grouping.
+- A stale detected pattern (last occurrence well past its own cadence) defaults to a proposed `ended` status; a recent one defaults to `active`. Both remain reviewable before confirming — nothing is auto-applied.
+- Deleting a template severs its movements' links (they stop showing the recurring badge and become eligible for re-detection); ending a template does not. Deleting a movement can optionally roll its template's due date back, but only when that movement is provably the template's immediate prior occurrence (see rows 10-14 below).
+
+**Known limitation (not yet fixed):** cadence classification (`RecurringPatternDetector.classifyCadence`) compares *consecutive* gaps against a fixed day-range band (e.g. 27-31 days for monthly) rather than each occurrence's distance from an inferred anchor day. A subscription whose billing date drifts by even 1-2 days (weekends, bank processing) can push two or more gaps outside the band at once, and the whole group gets silently dropped rather than degraded — this is most likely to bite a genuinely new pattern that was never linked to a template before (an existing template's own history isn't affected, since it's matched by signature, not re-derived). Diagnosed but deliberately deferred (2026-07-05) since the delete/unlink defect below was judged the more likely cause of reported "detection isn't working" symptoms. If revisited, the fix is to switch to anchor-based deviation: infer the expected day-of-month/weekday first, then check each occurrence's distance from that anchor instead of from its neighbor.
+
+**Implementation notes (fixes applied after initial ship, full history in `docs/06-roadmap.md` P5R-13):**
+- Editing a template's Status field (including a detected "Actualitza" candidate's suggested status) silently had no effect — `Templates.sq`'s `updateTemplate` omitted `status` from its SET clause. Fixed.
+- A detected match against an existing template of a *different* movement type could be misidentified as the same pattern. Fixed by including `type` in the signature match.
+- Confirming a template never linked its source movements to it, so the same movements kept re-surfacing as "Actualitza" on every future scan. Fixed via `MovementRepository.linkToTemplate()`.
+- A failure partway through confirming several accepted candidates could abandon the rest and, on retry, duplicate an already-created template. Fixed by applying each candidate independently and only retrying genuinely failed ones.
+- Deleting a template never unlinked its movements (the mirror image of the fix above) — they stayed excluded from detection forever. Fixed via `MovementRepository.unlinkAllForTemplate()`, atomic with the archive.
+- Deleting a movement never offered to un-advance its template's due date, even when that movement was provably the last real occurrence. Fixed via `RecurringAdvancer.isImmediatePriorOccurrence()`, scoped to ACTIVE templates only and gated behind an opt-in checkbox.
+
+**Manual checklist:**
+
+| # | Step | Expected |
+|---|------|----------|
+| 1 | Seed several months of a same-account/category/name expense ~30 days apart, without marking any as recurring, then tap the detect icon on the Recurring list | Review sheet opens with a "Nou" candidate showing plausible monthly cadence, day, and amount |
+| 2 | With two or more candidates listed, uncheck one, then confirm | Only the checked candidate(s) appear as new templates afterward; the unchecked one does not |
+| 3 | Re-run detection after confirming a candidate | No proposal at all for the same group — confirming links the source movements to the template, so they're excluded from future scans rather than re-surfacing as "Actualitza" forever |
+| 4 | Seed a second matching group whose last occurrence is many months old | Its candidate is pre-set to "Finalitzat" status; still editable/skippable; lands in the Finalitzats section if confirmed |
+| 5 | Manually create a template first, then seed matching untemplated movements for the same account/category/name | Detection proposes "Actualitza" against that existing template, not a duplicate "Nou" |
+| 6 | Before confirming that "Actualitza" candidate, set notes, a lead-notification override, and a date-flex window on the manually created template, then confirm | Those fields (notes, lead days, date flex) survive the confirm — only the schedule/amount/status fields the detector derives are overwritten |
+| 7 | Run detection with no matching history | Review sheet shows the empty-state message; no candidates, Confirm button hidden |
+| 8 | Manually create an ACTIVE template, then seed matching movements whose last occurrence is old enough to be stale, and confirm the resulting "Actualitza" candidate | The template's status actually becomes "Finalitzat" (matches what the review row showed) and it moves to the Finalitzats section |
+| 9 | Seed a group with exactly one clearly skipped cycle (e.g. 4 monthly occurrences where one gap is ~2 months) | Still detected as a "Nou" monthly candidate — a single missed occurrence doesn't silently drop a short series |
+| 10 | Confirm a template so it has a few linked movements, then tap "Elimina" from its ⋮ menu | A confirmation dialog appears first (not an immediate delete); confirming removes the template from every list and its movements no longer show the 🔁 recurring badge; running "Detecta recurrents" can propose that same pattern again as "Nou" |
+| 11 | Same setup, but tap "Finalitza" instead of "Elimina" | The template moves to the Finalitzats section but its linked movements keep the 🔁 badge — ending, unlike deleting, does not sever the link |
+| 12 | Confirm a monthly template's due-prompt (creates a movement, advances the cursor), then delete that same movement from the ledger | The archive-confirmation dialog now shows an extra checkbox naming the movement; checking it and confirming rolls the template's due date back to that movement's date, making it due again |
+| 13 | Same setup, but leave the checkbox unchecked when confirming | The due date stays advanced — today's behavior, unchanged |
+| 14 | Confirm two consecutive occurrences, then delete the *older* one | The archive-confirmation dialog shows no checkbox at all — only the immediately preceding occurrence ever offers to revert the due date |
+
+---
+
+## 14. Due Reminders Sheet (mobile) — auto-surfaced app-open prompt
+
+**Purpose:** due recurring items (`RecurringUiState.duePrompts`) previously only showed as a passive list inside Management > Recurring — the user had to remember to go look. This surfaces them proactively as a `ModalBottomSheet` shown automatically once per app cold start, without requiring any navigation.
+
+**Trigger:** `MainActivity` calls `recurringViewModel.onScreenShown()` on first composition (so due-prompt data is ready before any navigation happens) and renders `DueRemindersSheet` whenever `duePrompts` is non-empty, no other recurring dialog is open (`RecurringUiState.hasOpenDialog`), no unrelated movement dialog is open either (`MovementsUiState.hasOpenDialog` — avoids stacking on top of, e.g., the FAB's "add movement" form if it happens to be open at the same moment), and the sheet hasn't already been shown this app process — a plain `remember` flag, not persisted, since a genuine process restart is exactly what "once per cold start" means.
+
+**Content:** the same `DuePromptCard` already used in the in-screen passive list, one per due item, each offering: **Afegeix pagament** (confirm — opens the existing confirm form), **Omet aquest període** / **Omet-los tots** (skip one / skip all pending for that template), and **Finalitza la sèrie** (opens the existing end-confirmation dialog — new: previously ending a template was only reachable from its own ⋮ menu, disconnected from the due-prompt). A **Tanca** button dismisses the sheet without deciding.
+
+**Persistence model:** dismissing without acting on every item does **not** clear anything — `duePrompts` is always recomputed live from each template's real `next_due_date`, so anything left unaddressed simply shows up again next cold start. Confirming or skipping an item shrinks the list normally; once every item is handled the sheet has nothing left to show. Opening a sub-dialog (confirm form, end confirmation) from within the sheet makes it step aside temporarily and reappear once that sub-dialog closes, as long as items remain.
+
+**Architecture note:** `RecurringViewModel`'s dialogs (`ConfirmPromptDialog`, `TemplateFormDialog`, `DetectionReviewSheet`, the end/delete confirmations) were hoisted out of `RecurringScreen`'s own composable into a shared `RecurringOverlays(viewModel)` composable, since `recurringViewModel` is an app-level singleton (`MainActivity.kt`) and these dialogs must now render regardless of which screen is currently showing, not only when the user is on the Recurring screen itself. `RecurringOverlays` is rendered once, unconditionally, from `MainActivity` (mirroring the existing `MovementDialogHost` precedent for movement-related dialogs) — `RecurringScreen` no longer renders it itself.
+
+**Manual checklist:**
+
+| # | Step | Expected |
+|---|------|----------|
+| 1 | Seed a template whose `next_due_date` is today or earlier, force-stop and relaunch the app | The reminder sheet appears automatically on app open, without navigating anywhere |
+| 2 | Tap "Afegeix pagament" on one item | The existing confirm form opens; the reminder sheet steps aside. Save it | The confirmed item disappears; the sheet remains open if other items are still due, or closes on its own if that was the only one |
+| 3 | Tap "Finalitza la sèrie" on an item | The existing end-confirmation dialog appears; confirming removes that item from the sheet and from the Recurring screen's list |
+| 4 | With items still remaining, tap "Tanca" | Sheet closes. Backgrounding and returning to the app (same process) does not bring it back |
+| 5 | Force-stop and relaunch after step 4 | Sheet reappears for the still-unaddressed items |
+| 6 | Navigate to Management > Recurring at any point | The passive in-screen due-prompts list still works exactly as before, independent of the auto-sheet, and now also shows a "Finalitza la sèrie" action on each card |

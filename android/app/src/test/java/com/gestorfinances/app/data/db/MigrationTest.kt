@@ -113,5 +113,27 @@ class MigrationTest {
             parameters = 0,
         ).value
         assertEquals("v_movement_summary view must exist after migration", 1L, viewCount)
+
+        // Regression: the view text embedded in this migration (1.sqm, generated from
+        // shared/migrations/002_add_splits_tag_id.sql) must be kept in sync with
+        // shared/queries/v_movement_summary.sql. A v1 database only ever gets this migration's
+        // hardcoded copy — it never sees a later edit to the "fresh install" view unless this
+        // migration's copy is updated too, causing "no such column" at query time for anyone
+        // upgrading from v1. Assert on a column added after the migration file was first written.
+        val viewSql = driver.executeQuery(
+            identifier = null,
+            sql = "SELECT sql FROM sqlite_master WHERE type='view' AND name='v_movement_summary'",
+            mapper = { cursor ->
+                cursor.next()
+                QueryResult.Value(cursor.getString(0)!!)
+            },
+            parameters = 0,
+        ).value
+        assertTrue(
+            "v_movement_summary as recreated by the v1->v2 migration is missing refunds_expense_id " +
+                "(shared/migrations/002_add_splits_tag_id.sql's embedded view copy is stale " +
+                "relative to shared/queries/v_movement_summary.sql)",
+            "refunds_expense_id" in viewSql,
+        )
     }
 }

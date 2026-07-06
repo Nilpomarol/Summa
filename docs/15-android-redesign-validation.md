@@ -112,6 +112,8 @@ Phase 5R should proceed in dependency order, not purely visual navigation order.
 
    *Audit IDs owned here (P5R-6):* `C3` (recurring confirm atomicity), `C4` (quick-template atomicity), `F3` (`RecurringAdvancer` loop bound), `F6` (over-refund warn UX, now unblocked by C6), `F1` (AutoCategorizer form suggestion — descoped from P5R-3). Plus the P4 deferred follow-ups (orphan refunds, budget bar inside category detail).
 
+   **Recurring/refunds/budgets/notifications — complete** (see `docs/06-roadmap.md` P5R-6 and `docs/15` §13 for the manual checklist). All five owned audit IDs resolved: `MovementRepository.runInTransaction` fixed C3/C4 (recurring-confirm and quick-template atomicity, each covered by a dedicated rollback test); `RecurringAdvancer` gained a 10,000-occurrence ceiling (F3); F6-refund was found already correct (the refund form's over-refund banner predates this slice); F1 shipped as a read-only movement-form suggestion chip (`AutoCatRuleRepository` + `AutoCategorizer.findMatch`, tap-to-apply, no CRUD UI yet). Both P4 follow-ups landed: orphan-refund banner + linked-expense label (new `v_movement_summary` columns) and a budget progress bar embedded in `CategoryFlowSheet`. `RecurringScreen.kt`'s and `BudgetsScreen.kt`'s remaining `AlertDialog` forms, plus `MovementsScreen.kt`'s `RefundFormDialog`, converted to `ModalBottomSheet`. Notifications (`SettingsScreen.kt`) needed no redesign — already design-system compliant.
+
 7. **Trips and tags**
    Revisit after ledger and analysis settle so trip/tag UX matches the final app language and still respects scope rules.
 
@@ -287,6 +289,30 @@ Run these after building the app to confirm the redesigned People screen is corr
 | 14 | Tap Copy message when the balance is exactly 0 | Copies a short settled message instead of an itemized breakdown |
 | 15 | Enter a settlement amount greater than the outstanding balance | Dismissible `InlineBanner` warning appears; Save still succeeds (never-block) |
 | 16 | Archive a person with a non-zero balance | Confirmation is a centered `AlertDialog` (never a bottom sheet), with a warning banner for the non-zero balance |
+
+---
+
+## 13. P5R-6 Manual Checklist — Recurring, refunds, budgets, and notifications
+
+Run these after building the app to confirm the P5R-6 redesign and logic fixes are correct.
+
+| # | Step | Expected |
+|---|------|----------|
+| 1 | Open Gestió → Recurrents, tap a due prompt's "Afegeix pagament" | Confirm form opens as a `ModalBottomSheet` (not a centered dialog); amount + next-due date fields, Cancel/Save buttons at the bottom |
+| 2 | Confirm a due occurrence | Movement is created and the template's cursor advances in one step; the prompt disappears; re-opening Recurrents does not re-present the same occurrence |
+| 3 | Open Gestió → Recurrents → "+" to add a template | Template form opens as a `ModalBottomSheet` with the full scrollable field set (type, amount, account, category, schedule, status, notes); Cancel/Save row at the bottom |
+| 4 | From a movement form, toggle "Fes-ho recurrent" and save a new expense | A new active template is created alongside the movement; both appear (template in Recurrents, movement in Moviments) |
+| 5 | Open a refund form (from an expense's detail → "Afegeix reemborsament") | Form opens as a `ModalBottomSheet` (not a centered dialog) |
+| 6 | Enter a refund amount greater than the remaining refundable amount | Dismissible `InlineBanner` (`refund_warning_over`) appears; Save still succeeds (never-block) — this behavior is unchanged, now on the bottom-sheet form |
+| 7 | Archive the original expense of an existing refund, then open the refund's own detail | A "Retorn de: [expense name]" grid item still shows the linked expense's name; a dismissible orphan-refund `InlineBanner` appears |
+| 8 | Open the same refund's detail when its original expense is NOT archived | No orphan banner; "Retorn de" label still shows the expense name |
+| 9 | Open Gestió → Categories, tap a category with an active category-scope budget for the current month | `CategoryFlowSheet` shows a budget progress bar (green/amber/red) and a "spent / limit" + remaining-or-over label between the header and the movement list |
+| 10 | Same category, but with no active budget | No budget block shown — just the header and movement list, unchanged from before |
+| 11 | Open Gestió → Pressupostos, tap "+" or an existing budget | Form opens as a `ModalBottomSheet` (scope segmented control, category/trip chips, limit/threshold/start-date fields, Cancel/Save row) |
+| 12 | Open Configuració → notification preferences | Unchanged from before this slice (already design-system compliant): `FinanceCard` sections with `Switch` toggles and lead-time input |
+| 13 | In a movement form, type a name/payee that matches a manually-seeded `auto_cat_rules` row (no CRUD UI — seed directly in the DB for this check) | A `FinanceFilterChip` "Suggerit: [category]" appears next to the category picker once name/amount/date/account are filled in |
+| 14 | Tap the suggestion chip | The suggested category is applied to the form; the chip disappears (selected category now matches the suggestion) |
+| 15 | Manually pick a different category instead of tapping the suggestion | The suggestion chip disappears once the selected category differs from the match — never overridden automatically |
 
 ---
 

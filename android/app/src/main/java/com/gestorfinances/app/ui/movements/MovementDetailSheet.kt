@@ -44,7 +44,9 @@ import com.gestorfinances.app.data.repository.MovementSummary
 import com.gestorfinances.app.data.repository.MovementType
 import com.gestorfinances.app.data.repository.RefundSummary
 import com.gestorfinances.app.data.repository.SettlementDirection
+import com.gestorfinances.app.ui.common.BannerKind
 import com.gestorfinances.app.ui.common.DestructiveTextButton
+import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.PrimaryButton
 import com.gestorfinances.app.ui.common.accountIcon
@@ -102,8 +104,16 @@ fun MovementDetailSheet(
 
             HorizontalDivider(color = FinanceTheme.colors.cardBorder)
 
+            if (movement.type == MovementType.REFUND && movement.refundsExpenseArchived) {
+                InlineBanner(
+                    kind = BannerKind.Alert,
+                    text = stringResource(R.string.refund_orphaned_warning),
+                )
+            }
+
             // Grid items data builder
-            val gridItems = remember(movement, accounts) {
+            val linkedExpenseLabel = stringResource(R.string.refund_field_linked_expense)
+            val gridItems = remember(movement, accounts, linkedExpenseLabel) {
                 buildList {
                     // Date
                     add(
@@ -224,6 +234,18 @@ fun MovementDetailSheet(
                                 iconColor = visual.second,
                                 label = "Pagat per",
                                 value = movement.paidByPersonName
+                            )
+                        )
+                    }
+
+                    // Linked expense for a refund
+                    if (movement.type == MovementType.REFUND && movement.refundsExpenseName != null) {
+                        add(
+                            GridItemData(
+                                icon = Icons.Outlined.Storefront,
+                                iconColor = visual.second,
+                                label = linkedExpenseLabel,
+                                value = movement.refundsExpenseName
                             )
                         )
                     }

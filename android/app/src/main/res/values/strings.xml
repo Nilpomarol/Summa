@@ -10,6 +10,7 @@
     <string name="common_edit">Edita</string>
     <string name="common_archive">Elimina</string>
     <string name="common_back">Enrere</string>
+    <string name="common_close">Tanca</string>
     <string name="common_next">Següent</string>
     <string name="common_detail">Detall</string>
     <string name="common_search">Cerca</string>
@@ -33,7 +34,7 @@
     <string name="nav_categories">Categories</string>
     <string name="nav_analysis">Anàlisi</string>
     <string name="nav_people">Persones</string>
-    <string name="nav_recurring">Periòdics</string>
+    <string name="nav_recurring">Recurrents</string>
     <string name="nav_trips">Viatges</string>
     <string name="nav_management">Gestió</string>
 
@@ -299,6 +300,7 @@
     <string name="movement_action_archive">Elimina el moviment</string>
     <string name="movement_archive_confirm_title">Eliminar moviment?</string>
     <string name="movement_archive_warning">El moviment es deixarà de mostrar a les llistes i no comptarà als saldos.</string>
+    <string name="movement_archive_revert_due_checkbox">Marca «%1$s» com a pendent una altra vegada</string>
     <string name="movement_add_title">Nou moviment</string>
     <string name="movement_edit_title">Editant moviment</string>
     <string name="movement_type_expense">Despesa</string>
@@ -315,6 +317,7 @@
     <string name="movement_field_origin_account">Compte d\'origen</string>
     <string name="movement_field_destination_account">Compte destí</string>
     <string name="movement_field_category">Categoria</string>
+    <string name="movement_category_suggestion">Suggerit: %1$s</string>
     <string name="movement_field_name">Concepte</string>
     <string name="movement_field_payee">Beneficiari</string>
     <string name="movement_field_notes">Notes</string>
@@ -338,7 +341,7 @@
     <string name="movement_label_paid_by">Pagat per %1$s</string>
     <string name="movement_label_i_paid_for">He pagat per %1$s</string>
     <string name="movement_label_shared">Compartit</string>
-    <string name="movement_recurring_badge">Periòdic</string>
+    <string name="movement_recurring_badge">Recurrent</string>
     <string name="movement_total_short">Total %1$s</string>
     <string name="movement_field_shared">Despesa compartida</string>
     <string name="movement_field_shared_support">Reparteix aquesta despesa amb altres persones.</string>
@@ -546,13 +549,21 @@
     <!-- Phase 4 (P4-1): recurring, refunds, budgets, notifications. -->
 
     <!-- Recurring list & due prompts -->
-    <string name="recurring_list_title">Periòdics</string>
-    <string name="recurring_list_add">Nou periòdic</string>
+    <string name="recurring_list_title">Recurrents</string>
+    <string name="recurring_list_add">Nou recurrent</string>
     <string name="recurring_monthly_total">Total mensual</string>
-    <string name="recurring_summary_expense">Despeses periòdiques</string>
-    <string name="recurring_summary_income">Ingressos periòdics</string>
-    <string name="recurring_summary_net">Net periòdic</string>
+    <string name="recurring_summary_expense">Despeses recurrents</string>
+    <string name="recurring_summary_income">Ingressos recurrents</string>
+    <string name="recurring_summary_net">Net recurrent</string>
     <string name="recurring_due_section_title">Pendents de confirmar</string>
+    <string name="recurring_detect_action">Detecta recurrents</string>
+    <string name="recurring_detect_action_running">Detectant…</string>
+    <string name="recurring_detect_review_title">Recurrents detectats</string>
+    <string name="recurring_detect_review_empty">No s\'ha detectat cap patró nou a l\'historial.</string>
+    <string name="recurring_detect_badge_new">Nou</string>
+    <string name="recurring_detect_badge_update">Actualitza</string>
+    <string name="recurring_detect_confirm_selected">Confirma els seleccionats</string>
+    <string name="recurring_detect_occurrences">%1$d aparicions</string>
     <string name="recurring_scheduled_section_title">Programats</string>
     <string name="recurring_paused_section_title">En pausa</string>
     <string name="recurring_due_badge">Pendent</string>
@@ -573,13 +584,13 @@
     <string name="recurring_ended_section_title">Finalitzats</string>
     <string name="recurring_confirm_all">Confirma\'ls tots</string>
     <string name="recurring_skip_all">Omet-los tots</string>
-    <string name="recurring_empty_title">Encara no tens moviments periòdics</string>
+    <string name="recurring_empty_title">Encara no tens moviments recurrents</string>
     <string name="recurring_empty_body">Crea una plantilla per repetir despeses, ingressos o transferències.</string>
-    <string name="recurring_cost_summary_title">Cost dels periòdics</string>
+    <string name="recurring_cost_summary_title">Cost dels recurrents</string>
 
     <!-- Add/Edit template -->
-    <string name="template_new_title">Nou periòdic</string>
-    <string name="template_edit_title">Edita el periòdic</string>
+    <string name="template_new_title">Nou recurrent</string>
+    <string name="template_edit_title">Edita el recurrent</string>
     <string name="template_field_frequency">Freqüència</string>
     <string name="template_field_anchor_day">Dia del mes</string>
     <string name="template_field_weekday">Dia de la setmana</string>
@@ -601,11 +612,9 @@
     <string name="template_field_amount">Import</string>
     <string name="template_field_account">Compte</string>
     <string name="template_field_dest_account">Compte destí</string>
-    <string name="template_field_category">Categoria</string>
     <string name="template_field_name">Concepte</string>
     <string name="template_field_payee">Beneficiari</string>
     <string name="template_field_notes">Notes</string>
-    <string name="template_no_category">Sense categoria</string>
     <string-array name="template_weekday_short">
         <item>Dl</item>
         <item>Dt</item>
@@ -615,7 +624,7 @@
         <item>Ds</item>
         <item>Dg</item>
     </string-array>
-    <string name="template_save_new">Crea el periòdic</string>
+    <string name="template_save_new">Crea el recurrent</string>
     <string name="template_save_changes">Desa els canvis</string>
     <string name="template_validation_amount_required">Introdueix un import o marca\'l com a variable.</string>
     <string name="template_validation_interval_required">Indica l\'interval i la unitat.</string>
@@ -624,6 +633,8 @@
     <string name="template_validation_date_flex_invalid">Introdueix un marge de dies igual o superior a zero.</string>
     <string name="template_end_confirm_title">Finalitzar la sèrie?</string>
     <string name="template_end_confirm_body">Es deixaran de generar avisos. Els moviments ja creats es mantenen.</string>
+    <string name="template_delete_confirm_title">Elimina aquest recurrent?</string>
+    <string name="template_delete_confirm_body">Els moviments ja creats es mantenen, però deixaran d\'estar vinculats a aquest recurrent i ja no es marcaran com a recurrents.</string>
 
     <!-- Refunds -->
     <string name="refund_title">Devolució</string>
@@ -672,7 +683,7 @@
 
     <!-- Notifications & alerts (settings) -->
     <string name="settings_notifications_title">Avisos</string>
-    <string name="notification_recurring_title">Recordatoris de periòdics</string>
+    <string name="notification_recurring_title">Recordatoris de recurrents</string>
     <string name="notification_recurring_lead_default">Dies d\'antelació per defecte</string>
     <string name="alert_budget_title">Avisos de pressupost</string>
     <string name="alert_budget_body">Avisa quan un pressupost arribi al llindar o el superi.</string>
@@ -680,13 +691,13 @@
     <string name="alert_low_balance_body">Avisa quan un compte baixi del seu llindar.</string>
     <string name="nav_settings">Configuració</string>
     <string name="settings_title">Configuració</string>
-    <string name="notification_recurring_lead_help">S\'aplica als periòdics que no tenen un avís propi.</string>
+    <string name="notification_recurring_lead_help">S\'aplica als recurrents que no tenen un avís propi.</string>
     <string name="notification_validation_lead_days">Introdueix un nombre de dies igual o superior a zero.</string>
     <string name="notification_permission_body">Android necessita permís per mostrar avisos locals.</string>
     <string name="notification_permission_action">Activa els avisos</string>
     <string name="notification_channel_alerts">Avisos de finances</string>
     <string name="notification_recurring_due_title">%1$s és pendent</string>
-    <string name="notification_recurring_due_body">Toca per revisar el periòdic pendent del %1$s.</string>
+    <string name="notification_recurring_due_body">Toca per revisar el recurrent pendent del %1$s.</string>
     <string name="notification_budget_warn_title">Pressupost a prop del límit</string>
     <string name="notification_budget_over_title">Pressupost superat</string>
     <string name="notification_budget_body">%1$s: %2$s de %3$s.</string>

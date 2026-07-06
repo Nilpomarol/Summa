@@ -75,6 +75,8 @@ import com.gestorfinances.app.ui.onboarding.OnboardingScreen
 import com.gestorfinances.app.ui.onboarding.OnboardingViewModel
 import com.gestorfinances.app.ui.people.PeopleScreen
 import com.gestorfinances.app.ui.people.PeopleViewModel
+import com.gestorfinances.app.ui.recurring.DueRemindersSheet
+import com.gestorfinances.app.ui.recurring.RecurringOverlays
 import com.gestorfinances.app.ui.recurring.RecurringScreen
 import com.gestorfinances.app.ui.recurring.RecurringViewModel
 import com.gestorfinances.app.ui.settings.SettingsScreen
@@ -224,6 +226,7 @@ private fun LedgerShell(
                 categoryRepository = appContainer.categoryRepository,
                 analysisRepository = appContainer.analysisRepository,
                 movementRepository = appContainer.movementRepository,
+                budgetRepository = appContainer.budgetRepository,
             ),
         )[CategoriesViewModel::class.java]
     }
@@ -262,6 +265,7 @@ private fun LedgerShell(
                 splitRepository = appContainer.splitRepository,
                 notificationRefresher = appContainer.notificationCoordinator,
                 templateRepository = appContainer.templateRepository,
+                autoCatRuleRepository = appContainer.autoCatRuleRepository,
             ),
         )[MovementsViewModel::class.java]
     }
@@ -334,7 +338,12 @@ private fun LedgerShell(
     val onboardingState by onboardingViewModel.state.collectAsState()
     val movementsState by movementsViewModel.state.collectAsState()
     val accountsState by accountsViewModel.state.collectAsState()
+    val recurringState by recurringViewModel.state.collectAsState()
     val createAccountMessage = stringResource(R.string.movement_no_accounts_title)
+    // `remember` (not `rememberSaveable`) is deliberate: a real process restart is exactly what
+    // "once per app cold start" means, so losing this on process death re-shows the sheet, which
+    // is correct, not a bug.
+    var dueRemindersShown by remember { mutableStateOf(false) }
 
     LaunchedEffect(movementsViewModel) {
         movementsViewModel.onScreenShown()
@@ -342,6 +351,10 @@ private fun LedgerShell(
 
     LaunchedEffect(accountsViewModel) {
         accountsViewModel.onScreenShown()
+    }
+
+    LaunchedEffect(recurringViewModel) {
+        recurringViewModel.onScreenShown()
     }
 
     LaunchedEffect(accountsState.accounts.size) {
@@ -563,6 +576,25 @@ private fun LedgerShell(
         }
     }
     MovementDialogHost(viewModel = movementsViewModel)
+    RecurringOverlays(viewModel = recurringViewModel)
+
+    // Surfaces due recurring items proactively instead of requiring a manual visit to
+    // Management > Recurring. `recurringState.hasOpenDialog` makes the sheet step aside whenever
+    // one of its own actions (confirm, end) opens a sub-dialog, then reappear once that closes;
+    // `movementsState.hasOpenDialog` avoids stacking on top of an unrelated movement-form sheet
+    // (e.g. the FAB's "add movement" form) that happens to be open at the same moment.
+    if (!dueRemindersShown && !recurringState.hasOpenDialog && !movementsState.hasOpenDialog &&
+        recurringState.duePrompts.isNotEmpty()
+    ) {
+        DueRemindersSheet(
+            duePrompts = recurringState.duePrompts,
+            onConfirm = recurringViewModel::onConfirmClicked,
+            onSkip = recurringViewModel::onSkipClicked,
+            onSkipAll = recurringViewModel::onSkipAllClicked,
+            onEnd = recurringViewModel::onEndClicked,
+            onDismiss = { dueRemindersShown = true },
+        )
+    }
 }
 
 @Composable

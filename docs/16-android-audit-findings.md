@@ -38,16 +38,16 @@ The implementation plan has three tiers:
 |---|---|---|---|---|---|
 | **C1** | No DB migration runner | Critical | **RESOLVED** P5R-3 | Migration 002 (`splits.tag_id`) is the first real migration; SQLDelight `.sqm` runner wired; regression test green | High |
 | **C2** | `DataSeeder` hard-deletes 9 tables, user-reachable | Critical | P8 | Release-prep (remove); DEBUG gate applied when WIP merges (HEAD has no DataSeeder) | High |
-| **C3** | Recurring confirm non-atomic | Critical | P5R-6 | Recurring | High |
-| **C4** | Quick-template-create non-atomic | Critical | P5R-6 | Recurring | High |
+| **C3** | Recurring confirm non-atomic | Critical | **RESOLVED** P5R-6 | `MovementRepository.runInTransaction` wraps `create` + `advanceCursor` in one TX; rollback test green | High |
+| **C4** | Quick-template-create non-atomic | Critical | **RESOLVED** P5R-6 | Same `runInTransaction` wrapper covers `createQuickTemplate` + movement create/update; rollback test green | High |
 | **C5** | External-split edit non-atomic | Critical | **RESOLVED** P5R-3 | `SplitRepository.replaceExternalSplit` archives + inserts in one TX; rollback test green | High |
 | **C6** | ~~Over-refund CHECK vs "never block"~~ **INVALID — false positive** | — | INVALID | Not a defect; CHECK is correct (see §4) | High |
-| **F1** | `AutoCategorizer` built but unwired | Functional | DESCOPE | P5R-6 / 6C prep | High |
+| **F1** | `AutoCategorizer` built but unwired | Functional | **RESOLVED (suggestion)** P5R-6 | Read-only `AutoCatRuleRepository` + movement-form suggestion chip (tap-to-apply, never auto-applied); rules CRUD UI still not built (tracked separately, e.g. 6C prep) | High |
 | **F2** | §2.6 form can't express group bill | Functional | **WONTFIX-by-design** P5R-3 | T2-1 decided: type-4 `total = user share`; group-bill case out of scope v1 | High |
-| **F3** | `RecurringAdvancer` while-loop unbounded | Functional | P5R-6 | Recurring | Medium |
+| **F3** | `RecurringAdvancer` while-loop unbounded | Functional | **RESOLVED** P5R-6 | Hard ceiling (10,000 occurrences) added; all call sites already `runCatching`-wrapped so the failure surfaces as a benign error, never a hang | Medium |
 | **F4** | `debt_balance` golden vector has one case | Functional | **RESOLVED** P5R-5 | Canonical external, archived-row, partial/multi-settlement, and over-settlement vectors added | Medium |
 | **F5** | No undo affordance despite spec §5.9 | Functional | P8 | Release polish | Medium |
-| **F6** | Inconsistent warn-vs-block across rules | Functional | **RESOLVED (settlement)** P5R-5 / P5R-6 (refund) | Settlement side confirmed warn-not-block; refund side still open | Medium |
+| **F6** | Inconsistent warn-vs-block across rules | Functional | **RESOLVED** P5R-5 (settlement) / P5R-6 (refund) | Settlement side confirmed warn-not-block in P5R-5; refund side verified already correct during P5R-6 audit — `MovementsScreen.kt`'s `RefundFormDialog` already shows a dismissible over-refund `InlineBanner` without blocking save (pre-existing, not newly built) | Medium |
 | **U1** | "Load demo data" destructive trap | Usability | P8 | Release-prep (remove); same WIP-merge timing as C2 | High |
 | **U2** | External-payer form missing share field | Usability | **RESOLVED** P5R-3 | 4-type cascade UI built; DEBT path = type-4 (someone else paid, user owes); WONTFIX-by-design on separate share field (F2) | High |
 | **U3** | No P5R-3 manual checklist yet | Usability | P5R-3 | This slice | High |
@@ -77,6 +77,7 @@ The implementation plan has three tiers:
 - **Impact:** SQLDelight 2.x throws `IllegalStateException("Inconsistent schema, missing migration?")` the moment `GestorDatabase.Schema.version` rises on an installed DB. The first schema change after release crashes every existing user on next launch; their data is stranded. Violates `AGENTS.md` ("Schema changes are atomic across artifacts … together").
 - **Fix:** Add a `Migrations` consumer that reads `shared/migrations/0NN_*.sql` in order; wire it into `AndroidSqliteDriver(…, migrations = …)`. Add a JVM regression test that opens a DB at version N and upgrades to N+1.
 - **Disposition note:** Deferred from Tier 1 to **P5R-3**. Tier 1 has no real schema change to migrate (C6, the original trigger, is invalid), so building the runner now would be empty scaffolding against the project's "no speculative abstraction" rule. P5R-3's external-split finality (F2/O5) will be the first real schema change; the runner is built and proven there against a migration that's actually needed. The audit's M5 multi-write test harness (committed in Tier 1) is the testing foundation the migration regression test will build on.
+- **P5R-6 gotcha (fixed):** `002_add_splits_tag_id.sql` embeds its own full copy of `v_movement_summary` (needed because v1 databases predate that view and only ever run this migration to get it). When P5R-6 extended `shared/queries/v_movement_summary.sql` with the orphan-refund columns, that embedded copy was initially left stale — any v1→v2 upgrader got the old view recreated and hit `no such column: v_movement_summary.refunds_expense_id` at query time, even though fresh installs (which read the view straight from `shared/schema/schema.sql`) were fine. Fixed by syncing the migration's embedded view text and regenerating `1.sqm`. **Lesson for future view edits:** a change to a `shared/queries/*.sql` view that is also embedded in a `shared/migrations/*.sql` file must update both copies in the same change — `MigrationTest.kt` now asserts on the migrated view's `sqlite_master.sql` text to catch this class of drift going forward.
 - **Confidence:** High.
 
 #### C2 — `DataSeeder` hard-deletes 9 tables, user-reachable
@@ -86,16 +87,16 @@ The implementation plan has three tiers:
 - **Fix:** At WIP merge — gate behind `BuildConfig.DEBUG`. At P8 — remove the path entirely.
 - **Confidence:** High.
 
-#### C3 — Recurring confirm non-atomic
-- **Evidence:** `RecurringViewModel.onConfirmSaveClicked`: `movementRepository.create(draft, …)` and `templateRepository.advanceCursor(…)` run in **two separate** `queries.transaction {}` blocks. If the cursor advance throws after the movement insert succeeds, the movement is persisted but the cursor is unchanged; the next refresh re-presents the same prompt and a second tap creates a duplicate movement.
+#### C3 — Recurring confirm non-atomic — **RESOLVED (P5R-6)**
+- **Evidence:** `RecurringViewModel.onConfirmSaveClicked`: `movementRepository.create(draft, …)` and `templateRepository.advanceCursor(…)` ran in **two separate** `queries.transaction {}` blocks. If the cursor advance threw after the movement insert succeeded, the movement was persisted but the cursor was unchanged; the next refresh re-presented the same prompt and a second tap created a duplicate movement.
 - **Impact:** Silent duplicate movements — the worst defect for a ledger. Golden vectors don't catch it (advancer is tested in isolation).
-- **Fix:** One repository method (`confirmRecurring(template, draft)`) wrapping both writes in a single TX. The Tier 2 `MovementSaveCoordinator` extraction (M2) should make this a one-liner.
+- **Resolution:** `MovementRepository.runInTransaction(block)` — a thin wrapper around the existing `queries.transaction {}` boundary — lets `RecurringViewModel.onConfirmSaveClicked` wrap both the movement `create()` and `templateRepository.advanceCursor()` in one transaction. This relies on SQLDelight's documented nested-transaction/savepoint behavior across `Queries` objects sharing one driver (already proven in this codebase: `MovementRepository.create()` writes into `SplitsQueries` from inside its own `MovementsQueries.transaction{}`). No new coordinator class — `MovementSaveCoordinator`/`MovementDraftBuilder` mentioned in the original fix note were never built after P5R-3, so introducing them now for two call sites would be speculative; the thin wrapper achieves the same one-liner outcome. Verified with `RecurringConfirmAtomicityTest.kt` (forces the movement write to fail via an FK violation, asserts the template's cursor rolls back too, not just the movement).
 - **Confidence:** High.
 
-#### C4 — Quick-template-create non-atomic
-- **Evidence:** `MovementsViewModel.save` calls `createQuickTemplate(…)` (ends with `repo.create(draft)` — its own TX) and then `movementRepository.create(draft, …)` (another TX). A code comment claims the link is atomic; it is not.
-- **Impact:** A failure between the two TXs leaves an orphaned active template generating due prompts for a movement that doesn't exist.
-- **Fix:** One repository method creating template + movement in a single TX.
+#### C4 — Quick-template-create non-atomic — **RESOLVED (P5R-6)**
+- **Evidence:** `MovementsViewModel.attemptSave` called `createQuickTemplate(…)` (ends with `repo.create(draft)` — its own statement) and then `movementRepository.create(draft, …)` (a separate transaction). A code comment claimed the link was atomic; it was not.
+- **Impact:** A failure between the two writes left an orphaned active template generating due prompts for a movement that doesn't exist.
+- **Resolution:** Same `MovementRepository.runInTransaction` wrapper as C3 — `MovementsViewModel.attemptSave` now wraps `createQuickTemplate(...)` + `movementRepository.create/update(...)` in one transaction. Verified with `QuickTemplateCreateAtomicityTest.kt` (forces the movement write to fail, asserts the quick-created template rolls back too).
 - **Confidence:** High.
 
 #### C5 — External-split edit non-atomic
@@ -112,10 +113,10 @@ The implementation plan has three tiers:
 
 ### Functional
 
-#### F1 — `AutoCategorizer` built but unwired
-- **Evidence:** `AutoCategorizer.kt` exists and is golden-tested, but grep for `auto_cat|autoCat|AutoCatRule|auto_cat_rules` in `android/app/src/main` returns zero files outside the engine + test. No `AutoCatRuleRepository`, no CRUD screen, no integration with `MovementFormSheet`/`MovementsViewModel.save`. The `auto_cat_rules` table is unused at runtime.
-- **Impact:** The whole §3.15/§4.4 feature has no user-facing existence. Phase 6C (CSV import) cannot function as specified without it.
-- **Disposition note:** Descope from P5R-3. Engine + golden tests stay as-is. Wiring (suggestion in movement form, no CRUD UI yet) moves to P5R-6, or to a Phase 6C prep line if that lands first. The misleading P5R-3 roadmap note is updated.
+#### F1 — `AutoCategorizer` built but unwired — **RESOLVED (suggestion only, P5R-6)**
+- **Evidence:** `AutoCategorizer.kt` existed and was golden-tested, but grep for `auto_cat|autoCat|AutoCatRule|auto_cat_rules` in `android/app/src/main` returned zero files outside the engine + test. No `AutoCatRuleRepository`, no CRUD screen, no integration with `MovementFormSheet`/`MovementsViewModel.save`. The `auto_cat_rules` table was unused at runtime.
+- **Impact:** The whole §3.15/§4.4 feature had no user-facing existence. Phase 6C (CSV import) cannot function as specified without it.
+- **Resolution:** Read-only `AutoCatRuleRepository.listActive()` (new `AutoCatRules.sq` query, decodes the `conditions` JSON per `shared/schemas/auto_cat_rules.conditions.schema.json`). `MovementsViewModel.normalizeForm` computes a suggestion via `AutoCategorizer.findMatch` against the loaded active rules whenever the form's name/payee/amount/date/account changes, stored as `MovementFormState.suggestedCategoryId`. `MovementFormSheet` shows a `FinanceFilterChip` ("Suggerit: [category]") next to the category picker only when the suggestion differs from the currently selected category; tapping it applies the category — it is never auto-applied. No CRUD UI for rules yet (still out of scope, tracked separately e.g. alongside Phase 6C prep) — the suggestion is inert until a rule is seeded directly in the DB.
 - **Confidence:** High.
 
 #### F2 — §2.6 form can't express group bill — **WONTFIX-by-design (P5R-3)**
@@ -124,10 +125,10 @@ The implementation plan has three tiers:
 - **Resolution (P5R-3, T2-1):** Design decision: type-4 ("Deute") stores `total_amount_cents = user_share` always. The group-bill-larger-than-user-share scenario is deliberately out of scope for v1. The 4-type cascade (U2) makes this explicit in the UI: when "Una altra persona" paid, the amount field is labelled as "what you owe." `docs/04-data-model.md` §3 and §5 updated accordingly.
 - **Confidence:** High.
 
-#### F3 — `RecurringAdvancer` while-loop unbounded
-- **Evidence:** `RecurringAdvancer.advance`: `while (!next.isAfter(today)) { dueDates += next; next = nextDate(rule, next) }`. No upper bound. If a future change to `nextDate` ever fails to advance (e.g. a `clampDay` regression, or `intervalCount=0` slipping past the `>0` guard), this loops forever on the IO dispatcher.
+#### F3 — `RecurringAdvancer` while-loop unbounded — **RESOLVED (P5R-6)**
+- **Evidence:** `RecurringAdvancer.advance`: `while (!next.isAfter(today)) { dueDates += next; next = nextDate(rule, next) }`. No upper bound. If a future change to `nextDate` ever failed to advance (e.g. a `clampDay` regression, or `intervalCount=0` slipping past the `>0` guard), this would loop forever on the IO dispatcher.
 - **Impact:** Latent hang freezing background data load.
-- **Fix:** Add a hard ceiling (e.g. break the loop past 10000 iterations, or `require` a sane upper bound).
+- **Resolution:** Added `require(dueDates.size < MAX_OCCURRENCES)` (ceiling: 10,000) inside the loop. Every read-path call site already wraps `.advance(...)` in `runCatching { }.getOrNull()`. **Caught in review (spec-guardian):** `RecurringViewModel.onSkipClicked`/`onSkipAllClicked` originally evaluated `advancedOneStep()`/`advancedToToday(today())` as bare function-call arguments — synchronously, on the caller's (UI) thread, *before* `advanceCursorTo`'s `viewModelScope.launch { withContext(ioDispatcher) { runCatching { ... } } }` block even started. A thrown ceiling exception there would have crashed instead of surfacing as an error. Fixed by changing `advanceCursorTo` to take a `computeNextDueDate: () -> String` lambda evaluated *inside* the `runCatching` block, so both call sites (and any future one) are structurally guaranteed to be guarded. `RecurringAdvancerTest.kt` covers the engine-level ceiling; `RecurringViewModelTest.skippingAllOnADecadesStaleTemplateSurfacesErrorInsteadOfCrashing` reproduces the exact crash against the pre-fix code (verified by reverting locally) and asserts the fixed version surfaces `errorMessage` with the cursor left unchanged instead.
 - **Confidence:** Medium.
 
 #### F4 — `debt_balance` golden vector has one case
@@ -141,10 +142,11 @@ The implementation plan has three tiers:
 - **Fix:** Track last-archived record id in ViewModel state; show a `Snackbar` with an undo action that nulls `archived_at`. P8 polish.
 - **Confidence:** Medium.
 
-#### F6 — Inconsistent warn-vs-block across "warn" rules
+#### F6 — Inconsistent warn-vs-block across "warn" rules — **RESOLVED (both sides)**
 - **Evidence:** Manual-entry duplicate detection (`MovementsViewModel.save` `isDuplicate`) implements the never-block warning correctly. But the analogous settlement-exceeds-debt (§3.9) and over-refund (§3.3b) are either schema-hard-blocked (C6) or not surfaced as dismissible banners.
 - **Fix:** C6 unblocks the refund side; P5R-5 audits the settlement side. Both must warn, not block.
-- **Resolution (P5R-5, settlement side):** Confirmed already correct and re-verified after the `SettlementDialog` → `SettlementSheet` bottom-sheet conversion: `PeopleViewModel.onSettlementSaveClicked` never validates the amount against the outstanding balance (only amount-positive/account/date), and `PeopleScreen.kt`'s `SettlementSheet` shows a dismissible `InlineBanner` (`settlement_warning_overpay`) when the entered amount exceeds `form.outstandingCents`, without blocking save. Refund side (F6-refund) remains open for P5R-6.
+- **Resolution (P5R-5, settlement side):** Confirmed already correct and re-verified after the `SettlementDialog` → `SettlementSheet` bottom-sheet conversion: `PeopleViewModel.onSettlementSaveClicked` never validates the amount against the outstanding balance (only amount-positive/account/date), and `PeopleScreen.kt`'s `SettlementSheet` shows a dismissible `InlineBanner` (`settlement_warning_overpay`) when the entered amount exceeds `form.outstandingCents`, without blocking save.
+- **Resolution (P5R-6, refund side — F6-refund):** Verified during the P5R-6 audit that this was already correct, not newly built: `MovementsScreen.kt`'s refund form computes `isOverRefund = parsedAmount > form.remainingCents` and shows a dismissible `InlineBanner(kind = Alert, text = refund_warning_over)` without blocking save — the same pattern as the settlement side. No code change was needed; this row corrects the earlier "still open" note.
 - **Confidence:** Medium.
 
 ### Usability

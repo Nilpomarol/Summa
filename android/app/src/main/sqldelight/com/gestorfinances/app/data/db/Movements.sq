@@ -219,3 +219,19 @@ SET
     updated_at = :updated_at
 WHERE id = :id
   AND archived_at IS NULL;
+
+linkToTemplate:
+UPDATE movements
+SET
+    template_id = :template_id,
+    updated_at = :updated_at
+WHERE id IN :ids
+  AND archived_at IS NULL;
+
+unlinkAllForTemplate:
+UPDATE movements
+SET
+    template_id = NULL,
+    updated_at = :updated_at
+WHERE template_id = :template_id
+  AND archived_at IS NULL;

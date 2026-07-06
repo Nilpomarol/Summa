@@ -1,0 +1,40 @@
+activeAutoCatRules:
+SELECT
+    id,
+    priority,
+    conditions,
+    action_category_id,
+    action_trip_id,
+    active,
+    created_at
+FROM auto_cat_rules
+WHERE active = 1
+  AND archived_at IS NULL
+ORDER BY priority DESC, created_at DESC;
+
+-- No app-facing CRUD yet (audit F1: suggestion-only, no rules-management screen). This insert
+-- exists so tests can seed rules directly; production code only reads via activeAutoCatRules.
+insertAutoCatRule:
+INSERT INTO auto_cat_rules(
+    id,
+    name,
+    priority,
+    conditions,
+    action_category_id,
+    action_trip_id,
+    source,
+    active,
+    created_at,
+    updated_at
+) VALUES (
+    :id,
+    :name,
+    :priority,
+    :conditions,
+    :action_category_id,
+    :action_trip_id,
+    :source,
+    :active,
+    :created_at,
+    :updated_at
+);

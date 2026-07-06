@@ -67,6 +67,7 @@ import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.CategoryKind
 import com.gestorfinances.app.data.repository.CategoryNature
 import com.gestorfinances.app.data.repository.CategoryRecord
+import com.gestorfinances.app.ui.common.BudgetProgressBar
 import com.gestorfinances.app.ui.common.CategoryIconPalette
 import com.gestorfinances.app.ui.common.ColorPickerRow
 import com.gestorfinances.app.ui.common.DestructiveTextButton
@@ -79,6 +80,9 @@ import com.gestorfinances.app.ui.common.MovementListItem
 import com.gestorfinances.app.ui.common.PrimaryButton
 import com.gestorfinances.app.ui.common.TopBarIconButton
 import com.gestorfinances.app.ui.common.categoryIcon
+import com.gestorfinances.app.ui.common.color
+import com.gestorfinances.app.ui.common.formatEuroCents
+import com.gestorfinances.app.ui.common.progressFraction
 import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.categoryColor
 
@@ -1095,6 +1099,41 @@ private fun CategoryFlowSheet(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(text = stringResource(R.string.category_flow_view_analysis))
+                }
+            }
+
+            detail.budgetEvaluation?.let { evaluation ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    BudgetProgressBar(
+                        fraction = evaluation.progressFraction(),
+                        color = evaluation.status.color(),
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = stringResource(
+                                R.string.budget_progress,
+                                formatEuroCents(evaluation.actualCents),
+                                formatEuroCents(evaluation.budget.limitAmountCents),
+                            ),
+                            modifier = Modifier.weight(1f),
+                            color = FinanceTheme.colors.mutedText,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Text(
+                            text = if (evaluation.remainingCents >= 0L) {
+                                stringResource(R.string.budget_remaining, formatEuroCents(evaluation.remainingCents))
+                            } else {
+                                stringResource(R.string.budget_over, formatEuroCents(-evaluation.remainingCents))
+                            },
+                            color = evaluation.status.color(),
+                            style = MaterialTheme.typography.labelMedium,
+                        )
+                    }
                 }
             }
 

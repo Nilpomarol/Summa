@@ -158,6 +158,7 @@ class TemplateRepository(
             amount_flex_cents = draft.amountFlexCents,
             date_flex_days = draft.dateFlexDays,
             lead_notification_days = draft.leadNotificationDays,
+            status = draft.status.dbValue,
             updated_at = updatedAt,
         )
     }

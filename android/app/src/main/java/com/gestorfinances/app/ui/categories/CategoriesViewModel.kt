@@ -5,6 +5,9 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AnalysisRepository
+import com.gestorfinances.app.data.repository.BudgetEvaluation
+import com.gestorfinances.app.data.repository.BudgetRepository
+import com.gestorfinances.app.data.repository.BudgetScope
 import com.gestorfinances.app.data.repository.CategoryDraft
 import com.gestorfinances.app.data.repository.CategoryKind
 import com.gestorfinances.app.data.repository.CategoryNature
@@ -28,6 +31,7 @@ class CategoriesViewModel(
     private val categoryRepository: CategoryRepository,
     private val analysisRepository: AnalysisRepository,
     private val movementRepository: MovementRepository,
+    private val budgetRepository: BudgetRepository,
 ) : ViewModel() {
     private val _state = MutableStateFlow(CategoriesUiState())
     val state: StateFlow<CategoriesUiState> = _state.asStateFlow()
@@ -155,14 +159,19 @@ class CategoriesViewModel(
         )
         viewModelScope.launch {
             val result = withContext(Dispatchers.IO) {
-                runCatching { movementRepository.listActiveForCategory(category.id) }
+                runCatching {
+                    val entries = movementRepository.listActiveForCategory(category.id)
+                    val budgetEvaluation = categoryBudgetEvaluation(category.id)
+                    entries to budgetEvaluation
+                }
             }
             _state.value = result.fold(
-                onSuccess = {
+                onSuccess = { (entries, budgetEvaluation) ->
                     _state.value.copy(
                         flowDetail = CategoryFlowDetailState(
                             category = category,
-                            entries = it,
+                            entries = entries,
+                            budgetEvaluation = budgetEvaluation,
                             isLoading = false,
                         ),
                     )
@@ -178,6 +187,15 @@ class CategoriesViewModel(
                 },
             )
         }
+    }
+
+    /** Active CATEGORY-scope budget for [categoryId], evaluated against the current month. */
+    private fun categoryBudgetEvaluation(categoryId: String): BudgetEvaluation? {
+        val month = YearMonth.from(LocalDate.now())
+        return budgetRepository.evaluateAll(
+            fromDate = month.atDay(1).toString(),
+            toDate = month.atEndOfMonth().toString(),
+        ).firstOrNull { it.budget.scope == BudgetScope.CATEGORY && it.budget.categoryId == categoryId }
     }
 
     fun onFlowDismissed() {
@@ -249,6 +267,7 @@ class CategoriesViewModel(
         private val categoryRepository: CategoryRepository,
         private val analysisRepository: AnalysisRepository,
         private val movementRepository: MovementRepository,
+        private val budgetRepository: BudgetRepository,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -257,6 +276,7 @@ class CategoriesViewModel(
                     categoryRepository = categoryRepository,
                     analysisRepository = analysisRepository,
                     movementRepository = movementRepository,
+                    budgetRepository = budgetRepository,
                 ) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
@@ -278,6 +298,7 @@ data class CategoriesUiState(
 data class CategoryFlowDetailState(
     val category: CategoryRecord,
     val entries: List<MovementSummary> = emptyList(),
+    val budgetEvaluation: BudgetEvaluation? = null,
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
 )
