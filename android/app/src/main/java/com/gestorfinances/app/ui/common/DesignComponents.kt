@@ -2,6 +2,7 @@ package com.gestorfinances.app.ui.common
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.Error
+import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material.icons.outlined.ExpandMore
@@ -136,6 +138,49 @@ fun SectionHeader(
             modifier = Modifier.weight(1f),
         )
         trailing?.invoke()
+    }
+}
+
+/** Tappable section header with a count badge and an expand/collapse chevron. */
+@Composable
+fun CollapsibleSectionHeader(
+    title: String,
+    count: Int,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggle)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.weight(1f),
+        )
+        if (count > 0) {
+            Surface(
+                shape = MaterialTheme.shapes.extraSmall,
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = FinanceTheme.colors.mutedText,
+            ) {
+                Text(
+                    text = count.toString(),
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                )
+            }
+        }
+        Icon(
+            imageVector = if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+            contentDescription = null,
+            tint = FinanceTheme.colors.mutedText,
+            modifier = Modifier.size(20.dp),
+        )
     }
 }
 

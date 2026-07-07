@@ -316,6 +316,38 @@ Run these after building the app to confirm the P5R-6 redesign and logic fixes a
 
 ---
 
+## 14. P5R-7 Manual Checklist — Trips and Tags
+
+Run these after building the app to confirm the P5R-7 redesign and logic fixes are correct.
+
+| # | Step | Expected |
+|---|------|----------|
+| 1 | Open Gestió → Esdeveniments with ≥ 2 trips | Each `TripRow` shows status/type pills, a date-range summary, total actual spend, and average spend per day |
+| 2 | Tap a trip row | Navigates to a full page (`TripDetailScreen`), not a dialog — no scrim, has its own back arrow + overflow menu (Edit, Archive) in the header |
+| 3 | Press system Back on trip detail opened from the Trips list | Returns to the Trips list (not the Gestió hub directly) |
+| 4 | Trip detail with movements on several days | KPI row shows total actual spend, account outflow, day count, and avg/day; a cumulative `IncomeExpenseChart` renders the daily spend trend |
+| 5 | Toggle "Exclou despeses extraordinàries" | KPIs, the chart, and both breakdowns recompute excluding `is_one_time` movements; an "avg/day sense extraordinàries" figure appears |
+| 6 | Trip has an active TRIP-scope budget | A `BudgetProgressBar` (green/amber/red) renders inline in trip detail, in addition to the "Pressupost del viatge" action |
+| 7 | Trip has no active budget | No budget bar shown — trip detail otherwise unchanged |
+| 8 | Trip detail's category and tag breakdowns | Percent-bar rows with icon/color identity; a tag with no icon/color of its own but an associated category shows that category's icon/color; the untagged/no-category bucket is visually muted |
+| 9 | Record an expense via an external split (§2.6, "Una altra persona") with `trip_id` and its own tag set | The tag now correctly appears in the trip's "Per etiqueta" breakdown instead of falling into "Sense etiqueta" (regression check for `docs/16` F7) |
+| 10 | Trip detail's movement list | Rows render as standard `MovementListItem`s, same visual density as Moviments |
+| 10a | Tap a movement row in trip detail | Opens the shared movement detail sheet (`MovementDialogHost`), the same as tapping a movement anywhere else in the app |
+| 11 | Tap "Nou moviment del viatge" from trip detail | Movement form opens pre-filled with this trip and its default account (unchanged from before this slice) |
+| 12 | Open the trip add/edit form | Opens as a `ModalBottomSheet`; icon/color use `IconPickerRow`/`ColorPickerRow`; start/end dates use the same date picker the movement form uses (no free-text date fields); default account is a `FormSelect` dropdown (not a chip row) |
+| 13 | Open Gestió → Esdeveniments → "manage tags" (no trip context) | Tags page shows collapsible sections: Globals, one per event type with type-scoped tags, one per trip with trip-local tags — each with a count badge |
+| 14 | Tap a tag row | Icon/color shown are the tag's own if set, else its associated category's (`effectiveIcon()`/`effectiveColor()`) — never a hardcoded generic icon or a raw icon-string pill |
+| 15 | Open the tag add/edit form | Opens as a `ModalBottomSheet`; a 3-way `SegmentedControl` (Global / Tipus d'esdeveniment / Viatge concret) replaces the old two-pill toggle; selecting "Tipus d'esdeveniment" reveals a `TripType` segmented control; selecting "Viatge concret" reveals a `FormSelect` dropdown over trips (not a chip picker) |
+| 16 | In the tag form, pick a category | An optional `FormSelect` dropdown (including "Sense categoria", not a chip row) wires `tags.category_id`; icon/color pickers still work independently |
+| 17 | Attempt to save a tag as both a specific trip and an event type (if reachable via the UI) | Blocked with the `tag_validation_scope_exclusive` inline error — a tag can never be both at once |
+| 18 | Open Inici (Dashboard) on a day within an existing trip's date range, with that trip's status `active` | An `ActiveTripCard` appears after the hero KPI block and before the account grid, showing the trip's name/icon and spend-so-far |
+| 19 | No trip's date range covers today | No active-trip card appears |
+| 20 | Tap "Veure viatge" on the Dashboard card | Opens the same full-page trip detail; Back returns to the Dashboard (not the Trips list) |
+| 21 | Tap "Afegeix moviment" on the Dashboard card | Movement form opens pre-filled with that trip and its default account |
+| 22 | Tap a trip-block row in Analysis (any tab) | Stays on Anàlisi — never navigates into trip detail (Aggregate Interaction Contract, `docs/11` §6, unchanged) |
+
+---
+
 ## 8. Phase 5R Output
 
 By the end of Phase 5R, Android should have:

@@ -1,7 +1,6 @@
 package com.gestorfinances.app.ui.trips
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,27 +11,30 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Celebration
-import androidx.compose.material.icons.outlined.Event
-import androidx.compose.material.icons.outlined.Flight
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -42,47 +44,66 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountSummary
+import com.gestorfinances.app.data.repository.BudgetEvaluation
 import com.gestorfinances.app.data.repository.MovementSummary
-import com.gestorfinances.app.data.repository.MovementType
-import com.gestorfinances.app.data.repository.SettlementDirection
+import com.gestorfinances.app.data.repository.TagSummary
 import com.gestorfinances.app.data.repository.TripCategoryActual
 import com.gestorfinances.app.data.repository.TripDailyActual
 import com.gestorfinances.app.data.repository.TripStatus
 import com.gestorfinances.app.data.repository.TripSummary
 import com.gestorfinances.app.data.repository.TripTagActual
 import com.gestorfinances.app.data.repository.TripType
+import com.gestorfinances.app.data.repository.dayCount
+import com.gestorfinances.app.data.repository.effectiveColor
+import com.gestorfinances.app.data.repository.effectiveIcon
+import com.gestorfinances.app.data.repository.icon
+import com.gestorfinances.app.data.repository.label
+import com.gestorfinances.app.ui.common.BudgetProgressBar
+import com.gestorfinances.app.ui.common.CategoryIconPalette
 import com.gestorfinances.app.ui.common.ChipFlowSection
+import com.gestorfinances.app.ui.common.ColorPickerRow
 import com.gestorfinances.app.ui.common.DestructiveTextButton
 import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.FinanceFilterChip
 import com.gestorfinances.app.ui.common.IconChip
+import com.gestorfinances.app.ui.common.IconPickerRow
+import com.gestorfinances.app.ui.common.IncomeExpenseChart
+import com.gestorfinances.app.ui.common.IncomeExpenseChartPoint
 import com.gestorfinances.app.ui.common.InlineBanner
+import com.gestorfinances.app.ui.common.MovementListItem
 import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.NeutralPill
 import com.gestorfinances.app.ui.common.PrimaryButton
 import com.gestorfinances.app.ui.common.SegmentedControl
 import com.gestorfinances.app.ui.common.BannerKind
+import com.gestorfinances.app.ui.common.color
 import com.gestorfinances.app.ui.common.formatEuroCents
+import com.gestorfinances.app.ui.common.progressFraction
+import com.gestorfinances.app.ui.movements.FormDatePicker
+import com.gestorfinances.app.ui.movements.FormSelect
+import com.gestorfinances.app.ui.movements.SelectOption
 import com.gestorfinances.app.ui.theme.FinanceTheme
-import com.gestorfinances.app.ui.theme.amountColor
 import com.gestorfinances.app.ui.theme.categoryColor
+import com.gestorfinances.app.ui.common.categoryIcon
 import java.time.LocalDate
-import java.time.temporal.ChronoUnit
+import java.time.format.DateTimeParseException
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 @Composable
 fun TripsScreen(
     viewModel: TripsViewModel,
-    onNewMovement: (TripSummary) -> Unit,
+    onOpenDetail: (TripSummary) -> Unit,
     onManageTags: (String?) -> Unit,
-    onManageBudget: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsState()
@@ -98,21 +119,9 @@ fun TripsScreen(
         onAdd = viewModel::onAddClicked,
         onEdit = viewModel::onEditClicked,
         onArchive = viewModel::onArchiveClicked,
-        onDetail = viewModel::onDetailClicked,
+        onDetail = onOpenDetail,
         onManageTags = onManageTags,
     )
-
-    state.detail?.let { detail ->
-        TripDetailDialog(
-            detail = detail,
-            onDismiss = viewModel::onDetailDismissed,
-            onEdit = { viewModel.onEditClicked(detail.trip) },
-            onArchive = { viewModel.onArchiveClicked(detail.trip) },
-            onNewMovement = { onNewMovement(detail.trip) },
-            onManageTags = { onManageTags(detail.trip.id) },
-            onManageBudget = { onManageBudget(detail.trip.id) },
-        )
-    }
 
     state.form?.let { form ->
         TripFormDialog(
@@ -298,6 +307,21 @@ private fun TripRow(
                         NeutralPill(text = trip.status.label())
                     }
                 }
+                Column(horizontalAlignment = Alignment.End) {
+                    MoneyText(
+                        cents = trip.totalActualCents,
+                        color = FinanceTheme.colors.expense,
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    Text(
+                        text = stringResource(
+                            R.string.trip_row_avg_day,
+                            formatEuroCents(averageCents(trip.totalActualCents, trip.dayCount())),
+                        ),
+                        color = FinanceTheme.colors.mutedText,
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
                 TripRowMenu(onEdit = onEdit, onArchive = onArchive)
             }
         }
@@ -336,75 +360,213 @@ private fun TripRowMenu(
     }
 }
 
+/**
+ * Trip detail as a full page (docs/15 §Phase 5R, promoted from the former `AlertDialog`). Reads
+ * [TripsViewModel]'s `detail` state directly — the caller is responsible for having triggered a
+ * load (`onDetailClicked`/`onDetailOpened`) before navigating here. Also hosts the edit form and
+ * archive confirmation reachable from the header's overflow menu (there is no dialog button row
+ * to host them on a full page, unlike the former `AlertDialog`); the page stays visible
+ * underneath both, and archiving navigates back since the trip stops existing in the active list.
+ */
 @Composable
-private fun TripDetailDialog(
+fun TripDetailScreen(
+    viewModel: TripsViewModel,
+    onBack: () -> Unit,
+    onNewMovement: (TripSummary) -> Unit,
+    onManageTags: (String) -> Unit,
+    onManageBudget: (String) -> Unit,
+    onMovementDetail: (MovementSummary) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val state by viewModel.state.collectAsState()
+    val detail = state.detail
+
+    Box(modifier = modifier.fillMaxSize()) {
+        if (detail == null) {
+            Text(
+                text = stringResource(R.string.trip_loading),
+                color = FinanceTheme.colors.mutedText,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(20.dp),
+            )
+        } else {
+            TripDetailContent(
+                detail = detail,
+                onBack = onBack,
+                onEdit = { viewModel.onEditClicked(detail.trip) },
+                onArchive = { viewModel.onArchiveClicked(detail.trip) },
+                onNewMovement = { onNewMovement(detail.trip) },
+                onManageTags = { onManageTags(detail.trip.id) },
+                onManageBudget = { onManageBudget(detail.trip.id) },
+                onExcludeOneTimeToggled = viewModel::onExcludeOneTimeToggled,
+                onMovementDetail = onMovementDetail,
+            )
+        }
+    }
+
+    state.form?.let { form ->
+        TripFormDialog(
+            form = form,
+            accounts = state.accounts,
+            onFormChange = viewModel::onFormChanged,
+            onDismiss = viewModel::onFormDismissed,
+            onSave = viewModel::onSaveClicked,
+        )
+    }
+
+    state.archiveCandidate?.let {
+        AlertDialog(
+            onDismissRequest = viewModel::onArchiveDismissed,
+            title = { Text(text = stringResource(R.string.trip_archive_confirm_title)) },
+            text = { Text(text = stringResource(R.string.trip_archive_warning)) },
+            confirmButton = {
+                DestructiveTextButton(
+                    onClick = {
+                        viewModel.onArchiveConfirmed()
+                        onBack()
+                    },
+                ) {
+                    Text(text = stringResource(R.string.common_archive))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::onArchiveDismissed) {
+                    Text(text = stringResource(R.string.common_cancel))
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun TripDetailContent(
     detail: TripDetailState,
-    onDismiss: () -> Unit,
+    onBack: () -> Unit,
     onEdit: () -> Unit,
     onArchive: () -> Unit,
     onNewMovement: () -> Unit,
     onManageTags: () -> Unit,
     onManageBudget: () -> Unit,
+    onExcludeOneTimeToggled: (Boolean) -> Unit,
+    onMovementDetail: (MovementSummary) -> Unit,
 ) {
     val trip = detail.trip
-    val days = detail.tripDays()
-    var dailyMode by remember(trip.id) { mutableStateOf(TripDailyMode.DAILY) }
+    val days = trip.dayCount(
+        fallbackStart = detail.dailyActual.firstOrNull()?.date,
+        fallbackEnd = detail.dailyActual.lastOrNull()?.date,
+    )
     var categoryMode by remember(trip.id) { mutableStateOf(TripBreakdownMode.TOTAL) }
     var tagMode by remember(trip.id) { mutableStateOf(TripBreakdownMode.TOTAL) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(text = stringResource(R.string.trip_detail_title)) },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                TripDetailHeader(trip = trip)
-                DetailLine(
-                    label = stringResource(R.string.trip_field_default_account),
-                    value = trip.defaultAccountName ?: stringResource(R.string.trip_detail_no_default_account),
-                )
-                trip.notes?.takeIf { it.isNotBlank() }?.let {
-                    DetailLine(label = stringResource(R.string.trip_field_notes), value = it)
-                }
-                detail.errorMessage?.let {
-                    InlineBanner(kind = BannerKind.Error, text = it)
-                }
-                if (detail.isLoading) {
-                    Text(
-                        text = stringResource(R.string.trip_loading),
-                        color = FinanceTheme.colors.mutedText,
-                        style = MaterialTheme.typography.bodyMedium,
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = stringResource(R.string.common_back),
                     )
                 }
-                TripKpiGrid(
-                    actualCents = detail.summary.actualCents,
-                    flowCents = detail.summary.accountOutflowCents,
-                    days = days,
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = stringResource(R.string.trip_detail_title),
+                    style = MaterialTheme.typography.headlineMedium,
+                    modifier = Modifier.weight(1f),
                 )
-                TripDailySection(
-                    items = detail.dailyActual,
-                    mode = dailyMode,
-                    onModeChange = { dailyMode = it },
+                TripDetailMenu(onEdit = onEdit, onArchive = onArchive)
+            }
+        }
+
+        item { TripDetailHeader(trip = trip) }
+
+        item {
+            DetailLine(
+                label = stringResource(R.string.trip_field_default_account),
+                value = trip.defaultAccountName ?: stringResource(R.string.trip_detail_no_default_account),
+            )
+        }
+
+        trip.notes?.takeIf { it.isNotBlank() }?.let { notes ->
+            item { DetailLine(label = stringResource(R.string.trip_field_notes), value = notes) }
+        }
+
+        detail.errorMessage?.let { message ->
+            item { InlineBanner(kind = BannerKind.Error, text = message) }
+        }
+
+        if (detail.isLoading) {
+            item {
+                Text(
+                    text = stringResource(R.string.trip_loading),
+                    color = FinanceTheme.colors.mutedText,
+                    style = MaterialTheme.typography.bodyMedium,
                 )
-                TripCategorySection(
-                    items = detail.categoryActual,
-                    days = days,
-                    mode = categoryMode,
-                    onModeChange = { categoryMode = it },
-                )
-                TripTagSection(
-                    items = detail.tagActual,
-                    days = days,
-                    mode = tagMode,
-                    onModeChange = { tagMode = it },
-                )
-                TripMovementSection(items = detail.movements)
-                PrimaryButton(
-                    text = stringResource(R.string.trip_action_new_movement),
-                    onClick = onNewMovement,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+            }
+        }
+
+        item {
+            TripKpiSection(
+                actualCents = detail.summary.actualCents,
+                flowCents = detail.summary.accountOutflowCents,
+                days = days,
+                excludeOneTime = detail.excludeOneTime,
+                onExcludeOneTimeToggled = onExcludeOneTimeToggled,
+            )
+        }
+
+        detail.budgetEvaluation?.let { evaluation ->
+            item { TripBudgetSection(evaluation = evaluation) }
+        }
+
+        item { TripDailySection(items = detail.dailyActual) }
+
+        item {
+            TripCategorySection(
+                items = detail.categoryActual,
+                days = days,
+                mode = categoryMode,
+                onModeChange = { categoryMode = it },
+            )
+        }
+
+        item {
+            TripTagSection(
+                items = detail.tagActual,
+                tagsById = detail.tagsById,
+                days = days,
+                mode = tagMode,
+                onModeChange = { tagMode = it },
+            )
+        }
+
+        item {
+            AnalysisSection(
+                title = stringResource(R.string.trip_detail_movements),
+                isEmpty = detail.movements.isEmpty(),
+            ) {
+                detail.movements.forEach { movement ->
+                    MovementListItem(
+                        movement = movement,
+                        onClick = { onMovementDetail(movement) },
+                    )
+                }
+            }
+        }
+
+        item {
+            PrimaryButton(
+                text = stringResource(R.string.trip_action_new_movement),
+                onClick = onNewMovement,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(onClick = onManageTags) {
                     Text(text = stringResource(R.string.trip_action_manage_tags))
                 }
@@ -412,18 +574,40 @@ private fun TripDetailDialog(
                     Text(text = stringResource(R.string.trip_action_budget))
                 }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onEdit) {
-                Text(text = stringResource(R.string.common_edit))
-            }
-        },
-        dismissButton = {
-            DestructiveTextButton(onClick = onArchive) {
-                Text(text = stringResource(R.string.common_archive))
-            }
-        },
-    )
+        }
+    }
+}
+
+@Composable
+private fun TripDetailMenu(
+    onEdit: () -> Unit,
+    onArchive: () -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { expanded = true }) {
+            Icon(
+                imageVector = Icons.Outlined.MoreVert,
+                contentDescription = stringResource(R.string.common_more_options),
+                tint = FinanceTheme.colors.mutedText,
+            )
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(
+                text = { Text(text = stringResource(R.string.trip_action_edit)) },
+                onClick = { expanded = false; onEdit() },
+            )
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        text = stringResource(R.string.trip_action_archive),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                },
+                onClick = { expanded = false; onArchive() },
+            )
+        }
+    }
 }
 
 @Composable
@@ -464,122 +648,167 @@ private fun TripDetailHeader(trip: TripSummary) {
     }
 }
 
-private enum class TripDailyMode {
-    DAILY,
-    CUMULATIVE,
-}
-
 private enum class TripBreakdownMode {
     TOTAL,
     AVG_DAY,
 }
 
+/** KPI row (total spend, account outflow, days, avg/day) with the exclude-one-time toggle (point 13). */
 @Composable
-private fun TripKpiGrid(
+private fun TripKpiSection(
     actualCents: Long,
     flowCents: Long,
     days: Long,
+    excludeOneTime: Boolean,
+    onExcludeOneTimeToggled: (Boolean) -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TripKpiCard(
-                label = stringResource(R.string.trip_detail_total_actual),
-                cents = actualCents,
-                modifier = Modifier.weight(1f),
-            )
-            TripKpiCard(
-                label = stringResource(R.string.trip_detail_total_flow),
-                cents = flowCents,
-                modifier = Modifier.weight(1f),
-            )
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TripTextKpiCard(
-                label = stringResource(R.string.trip_detail_days),
-                value = days.toString(),
-                modifier = Modifier.weight(1f),
-            )
-            TripKpiCard(
-                label = stringResource(R.string.trip_detail_avg_day),
-                cents = if (days > 0L) actualCents / days else 0L,
-                modifier = Modifier.weight(1f),
-            )
-        }
-    }
-}
-
-@Composable
-private fun TripKpiCard(
-    label: String,
-    cents: Long,
-    modifier: Modifier = Modifier,
-) {
-    FinanceCard(modifier = modifier) {
+    FinanceCard(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text(
-                text = label,
-                color = FinanceTheme.colors.mutedText,
-                style = MaterialTheme.typography.labelMedium,
-            )
-            MoneyText(
-                cents = cents,
-                color = FinanceTheme.colors.expense,
-                style = MaterialTheme.typography.titleMedium,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                TripKpiCell(
+                    label = stringResource(R.string.trip_detail_total_actual),
+                    modifier = Modifier.weight(1f),
+                ) {
+                    MoneyText(
+                        cents = actualCents,
+                        color = FinanceTheme.colors.expense,
+                        style = MaterialTheme.typography.titleLarge,
+                    )
+                }
+                TripKpiCell(
+                    label = stringResource(R.string.trip_detail_total_flow),
+                    modifier = Modifier.weight(1f),
+                ) {
+                    MoneyText(
+                        cents = flowCents,
+                        color = FinanceTheme.colors.expense,
+                        style = MaterialTheme.typography.titleLarge,
+                    )
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                TripKpiCell(
+                    label = stringResource(R.string.trip_detail_days),
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(text = days.toString(), style = MaterialTheme.typography.titleMedium)
+                }
+                TripKpiCell(
+                    label = if (excludeOneTime) {
+                        stringResource(R.string.trip_detail_avg_day_excluding_one_time)
+                    } else {
+                        stringResource(R.string.trip_detail_avg_day)
+                    },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    MoneyText(
+                        cents = averageCents(actualCents, days),
+                        color = FinanceTheme.colors.expense,
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.trip_detail_exclude_one_time),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                Switch(checked = excludeOneTime, onCheckedChange = onExcludeOneTimeToggled)
+            }
         }
     }
 }
 
 @Composable
-private fun TripTextKpiCard(
+private fun TripKpiCell(
     label: String,
-    value: String,
     modifier: Modifier = Modifier,
+    value: @Composable () -> Unit,
 ) {
-    FinanceCard(modifier = modifier) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Text(
-                text = label,
-                color = FinanceTheme.colors.mutedText,
-                style = MaterialTheme.typography.labelMedium,
-            )
-            Text(
-                text = value,
-                style = MaterialTheme.typography.titleMedium,
-            )
-        }
-    }
-}
-
-@Composable
-private fun TripDailySection(
-    items: List<TripDailyActual>,
-    mode: TripDailyMode,
-    onModeChange: (TripDailyMode) -> Unit,
-) {
-    AnalysisSection(title = stringResource(R.string.trip_detail_daily_chart), isEmpty = items.isEmpty()) {
-        SegmentedControl(
-            options = TripDailyMode.entries,
-            selected = mode,
-            label = { it.label() },
-            onSelect = onModeChange,
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(
+            text = label,
+            color = FinanceTheme.colors.mutedText,
+            style = MaterialTheme.typography.labelMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
-        val chartItems = items.displayItems(mode)
-        val maxCents = chartItems.maxOf { abs(it.actualCents) }.coerceAtLeast(1L)
-        chartItems.forEach { item ->
-            AmountBarRow(
-                label = item.date,
-                cents = item.actualCents,
-                maxCents = maxCents,
-            )
+        value()
+    }
+}
+
+@Composable
+private fun TripBudgetSection(evaluation: BudgetEvaluation) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = stringResource(R.string.trip_action_budget),
+            style = MaterialTheme.typography.titleSmall,
+        )
+        FinanceCard(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                BudgetProgressBar(
+                    fraction = evaluation.progressFraction(),
+                    color = evaluation.status.color(),
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = stringResource(
+                            R.string.budget_progress,
+                            formatEuroCents(evaluation.actualCents),
+                            formatEuroCents(evaluation.budget.limitAmountCents),
+                        ),
+                        modifier = Modifier.weight(1f),
+                        color = FinanceTheme.colors.mutedText,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Text(
+                        text = if (evaluation.remainingCents >= 0L) {
+                            stringResource(R.string.budget_remaining, formatEuroCents(evaluation.remainingCents))
+                        } else {
+                            stringResource(R.string.budget_over, formatEuroCents(-evaluation.remainingCents))
+                        },
+                        color = evaluation.status.color(),
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                }
+            }
         }
     }
+}
+
+/**
+ * Cumulative daily spend (design §6 charts are always cumulative, e.g. Analysis's own
+ * `IncomeExpenseChart` use — no separate "daily bars" mode, matching that established pattern).
+ */
+@Composable
+private fun TripDailySection(items: List<TripDailyActual>) {
+    IncomeExpenseChart(
+        title = stringResource(R.string.trip_detail_daily_chart),
+        points = items.toChartPoints(),
+        incomeLabel = stringResource(R.string.analysis_summary_income),
+        expenseLabel = stringResource(R.string.analysis_summary_expense),
+        emptyText = stringResource(R.string.trip_analysis_empty_body),
+    )
 }
 
 @Composable
@@ -597,12 +826,16 @@ private fun TripCategorySection(
             onSelect = onModeChange,
         )
         val maxCents = items.maxOf { abs(it.displayCents(mode, days)) }.coerceAtLeast(1L)
+        val totalCents = items.sumOf { abs(it.actualCents) }.coerceAtLeast(1L)
         items.forEach { item ->
-            AmountBarRow(
+            TripBreakdownRow(
+                icon = categoryIcon(item.categoryIcon),
+                color = categoryColor(item.categoryColor),
                 label = item.categoryName ?: stringResource(R.string.common_no_category),
                 cents = item.displayCents(mode, days),
                 maxCents = maxCents,
-                supporting = if (mode == TripBreakdownMode.TOTAL) averagePerDay(item.actualCents, days) else null,
+                percentOfCents = abs(item.actualCents),
+                totalCents = totalCents,
             )
         }
     }
@@ -611,6 +844,7 @@ private fun TripCategorySection(
 @Composable
 private fun TripTagSection(
     items: List<TripTagActual>,
+    tagsById: Map<String, TagSummary>,
     days: Long,
     mode: TripBreakdownMode,
     onModeChange: (TripBreakdownMode) -> Unit,
@@ -623,46 +857,75 @@ private fun TripTagSection(
             onSelect = onModeChange,
         )
         val maxCents = items.maxOf { abs(it.displayCents(mode, days)) }.coerceAtLeast(1L)
+        val totalCents = items.sumOf { abs(it.actualCents) }.coerceAtLeast(1L)
         items.forEach { item ->
-            AmountBarRow(
+            val tag = item.tagId?.let { tagsById[it] }
+            TripBreakdownRow(
+                icon = categoryIcon(tag?.effectiveIcon()),
+                color = categoryColor(tag?.effectiveColor() ?: item.tagColor),
                 label = item.tagName ?: stringResource(R.string.trip_analysis_untagged),
                 cents = item.displayCents(mode, days),
                 maxCents = maxCents,
-                supporting = if (mode == TripBreakdownMode.TOTAL) averagePerDay(item.actualCents, days) else null,
+                percentOfCents = abs(item.actualCents),
+                totalCents = totalCents,
             )
         }
     }
 }
 
+/** A category/tag breakdown row: icon + name + amount + percent bar (mirrors Analysis's own rows). */
 @Composable
-private fun TripMovementSection(items: List<MovementSummary>) {
-    AnalysisSection(title = stringResource(R.string.trip_detail_movements), isEmpty = items.isEmpty()) {
-        items.forEach { movement ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = movement.displayTitle(),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    Text(
-                        text = listOfNotNull(movement.date, movement.categoryName, movement.tagName)
-                            .joinToString(" / "),
-                        color = FinanceTheme.colors.mutedText,
-                        style = MaterialTheme.typography.labelSmall,
-                    )
-                }
+private fun TripBreakdownRow(
+    icon: ImageVector,
+    color: Color,
+    label: String,
+    cents: Long,
+    maxCents: Long,
+    percentOfCents: Long,
+    totalCents: Long,
+) {
+    val fraction = (abs(cents).toFloat() / maxCents.toFloat()).coerceIn(0f, 1f)
+    val pctFraction = (percentOfCents.toFloat() / totalCents.toFloat()).coerceIn(0f, 1f)
+    val pctText = if (pctFraction < 0.005f) "<1%" else "${(pctFraction * 100).roundToInt()}%"
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 7.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconChip(icon = icon, contentDescription = null, color = color, size = 36.dp)
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                text = label,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.titleSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Column(horizontalAlignment = Alignment.End) {
                 MoneyText(
-                    cents = movement.signedAmountCents(),
-                    color = FinanceTheme.colors.amountColor(movement.type),
-                    style = MaterialTheme.typography.bodyMedium,
-                    signed = movement.type != MovementType.EXPENSE && movement.type != MovementType.TRANSFER,
+                    cents = cents,
+                    color = FinanceTheme.colors.expense,
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                Text(
+                    text = pctText,
+                    color = FinanceTheme.colors.mutedText,
+                    style = MaterialTheme.typography.labelSmall,
                 )
             }
         }
+        LinearProgressIndicator(
+            progress = { fraction },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(5.dp),
+            color = color,
+            trackColor = MaterialTheme.colorScheme.surfaceVariant,
+            drawStopIndicator = {},
+        )
     }
 }
 
@@ -690,47 +953,6 @@ private fun AnalysisSection(
 }
 
 @Composable
-private fun AmountBarRow(
-    label: String,
-    cents: Long,
-    maxCents: Long,
-    supporting: String? = null,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(text = label, style = MaterialTheme.typography.bodyMedium)
-                supporting?.let {
-                    Text(
-                        text = it,
-                        color = FinanceTheme.colors.mutedText,
-                        style = MaterialTheme.typography.labelSmall,
-                    )
-                }
-            }
-            MoneyText(
-                cents = cents,
-                color = FinanceTheme.colors.expense,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        }
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(6.dp)
-                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(50)),
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth((abs(cents).toFloat() / maxCents.toFloat()).coerceIn(0f, 1f))
-                    .height(6.dp)
-                    .background(FinanceTheme.colors.expense, RoundedCornerShape(50)),
-            )
-        }
-    }
-}
-
-@Composable
 private fun DetailLine(
     label: String,
     value: String,
@@ -748,6 +970,7 @@ private fun DetailLine(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TripFormDialog(
     form: TripFormState,
@@ -756,119 +979,113 @@ private fun TripFormDialog(
     onDismiss: () -> Unit,
     onSave: () -> Unit,
 ) {
-    AlertDialog(
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        title = {
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .navigationBarsPadding()
+                .imePadding()
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
             Text(
                 text = stringResource(
                     if (form.id == null) R.string.trip_form_new_title else R.string.trip_form_edit_title,
                 ),
+                style = MaterialTheme.typography.titleLarge,
             )
-        },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+            form.errorRes?.let {
+                InlineBanner(kind = BannerKind.Error, text = stringResource(it))
+            }
+            form.errorMessage?.let {
+                InlineBanner(kind = BannerKind.Error, text = it)
+            }
+            OutlinedTextField(
+                value = form.name,
+                onValueChange = { onFormChange(form.copy(name = it)) },
+                label = { Text(text = stringResource(R.string.trip_field_name)) },
+                singleLine = true,
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            SegmentedControl(
+                options = TripType.entries,
+                selected = form.type,
+                label = { it.label() },
+                onSelect = { onFormChange(form.copy(type = it)) },
+            )
+            SegmentedControl(
+                options = TripStatus.entries,
+                selected = form.status,
+                label = { it.label() },
+                onSelect = { onFormChange(form.copy(status = it)) },
+            )
+            FormDatePicker(
+                label = stringResource(R.string.trip_field_start_date),
+                date = form.startDate,
+                onDateChange = { onFormChange(form.copy(startDate = it)) },
+            )
+            FormDatePicker(
+                label = stringResource(R.string.trip_field_end_date),
+                date = form.endDate,
+                onDateChange = { onFormChange(form.copy(endDate = it)) },
+            )
+            FormSelect(
+                label = stringResource(R.string.trip_field_default_account),
+                options = listOf(SelectOption(id = null, label = stringResource(R.string.trip_detail_no_default_account))) +
+                    accounts.map { SelectOption(id = it.id, label = it.name) },
+                selectedId = form.defaultAccountId,
+                onSelect = { onFormChange(form.copy(defaultAccountId = it)) },
+                placeholder = stringResource(R.string.trip_detail_no_default_account),
+            )
+            ColorPickerRow(
+                label = stringResource(R.string.trip_field_color),
+                selectedHex = form.color.ifBlank { null },
+                onSelect = { onFormChange(form.copy(color = it)) },
+            )
+            IconPickerRow(
+                label = stringResource(R.string.trip_field_icon),
+                options = CategoryIconPalette,
+                selectedKey = form.icon.ifBlank { null },
+                onSelect = { onFormChange(form.copy(icon = it)) },
+            )
+            OutlinedTextField(
+                value = form.notes,
+                onValueChange = { onFormChange(form.copy(notes = it)) },
+                label = { Text(text = stringResource(R.string.trip_field_notes)) },
+                minLines = 2,
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                form.errorRes?.let {
-                    InlineBanner(kind = BannerKind.Error, text = stringResource(it))
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f),
+                    shape = MaterialTheme.shapes.small,
+                ) {
+                    Text(text = stringResource(R.string.common_cancel))
                 }
-                form.errorMessage?.let {
-                    InlineBanner(kind = BannerKind.Error, text = it)
-                }
-                OutlinedTextField(
-                    value = form.name,
-                    onValueChange = { onFormChange(form.copy(name = it)) },
-                    label = { Text(text = stringResource(R.string.trip_field_name)) },
-                    singleLine = true,
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                SegmentedControl(
-                    options = TripType.entries,
-                    selected = form.type,
-                    label = { it.label() },
-                    onSelect = { onFormChange(form.copy(type = it)) },
-                )
-                SegmentedControl(
-                    options = TripStatus.entries,
-                    selected = form.status,
-                    label = { it.label() },
-                    onSelect = { onFormChange(form.copy(status = it)) },
-                )
-                OutlinedTextField(
-                    value = form.startDate,
-                    onValueChange = { onFormChange(form.copy(startDate = it)) },
-                    label = { Text(text = stringResource(R.string.trip_field_start_date)) },
-                    supportingText = { Text(text = stringResource(R.string.movement_date_format_hint)) },
-                    singleLine = true,
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = form.endDate,
-                    onValueChange = { onFormChange(form.copy(endDate = it)) },
-                    label = { Text(text = stringResource(R.string.trip_field_end_date)) },
-                    supportingText = { Text(text = stringResource(R.string.movement_date_format_hint)) },
-                    singleLine = true,
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                ChipFlowSection(label = stringResource(R.string.trip_field_default_account)) {
-                    FinanceFilterChip(
-                        selected = form.defaultAccountId == null,
-                        label = stringResource(R.string.trip_detail_no_default_account),
-                        onClick = { onFormChange(form.copy(defaultAccountId = null)) },
-                    )
-                    accounts.forEach { account ->
-                        FinanceFilterChip(
-                            selected = form.defaultAccountId == account.id,
-                            label = account.name,
-                            onClick = { onFormChange(form.copy(defaultAccountId = account.id)) },
-                        )
-                    }
-                }
-                OutlinedTextField(
-                    value = form.icon,
-                    onValueChange = { onFormChange(form.copy(icon = it)) },
-                    label = { Text(text = stringResource(R.string.trip_field_icon)) },
-                    singleLine = true,
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = form.color,
-                    onValueChange = { onFormChange(form.copy(color = it)) },
-                    label = { Text(text = stringResource(R.string.trip_field_color)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = form.notes,
-                    onValueChange = { onFormChange(form.copy(notes = it)) },
-                    label = { Text(text = stringResource(R.string.trip_field_notes)) },
-                    minLines = 2,
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth(),
+                PrimaryButton(
+                    text = stringResource(
+                        if (form.id == null) R.string.trip_save_new else R.string.trip_save_changes,
+                    ),
+                    onClick = onSave,
+                    modifier = Modifier.weight(1f),
                 )
             }
-        },
-        confirmButton = {
-            PrimaryButton(
-                text = stringResource(
-                    if (form.id == null) R.string.trip_save_new else R.string.trip_save_changes,
-                ),
-                onClick = onSave,
-            )
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.common_cancel))
-            }
-        },
-    )
+        }
+    }
 }
 
 @Composable
@@ -887,16 +1104,6 @@ private fun TripSummary.dateRange(): String? =
         endDate != null -> endDate
         else -> null
     }
-
-@Composable
-private fun TripType.label(): String =
-    stringResource(
-        when (this) {
-            TripType.TRIP -> R.string.trip_type_trip
-            TripType.CELEBRATION -> R.string.trip_type_celebration
-            TripType.OTHER -> R.string.trip_type_other
-        },
-    )
 
 @Composable
 private fun TripStatus.label(): String =
@@ -918,31 +1125,23 @@ private fun TripStatus.filterLabel(): String =
         },
     )
 
-private fun TripType.icon() =
-    when (this) {
-        TripType.TRIP -> Icons.Outlined.Flight
-        TripType.CELEBRATION -> Icons.Outlined.Celebration
-        TripType.OTHER -> Icons.Outlined.Event
+/** [IncomeExpenseChart] cumulates its `expenseCents` series itself, so the per-day deltas feed straight through. */
+private fun List<TripDailyActual>.toChartPoints(): List<IncomeExpenseChartPoint> =
+    map { item ->
+        IncomeExpenseChartPoint(
+            label = formatDayLabel(item.date),
+            bucket = item.date,
+            incomeCents = 0L,
+            expenseCents = item.actualCents,
+        )
     }
 
-private fun TripDetailState.tripDays(): Long {
-    val start = trip.startDate?.let(::parseDateOrNull)
-        ?: dailyActual.firstOrNull()?.date?.let(::parseDateOrNull)
-    val end = trip.endDate?.let(::parseDateOrNull)
-        ?: dailyActual.lastOrNull()?.date?.let(::parseDateOrNull)
-        ?: start
-    if (start == null || end == null || end < start) return 1L
-    return ChronoUnit.DAYS.between(start, end).coerceAtLeast(0L) + 1L
-}
-
-private fun List<TripDailyActual>.displayItems(mode: TripDailyMode): List<TripDailyActual> {
-    if (mode == TripDailyMode.DAILY) return this
-    var runningTotal = 0L
-    return map { item ->
-        runningTotal += item.actualCents
-        item.copy(actualCents = runningTotal)
+private fun formatDayLabel(date: String): String =
+    try {
+        LocalDate.parse(date).dayOfMonth.toString()
+    } catch (_: DateTimeParseException) {
+        date
     }
-}
 
 private fun TripCategoryActual.displayCents(
     mode: TripBreakdownMode,
@@ -966,22 +1165,6 @@ private fun averageCents(cents: Long, days: Long): Long =
     if (days > 0L) cents / days else 0L
 
 @Composable
-private fun averagePerDay(cents: Long, days: Long): String =
-    stringResource(
-        R.string.trip_avg_day_value,
-        formatEuroCents(averageCents(cents, days)),
-    )
-
-@Composable
-private fun TripDailyMode.label(): String =
-    stringResource(
-        when (this) {
-            TripDailyMode.DAILY -> R.string.trip_analysis_mode_daily
-            TripDailyMode.CUMULATIVE -> R.string.trip_analysis_mode_cumulative
-        },
-    )
-
-@Composable
 private fun TripBreakdownMode.label(): String =
     stringResource(
         when (this) {
@@ -989,21 +1172,3 @@ private fun TripBreakdownMode.label(): String =
             TripBreakdownMode.AVG_DAY -> R.string.trip_analysis_mode_avg_day
         },
     )
-
-private fun MovementSummary.displayTitle(): String =
-    name ?: payee ?: categoryName ?: type.name.lowercase()
-
-private fun MovementSummary.signedAmountCents(): Long =
-    when (type) {
-        MovementType.EXPENSE -> -amountCents
-        MovementType.SETTLEMENT ->
-            if (settlementDirection == SettlementDirection.USER_TO_PERSON) -amountCents else amountCents
-        else -> amountCents
-    }
-
-private fun parseDateOrNull(raw: String): LocalDate? =
-    try {
-        LocalDate.parse(raw)
-    } catch (_: RuntimeException) {
-        null
-    }

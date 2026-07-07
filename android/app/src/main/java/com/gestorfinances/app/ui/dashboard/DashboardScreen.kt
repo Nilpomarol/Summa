@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -27,6 +28,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -46,6 +48,9 @@ import com.gestorfinances.app.data.repository.AccountSummary
 import com.gestorfinances.app.data.repository.AnalysisCategoryTotal
 import com.gestorfinances.app.data.repository.MovementSummary
 import com.gestorfinances.app.data.repository.MovementType
+import com.gestorfinances.app.data.repository.TripSummary
+import com.gestorfinances.app.data.repository.TripType
+import com.gestorfinances.app.data.repository.icon
 import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.FinanceFilterChip
 import com.gestorfinances.app.ui.common.IconChip
@@ -74,6 +79,8 @@ fun DashboardScreen(
     onSettings: () -> Unit,
     onDrillDown: (MovementFilters) -> Unit,
     onMovementDetail: (MovementSummary) -> Unit,
+    onViewTrip: (TripSummary) -> Unit,
+    onAddTripMovement: (TripSummary) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsState()
@@ -89,6 +96,8 @@ fun DashboardScreen(
         onMovementDetail = onMovementDetail,
         onHeroAccountSelected = viewModel::onHeroAccountSelected,
         onCategoryModeChanged = viewModel::onCategoryModeChanged,
+        onViewTrip = onViewTrip,
+        onAddTripMovement = onAddTripMovement,
         modifier = modifier,
     )
 }
@@ -101,6 +110,8 @@ private fun DashboardContent(
     onMovementDetail: (MovementSummary) -> Unit,
     onHeroAccountSelected: (String?) -> Unit,
     onCategoryModeChanged: (CategoryDisplayMode) -> Unit,
+    onViewTrip: (TripSummary) -> Unit,
+    onAddTripMovement: (TripSummary) -> Unit,
     modifier: Modifier,
 ) {
     LazyColumn(
@@ -121,6 +132,16 @@ private fun DashboardContent(
                 onAccountSelected = onHeroAccountSelected,
                 onDrillDown = onDrillDown,
             )
+        }
+
+        state.activeTrip?.let { trip ->
+            item {
+                ActiveTripCard(
+                    trip = trip,
+                    onViewTrip = { onViewTrip(trip) },
+                    onAddMovement = { onAddTripMovement(trip) },
+                )
+            }
         }
 
         state.errorMessage?.let { message ->
@@ -472,6 +493,64 @@ private fun RowScope.HeroKpiCell(
             overflow = TextOverflow.Ellipsis,
         )
         value()
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Active trip quick-link card
+// ---------------------------------------------------------------------------
+
+@Composable
+private fun ActiveTripCard(
+    trip: TripSummary,
+    onViewTrip: () -> Unit,
+    onAddMovement: () -> Unit,
+) {
+    FinanceCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                IconChip(
+                    icon = trip.type.icon(),
+                    contentDescription = null,
+                    color = categoryColor(trip.color),
+                    size = 40.dp,
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.dashboard_active_trip_title),
+                        color = FinanceTheme.colors.mutedText,
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                    Text(
+                        text = trip.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                MoneyText(
+                    cents = trip.totalActualCents,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                TextButton(onClick = onViewTrip, modifier = Modifier.weight(1f)) {
+                    Text(text = stringResource(R.string.dashboard_active_trip_view))
+                }
+                Button(onClick = onAddMovement, modifier = Modifier.weight(1f)) {
+                    Text(text = stringResource(R.string.dashboard_active_trip_add_movement))
+                }
+            }
+        }
     }
 }
 

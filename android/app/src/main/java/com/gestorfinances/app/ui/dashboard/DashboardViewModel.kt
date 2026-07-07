@@ -10,6 +10,8 @@ import com.gestorfinances.app.data.repository.AnalysisPeriodTotals
 import com.gestorfinances.app.data.repository.AnalysisRepository
 import com.gestorfinances.app.data.repository.MovementRepository
 import com.gestorfinances.app.data.repository.MovementSummary
+import com.gestorfinances.app.data.repository.TripRepository
+import com.gestorfinances.app.data.repository.TripSummary
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.CoroutineDispatcher
@@ -26,6 +28,7 @@ class DashboardViewModel(
     private val analysisRepository: AnalysisRepository,
     private val accountRepository: AccountRepository,
     private val movementRepository: MovementRepository,
+    private val tripRepository: TripRepository,
     private val todayProvider: () -> LocalDate = { LocalDate.now() },
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
@@ -49,7 +52,8 @@ class DashboardViewModel(
             _state.value = _state.value.copy(isLoading = true, errorMessage = null)
             val result = withContext(ioDispatcher) {
                 runCatching {
-                    val month = YearMonth.from(todayProvider())
+                    val today = todayProvider()
+                    val month = YearMonth.from(today)
                     val fromDate = month.atDay(1)
                     val toDate = month.plusMonths(1).atDay(1)
                     DashboardLoadedData(
@@ -64,6 +68,7 @@ class DashboardViewModel(
                         ).take(6),
                         accounts = accountRepository.listActive(),
                         latestMovements = movementRepository.listActive().take(5),
+                        activeTrip = tripRepository.activeToday(today.toString()),
                     )
                 }
             }
@@ -75,6 +80,7 @@ class DashboardViewModel(
                         categories = it.categories,
                         accounts = it.accounts,
                         latestMovements = it.latestMovements,
+                        activeTrip = it.activeTrip,
                         isLoading = false,
                     )
                 },
@@ -92,6 +98,7 @@ class DashboardViewModel(
         private val analysisRepository: AnalysisRepository,
         private val accountRepository: AccountRepository,
         private val movementRepository: MovementRepository,
+        private val tripRepository: TripRepository,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -100,6 +107,7 @@ class DashboardViewModel(
                     analysisRepository = analysisRepository,
                     accountRepository = accountRepository,
                     movementRepository = movementRepository,
+                    tripRepository = tripRepository,
                 ) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
@@ -120,6 +128,7 @@ data class DashboardUiState(
     val categories: List<AnalysisCategoryTotal> = emptyList(),
     val accounts: List<AccountSummary> = emptyList(),
     val latestMovements: List<MovementSummary> = emptyList(),
+    val activeTrip: TripSummary? = null,
     val selectedHeroAccountId: String? = null,
     val categoryMode: CategoryDisplayMode = CategoryDisplayMode.EXPENSES,
     val isLoading: Boolean = true,
@@ -135,4 +144,5 @@ private data class DashboardLoadedData(
     val categories: List<AnalysisCategoryTotal>,
     val accounts: List<AccountSummary>,
     val latestMovements: List<MovementSummary>,
+    val activeTrip: TripSummary?,
 )

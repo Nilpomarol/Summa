@@ -248,13 +248,22 @@ CREATE TABLE trips (
 -- A trip budget is a `budgets` row with scope='trip' (budgets are a separate entity, spec §8).
 
 CREATE TABLE tags (
-    id      TEXT PRIMARY KEY,
-    name    TEXT NOT NULL,
+    id          TEXT PRIMARY KEY,
+    name        TEXT NOT NULL,
     icon TEXT, color TEXT,
-    trip_id TEXT REFERENCES trips(id),               -- NULL ⇒ global (reusable); set ⇒ trip-local (spec §3.13)
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL, archived_at TEXT
+    trip_id     TEXT REFERENCES trips(id),           -- NULL ⇒ global (reusable); set ⇒ trip-local (spec §3.13)
+    category_id TEXT REFERENCES categories(id),      -- optional "subcategory" association: inherit icon/color, roll up for cross-trip analysis
+    trip_type   TEXT,                                -- optional event-type scope (values match TripType.dbValue: 'trip'/'celebration'/'other')
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL, archived_at TEXT,
+
+    CHECK ( trip_id IS NULL OR trip_type IS NULL )   -- a tag is global (both NULL), OR type-scoped, OR trip-specific — never two at once
 );
 CREATE INDEX idx_tags_trip ON tags(trip_id) WHERE trip_id IS NOT NULL;
+-- schema_version=3: migration 003_add_tag_category_and_type.sql adds category_id/trip_type to tags.
+-- The CHECK above only applies to fresh installs — SQLite's ADD COLUMN cannot introduce a
+-- multi-column CHECK for existing (upgraded) databases, so the app layer (TagsViewModel) mirrors
+-- this rule for upgraders, matching how migration 002 added splits.tag_id without retrofitting a
+-- matching CHECK either.
 
 -- Recurring pattern detection (spec §3.10 [DECIDED] addendum) proposes rows here through the same
 -- create/update path as manual template entry — there is no dedicated detection schema; a
@@ -348,8 +357,14 @@ CREATE TABLE meta (                                    -- key/value; no mixin
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
--- seed: ('schema_version','2'), ('snapshot_version','0'); also app settings (theme, default lead days, ...).
+-- seed: ('schema_version','4'), ('snapshot_version','0'); also app settings (theme, default lead days, ...).
 -- schema_version=2: migration 002_add_splits_tag_id.sql adds tag_id to splits (C1).
+-- schema_version=3: migration 003_add_tag_category_and_type.sql adds category_id/trip_type to tags.
+-- schema_version=4: migration 004_add_v_trip_actual_total_view.sql creates v_trip_actual_total for
+--   upgraders (fresh installs already get it via shared/queries/v_trip_actual_total.sql), and
+--   recreates v_actual_expense with its current tag_id-per-branch shape — that view has existed
+--   since before schema_version existed (never embedded in any earlier migration), so any
+--   database ever fresh-created before the tag_id fix needs it recreated on upgrade too.
 ```
 
 ---
@@ -404,7 +419,7 @@ FROM accounts a;
 ```sql
 CREATE VIEW v_actual_expense AS
 -- (a) own expense movements: full amount if not shared, else the user's own split line
-SELECT m.id AS source_id, m.date, m.category_id, m.trip_id,
+SELECT m.id AS source_id, m.date, m.category_id, m.trip_id, m.tag_id,
        CASE WHEN s.id IS NULL THEN m.amount_cents
             ELSE COALESCE((SELECT sl.owed_amount_cents FROM split_lines sl
                            WHERE sl.split_id = s.id AND sl.participant_kind = 'user'
@@ -416,20 +431,27 @@ LEFT JOIN splits s ON s.movement_id = m.id AND s.archived_at IS NULL
 WHERE m.type = 'expense' AND m.archived_at IS NULL
 UNION ALL
 -- (b) refunds: negative contribution in the refund's own category & period (spec §3.3b, §4.2);
---     inherit the refunded expense's one-time flag so excluding one-time drops the refund too
-SELECT m.id, m.date, m.category_id, m.trip_id, -COALESCE(m.actual_refund_cents, m.amount_cents),
+--     inherit the refunded expense's tag_id and one-time flag so excluding one-time drops the refund too
+SELECT m.id, m.date, m.category_id, m.trip_id,
+       (SELECT e.tag_id FROM movements e WHERE e.id = m.refunds_expense_id),
+       -COALESCE(m.actual_refund_cents, m.amount_cents),
        COALESCE((SELECT e.is_one_time FROM movements e WHERE e.id = m.refunds_expense_id), 0)
 FROM movements m
 WHERE m.type = 'refund' AND m.archived_at IS NULL
 UNION ALL
 -- (c) §2.6 friend-paid shares (no movement): the user's own line counts (decision A, §5); not one-time-flaggable in v1
-SELECT s.id, s.date, s.category_id, s.trip_id,
+SELECT s.id, s.date, s.category_id, s.trip_id, s.tag_id,
        COALESCE((SELECT sl.owed_amount_cents FROM split_lines sl
                  WHERE sl.split_id = s.id AND sl.participant_kind = 'user'
                    AND sl.archived_at IS NULL), 0),
        0
 FROM splits s
 WHERE s.payer_person_id IS NOT NULL AND s.movement_id IS NULL AND s.archived_at IS NULL;
+```
+
+`v_actual_expense` exposes `tag_id` directly on every branch (movements' own `tag_id`, refunds inheriting the refunded expense's `tag_id`, and external splits' own `tag_id` — added alongside the `tags.category_id`/`trip_type` columns below) so trip/tag analysis can group on it without re-joining `movements`, which would silently drop the tag on external splits (their `source_id` is a `splits.id`, not a `movements.id`).
+
+```sql
 
 CREATE VIEW v_actual_income AS                          -- settlements and refunds are NOT income
 SELECT m.id AS source_id, m.date, m.category_id, m.trip_id, m.amount_cents
@@ -487,6 +509,18 @@ GROUP BY bucket;
 ```
 
 Fixed-vs-variable joins `v_actual_expense` → `categories.nature`; one-time (extraordinary) spend is the `is_one_time` flag carried on `v_actual_expense` — shown as its own bucket or excluded via the toggle above (refunds inherit their expense's flag); account-flow-over-time aggregates `v_account_flow` by `(account_id, date)`; period comparison runs the same query over two ranges. The first reusable P2 query files live in `shared/queries/analysis_*.sql` and cover actual-by-category, account-flow-over-time, income-vs-expense, and period totals. All analysis in spec §4.8 reduces to filters/aggregations over these five views.
+
+### 7.6 Per-trip actual total (list/detail rollup)
+
+```sql
+CREATE VIEW v_trip_actual_total AS
+SELECT trip_id, SUM(amount_cents) AS total_actual_cents
+FROM v_actual_expense
+WHERE trip_id IS NOT NULL
+GROUP BY trip_id;
+```
+
+`v_trip_actual_total` is a thin rollup over `v_actual_expense` used by the trip list/detail cards (`total_actual_cents`); it lives under `shared/queries/` like the other derived views so both apps join against one definition instead of pasting the same `GROUP BY trip_id` subquery per call site.
 
 ---
 

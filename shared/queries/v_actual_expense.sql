@@ -4,6 +4,7 @@ SELECT
     m.date,
     m.category_id,
     m.trip_id,
+    m.tag_id,
     CASE
         WHEN s.id IS NULL THEN m.amount_cents
         ELSE COALESCE((
@@ -29,6 +30,11 @@ SELECT
     m.date,
     m.category_id,
     m.trip_id,
+    (
+        SELECT e.tag_id
+        FROM movements e
+        WHERE e.id = m.refunds_expense_id
+    ) AS tag_id,
     -COALESCE(m.actual_refund_cents, m.amount_cents) AS amount_cents,
     COALESCE((
         SELECT e.is_one_time
@@ -46,6 +52,7 @@ SELECT
     s.date,
     s.category_id,
     s.trip_id,
+    s.tag_id,
     COALESCE((
         SELECT sl.owed_amount_cents
         FROM split_lines sl

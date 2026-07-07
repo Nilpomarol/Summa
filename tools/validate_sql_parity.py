@@ -17,6 +17,7 @@ VIEW_FILES = [
     "v_actual_expense.sql",
     "v_actual_income.sql",
     "v_person_balance.sql",
+    "v_trip_actual_total.sql",
 ]
 ANALYSIS_QUERY_FILES = [
     "analysis_actual_breakdown.sql",

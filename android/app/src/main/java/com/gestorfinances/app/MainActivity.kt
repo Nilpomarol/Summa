@@ -84,6 +84,7 @@ import com.gestorfinances.app.ui.settings.SettingsViewModel
 import com.gestorfinances.app.ui.tags.TagsScreen
 import com.gestorfinances.app.ui.tags.TagsViewModel
 import com.gestorfinances.app.ui.theme.GestorFinancesTheme
+import com.gestorfinances.app.ui.trips.TripDetailScreen
 import com.gestorfinances.app.ui.trips.TripsScreen
 import com.gestorfinances.app.ui.trips.TripsViewModel
 import com.gestorfinances.app.notifications.DESTINATION_ACCOUNTS
@@ -237,6 +238,7 @@ private fun LedgerShell(
                 analysisRepository = appContainer.analysisRepository,
                 accountRepository = appContainer.accountRepository,
                 movementRepository = appContainer.movementRepository,
+                tripRepository = appContainer.tripRepository,
             ),
         )[DashboardViewModel::class.java]
     }
@@ -321,6 +323,8 @@ private fun LedgerShell(
                 tripAnalysisRepository = appContainer.tripAnalysisRepository,
                 movementRepository = appContainer.movementRepository,
                 accountRepository = appContainer.accountRepository,
+                budgetRepository = appContainer.budgetRepository,
+                tagRepository = appContainer.tagRepository,
             ),
         )[TripsViewModel::class.java]
     }
@@ -330,6 +334,7 @@ private fun LedgerShell(
             TagsViewModel.Factory(
                 tagRepository = appContainer.tagRepository,
                 tripRepository = appContainer.tripRepository,
+                categoryRepository = appContainer.categoryRepository,
             ),
         )[TagsViewModel::class.java]
     }
@@ -472,6 +477,26 @@ private fun LedgerShell(
                 )
                 return@Scaffold
             }
+            is AppOverlay.TripDetail -> {
+                LaunchedEffect(overlay.tripId) {
+                    tripsViewModel.onDetailOpened(overlay.tripId)
+                }
+                TripDetailScreen(
+                    viewModel = tripsViewModel,
+                    onBack = {
+                        tripsViewModel.onDetailDismissed()
+                        nav = nav.back()
+                    },
+                    onNewMovement = { trip -> openMovementForm(trip.id) },
+                    onManageTags = { tripId -> nav = nav.copy(overlay = AppOverlay.Tags(tripId = tripId)) },
+                    onManageBudget = { tripId -> nav = nav.copy(overlay = AppOverlay.Budgets(tripId = tripId)) },
+                    onMovementDetail = movementsViewModel::onDetailClicked,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                )
+                return@Scaffold
+            }
             null -> Unit
         }
         when (nav.section) {
@@ -482,6 +507,8 @@ private fun LedgerShell(
                 onSettings = { showManagement(ManagementDestination.SETTINGS) },
                 onDrillDown = openMovements,
                 onMovementDetail = movementsViewModel::onDetailClicked,
+                onViewTrip = { trip -> nav = nav.copy(overlay = AppOverlay.TripDetail(tripId = trip.id)) },
+                onAddTripMovement = { trip -> openMovementForm(trip.id) },
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
@@ -541,18 +568,8 @@ private fun LedgerShell(
                 )
                 ManagementDestination.EVENTS -> TripsScreen(
                     viewModel = tripsViewModel,
-                    onNewMovement = { trip ->
-                        tripsViewModel.onDetailDismissed()
-                        openMovementForm(trip.id)
-                    },
-                    onManageTags = { tripId ->
-                        tripsViewModel.onDetailDismissed()
-                        nav = nav.copy(overlay = AppOverlay.Tags(tripId = tripId))
-                    },
-                    onManageBudget = { tripId ->
-                        tripsViewModel.onDetailDismissed()
-                        nav = nav.copy(overlay = AppOverlay.Budgets(tripId = tripId))
-                    },
+                    onOpenDetail = { trip -> nav = nav.copy(overlay = AppOverlay.TripDetail(tripId = trip.id)) },
+                    onManageTags = { tripId -> nav = nav.copy(overlay = AppOverlay.Tags(tripId = tripId)) },
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),

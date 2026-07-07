@@ -3,6 +3,7 @@ WITH actual AS (
     SELECT COALESCE(SUM(amount_cents), 0) AS actual_cents
     FROM v_actual_expense
     WHERE trip_id = :trip_id
+      AND (:exclude_one_time = 0 OR is_one_time = 0)
 ),
 outflow AS (
     SELECT COALESCE(SUM(CASE WHEN f.delta_cents < 0 THEN -f.delta_cents ELSE 0 END), 0) AS flow_cents
@@ -11,6 +12,7 @@ outflow AS (
         ON m.id = f.movement_id
     WHERE m.trip_id = :trip_id
       AND m.archived_at IS NULL
+      AND (:exclude_one_time = 0 OR m.is_one_time = 0)
 )
 SELECT
     actual.actual_cents,
@@ -23,6 +25,7 @@ SELECT
     SUM(amount_cents) AS actual_cents
 FROM v_actual_expense
 WHERE trip_id = :trip_id
+  AND (:exclude_one_time = 0 OR is_one_time = 0)
 GROUP BY date
 HAVING SUM(amount_cents) <> 0
 ORDER BY date ASC;
@@ -39,6 +42,7 @@ LEFT JOIN categories c
     ON c.id = e.category_id
    AND c.archived_at IS NULL
 WHERE e.trip_id = :trip_id
+  AND (:exclude_one_time = 0 OR e.is_one_time = 0)
 GROUP BY
     category_id,
     category_name,
@@ -49,18 +53,16 @@ ORDER BY ABS(SUM(e.amount_cents)) DESC, lower(COALESCE(category_name, '')) ASC;
 
 tripActualByTag:
 SELECT
-    CAST(CASE WHEN t.id IS NULL THEN NULL ELSE m.tag_id END AS TEXT) AS tag_id,
+    CAST(CASE WHEN t.id IS NULL THEN NULL ELSE e.tag_id END AS TEXT) AS tag_id,
     t.name AS tag_name,
     t.color AS tag_color,
     SUM(e.amount_cents) AS actual_cents
 FROM v_actual_expense e
-LEFT JOIN movements m
-    ON m.id = e.source_id
-   AND m.archived_at IS NULL
 LEFT JOIN tags t
-    ON t.id = m.tag_id
+    ON t.id = e.tag_id
    AND t.archived_at IS NULL
 WHERE e.trip_id = :trip_id
+  AND (:exclude_one_time = 0 OR e.is_one_time = 0)
 GROUP BY
     tag_id,
     tag_name,

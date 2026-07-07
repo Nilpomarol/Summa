@@ -13,7 +13,8 @@ internal static class SharedSql
         "v_account_balance.sql",
         "v_actual_expense.sql",
         "v_actual_income.sql",
-        "v_person_balance.sql"
+        "v_person_balance.sql",
+        "v_trip_actual_total.sql"
     ];
 
     private static readonly string[] AnalysisQueryFiles =
