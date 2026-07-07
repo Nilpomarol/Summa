@@ -37,6 +37,8 @@ sealed interface AppOverlay {
     data class Budgets(override val tripId: String?) : AppOverlay
 
     data class Tags(override val tripId: String?) : AppOverlay
+
+    data class TripDetail(override val tripId: String) : AppOverlay
 }
 
 /**

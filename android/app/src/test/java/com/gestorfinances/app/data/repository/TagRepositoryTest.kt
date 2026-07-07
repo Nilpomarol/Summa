@@ -50,6 +50,72 @@ class TagRepositoryTest {
     }
 
     @Test
+    fun tagCategoryJoinSurfacesCategoryFieldsAndEffectiveFallbacksApply() {
+        freshStore().use { store ->
+            store.categories.create(
+                CategoryDraft(
+                    id = "food",
+                    name = "Menjar",
+                    kind = CategoryKind.EXPENSE,
+                    nature = CategoryNature.VARIABLE,
+                    parentId = null,
+                    icon = "restaurant",
+                    color = "#F97316",
+                    displayOrder = 0,
+                ),
+                createdAt = NOW,
+            )
+
+            // Tag with no icon/color of its own: falls back to the category's.
+            store.tags.create(
+                TagDraft(
+                    id = "restaurants",
+                    name = "Restaurants",
+                    icon = null,
+                    color = null,
+                    tripId = null,
+                    categoryId = "food",
+                ),
+                createdAt = NOW,
+            )
+            // Tag with its own icon/color: keeps them, ignoring the category's.
+            store.tags.create(
+                TagDraft(
+                    id = "fine-dining",
+                    name = "Sopars especials",
+                    icon = "star",
+                    color = "#DC2626",
+                    tripId = null,
+                    categoryId = "food",
+                ),
+                createdAt = NOW,
+            )
+
+            val restaurants = store.tags.getActive("restaurants")!!
+            assertEquals("food", restaurants.categoryId)
+            assertEquals("Menjar", restaurants.categoryName)
+            assertEquals("restaurant", restaurants.categoryIcon)
+            assertEquals("#F97316", restaurants.categoryColor)
+            assertEquals("restaurant", restaurants.effectiveIcon())
+            assertEquals("#F97316", restaurants.effectiveColor())
+
+            val fineDining = store.tags.getActive("fine-dining")!!
+            assertEquals("star", fineDining.effectiveIcon())
+            assertEquals("#DC2626", fineDining.effectiveColor())
+
+            // A tag with neither its own nor a category's icon/color falls back to null.
+            store.tags.create(
+                TagDraft(id = "bare", name = "Bare", icon = null, color = null, tripId = null),
+                createdAt = NOW,
+            )
+            val bare = store.tags.getActive("bare")!!
+            assertNull(bare.categoryId)
+            assertNull(bare.effectiveIcon())
+            assertNull(bare.effectiveColor())
+        }
+    }
+
+    @Test
     fun activeTagsExcludesLocalTagsForArchivedTrips() {
         freshStore().use { store ->
             store.trips.create(tripDraft("mallorca"), createdAt = NOW)
@@ -88,6 +154,7 @@ class TagRepositoryTest {
         val database = GestorDatabase(driver)
         return TestStore(
             driver = driver,
+            categories = CategoryRepository(database.categoriesQueries),
             tags = TagRepository(database.tagsQueries),
             trips = TripRepository(database.tripsQueries),
         )
@@ -95,6 +162,7 @@ class TagRepositoryTest {
 
     private class TestStore(
         private val driver: JdbcSqliteDriver,
+        val categories: CategoryRepository,
         val tags: TagRepository,
         val trips: TripRepository,
     ) : AutoCloseable {

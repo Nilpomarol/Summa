@@ -30,17 +30,45 @@ data class TripTagActual(
 class TripAnalysisRepository(
     private val queries: TripAnalysisQueries,
 ) {
-    fun summary(tripId: String): TripAnalysisSummary =
-        queries.tripAnalysisSummary(trip_id = tripId, mapper = ::mapSummary).executeAsOne()
+    fun summary(
+        tripId: String,
+        excludeOneTime: Boolean = false,
+    ): TripAnalysisSummary =
+        queries.tripAnalysisSummary(
+            trip_id = tripId,
+            exclude_one_time = if (excludeOneTime) 1L else 0L,
+            mapper = ::mapSummary,
+        ).executeAsOne()
 
-    fun actualByDay(tripId: String): List<TripDailyActual> =
-        queries.tripActualByDay(trip_id = tripId, mapper = ::mapDailyActual).executeAsList()
+    fun actualByDay(
+        tripId: String,
+        excludeOneTime: Boolean = false,
+    ): List<TripDailyActual> =
+        queries.tripActualByDay(
+            trip_id = tripId,
+            exclude_one_time = if (excludeOneTime) 1L else 0L,
+            mapper = ::mapDailyActual,
+        ).executeAsList()
 
-    fun actualByCategory(tripId: String): List<TripCategoryActual> =
-        queries.tripActualByCategory(trip_id = tripId, mapper = ::mapCategoryActual).executeAsList()
+    fun actualByCategory(
+        tripId: String,
+        excludeOneTime: Boolean = false,
+    ): List<TripCategoryActual> =
+        queries.tripActualByCategory(
+            trip_id = tripId,
+            exclude_one_time = if (excludeOneTime) 1L else 0L,
+            mapper = ::mapCategoryActual,
+        ).executeAsList()
 
-    fun actualByTag(tripId: String): List<TripTagActual> =
-        queries.tripActualByTag(trip_id = tripId, mapper = ::mapTagActual).executeAsList()
+    fun actualByTag(
+        tripId: String,
+        excludeOneTime: Boolean = false,
+    ): List<TripTagActual> =
+        queries.tripActualByTag(
+            trip_id = tripId,
+            exclude_one_time = if (excludeOneTime) 1L else 0L,
+            mapper = ::mapTagActual,
+        ).executeAsList()
 }
 
 private fun mapSummary(

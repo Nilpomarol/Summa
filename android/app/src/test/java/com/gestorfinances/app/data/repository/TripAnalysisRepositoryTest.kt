@@ -77,6 +77,99 @@ class TripAnalysisRepositoryTest {
         }
     }
 
+    @Test
+    fun externalSplitWithItsOwnTagSurfacesInActualByTag() {
+        // Regression test for the bug fixed alongside Slice A: tripActualByTag used to re-join
+        // movements on e.source_id, which silently dropped the tag for external splits because
+        // their source_id is a splits.id, not a movements.id. v_actual_expense now exposes
+        // tag_id directly for external splits, so this must surface under its own tag bucket
+        // rather than falling into the untagged (tag_id IS NULL) group.
+        freshStore().use { store ->
+            store.people.create(
+                PersonDraft(id = "anna", name = "Anna", avatar = null, color = null, notes = null),
+                createdAt = NOW,
+            )
+            store.trips.create(tripDraft("mallorca"), createdAt = NOW)
+            store.tags.create(TagDraft("transport", "Transport", null, null, "mallorca"), createdAt = NOW)
+
+            store.splits.createExternalPaidByPerson(
+                ExternalSplitDraft(
+                    id = "split-taxi",
+                    payerPersonId = "anna",
+                    totalAmountCents = 1_200,
+                    userShareCents = 1_200,
+                    date = "2026-08-01",
+                    description = "Taxi aeroport",
+                    categoryId = null,
+                    tripId = "mallorca",
+                    tagId = "transport",
+                ),
+                createdAt = NOW,
+            )
+
+            val tags = store.tripAnalysis.actualByTag("mallorca")
+
+            assertEquals(listOf("transport" to 1_200L), tags.map { it.tagId to it.actualCents })
+        }
+    }
+
+    @Test
+    fun excludeOneTimeFiltersOutFixedCostsFromTripActualByDay() {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking", displayOrder = 0), createdAt = NOW)
+            store.trips.create(tripDraft("mallorca"), createdAt = NOW)
+
+            store.movements.create(
+                MovementDraft(
+                    id = "flight",
+                    type = MovementType.EXPENSE,
+                    amountCents = 20_000,
+                    date = "2026-08-01",
+                    accountId = "checking",
+                    destinationAccountId = null,
+                    categoryId = null,
+                    tripId = "mallorca",
+                    tagId = null,
+                    name = "Vol",
+                    payee = null,
+                    notes = null,
+                    isOneTime = true,
+                ),
+                createdAt = NOW,
+            )
+            store.movements.create(
+                MovementDraft(
+                    id = "dinner",
+                    type = MovementType.EXPENSE,
+                    amountCents = 3_000,
+                    date = "2026-08-02",
+                    accountId = "checking",
+                    destinationAccountId = null,
+                    categoryId = null,
+                    tripId = "mallorca",
+                    tagId = null,
+                    name = "Sopar",
+                    payee = null,
+                    notes = null,
+                    isOneTime = false,
+                ),
+                createdAt = NOW,
+            )
+
+            val includingOneTime = store.tripAnalysis.actualByDay("mallorca", excludeOneTime = false)
+            val excludingOneTime = store.tripAnalysis.actualByDay("mallorca", excludeOneTime = true)
+
+            assertEquals(
+                listOf("2026-08-01" to 20_000L, "2026-08-02" to 3_000L),
+                includingOneTime.map { it.date to it.actualCents },
+            )
+            assertEquals(
+                listOf("2026-08-02" to 3_000L),
+                excludingOneTime.map { it.date to it.actualCents },
+            )
+        }
+    }
+
     private fun freshStore(): TestStore {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         driver.execute(null, "PRAGMA foreign_keys = ON", 0)
@@ -87,6 +180,8 @@ class TripAnalysisRepositoryTest {
             accounts = AccountRepository(database.accountsQueries),
             categories = CategoryRepository(database.categoriesQueries),
             movements = MovementRepository(database.movementsQueries, database.splitsQueries),
+            people = PersonRepository(database.peopleQueries),
+            splits = SplitRepository(database.splitsQueries),
             tags = TagRepository(database.tagsQueries),
             trips = TripRepository(database.tripsQueries),
             tripAnalysis = TripAnalysisRepository(database.tripAnalysisQueries),
@@ -98,6 +193,8 @@ class TripAnalysisRepositoryTest {
         val accounts: AccountRepository,
         val categories: CategoryRepository,
         val movements: MovementRepository,
+        val people: PersonRepository,
+        val splits: SplitRepository,
         val tags: TagRepository,
         val trips: TripRepository,
         val tripAnalysis: TripAnalysisRepository,

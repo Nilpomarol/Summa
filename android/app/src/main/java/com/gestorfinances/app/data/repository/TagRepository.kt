@@ -9,10 +9,21 @@ data class TagSummary(
     val color: String?,
     val tripId: String?,
     val tripName: String?,
+    val categoryId: String?,
+    val categoryName: String?,
+    val categoryIcon: String?,
+    val categoryColor: String?,
+    val tripType: TripType?,
     val createdAt: String,
     val updatedAt: String,
     val archivedAt: String?,
 )
+
+/** The tag's own icon if set, else the icon of its associated category, else null. */
+fun TagSummary.effectiveIcon(): String? = icon ?: categoryIcon
+
+/** The tag's own color if set, else the color of its associated category, else null. */
+fun TagSummary.effectiveColor(): String? = color ?: categoryColor
 
 data class TagDraft(
     val id: String,
@@ -20,6 +31,8 @@ data class TagDraft(
     val icon: String?,
     val color: String?,
     val tripId: String?,
+    val categoryId: String? = null,
+    val tripType: TripType? = null,
 )
 
 class TagRepository(
@@ -41,6 +54,8 @@ class TagRepository(
             icon = draft.icon,
             color = draft.color,
             trip_id = draft.tripId,
+            category_id = draft.categoryId,
+            trip_type = draft.tripType?.dbValue,
             created_at = createdAt,
             updated_at = createdAt,
         )
@@ -56,6 +71,8 @@ class TagRepository(
             icon = draft.icon,
             color = draft.color,
             trip_id = draft.tripId,
+            category_id = draft.categoryId,
+            trip_type = draft.tripType?.dbValue,
             updated_at = updatedAt,
         )
     }
@@ -79,6 +96,11 @@ private fun mapTagSummary(
     color: String?,
     tripId: String?,
     tripName: String?,
+    categoryId: String?,
+    categoryName: String?,
+    categoryIcon: String?,
+    categoryColor: String?,
+    tripType: String?,
     createdAt: String,
     updatedAt: String,
     archivedAt: String?,
@@ -90,6 +112,11 @@ private fun mapTagSummary(
         color = color,
         tripId = tripId,
         tripName = tripName,
+        categoryId = categoryId,
+        categoryName = categoryName,
+        categoryIcon = categoryIcon,
+        categoryColor = categoryColor,
+        tripType = tripType?.let(TripType::fromDb),
         createdAt = createdAt,
         updatedAt = updatedAt,
         archivedAt = archivedAt,

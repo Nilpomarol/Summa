@@ -17,6 +17,7 @@ VIEW_FILES = [
     "v_actual_expense.sql",
     "v_actual_income.sql",
     "v_person_balance.sql",
+    "v_trip_actual_total.sql",
 ]
 ANALYSIS_QUERY_FILES = [
     "analysis_actual_by_category.sql",
@@ -311,7 +312,7 @@ def validate_entrypoint(label: str, path: Path, expect_seeded_meta: bool) -> Non
         conn.close()
 
     if expect_seeded_meta:
-        expected = {"schema_version": "2", "snapshot_version": "0"}
+        expected = {"schema_version": "4", "snapshot_version": "0"}
         if meta != expected:
             fail(f"{label}: expected meta seed {expected}, got {meta}")
     elif meta:

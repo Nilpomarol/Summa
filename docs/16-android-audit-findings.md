@@ -19,7 +19,7 @@ The audit was performed as a senior-architect review across correctness, functio
 | Tag | Meaning |
 |---|---|
 | `T1` | Tier 1 — Foundation. Fixed before any feature work, to keep a strong base. |
-| `P5R-3` / `P5R-4` / `P5R-5` / `P5R-6` | Owned by that Phase 5R slice (redesign + logic validation). |
+| `P5R-3` / `P5R-4` / `P5R-5` / `P5R-6` / `P5R-7` | Owned by that Phase 5R slice (redesign + logic validation). |
 | `P8` | Owned by Phase 8 release hardening. |
 | `WONTFIX` | Accepted risk; no action planned. |
 | `DESCOPE` | Explicitly moved out of its original roadmap note to a different owner. |
@@ -65,6 +65,7 @@ The implementation plan has three tiers:
 | **M4** | Coroutines dep / sqlite-jdbc / proguard | Maintainability | P8 | Release | Medium |
 | **M5** | Untested multi-write paths | Maintainability | T1 + per-fix | Harness + slices | High |
 | **M6** | `external_expense` missing `sl.archived_at` filter | Maintainability | **RESOLVED** P5R-3 | Fixed in `v_movement_summary` external branch | Medium |
+| **F7** | `tripActualByTag` silently drops external-split tags | Functional | **RESOLVED** P5R-7 | `v_actual_expense` now exposes `tag_id` on every row; `tripActualByTag` groups on it directly, no `movements` re-join | High |
 
 ---
 
@@ -148,6 +149,12 @@ The implementation plan has three tiers:
 - **Resolution (P5R-5, settlement side):** Confirmed already correct and re-verified after the `SettlementDialog` → `SettlementSheet` bottom-sheet conversion: `PeopleViewModel.onSettlementSaveClicked` never validates the amount against the outstanding balance (only amount-positive/account/date), and `PeopleScreen.kt`'s `SettlementSheet` shows a dismissible `InlineBanner` (`settlement_warning_overpay`) when the entered amount exceeds `form.outstandingCents`, without blocking save.
 - **Resolution (P5R-6, refund side — F6-refund):** Verified during the P5R-6 audit that this was already correct, not newly built: `MovementsScreen.kt`'s refund form computes `isOverRefund = parsedAmount > form.remainingCents` and shows a dismissible `InlineBanner(kind = Alert, text = refund_warning_over)` without blocking save — the same pattern as the settlement side. No code change was needed; this row corrects the earlier "still open" note.
 - **Confidence:** Medium.
+
+#### F7 — `tripActualByTag` silently drops external-split tags — **RESOLVED (P5R-7)**
+- **Evidence:** `TripAnalysis.sq`'s `tripActualByTag` re-derived the tag by joining `v_actual_expense` back to `movements` on `e.source_id = m.id` and reading `m.tag_id` from that join. For a §2.6 external split ("someone else paid, I owe my share"), `v_actual_expense`'s `source_id` is the `splits.id`, not a `movements.id` — the join found no row, so `tag_id` silently came back `NULL` for every external-split expense, even when the split itself had its own `tag_id` set. The tag simply vanished from the trip's tag breakdown with no error.
+- **Impact:** Silent data-correctness bug in a shipped feature (Phase 5): any trip expense recorded via an external split (a common pattern for shared travel costs — "my friend paid the taxi, I owe my share") was invisible in `TripDetailScreen`'s "Per etiqueta" breakdown, undercounting that tag's total and inflating the "Sense etiqueta" bucket instead. No crash, no warning — just a silently wrong number, discovered only during this slice's read of `TripAnalysisRepository`/`TripAnalysis.sq` while validating Slice A's schema change.
+- **Resolution:** `shared/queries/v_actual_expense.sql` now exposes `tag_id` directly on every `UNION ALL` branch (movements' own `tag_id`, refunds inherit their linked expense's `tag_id` the same way they already inherit `is_one_time`, and external splits expose their own `s.tag_id`). `TripAnalysis.sq`'s `tripActualByTag` was simplified to group on `e.tag_id` directly — the `LEFT JOIN movements` re-join is gone entirely (a net deletion, not just a fix). Covered by a repository regression test seeding an external split with its own tag on a trip and asserting it now surfaces in `tripActualByTag`.
+- **Confidence:** High.
 
 ### Usability
 
@@ -250,7 +257,7 @@ The implementation plan has three tiers:
   - **P5R-4** (dashboard + analysis): O2, O3, O6, M2 (AnalysisScreen).
   - **P5R-5** (people/splits/debts): F4, F6 (settlement side), §2.6 person-page flow.
   - **P5R-6** (recurring/refunds/budgets): C3, C4, F1 (wiring — or 6C prep), F3, F6 (refund side), plus P4 deferred items (orphan refunds, budget bar in category detail).
-  - **P5R-7** (trips/tags): none.
+  - **P5R-7** (trips/tags): F7 (found and resolved within this slice — `tripActualByTag` external-split tag bug).
   - **P5R-8** (settings/sync): DeviceAccessState placeholder (pre-existing).
   - **P8** (release): C2/U1 full removal, F5, U4 (optional), M4, M1.
 

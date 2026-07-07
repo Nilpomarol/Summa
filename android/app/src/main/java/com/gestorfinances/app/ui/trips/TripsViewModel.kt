@@ -6,8 +6,13 @@ import androidx.lifecycle.viewModelScope
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountRepository
 import com.gestorfinances.app.data.repository.AccountSummary
+import com.gestorfinances.app.data.repository.BudgetEvaluation
+import com.gestorfinances.app.data.repository.BudgetRepository
+import com.gestorfinances.app.data.repository.BudgetScope
 import com.gestorfinances.app.data.repository.MovementRepository
 import com.gestorfinances.app.data.repository.MovementSummary
+import com.gestorfinances.app.data.repository.TagRepository
+import com.gestorfinances.app.data.repository.TagSummary
 import com.gestorfinances.app.data.repository.TripAnalysisRepository
 import com.gestorfinances.app.data.repository.TripAnalysisSummary
 import com.gestorfinances.app.data.repository.TripCategoryActual
@@ -20,6 +25,7 @@ import com.gestorfinances.app.data.repository.TripTagActual
 import com.gestorfinances.app.data.repository.TripType
 import java.time.Instant
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.format.DateTimeParseException
 import java.util.UUID
 import kotlinx.coroutines.CoroutineDispatcher
@@ -35,6 +41,8 @@ class TripsViewModel(
     private val tripAnalysisRepository: TripAnalysisRepository,
     private val movementRepository: MovementRepository,
     private val accountRepository: AccountRepository,
+    private val budgetRepository: BudgetRepository,
+    private val tagRepository: TagRepository,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
     private val _state = MutableStateFlow(TripsUiState())
@@ -52,42 +60,21 @@ class TripsViewModel(
         _state.value = _state.value.copy(form = TripFormState())
     }
 
+    /**
+     * Opens the edit form. Deliberately does *not* clear `detail`: trip detail is a full page
+     * (not a dialog), so it stays visible underneath the form sheet when editing is triggered
+     * from its own header menu.
+     */
     fun onEditClicked(trip: TripSummary) {
-        _state.value = _state.value.copy(form = trip.toFormState(), detail = null)
+        _state.value = _state.value.copy(form = trip.toFormState())
     }
 
     fun onDetailClicked(trip: TripSummary) {
-        _state.value = _state.value.copy(
-            detail = TripDetailState(trip = trip, isLoading = true),
-        )
-        viewModelScope.launch {
-            val result = withContext(ioDispatcher) {
-                runCatching {
-                    TripDetailState(
-                        trip = tripRepository.getActive(trip.id) ?: trip,
-                        summary = tripAnalysisRepository.summary(trip.id),
-                        dailyActual = tripAnalysisRepository.actualByDay(trip.id),
-                        categoryActual = tripAnalysisRepository.actualByCategory(trip.id),
-                        tagActual = tripAnalysisRepository.actualByTag(trip.id),
-                        movements = movementRepository.listActive().filter { it.tripId == trip.id },
-                    )
-                }
-            }
-            _state.value = result.fold(
-                onSuccess = { _state.value.copy(detail = it) },
-                onFailure = {
-                    _state.value.copy(
-                        detail = TripDetailState(
-                            trip = trip,
-                            errorMessage = it.message ?: it.javaClass.simpleName,
-                        ),
-                    )
-                },
-            )
-        }
+        loadDetail(trip = trip, excludeOneTime = false)
     }
 
-    fun onDetailClicked(tripId: String) {
+    /** Opens trip detail from just a [tripId] (e.g. a Dashboard quick-link), without a [TripSummary] on hand. */
+    fun onDetailOpened(tripId: String) {
         _state.value.trips.firstOrNull { it.id == tripId }?.let {
             onDetailClicked(it)
             return
@@ -111,12 +98,70 @@ class TripsViewModel(
         }
     }
 
+    fun onExcludeOneTimeToggled(excludeOneTime: Boolean) {
+        val trip = _state.value.detail?.trip ?: return
+        loadDetail(trip = trip, excludeOneTime = excludeOneTime)
+    }
+
+    private fun loadDetail(trip: TripSummary, excludeOneTime: Boolean) {
+        _state.value = _state.value.copy(
+            detail = TripDetailState(trip = trip, excludeOneTime = excludeOneTime, isLoading = true),
+        )
+        viewModelScope.launch {
+            val result = withContext(ioDispatcher) {
+                runCatching {
+                    TripDetailState(
+                        trip = tripRepository.getActive(trip.id) ?: trip,
+                        excludeOneTime = excludeOneTime,
+                        summary = tripAnalysisRepository.summary(trip.id, excludeOneTime = excludeOneTime),
+                        dailyActual = tripAnalysisRepository.actualByDay(trip.id, excludeOneTime = excludeOneTime),
+                        categoryActual = tripAnalysisRepository.actualByCategory(trip.id, excludeOneTime = excludeOneTime),
+                        tagActual = tripAnalysisRepository.actualByTag(trip.id, excludeOneTime = excludeOneTime),
+                        movements = movementRepository.listActive().filter { it.tripId == trip.id },
+                        budgetEvaluation = tripBudgetEvaluation(trip.id),
+                        tagsById = tagRepository.listActive().associateBy { it.id },
+                    )
+                }
+            }
+            _state.value = result.fold(
+                onSuccess = { _state.value.copy(detail = it) },
+                onFailure = {
+                    _state.value.copy(
+                        detail = TripDetailState(
+                            trip = trip,
+                            excludeOneTime = excludeOneTime,
+                            errorMessage = it.message ?: it.javaClass.simpleName,
+                        ),
+                    )
+                },
+            )
+        }
+    }
+
+    /**
+     * Active TRIP-scope budget for [tripId], evaluated against its whole one-off window.
+     *
+     * [BudgetRepository] ignores the [fromDate]/[toDate] period entirely for TRIP-scope
+     * budgets (they track the trip's whole life, not a calendar period), so the bounds
+     * passed to [BudgetRepository.evaluateAll] here only matter for the CATEGORY-scope
+     * evaluations this call also computes and immediately discards; the current month is
+     * as good a placeholder as any.
+     */
+    private fun tripBudgetEvaluation(tripId: String): BudgetEvaluation? {
+        val month = YearMonth.from(LocalDate.now())
+        return budgetRepository.evaluateAll(
+            fromDate = month.atDay(1).toString(),
+            toDate = month.atEndOfMonth().toString(),
+        ).firstOrNull { it.budget.scope == BudgetScope.TRIP && it.budget.tripId == tripId }
+    }
+
     fun onDetailDismissed() {
         _state.value = _state.value.copy(detail = null)
     }
 
+    /** Opens the archive confirmation. Does not clear `detail` — see [onEditClicked]. */
     fun onArchiveClicked(trip: TripSummary) {
-        _state.value = _state.value.copy(archiveCandidate = trip, detail = null)
+        _state.value = _state.value.copy(archiveCandidate = trip)
     }
 
     fun onArchiveDismissed() {
@@ -202,6 +247,9 @@ class TripsViewModel(
                 onSuccess = {
                     _state.value = _state.value.copy(form = null)
                     refresh()
+                    // Trip detail (a full page, not a dialog) stays open across an edit — reload it
+                    // so the header reflects the just-saved name/dates/etc. instead of going stale.
+                    _state.value.detail?.trip?.takeIf { it.id == draft.id }?.let { onDetailClicked(it) }
                 },
                 onFailure = {
                     _state.value = _state.value.copy(
@@ -246,6 +294,8 @@ class TripsViewModel(
         private val tripAnalysisRepository: TripAnalysisRepository,
         private val movementRepository: MovementRepository,
         private val accountRepository: AccountRepository,
+        private val budgetRepository: BudgetRepository,
+        private val tagRepository: TagRepository,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -255,6 +305,8 @@ class TripsViewModel(
                     tripAnalysisRepository = tripAnalysisRepository,
                     movementRepository = movementRepository,
                     accountRepository = accountRepository,
+                    budgetRepository = budgetRepository,
+                    tagRepository = tagRepository,
                 ) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
@@ -293,11 +345,14 @@ data class TripFormState(
 
 data class TripDetailState(
     val trip: TripSummary,
+    val excludeOneTime: Boolean = false,
     val summary: TripAnalysisSummary = TripAnalysisSummary(0L, 0L),
     val dailyActual: List<TripDailyActual> = emptyList(),
     val categoryActual: List<TripCategoryActual> = emptyList(),
     val tagActual: List<TripTagActual> = emptyList(),
     val movements: List<MovementSummary> = emptyList(),
+    val budgetEvaluation: BudgetEvaluation? = null,
+    val tagsById: Map<String, TagSummary> = emptyMap(),
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
 )

@@ -74,9 +74,13 @@ CREATE TABLE tags (
     icon        TEXT,
     color       TEXT,
     trip_id     TEXT REFERENCES trips(id),
+    category_id TEXT REFERENCES categories(id),
+    trip_type   TEXT,
     created_at  TEXT NOT NULL,
     updated_at  TEXT NOT NULL,
-    archived_at TEXT
+    archived_at TEXT,
+
+    CHECK ( trip_id IS NULL OR trip_type IS NULL )
 );
 
 CREATE INDEX idx_tags_trip
@@ -318,5 +322,5 @@ CREATE UNIQUE INDEX idx_split_lines_one_person
     WHERE participant_kind = 'person' AND archived_at IS NULL;
 
 INSERT INTO meta (key, value) VALUES
-    ('schema_version', '2'),
+    ('schema_version', '4'),
     ('snapshot_version', '0');

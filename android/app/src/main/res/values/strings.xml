@@ -393,6 +393,9 @@
     <string name="dashboard_no_data">Encara no hi ha dades per aquest període.</string>
     <string name="dashboard_empty_title">Encara no hi ha activitat aquest mes</string>
     <string name="dashboard_empty_body">Afegeix moviments per veure el resum mensual.</string>
+    <string name="dashboard_active_trip_title">Viatge actiu</string>
+    <string name="dashboard_active_trip_view">Veure viatge</string>
+    <string name="dashboard_active_trip_add_movement">Afegeix moviment</string>
 
     <!-- Analysis -->
     <string name="analysis_title">Anàlisi</string>
@@ -716,12 +719,14 @@
     <string name="trip_filter_planned">Planificats</string>
     <string name="trip_filter_active">Actius</string>
     <string name="trip_filter_finished">Finalitzats</string>
+    <string name="trip_row_avg_day">%1$s/dia</string>
     <string name="trip_detail_title">Detall del viatge</string>
     <string name="trip_detail_total_actual">Cost real</string>
     <string name="trip_detail_total_flow">Sortida total</string>
     <string name="trip_detail_days">Dies</string>
     <string name="trip_detail_avg_day">Mitjana per dia</string>
-    <string name="trip_avg_day_value">%1$s/dia</string>
+    <string name="trip_detail_avg_day_excluding_one_time">Mitjana/dia sense extraordinàries</string>
+    <string name="trip_detail_exclude_one_time">Exclou despeses extraordinàries</string>
     <string name="trip_detail_daily_chart">Evolució diària</string>
     <string name="trip_detail_breakdown_category">Per categoria</string>
     <string name="trip_detail_breakdown_tag">Per etiqueta</string>
@@ -764,8 +769,6 @@
     <string name="trip_validation_date_order">La data de fi ha de ser posterior o igual a la d\'inici.</string>
 
     <!-- Trip analysis -->
-    <string name="trip_analysis_mode_daily">Per dia</string>
-    <string name="trip_analysis_mode_cumulative">Acumulat</string>
     <string name="trip_analysis_mode_total">Totals</string>
     <string name="trip_analysis_mode_avg_day">Mitjana/dia</string>
     <string name="trip_analysis_untagged">Sense etiqueta</string>
@@ -789,17 +792,23 @@
     <string name="tag_field_trip">Viatge local</string>
     <string name="tag_field_icon">Icona</string>
     <string name="tag_field_color">Color</string>
+    <string name="tag_field_category">Categoria associada</string>
     <string name="tag_scope_global">Global</string>
-    <string name="tag_scope_trip_local">Local del viatge</string>
+    <string name="tag_scope_event_type">Tipus d\'esdeveniment</string>
+    <string name="tag_scope_specific_trip">Viatge concret</string>
     <string name="tag_scope_trip_local_value">Local de %1$s</string>
+    <string name="tag_scope_event_type_value">Tipus: %1$s</string>
     <string name="tag_picker_none">Sense etiqueta</string>
-    <string name="tag_picker_global_section">Globals</string>
-    <string name="tag_picker_trip_section">D\'aquest viatge</string>
+    <string name="tag_category_picker_none">Sense categoria</string>
     <string name="tag_action_archive">Elimina etiqueta</string>
     <string name="tag_archive_confirm_title">Eliminar etiqueta?</string>
     <string name="tag_archive_warning">L\'etiqueta es deixarà de mostrar. Els moviments vinculats conservaran l\'historial.</string>
     <string name="tag_validation_name_required">Introdueix el nom de l\'etiqueta.</string>
     <string name="tag_validation_trip_required">Tria un viatge per crear una etiqueta local.</string>
+    <string name="tag_validation_scope_exclusive">Una etiqueta no pot ser alhora local d\'un viatge i d\'un tipus d\'esdeveniment.</string>
+    <string name="tag_section_global">Globals</string>
+    <string name="tag_section_event_type">Tags de %1$s</string>
+    <string name="tag_section_trip">%1$s</string>
 
     <!-- Trip budgets -->
     <string name="budget_scope_category">Categoria</string>

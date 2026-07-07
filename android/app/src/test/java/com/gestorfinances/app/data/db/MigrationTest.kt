@@ -2,9 +2,11 @@ package com.gestorfinances.app.data.db
 
 import app.cash.sqldelight.db.QueryResult
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
+import com.gestorfinances.app.data.repository.TripAnalysisRepository
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 
 class MigrationTest {
@@ -135,5 +137,454 @@ class MigrationTest {
                 "relative to shared/queries/v_movement_summary.sql)",
             "refunds_expense_id" in viewSql,
         )
+    }
+
+    @Test
+    fun `v2 to v3 migration adds category_id and trip_type to tags and updates schema_version`() {
+        val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+
+        // Build minimal v2 schema. FK enforcement is off so we don't need every
+        // referenced table — this test is about schema shape, not data integrity.
+        driver.execute(null, "PRAGMA foreign_keys = OFF", 0)
+
+        driver.execute(
+            null,
+            "CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
+            0,
+        )
+        driver.execute(null, "INSERT INTO meta VALUES ('schema_version', '2')", 0)
+
+        // v2 tags table: no category_id/trip_type columns, no scope CHECK.
+        driver.execute(
+            null,
+            """
+            CREATE TABLE tags (
+                id          TEXT PRIMARY KEY,
+                name        TEXT NOT NULL,
+                icon        TEXT,
+                color       TEXT,
+                trip_id     TEXT,
+                created_at  TEXT NOT NULL,
+                updated_at  TEXT NOT NULL,
+                archived_at TEXT
+            )
+            """.trimIndent(),
+            0,
+        )
+
+        // Insert a pre-existing global tag using the v2 schema.
+        driver.execute(
+            null,
+            """
+            INSERT INTO tags (id, name, trip_id, created_at, updated_at)
+            VALUES ('tag-1', 'Menjar', NULL, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')
+            """.trimIndent(),
+            0,
+        )
+
+        driver.execute(null, "PRAGMA user_version = 2", 0)
+
+        // Apply the v2 → v3 migration (runs 2.sqm: two ALTER TABLE + UPDATE meta).
+        GestorDatabase.Schema.migrate(driver, 2, 3)
+
+        // Assert category_id and trip_type now appear in the tags table.
+        val columns = mutableListOf<String>()
+        driver.executeQuery(
+            identifier = null,
+            sql = "PRAGMA table_info(tags)",
+            mapper = { cursor ->
+                while (cursor.next().value) {
+                    columns.add(cursor.getString(1)!!) // column index 1 = name
+                }
+                QueryResult.Value(Unit)
+            },
+            parameters = 0,
+        )
+        assertTrue("tags.category_id must exist after migration", "category_id" in columns)
+        assertTrue("tags.trip_type must exist after migration", "trip_type" in columns)
+
+        // Assert the pre-existing row has both new columns = NULL (new column default).
+        val (categoryId, tripType) = driver.executeQuery(
+            identifier = null,
+            sql = "SELECT category_id, trip_type FROM tags WHERE id = 'tag-1'",
+            mapper = { cursor ->
+                cursor.next()
+                QueryResult.Value(cursor.getString(0) to cursor.getString(1))
+            },
+            parameters = 0,
+        ).value
+        assertNull("pre-existing tag row must have category_id = NULL after migration", categoryId)
+        assertNull("pre-existing tag row must have trip_type = NULL after migration", tripType)
+
+        // Assert a newly inserted tag can round-trip both new columns.
+        driver.execute(
+            null,
+            """
+            INSERT INTO tags (id, name, trip_id, category_id, trip_type, created_at, updated_at)
+            VALUES ('tag-2', 'Celebracio', NULL, 'category-1', 'celebration',
+                '2026-01-02T00:00:00Z', '2026-01-02T00:00:00Z')
+            """.trimIndent(),
+            0,
+        )
+        val (newCategoryId, newTripType) = driver.executeQuery(
+            identifier = null,
+            sql = "SELECT category_id, trip_type FROM tags WHERE id = 'tag-2'",
+            mapper = { cursor ->
+                cursor.next()
+                QueryResult.Value(cursor.getString(0) to cursor.getString(1))
+            },
+            parameters = 0,
+        ).value
+        assertEquals("category-1", newCategoryId)
+        assertEquals("celebration", newTripType)
+
+        // Assert meta.schema_version was bumped to '3'.
+        val schemaVersion = driver.executeQuery(
+            identifier = null,
+            sql = "SELECT value FROM meta WHERE key = 'schema_version'",
+            mapper = { cursor ->
+                cursor.next()
+                QueryResult.Value(cursor.getString(0)!!)
+            },
+            parameters = 0,
+        ).value
+        assertEquals("schema_version must be '3' after migration", "3", schemaVersion)
+    }
+
+    @Test
+    fun `v3 to v4 migration creates v_trip_actual_total view and updates schema_version`() {
+        val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+
+        // Build a minimal v3 schema: a v3 database has movements/trips but, prior to this
+        // migration, had never had v_trip_actual_total created (it was only wired into
+        // sharedViewFiles for fresh installs, not into a migration step — the P5R-7 regression
+        // this test guards against). Also includes splits/split_lines (empty) since the v3->v4
+        // migration now recreates v_actual_expense too (a second post-close fix, see
+        // MigrationTest's dedicated v_actual_expense case below), and its real definition joins
+        // against them — SQLite resolves a view body lazily against the tables that exist at
+        // query time, not at CREATE VIEW time, so a minimal fixture must have them for the
+        // migrated view to be queryable at all.
+        driver.execute(null, "PRAGMA foreign_keys = OFF", 0)
+
+        driver.execute(
+            null,
+            "CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
+            0,
+        )
+        driver.execute(null, "INSERT INTO meta VALUES ('schema_version', '3')", 0)
+
+        driver.execute(
+            null,
+            """
+            CREATE TABLE movements (
+                id                   TEXT    PRIMARY KEY,
+                type                 TEXT    NOT NULL,
+                amount_cents         INTEGER NOT NULL,
+                date                 TEXT    NOT NULL,
+                account_id           TEXT    NOT NULL,
+                dest_account_id      TEXT,
+                category_id          TEXT,
+                tag_id               TEXT,
+                trip_id              TEXT,
+                template_id          TEXT,
+                person_id            TEXT,
+                settlement_direction TEXT,
+                refunds_expense_id   TEXT,
+                actual_refund_cents  INTEGER,
+                is_one_time          INTEGER NOT NULL DEFAULT 0,
+                created_at           TEXT    NOT NULL,
+                updated_at           TEXT    NOT NULL,
+                archived_at          TEXT
+            )
+            """.trimIndent(),
+            0,
+        )
+        driver.execute(
+            null,
+            """
+            CREATE TABLE splits (
+                id                 TEXT PRIMARY KEY,
+                movement_id        TEXT,
+                payer_person_id    TEXT,
+                date               TEXT,
+                description        TEXT,
+                category_id        TEXT,
+                trip_id            TEXT,
+                tag_id             TEXT,
+                created_at         TEXT,
+                updated_at         TEXT,
+                archived_at        TEXT
+            )
+            """.trimIndent(),
+            0,
+        )
+        driver.execute(
+            null,
+            """
+            CREATE TABLE split_lines (
+                id                TEXT PRIMARY KEY,
+                split_id          TEXT,
+                participant_kind  TEXT,
+                owed_amount_cents INTEGER,
+                archived_at       TEXT
+            )
+            """.trimIndent(),
+            0,
+        )
+
+        // Minimal stand-in for v_actual_expense: this test only needs some view by that name to
+        // exist so v_trip_actual_total's SELECT resolves. (A real v3 database's actual
+        // v_actual_expense shape — and whether the v3->v4 migration correctly recreates it — is
+        // covered by the dedicated test below; don't assume this stand-in reflects it.)
+        driver.execute(
+            null,
+            """
+            CREATE VIEW v_actual_expense AS
+            SELECT trip_id, amount_cents
+            FROM movements
+            WHERE type = 'expense' AND archived_at IS NULL
+            """.trimIndent(),
+            0,
+        )
+
+        driver.execute(
+            null,
+            """
+            INSERT INTO movements (id, type, amount_cents, date, account_id, trip_id, created_at, updated_at)
+            VALUES ('mv-1', 'expense', 1500, '2026-01-01', 'acc-1', 'trip-1',
+                '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')
+            """.trimIndent(),
+            0,
+        )
+
+        driver.execute(null, "PRAGMA user_version = 3", 0)
+
+        // Apply the v3 → v4 migration (runs 3.sqm: DROP/CREATE VIEW + UPDATE meta).
+        GestorDatabase.Schema.migrate(driver, 3, 4)
+
+        // Assert v_trip_actual_total view now exists (this is exactly what Trips.sq's
+        // activeTrips/tripById/tripActiveOn LEFT JOIN against; before this migration existed,
+        // an existing v3 database migrating forward would hit "no such table: v_trip_actual_total"
+        // at query time even though a fresh install had the view).
+        val viewCount = driver.executeQuery(
+            identifier = null,
+            sql = "SELECT COUNT(*) FROM sqlite_master WHERE type='view' AND name='v_trip_actual_total'",
+            mapper = { cursor ->
+                cursor.next()
+                QueryResult.Value(cursor.getLong(0)!!)
+            },
+            parameters = 0,
+        ).value
+        assertEquals("v_trip_actual_total view must exist after migration", 1L, viewCount)
+
+        // Assert the view is actually queryable and returns correct aggregated data.
+        val total = driver.executeQuery(
+            identifier = null,
+            sql = "SELECT total_actual_cents FROM v_trip_actual_total WHERE trip_id = 'trip-1'",
+            mapper = { cursor ->
+                cursor.next()
+                QueryResult.Value(cursor.getLong(0)!!)
+            },
+            parameters = 0,
+        ).value
+        assertEquals("v_trip_actual_total must aggregate actual expense cents per trip", 1500L, total)
+
+        // Assert meta.schema_version was bumped to '4'.
+        val schemaVersion = driver.executeQuery(
+            identifier = null,
+            sql = "SELECT value FROM meta WHERE key = 'schema_version'",
+            mapper = { cursor ->
+                cursor.next()
+                QueryResult.Value(cursor.getString(0)!!)
+            },
+            parameters = 0,
+        ).value
+        assertEquals("schema_version must be '4' after migration", "4", schemaVersion)
+    }
+
+    @Test
+    fun `v3 to v4 migration recreates v_actual_expense so upgraders that predate the tag_id fix can query tag_id`() {
+        // v_actual_expense has existed since before schema_version existed at all (P0A-3) and was
+        // NEVER embedded in any migration before this fix (unlike v_movement_summary, which
+        // migration 002/1.sqm has always created). Any database that was ever fresh-created
+        // (Schema.create()) before the tag_id fix landed — at schema v1, v2, or v3 — therefore
+        // carries the OLD view shape (no tag_id on any branch) forever, since only the v3->v4
+        // migration now recreates it. Build exactly that: a full current (v4) database via
+        // Schema.create(), then overwrite v_actual_expense with its verbatim pre-fix definition
+        // (as it was from the P0A-3 commit until this fix) and rewind to schema v3, simulating a
+        // device whose last applied migration was v2->v3.
+        val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+        driver.execute(null, "PRAGMA foreign_keys = ON", 0)
+        GestorDatabase.Schema.create(driver)
+        val database = GestorDatabase(driver)
+
+        driver.execute(null, "DROP VIEW v_actual_expense", 0)
+        driver.execute(
+            null,
+            """
+            CREATE VIEW v_actual_expense AS
+            SELECT
+                m.id AS source_id,
+                m.date,
+                m.category_id,
+                m.trip_id,
+                CASE
+                    WHEN s.id IS NULL THEN m.amount_cents
+                    ELSE COALESCE((
+                        SELECT sl.owed_amount_cents
+                        FROM split_lines sl
+                        WHERE sl.split_id = s.id
+                          AND sl.participant_kind = 'user'
+                          AND sl.archived_at IS NULL
+                    ), 0)
+                END AS amount_cents,
+                m.is_one_time
+            FROM movements m
+            LEFT JOIN splits s
+                ON s.movement_id = m.id
+               AND s.archived_at IS NULL
+            WHERE m.type = 'expense'
+              AND m.archived_at IS NULL
+
+            UNION ALL
+
+            SELECT
+                m.id AS source_id,
+                m.date,
+                m.category_id,
+                m.trip_id,
+                -COALESCE(m.actual_refund_cents, m.amount_cents) AS amount_cents,
+                COALESCE((
+                    SELECT e.is_one_time
+                    FROM movements e
+                    WHERE e.id = m.refunds_expense_id
+                ), 0) AS is_one_time
+            FROM movements m
+            WHERE m.type = 'refund'
+              AND m.archived_at IS NULL
+
+            UNION ALL
+
+            SELECT
+                s.id AS source_id,
+                s.date,
+                s.category_id,
+                s.trip_id,
+                COALESCE((
+                    SELECT sl.owed_amount_cents
+                    FROM split_lines sl
+                    WHERE sl.split_id = s.id
+                      AND sl.participant_kind = 'user'
+                      AND sl.archived_at IS NULL
+                ), 0) AS amount_cents,
+                0 AS is_one_time
+            FROM splits s
+            WHERE s.payer_person_id IS NOT NULL
+              AND s.movement_id IS NULL
+              AND s.archived_at IS NULL
+            """.trimIndent(),
+            0,
+        )
+        driver.execute(null, "UPDATE meta SET value = '3' WHERE key = 'schema_version'", 0)
+        driver.execute(null, "PRAGMA user_version = 3", 0)
+
+        val now = "2026-01-01T00:00:00Z"
+        driver.execute(
+            null,
+            """
+            INSERT INTO accounts (id, name, starting_balance_cents, type, is_default, display_order, created_at, updated_at)
+            VALUES ('acc-1', 'Checking', 0, 'bank', 1, 0, '$now', '$now')
+            """.trimIndent(),
+            0,
+        )
+        driver.execute(
+            null,
+            """
+            INSERT INTO trips (id, name, type, status, created_at, updated_at)
+            VALUES ('trip-1', 'Mallorca', 'trip', 'active', '$now', '$now')
+            """.trimIndent(),
+            0,
+        )
+        driver.execute(
+            null,
+            """
+            INSERT INTO tags (id, name, trip_id, created_at, updated_at)
+            VALUES ('restaurants', 'Restaurants', 'trip-1', '$now', '$now')
+            """.trimIndent(),
+            0,
+        )
+        driver.execute(
+            null,
+            """
+            INSERT INTO tags (id, name, trip_id, created_at, updated_at)
+            VALUES ('transport', 'Transport', 'trip-1', '$now', '$now')
+            """.trimIndent(),
+            0,
+        )
+        // A movement carrying its own tag_id directly (the "own" branch of v_actual_expense).
+        driver.execute(
+            null,
+            """
+            INSERT INTO movements (id, type, amount_cents, date, account_id, tag_id, trip_id, created_at, updated_at)
+            VALUES ('dinner', 'expense', 1000, '2026-08-01', 'acc-1', 'restaurants', 'trip-1', '$now', '$now')
+            """.trimIndent(),
+            0,
+        )
+        // A §2.6 external split (friend paid) carrying its own tag_id (the branch F7 fixed:
+        // this used to be dropped into "Sense etiqueta" because the old tripActualByTag
+        // re-joined movements on source_id, which doesn't resolve for a splits.id).
+        driver.execute(
+            null,
+            """
+            INSERT INTO people (id, name, created_at, updated_at)
+            VALUES ('anna', 'Anna', '$now', '$now')
+            """.trimIndent(),
+            0,
+        )
+        driver.execute(
+            null,
+            """
+            INSERT INTO splits (id, movement_id, payer_person_id, entry_method, total_amount_cents,
+                date, description, trip_id, tag_id, created_at, updated_at)
+            VALUES ('split-taxi', NULL, 'anna', 'exact', 1200, '2026-08-01', 'Taxi aeroport',
+                'trip-1', 'transport', '$now', '$now')
+            """.trimIndent(),
+            0,
+        )
+        driver.execute(
+            null,
+            """
+            INSERT INTO split_lines (id, split_id, participant_kind, owed_amount_cents, created_at, updated_at)
+            VALUES ('sl-user', 'split-taxi', 'user', 1200, '$now', '$now')
+            """.trimIndent(),
+            0,
+        )
+
+        val repository = TripAnalysisRepository(database.tripAnalysisQueries)
+
+        // Reproduce the bug for real: against the pre-fix (no tag_id) view, the same query the
+        // app runs on Trip detail's "per tag" breakdown must fail exactly as it did in production.
+        try {
+            repository.actualByTag("trip-1")
+            fail(
+                "expected tripActualByTag to throw against the pre-fix v_actual_expense " +
+                    "(no tag_id column) — if this doesn't throw, the stand-in view above no " +
+                    "longer reproduces the reported crash",
+            )
+        } catch (e: Exception) {
+            assertTrue(
+                "expected a 'no such column' failure mentioning tag_id, got: ${e.message}",
+                e.message?.contains("tag_id", ignoreCase = true) == true,
+            )
+        }
+
+        // Apply the v3 -> v4 migration (runs 3.sqm: recreates v_actual_expense with tag_id,
+        // recreates v_trip_actual_total, bumps schema_version).
+        GestorDatabase.Schema.migrate(driver, 3, 4)
+
+        // The real repository query must now succeed and correctly bucket both branches under
+        // their own tag (not "Sense etiqueta").
+        val tags = repository.actualByTag("trip-1").associate { it.tagId to it.actualCents }
+        assertEquals(mapOf("restaurants" to 1_000L, "transport" to 1_200L), tags)
     }
 }

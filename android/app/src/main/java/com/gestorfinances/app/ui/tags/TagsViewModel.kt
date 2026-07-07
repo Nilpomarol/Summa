@@ -4,11 +4,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.gestorfinances.app.R
+import com.gestorfinances.app.data.repository.CategoryRecord
+import com.gestorfinances.app.data.repository.CategoryRepository
 import com.gestorfinances.app.data.repository.TagDraft
 import com.gestorfinances.app.data.repository.TagRepository
 import com.gestorfinances.app.data.repository.TagSummary
 import com.gestorfinances.app.data.repository.TripRepository
 import com.gestorfinances.app.data.repository.TripSummary
+import com.gestorfinances.app.data.repository.TripType
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.CoroutineDispatcher
@@ -22,6 +25,7 @@ import kotlinx.coroutines.withContext
 class TagsViewModel(
     private val tagRepository: TagRepository,
     private val tripRepository: TripRepository,
+    private val categoryRepository: CategoryRepository,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
     private val _state = MutableStateFlow(TagsUiState())
@@ -89,6 +93,9 @@ class TagsViewModel(
         val errorRes = when {
             name.isEmpty() -> R.string.tag_validation_name_required
             form.tripId != null && form.tripId !in activeTripIds -> R.string.tag_validation_trip_required
+            // Mirrors the schema's CHECK (trip_id IS NULL OR trip_type IS NULL): a tag is
+            // global, event-type-scoped, or trip-specific — never two of those at once.
+            form.tripId != null && form.tripType != null -> R.string.tag_validation_scope_exclusive
             else -> null
         }
         if (errorRes != null) {
@@ -103,6 +110,8 @@ class TagsViewModel(
             icon = form.icon.trim().ifBlank { null },
             color = form.color.trim().ifBlank { null },
             tripId = form.tripId,
+            categoryId = form.categoryId,
+            tripType = form.tripType,
         )
 
         viewModelScope.launch {
@@ -137,6 +146,7 @@ class TagsViewModel(
                     LoadedTagData(
                         tags = tagRepository.listActive(),
                         trips = tripRepository.listActive(),
+                        categories = categoryRepository.listActive(),
                     )
                 }
             }
@@ -145,6 +155,7 @@ class TagsViewModel(
                     _state.value.copy(
                         tags = it.tags,
                         trips = it.trips,
+                        categories = it.categories,
                         isLoading = false,
                     )
                 },
@@ -161,6 +172,7 @@ class TagsViewModel(
     class Factory(
         private val tagRepository: TagRepository,
         private val tripRepository: TripRepository,
+        private val categoryRepository: CategoryRepository,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -168,6 +180,7 @@ class TagsViewModel(
                 return TagsViewModel(
                     tagRepository = tagRepository,
                     tripRepository = tripRepository,
+                    categoryRepository = categoryRepository,
                 ) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
@@ -179,6 +192,7 @@ data class TagsUiState(
     val contextTripId: String? = null,
     val tags: List<TagSummary> = emptyList(),
     val trips: List<TripSummary> = emptyList(),
+    val categories: List<CategoryRecord> = emptyList(),
     val isLoading: Boolean = true,
     val errorMessage: String? = null,
     val form: TagFormState? = null,
@@ -198,6 +212,8 @@ data class TagFormState(
     val icon: String = "",
     val color: String = "",
     val tripId: String? = null,
+    val categoryId: String? = null,
+    val tripType: TripType? = null,
     val errorRes: Int? = null,
     val errorMessage: String? = null,
 )
@@ -205,6 +221,7 @@ data class TagFormState(
 private data class LoadedTagData(
     val tags: List<TagSummary>,
     val trips: List<TripSummary>,
+    val categories: List<CategoryRecord>,
 )
 
 private fun TagSummary.toFormState(): TagFormState =
@@ -214,4 +231,6 @@ private fun TagSummary.toFormState(): TagFormState =
         icon = icon.orEmpty(),
         color = color.orEmpty(),
         tripId = tripId,
+        categoryId = categoryId,
+        tripType = tripType,
     )

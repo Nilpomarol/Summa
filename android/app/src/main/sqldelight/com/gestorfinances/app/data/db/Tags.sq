@@ -6,6 +6,11 @@ SELECT
     tags.color,
     tags.trip_id,
     trips.name AS trip_name,
+    tags.category_id,
+    categories.name AS category_name,
+    categories.icon AS category_icon,
+    categories.color AS category_color,
+    tags.trip_type,
     tags.created_at,
     tags.updated_at,
     tags.archived_at
@@ -13,6 +18,9 @@ FROM tags
 LEFT JOIN trips
     ON trips.id = tags.trip_id
    AND trips.archived_at IS NULL
+LEFT JOIN categories
+    ON categories.id = tags.category_id
+   AND categories.archived_at IS NULL
 WHERE tags.archived_at IS NULL
   AND (tags.trip_id IS NULL OR trips.id IS NOT NULL)
 ORDER BY
@@ -28,6 +36,11 @@ SELECT
     tags.color,
     tags.trip_id,
     trips.name AS trip_name,
+    tags.category_id,
+    categories.name AS category_name,
+    categories.icon AS category_icon,
+    categories.color AS category_color,
+    tags.trip_type,
     tags.created_at,
     tags.updated_at,
     tags.archived_at
@@ -35,6 +48,9 @@ FROM tags
 LEFT JOIN trips
     ON trips.id = tags.trip_id
    AND trips.archived_at IS NULL
+LEFT JOIN categories
+    ON categories.id = tags.category_id
+   AND categories.archived_at IS NULL
 WHERE tags.id = :id
   AND tags.archived_at IS NULL
   AND (tags.trip_id IS NULL OR trips.id IS NOT NULL);
@@ -46,6 +62,8 @@ INSERT INTO tags(
     icon,
     color,
     trip_id,
+    category_id,
+    trip_type,
     created_at,
     updated_at
 ) VALUES (
@@ -54,6 +72,8 @@ INSERT INTO tags(
     :icon,
     :color,
     :trip_id,
+    :category_id,
+    :trip_type,
     :created_at,
     :updated_at
 );
@@ -65,6 +85,8 @@ SET
     icon = :icon,
     color = :color,
     trip_id = :trip_id,
+    category_id = :category_id,
+    trip_type = :trip_type,
     updated_at = :updated_at
 WHERE id = :id
   AND archived_at IS NULL;

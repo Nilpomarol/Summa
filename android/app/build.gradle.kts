@@ -15,6 +15,12 @@ val generatedAnalysisSql = layout.projectDirectory.file(
 val generatedMigration1 = layout.projectDirectory.file(
     "src/main/sqldelight/com/gestorfinances/app/data/db/1.sqm",
 )
+val generatedMigration2 = layout.projectDirectory.file(
+    "src/main/sqldelight/com/gestorfinances/app/data/db/2.sqm",
+)
+val generatedMigration3 = layout.projectDirectory.file(
+    "src/main/sqldelight/com/gestorfinances/app/data/db/3.sqm",
+)
 
 val sharedViewFiles = listOf(
     "v_movement_shared.sql",
@@ -24,6 +30,7 @@ val sharedViewFiles = listOf(
     "v_actual_expense.sql",
     "v_actual_income.sql",
     "v_person_balance.sql",
+    "v_trip_actual_total.sql",
 )
 val sharedAnalysisQueryFiles = listOf(
     "analysis_actual_breakdown.sql" to "analysisActualBreakdown",
@@ -43,16 +50,22 @@ val syncSharedSqlForSqlDelight by tasks.registering {
     val sharedRoot = rootProject.layout.projectDirectory.dir("../shared")
     val sharedBaselineMigration = sharedRoot.file("migrations/001_initial.sql")
     val sharedMigration002 = sharedRoot.file("migrations/002_add_splits_tag_id.sql")
+    val sharedMigration003 = sharedRoot.file("migrations/003_add_tag_category_and_type.sql")
+    val sharedMigration004 = sharedRoot.file("migrations/004_add_v_trip_actual_total_view.sql")
     val sharedViews = sharedViewFiles.map { sharedRoot.file("queries/$it") }
     val sharedAnalysisQueries = sharedAnalysisQueryFiles.map { sharedRoot.file("queries/${it.first}") }
 
     inputs.file(sharedBaselineMigration)
     inputs.file(sharedMigration002)
+    inputs.file(sharedMigration003)
+    inputs.file(sharedMigration004)
     inputs.files(sharedViews)
     inputs.files(sharedAnalysisQueries)
     outputs.file(generatedSharedSql)
     outputs.file(generatedAnalysisSql)
     outputs.file(generatedMigration1)
+    outputs.file(generatedMigration2)
+    outputs.file(generatedMigration3)
 
     doLast {
         val sharedOutputFile = generatedSharedSql.asFile
@@ -99,6 +112,22 @@ val syncSharedSqlForSqlDelight by tasks.registering {
                 appendLine("-- Do not edit directly; edit the shared SQL file instead.")
                 appendLine()
                 append(sharedMigration002.asFile.readText())
+            },
+        )
+        generatedMigration2.asFile.writeText(
+            buildString {
+                appendLine("-- Generated from ../../shared/migrations/003_add_tag_category_and_type.sql.")
+                appendLine("-- Do not edit directly; edit the shared SQL file instead.")
+                appendLine()
+                append(sharedMigration003.asFile.readText())
+            },
+        )
+        generatedMigration3.asFile.writeText(
+            buildString {
+                appendLine("-- Generated from ../../shared/migrations/004_add_v_trip_actual_total_view.sql.")
+                appendLine("-- Do not edit directly; edit the shared SQL file instead.")
+                appendLine()
+                append(sharedMigration004.asFile.readText())
             },
         )
     }

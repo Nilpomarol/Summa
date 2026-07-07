@@ -176,16 +176,23 @@ private fun BudgetRepository.actualForBudget(
             fromDate = budget.effectiveFromDate(fromDate),
             toDate = toDate,
         )
+        // TRIP-scope budgets are one-off (§4.5): they track a trip's whole life, not the
+        // caller-supplied period. Evaluate them fully unbounded, matching how
+        // TripAnalysisRepository's trip-scoped queries filter by trip_id alone with no date
+        // bound — so advance-booking spend recorded before the trip's own start_date (or
+        // after its end_date) still counts.
         BudgetScope.TRIP -> actualForTrip(
             tripId = requireNotNull(budget.tripId),
-            fromDate = budget.effectiveFromDate(fromDate),
-            toDate = toDate,
+            fromDate = TRIP_BUDGET_RANGE_START,
+            toDate = TRIP_BUDGET_RANGE_END,
         )
     }
 
+private const val TRIP_BUDGET_RANGE_START = "0001-01-01"
+private const val TRIP_BUDGET_RANGE_END = "9999-12-31"
+
 private fun BudgetSummary.effectiveFromDate(periodStart: String): String {
     val start = startDate ?: return periodStart
-    if (scope == BudgetScope.TRIP) return start
     return if (start > periodStart) start else periodStart
 }
 
