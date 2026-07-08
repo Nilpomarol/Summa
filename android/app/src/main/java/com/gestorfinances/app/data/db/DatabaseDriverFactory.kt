@@ -4,8 +4,6 @@ import android.content.Context
 import androidx.sqlite.db.SupportSQLiteDatabase
 import app.cash.sqldelight.driver.android.AndroidSqliteDriver
 
-private const val DATABASE_NAME = "gestor-finances.db"
-
 class DatabaseDriverFactory(
     private val context: Context,
 ) {
@@ -22,4 +20,11 @@ class DatabaseDriverFactory(
                 }
             },
         )
+
+    companion object {
+        const val DATABASE_NAME: String = "gestor-finances.db"
+
+        fun databaseFile(context: Context) =
+            context.applicationContext.getDatabasePath(DATABASE_NAME)
+    }
 }

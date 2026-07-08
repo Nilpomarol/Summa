@@ -355,16 +355,40 @@ Run these after building the app to confirm the audit's blocker and should-fix r
 | # | Step | Expected |
 |---|------|----------|
 | 1 | Open Configuració on a release build (or check `BuildConfig.DEBUG` is false) | The "Depuració i proves" section (incl. "Genera dades de prova") does not render at all |
-| 2 | Open Configuració on a debug build, tap "Genera dades de prova" | A destructive confirmation dialog appears before anything runs; cancelling leaves existing data untouched |
-| 3 | Create a shared recurring template (e.g. toggle "Fes-ho recurrent" on a shared expense), then open Gestió → Recurrents → Edit on that template and change only the name or amount, save | The template's split configuration survives — confirming a due occurrence still creates the correct split, not a full personal expense |
-| 4 | Edit an existing "Una altra persona ha pagat" (DEBT) expense, switch "Qui ha pagat?" to "Jo", save | The expense is correctly converted to a personal/shared expense; the old external-split debt is gone (not silently left in place with the edit lost) |
-| 5 | Edit an existing personal/shared expense, switch "Qui ha pagat?" to "Un altre", pick a payer, save | The expense is correctly converted to a debt; the old movement is gone (not left as a duplicate alongside the new external split) |
-| 6 | Open Anàlisi → Fix/Var with some uncategorized expense in the period | The Sankey's "Estalvi" figure matches the savings shown elsewhere on the tab (no longer inflated by uncategorized spend); a "Sense categoria" node appears in the diagram when applicable |
-| 7 | On the Moviments income form, toggle "Liquidació" and enter an amount exceeding the selected person's outstanding balance | A dismissible over-payment warning appears (same as the People settlement sheet); save still succeeds |
-| 8 | In a movement form, select a trip, then check the tag picker | Only global tags, tags scoped to that trip's actual event type, and tags local to that specific trip appear — no tags scoped to a different event type |
-| 9 | Open Trip Detail (from the Trips list), tap "Gestiona etiquetes" or "Pressupost del viatge", then press Back | Returns to Trip Detail (not the Trips list); pressing Back again returns to the Trips list |
-| 10 | Open Trip Detail from the Dashboard active-trip card, tap "Gestiona etiquetes" or "Pressupost del viatge", then press Back twice | First Back returns to Trip Detail, second Back returns to Dashboard |
-| 11 | From Trip Detail, archive the trip when the archive is expected to fail (e.g. simulate a repository error, or check via the regression test) | The error appears inline on Trip Detail itself, not silently lost; navigation does not occur until the result is known |
+| 2 | Open Configuració on a normal debug build | The seed-data section is hidden by the local `SHOW_DEBUG_SEED_DATA=false` guard while real data is in use |
+| 3 | Temporarily enable `SHOW_DEBUG_SEED_DATA` for a development-only check, then tap "Genera dades de prova" | A destructive confirmation dialog appears before anything runs; cancelling leaves existing data untouched |
+| 4 | Create a shared recurring template (e.g. toggle "Fes-ho recurrent" on a shared expense), then open Gestió → Recurrents → Edit on that template and change only the name or amount, save | The template's split configuration survives — confirming a due occurrence still creates the correct split, not a full personal expense |
+| 5 | Edit an existing "Una altra persona ha pagat" (DEBT) expense, switch "Qui ha pagat?" to "Jo", save | The expense is correctly converted to a personal/shared expense; the old external-split debt is gone (not silently left in place with the edit lost) |
+| 6 | Edit an existing personal/shared expense, switch "Qui ha pagat?" to "Un altre", pick a payer, save | The expense is correctly converted to a debt; the old movement is gone (not left as a duplicate alongside the new external split) |
+| 7 | Open Anàlisi → Fix/Var with some uncategorized expense in the period | The Sankey's "Estalvi" figure matches the savings shown elsewhere on the tab (no longer inflated by uncategorized spend); a "Sense categoria" node appears in the diagram when applicable |
+| 8 | On the Moviments income form, toggle "Liquidació" and enter an amount exceeding the selected person's outstanding balance | A dismissible over-payment warning appears (same as the People settlement sheet); save still succeeds |
+| 9 | In a movement form, select a trip, then check the tag picker | Only global tags, tags scoped to that trip's actual event type, and tags local to that specific trip appear — no tags scoped to a different event type |
+| 10 | Open Trip Detail (from the Trips list), tap "Gestiona etiquetes" or "Pressupost del viatge", then press Back | Returns to Trip Detail (not the Trips list); pressing Back again returns to the Trips list |
+| 11 | Open Trip Detail from the Dashboard active-trip card, tap "Gestiona etiquetes" or "Pressupost del viatge", then press Back twice | First Back returns to Trip Detail, second Back returns to Dashboard |
+| 12 | From Trip Detail, archive the trip when the archive is expected to fail (e.g. simulate a repository error, or check via the regression test) | The error appears inline on Trip Detail itself, not silently lost; navigation does not occur until the result is known |
+
+---
+
+## 16. P5R-16 Manual Checklist - Backup and Restore
+
+Run these after building the app to confirm the manual unencrypted backup path is correct. These checks are intentionally conservative because, after this slice, local data may be real user data rather than disposable test data.
+
+| # | Step | Expected |
+|---|------|----------|
+| 1 | Open Gestio -> Configuracio | A `Copies de seguretat` card appears above the debug-only section, with folder status plus Exporta/Importa actions |
+| 2 | Tap Exporta before choosing a folder | Android opens the folder picker; cancelling leaves Settings unchanged and creates no backup |
+| 3 | Choose a local or Drive-synced folder | Settings shows the remembered folder label and a folder-saved info banner |
+| 4 | Tap Exporta | A `.gfbackup` file named `gestor-finances-backup-v1-...gfbackup` appears in the selected folder; Settings shows the exported filename |
+| 5 | Export twice | Two backup files exist, and the second has a higher `snapshot_version` in the filename |
+| 6 | Tap Importa with at least one backup in the folder | A bottom sheet lists `.gfbackup` files with version/date labels, newest first |
+| 7 | Select a backup, then cancel the confirmation dialog | No data is replaced; the temp restore candidate is discarded |
+| 8 | Select a backup and confirm restore | The app disables the restore/cancel buttons while applying, replaces the local DB, clears old ViewModels, recreates the Activity, opens normally with restored data, and shows a one-shot success snackbar |
+| 9 | Try double-tapping the restore confirmation | Restore applies once; no duplicate replace, crash, or temp-file error appears |
+| 10 | Place a random/renamed non-app SQLite file ending in `.gfbackup` in the folder and select it | The app rejects it because required Gestor Finances tables/views are missing; current data is untouched |
+| 11 | On a device that uses the old-SQLite fallback, tap Exporta | The app checkpoints, closes/copies the stable DB file, recreates, and then shows the export result snackbar |
+| 12 | Trigger/cancel import/restore while another backup operation is busy | Busy actions are ignored or disabled; no data changes until the active operation finishes |
+| 13 | Restore an older or same-version backup | A dismissible warning appears in the confirmation dialog; restore is still allowed if confirmed |
+| 14 | Put a `.gfsnap` file in the same folder | The unencrypted import list ignores it; `.gfsnap` is reserved for the future encrypted sync protocol |
 
 ---
 
