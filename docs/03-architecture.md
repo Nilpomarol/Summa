@@ -36,6 +36,8 @@ The live DB runs in WAL mode (with `-wal`/`-shm` sidecar files and possibly acti
 2. The **version number lives inside the DB** (a `meta` table), so it travels atomically with the data — no sidecar to lose.
 3. **Encrypt** that stable image with the user-held key (spec §7.4).
 
+Android's early unencrypted backup precursor (`P5R-16`) follows the same shape but writes a distinct `.gfbackup` file and skips encryption. It attempts `VACUUM INTO` first; on older Android SQLite builds without that statement, it checkpoints WAL, closes SQLDelight, copies the stable main DB file, then recreates the Activity so the rebuilt container reopens the DB cleanly.
+
 Applying a received snapshot:
 1. Decrypt; **reject** if its version ≤ the local version (rule in `02-synchronization.md`).
 2. Write to a temp file, fsync, then **atomically replace** the local DB (atomic rename), so a crash mid-apply can never leave a half-written database.

@@ -16,4 +16,12 @@ class MetaRepository(
             snapshotVersion = queries.valueForKey("snapshot_version").executeAsOne(),
         )
     }
+
+    fun incrementSnapshotVersion(): Long =
+        queries.transactionWithResult {
+            val current = queries.valueForKey("snapshot_version").executeAsOne().toLong()
+            val next = current + 1L
+            queries.updateValueForKey(value = next.toString(), key = "snapshot_version")
+            next
+        }
 }

@@ -10,6 +10,11 @@ data class NotificationSettings(
     val lowBalanceAlertsEnabled: Boolean = true,
 )
 
+interface NotificationSettingsRepository {
+    fun loadSettings(): NotificationSettings
+    fun saveSettings(settings: NotificationSettings)
+}
+
 interface NotificationRefresher {
     suspend fun refreshNotifications()
 
@@ -20,17 +25,17 @@ interface NotificationRefresher {
     }
 }
 
-class NotificationPreferences(context: Context) {
+class NotificationPreferences(context: Context) : NotificationSettingsRepository {
     private val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    fun loadSettings(): NotificationSettings =
+    override fun loadSettings(): NotificationSettings =
         NotificationSettings(
             recurringLeadDays = prefs.getInt(KEY_RECURRING_LEAD_DAYS, DEFAULT_RECURRING_LEAD_DAYS),
             budgetAlertsEnabled = prefs.getBoolean(KEY_BUDGET_ALERTS, true),
             lowBalanceAlertsEnabled = prefs.getBoolean(KEY_LOW_BALANCE_ALERTS, true),
         )
 
-    fun saveSettings(settings: NotificationSettings) {
+    override fun saveSettings(settings: NotificationSettings) {
         prefs.edit()
             .putInt(KEY_RECURRING_LEAD_DAYS, settings.recurringLeadDays)
             .putBoolean(KEY_BUDGET_ALERTS, settings.budgetAlertsEnabled)

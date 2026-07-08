@@ -456,10 +456,12 @@ fun PrimaryButton(
 @Composable
 fun DestructiveTextButton(
     onClick: () -> Unit,
+    enabled: Boolean = true,
     content: @Composable () -> Unit,
 ) {
     TextButton(
         onClick = onClick,
+        enabled = enabled,
         colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
     ) {
         content()

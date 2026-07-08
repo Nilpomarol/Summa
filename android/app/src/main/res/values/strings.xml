@@ -707,6 +707,42 @@
     <string name="notification_low_balance_title">Saldo baix</string>
     <string name="notification_low_balance_body">%1$s: saldo %2$s, llindar %3$s.</string>
 
+    <!-- Backups (P5R-16) -->
+    <string name="settings_backup_title">Còpies de seguretat</string>
+    <string name="settings_backup_body">Exporta o restaura una còpia completa de la base de dades en una carpeta que triïs.</string>
+    <string name="settings_backup_folder_missing">Tria una carpeta abans de crear o restaurar còpies.</string>
+    <string name="settings_backup_folder_value">Carpeta: %1$s</string>
+    <string name="settings_backup_folder_saved">Carpeta de còpies desada.</string>
+    <string name="settings_backup_choose_folder">Tria carpeta</string>
+    <string name="settings_backup_change_folder">Canvia carpeta</string>
+    <string name="settings_backup_export">Exporta</string>
+    <string name="settings_backup_import">Importa</string>
+    <string name="settings_backup_busy">Treballant amb la còpia de seguretat...</string>
+    <string name="settings_backup_busy_short">Treballant...</string>
+    <string name="settings_backup_replacing_database">Substituint la base de dades. Espera un moment, l\'aplicació es reiniciarà tot seguit.</string>
+    <string name="settings_backup_export_success">Còpia exportada: %1$s</string>
+    <string name="settings_backup_export_success_fallback">Còpia exportada: %1$s. S\'ha fet servir el mode compatible de còpia.</string>
+    <string name="settings_backup_restore_success">Còpia restaurada: %1$s</string>
+    <string name="settings_backup_import_empty">No s\'ha trobat cap fitxer .gfbackup en aquesta carpeta.</string>
+    <string name="settings_backup_list_title">Tria una còpia</string>
+    <string name="settings_backup_candidate_subtitle">Versió %1$s · %2$s</string>
+    <string name="settings_backup_version_unknown">desconeguda</string>
+    <string name="settings_backup_date_unknown">data desconeguda</string>
+    <string name="settings_backup_restore_confirm_title">Restaurar aquesta còpia?</string>
+    <string name="settings_backup_restore_confirm_body">Es substituiran les dades actuals per %1$s (instantània %2$d). Aquesta acció no es pot desfer.</string>
+    <string name="settings_backup_restore_confirm_action">Restaura</string>
+    <string name="settings_backup_restore_version_warning">Aquesta còpia no és més nova que la base de dades actual. Pots restaurar-la igualment si vols tornar enrere.</string>
+    <string name="settings_backup_error_format">Aquest fitxer no és una còpia .gfbackup vàlida.</string>
+    <string name="settings_backup_error_unreadable">No s\'ha pogut llegir aquesta còpia.</string>
+    <string name="settings_backup_error_meta_missing">La còpia no conté la informació interna de versió.</string>
+    <string name="settings_backup_error_meta_invalid">La informació interna de versió no és vàlida.</string>
+    <string name="settings_backup_error_integrity">La còpia no ha superat la comprovació d\'integritat.</string>
+    <string name="settings_backup_error_schema">La còpia és d\'una versió de l\'app més nova i no es pot restaurar aquí.</string>
+    <string name="settings_backup_error_not_app_database">Aquest fitxer no sembla una còpia de Gestor Finances.</string>
+    <string name="settings_backup_error_restore_apply">No s\'ha pogut aplicar la còpia. L\'app es reiniciarà per tornar a obrir la base de dades.</string>
+    <string name="settings_backup_error_export_destination">No s\'ha pogut escriure la còpia a la carpeta seleccionada.</string>
+    <string name="settings_backup_error_generic">No s\'ha pogut completar la còpia: %1$s</string>
+
     <!-- Phase 5 (P5-1): trips, trip analysis, tags. -->
 
     <!-- Trips list and detail -->

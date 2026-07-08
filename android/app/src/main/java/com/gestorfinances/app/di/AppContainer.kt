@@ -1,6 +1,8 @@
 package com.gestorfinances.app.di
 
 import android.content.Context
+import com.gestorfinances.app.data.backup.BackupFolderStore
+import com.gestorfinances.app.data.backup.BackupSnapshotService
 import com.gestorfinances.app.data.db.DataSeeder
 import com.gestorfinances.app.data.db.DatabaseDriverFactory
 import com.gestorfinances.app.data.db.GestorDatabase
@@ -23,13 +25,15 @@ import com.gestorfinances.app.notifications.NotificationPreferences
 class AppContainer(context: Context) {
     private val appContext = context.applicationContext
 
-    private val driver by lazy {
+    private val driverLazy = lazy {
         DatabaseDriverFactory(appContext).create()
     }
+    private val driver by driverLazy
 
-    private val database: GestorDatabase by lazy {
+    private val databaseLazy = lazy {
         GestorDatabase(driver)
     }
+    private val database: GestorDatabase by databaseLazy
 
     val dataSeeder: DataSeeder by lazy {
         DataSeeder(driver)
@@ -91,6 +95,19 @@ class AppContainer(context: Context) {
         NotificationPreferences(appContext)
     }
 
+    val backupFolderStore: BackupFolderStore by lazy {
+        BackupFolderStore(appContext)
+    }
+
+    val backupSnapshotService: BackupSnapshotService by lazy {
+        BackupSnapshotService(
+            context = appContext,
+            driver = driver,
+            metaRepository = metaRepository,
+            closeDatabase = ::close,
+        )
+    }
+
     val notificationCoordinator: FinanceNotificationCoordinator by lazy {
         FinanceNotificationCoordinator(
             context = appContext,
@@ -99,5 +116,11 @@ class AppContainer(context: Context) {
             accountRepository = accountRepository,
             preferences = notificationPreferences,
         )
+    }
+
+    fun close() {
+        if (driverLazy.isInitialized()) {
+            runCatching { driver.close() }
+        }
     }
 }

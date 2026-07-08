@@ -79,6 +79,7 @@ import com.gestorfinances.app.ui.recurring.DueRemindersSheet
 import com.gestorfinances.app.ui.recurring.RecurringOverlays
 import com.gestorfinances.app.ui.recurring.RecurringScreen
 import com.gestorfinances.app.ui.recurring.RecurringViewModel
+import com.gestorfinances.app.ui.settings.SettingsMessage
 import com.gestorfinances.app.ui.settings.SettingsScreen
 import com.gestorfinances.app.ui.settings.SettingsViewModel
 import com.gestorfinances.app.ui.tags.TagsScreen
@@ -103,7 +104,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         notificationDestinations.value = intent.notificationDestination()
-        val appContainer = (application as GestorFinancesApp).container
+        val app = application as GestorFinancesApp
+        val appContainer = app.container
+        val pendingSnackbarMessage = app.consumePendingSnackbarMessage()
         setContent {
             var databaseState: DatabaseState by remember { mutableStateOf(DatabaseState.Checking) }
             var notificationPermissionGranted by remember {
@@ -142,12 +145,24 @@ class MainActivity : ComponentActivity() {
                     notificationDestination = notificationDestination,
                     onNotificationDestinationConsumed = { notificationDestinations.value = null },
                     notificationPermissionGranted = notificationPermissionGranted,
+                    pendingSnackbarMessage = pendingSnackbarMessage,
                     onRequestNotificationPermission = {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                             notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                         } else {
                             notificationPermissionGranted = true
                         }
+                    },
+                    onRecreateApp = { message ->
+                        app.postPendingSnackbarMessage(
+                            PendingSnackbarMessage(
+                                messageRes = message.messageRes,
+                                arg = message.arg,
+                            ),
+                        )
+                        app.resetContainer()
+                        viewModelStore.clear()
+                        recreate()
                     },
                 )
             }
@@ -169,7 +184,9 @@ private fun AppShell(
     notificationDestination: String?,
     onNotificationDestinationConsumed: () -> Unit,
     notificationPermissionGranted: Boolean,
+    pendingSnackbarMessage: PendingSnackbarMessage?,
     onRequestNotificationPermission: () -> Unit,
+    onRecreateApp: (SettingsMessage) -> Unit,
 ) {
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -185,7 +202,9 @@ private fun AppShell(
                 notificationDestination = notificationDestination,
                 onNotificationDestinationConsumed = onNotificationDestinationConsumed,
                 notificationPermissionGranted = notificationPermissionGranted,
+                pendingSnackbarMessage = pendingSnackbarMessage,
                 onRequestNotificationPermission = onRequestNotificationPermission,
+                onRecreateApp = onRecreateApp,
             )
         }
     }
@@ -198,8 +217,22 @@ private fun LedgerShell(
     notificationDestination: String?,
     onNotificationDestinationConsumed: () -> Unit,
     notificationPermissionGranted: Boolean,
+    pendingSnackbarMessage: PendingSnackbarMessage?,
     onRequestNotificationPermission: () -> Unit,
+    onRecreateApp: (SettingsMessage) -> Unit,
 ) {
+    // The restore flow (and the checkpoint-copy export fallback) close the single shared
+    // SqlDriver that every repository/ViewModel below depends on, mid-operation, until the
+    // Activity recreates with a fresh AppContainer. Gate the whole shell — not just Settings'
+    // own buttons — the instant that happens so no other tab, the FAB, or a background
+    // LaunchedEffect can touch the closed driver in the meantime.
+    val isDatabaseBeingReplaced by appContainer.backupSnapshotService.isDatabaseBeingReplaced
+        .collectAsState()
+    if (isDatabaseBeingReplaced) {
+        DatabaseReplacementOverlay(modifier = Modifier.fillMaxSize())
+        return
+    }
+
     var nav by remember { mutableStateOf(AppNavState.Home) }
     val onboardingViewModel = remember(viewModelStoreOwner) {
         ViewModelProvider(
@@ -311,9 +344,16 @@ private fun LedgerShell(
             SettingsViewModel.Factory(
                 preferences = appContainer.notificationPreferences,
                 dataSeeder = appContainer.dataSeeder,
+                backupFolderRepository = appContainer.backupFolderStore,
+                backupOperations = appContainer.backupSnapshotService,
                 notificationRefresher = appContainer.notificationCoordinator,
             ),
         )[SettingsViewModel::class.java]
+    }
+    val backupFolderLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree(),
+    ) { uri ->
+        settingsViewModel.onBackupFolderSelected(uri?.toString())
     }
     val tripsViewModel = remember(viewModelStoreOwner) {
         ViewModelProvider(
@@ -340,6 +380,10 @@ private fun LedgerShell(
     }
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
+    val pendingSnackbarText = pendingSnackbarMessage?.let { message ->
+        message.arg?.let { stringResource(message.messageRes, it) }
+            ?: stringResource(message.messageRes)
+    }
     val onboardingState by onboardingViewModel.state.collectAsState()
     val movementsState by movementsViewModel.state.collectAsState()
     val accountsState by accountsViewModel.state.collectAsState()
@@ -349,6 +393,12 @@ private fun LedgerShell(
     // "once per app cold start" means, so losing this on process death re-shows the sheet, which
     // is correct, not a bug.
     var dueRemindersShown by remember { mutableStateOf(false) }
+
+    LaunchedEffect(pendingSnackbarText) {
+        if (pendingSnackbarText != null) {
+            snackbarHostState.showSnackbar(pendingSnackbarText)
+        }
+    }
 
     LaunchedEffect(movementsViewModel) {
         movementsViewModel.onScreenShown()
@@ -588,6 +638,8 @@ private fun LedgerShell(
                     viewModel = settingsViewModel,
                     notificationPermissionGranted = notificationPermissionGranted,
                     onRequestNotificationPermission = onRequestNotificationPermission,
+                    onPickBackupFolder = { backupFolderLauncher.launch(null) },
+                    onRecreateApp = onRecreateApp,
                     onBack = { nav = nav.back() },
                     modifier = Modifier
                         .fillMaxSize()
@@ -752,6 +804,38 @@ private fun DatabaseStatus(databaseState: DatabaseState) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             if (databaseState is DatabaseState.Checking) {
+                CircularProgressIndicator(modifier = Modifier.size(32.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun DatabaseReplacementOverlay(modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        color = MaterialTheme.colorScheme.background,
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .padding(32.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.app_name),
+                    style = MaterialTheme.typography.headlineMedium,
+                )
+                Text(
+                    text = stringResource(R.string.settings_backup_replacing_database),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 CircularProgressIndicator(modifier = Modifier.size(32.dp))
             }
         }
