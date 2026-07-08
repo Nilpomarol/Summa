@@ -488,8 +488,12 @@ private fun LedgerShell(
                         nav = nav.back()
                     },
                     onNewMovement = { trip -> openMovementForm(trip.id) },
-                    onManageTags = { tripId -> nav = nav.copy(overlay = AppOverlay.Tags(tripId = tripId)) },
-                    onManageBudget = { tripId -> nav = nav.copy(overlay = AppOverlay.Budgets(tripId = tripId)) },
+                    onManageTags = { tripId ->
+                        nav = nav.copy(overlay = AppOverlay.Tags(tripId = tripId, returnTo = overlay))
+                    },
+                    onManageBudget = { tripId ->
+                        nav = nav.copy(overlay = AppOverlay.Budgets(tripId = tripId, returnTo = overlay))
+                    },
                     onMovementDetail = movementsViewModel::onDetailClicked,
                     modifier = Modifier
                         .fillMaxSize()

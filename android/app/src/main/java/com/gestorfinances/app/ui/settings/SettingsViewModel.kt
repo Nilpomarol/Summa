@@ -51,7 +51,16 @@ class SettingsViewModel(
         saveSettings(preferences.loadSettings().copy(lowBalanceAlertsEnabled = enabled))
     }
 
-    fun onSeedDataRequested(onFinished: () -> Unit) {
+    fun onSeedDataClicked() {
+        _state.value = _state.value.copy(seedDataConfirmationPending = true)
+    }
+
+    fun onSeedDataDismissed() {
+        _state.value = _state.value.copy(seedDataConfirmationPending = false)
+    }
+
+    fun onSeedDataConfirmed(onFinished: () -> Unit) {
+        _state.value = _state.value.copy(seedDataConfirmationPending = false)
         viewModelScope.launch {
             withContext(ioDispatcher) {
                 dataSeeder.seed()
@@ -95,6 +104,7 @@ data class SettingsUiState(
     val budgetAlertsEnabled: Boolean = true,
     val lowBalanceAlertsEnabled: Boolean = true,
     val errorRes: Int? = null,
+    val seedDataConfirmationPending: Boolean = false,
 ) {
     companion object {
         fun fromSettings(settings: NotificationSettings): SettingsUiState =

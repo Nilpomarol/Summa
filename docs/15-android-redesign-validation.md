@@ -348,6 +348,26 @@ Run these after building the app to confirm the P5R-7 redesign and logic fixes a
 
 ---
 
+## 15. P5R-15 Manual Checklist — Stabilization audit fixes
+
+Run these after building the app to confirm the audit's blocker and should-fix regressions are actually resolved. Unlike the other checklists, this one targets bugs that were silently wrong, not new UI — expect no visible change on the happy path, only on the specific failure scenarios below.
+
+| # | Step | Expected |
+|---|------|----------|
+| 1 | Open Configuració on a release build (or check `BuildConfig.DEBUG` is false) | The "Depuració i proves" section (incl. "Genera dades de prova") does not render at all |
+| 2 | Open Configuració on a debug build, tap "Genera dades de prova" | A destructive confirmation dialog appears before anything runs; cancelling leaves existing data untouched |
+| 3 | Create a shared recurring template (e.g. toggle "Fes-ho recurrent" on a shared expense), then open Gestió → Recurrents → Edit on that template and change only the name or amount, save | The template's split configuration survives — confirming a due occurrence still creates the correct split, not a full personal expense |
+| 4 | Edit an existing "Una altra persona ha pagat" (DEBT) expense, switch "Qui ha pagat?" to "Jo", save | The expense is correctly converted to a personal/shared expense; the old external-split debt is gone (not silently left in place with the edit lost) |
+| 5 | Edit an existing personal/shared expense, switch "Qui ha pagat?" to "Un altre", pick a payer, save | The expense is correctly converted to a debt; the old movement is gone (not left as a duplicate alongside the new external split) |
+| 6 | Open Anàlisi → Fix/Var with some uncategorized expense in the period | The Sankey's "Estalvi" figure matches the savings shown elsewhere on the tab (no longer inflated by uncategorized spend); a "Sense categoria" node appears in the diagram when applicable |
+| 7 | On the Moviments income form, toggle "Liquidació" and enter an amount exceeding the selected person's outstanding balance | A dismissible over-payment warning appears (same as the People settlement sheet); save still succeeds |
+| 8 | In a movement form, select a trip, then check the tag picker | Only global tags, tags scoped to that trip's actual event type, and tags local to that specific trip appear — no tags scoped to a different event type |
+| 9 | Open Trip Detail (from the Trips list), tap "Gestiona etiquetes" or "Pressupost del viatge", then press Back | Returns to Trip Detail (not the Trips list); pressing Back again returns to the Trips list |
+| 10 | Open Trip Detail from the Dashboard active-trip card, tap "Gestiona etiquetes" or "Pressupost del viatge", then press Back twice | First Back returns to Trip Detail, second Back returns to Dashboard |
+| 11 | From Trip Detail, archive the trip when the archive is expected to fail (e.g. simulate a repository error, or check via the regression test) | The error appears inline on Trip Detail itself, not silently lost; navigation does not occur until the result is known |
+
+---
+
 ## 8. Phase 5R Output
 
 By the end of Phase 5R, Android should have:

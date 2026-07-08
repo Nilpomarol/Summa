@@ -288,6 +288,13 @@ class RecurringViewModel(
             return
         }
 
+        // The manual edit form has no split_config field of its own (splits are configured via the
+        // pattern-detection flow or seeded directly), so on edit it must carry the existing
+        // template's splitConfig forward unchanged — otherwise TemplateRepository.update's
+        // full-row overwrite would silently wipe it (see toTemplateDraft(existing) below, same fix
+        // already applied to the detection-confirm path).
+        val existingSplitConfig = form.id?.let { id -> _state.value.templates.firstOrNull { it.id == id }?.splitConfig }
+
         val draft = TemplateDraft(
             id = form.id ?: UUID.randomUUID().toString(),
             type = form.type,
@@ -298,7 +305,7 @@ class RecurringViewModel(
             name = form.name.trim().ifBlank { null },
             payee = form.payee.trim().ifBlank { null },
             notes = form.notes.trim().ifBlank { null },
-            splitConfig = null,
+            splitConfig = existingSplitConfig,
             frequency = form.frequency,
             intervalCount = if (form.frequency == RecurrenceFrequency.CUSTOM) intervalCount else null,
             customUnit = if (form.frequency == RecurrenceFrequency.CUSTOM) form.customUnit else null,

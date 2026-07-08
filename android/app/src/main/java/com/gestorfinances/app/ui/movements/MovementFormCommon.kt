@@ -327,7 +327,8 @@ internal fun FormTripTagSection(
         placeholder = noTrip,
     )
     if (tripId != null) {
-        val tagOptions = tags.filter { it.supportsTrip(tripId) }
+        val trip = trips.firstOrNull { it.id == tripId }
+        val tagOptions = tags.filter { it.supportsTrip(trip) }
         if (tagOptions.isNotEmpty()) {
             val noTag = stringResource(R.string.tag_picker_none)
             FormSelect(
@@ -431,8 +432,8 @@ internal fun RecurrenceFrequency.cadenceLabel(): String = when (this) {
     RecurrenceFrequency.CUSTOM -> stringResource(R.string.recurring_cadence_custom)
 }
 
-internal fun TagSummary.supportsTrip(tripId: String?): Boolean =
-    tripId != null && (this.tripId == null || this.tripId == tripId)
+internal fun TagSummary.supportsTrip(trip: TripSummary?): Boolean =
+    trip != null && (this.tripId == trip.id || (this.tripId == null && (this.tripType == null || this.tripType == trip.type)))
 
 @Composable
 internal fun MovementSheetHeader(

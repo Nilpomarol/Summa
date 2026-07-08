@@ -341,6 +341,53 @@ class RecurringViewModelTest {
         }
     }
 
+    // Regression (spec-guardian stabilization audit, P5R-15): unlike the pattern-detection confirm
+    // path (toTemplateDraft(existing), above), the manual Edit-template form has no split_config
+    // field of its own -- onSaveClicked used to always pass splitConfig = null, and
+    // TemplateRepository.update is a full-row overwrite, so saving an unrelated edit (e.g. the
+    // name) through "Gestió > Recurrents > Edit" silently wiped a shared template's split forever.
+    @Test
+    fun editingATemplateWithAnExistingSplitConfigPreservesIt() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            store.people.create(
+                PersonDraft(id = "laura", name = "Laura", avatar = null, color = null, notes = null),
+                createdAt = NOW,
+            )
+            val splitConfig = TemplateSplitConfig(
+                entryMethod = "equal",
+                payer = "user",
+                lines = listOf(
+                    TemplateSplitConfigLine(party = "user", owedAmountCents = 500),
+                    TemplateSplitConfigLine(party = "laura", owedAmountCents = 500),
+                ),
+            )
+            store.templates.create(
+                monthlyTemplateDraft("dinner", nextDueDate = "2026-02-01").copy(
+                    amountCents = 1_000,
+                    splitConfig = splitConfig,
+                ),
+                createdAt = NOW,
+            )
+            val viewModel = viewModel(store)
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+
+            val template = viewModel.state.value.templates.single()
+            viewModel.onEditClicked(template)
+            viewModel.onFormChanged(
+                viewModel.state.value.form!!.copy(name = "Sopar amb Laura"),
+            )
+            viewModel.onSaveClicked()
+            advanceUntilIdle()
+
+            assertNull(viewModel.state.value.form)
+            val updated = store.templates.getActive("dinner")!!
+            assertEquals("Sopar amb Laura", updated.name)
+            assertEquals(splitConfig, updated.splitConfig)
+        }
+    }
+
     @Test
     fun skippingDuePromptAdvancesCursorWithoutMovement() = runTest(dispatcher) {
         freshStore().use { store ->

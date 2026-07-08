@@ -19,6 +19,21 @@ This model is essentially the skeleton of a token system (single writer, zero co
 
 ---
 
+## Early unencrypted backup precursor (`P5R-16`)
+
+Everything below this note describes the **real** sync protocol (`Phase 7`). Before that, `P5R-16` pulls a small, deliberately narrower piece forward: a manual, single-device whole-DB backup/restore, so the user can start keeping real data in the app without waiting for Phase 7.
+
+Scope of the `P5R-16` precursor, and how it differs from the real protocol above:
+
+- **No control token, no read-only device state, no handoff.** There's only one active device right now (Windows doesn't exist yet), so none of the single-writer machinery this doc designs is needed yet. It's a manual "export now" / "import now" action, not sync.
+- **Unencrypted.** The user's own Drive (or any folder they pick via Android's Storage Access Framework) is not a shared/third-party transport in the sense §7.4 of `00-Full_Spec.md` worries about — it's the user's own account. The key-management UX this doc assumes for the real protocol is deferred to `P7-7`, which adds encryption on top of this precursor rather than the precursor reinventing it early.
+- **Reuses the snapshot production/apply mechanics**, not the file format: still a consistent single-file image via `VACUUM INTO`/the backup API, still an atomic apply (temp file → fsync → rename). But the file uses a **distinct, unencrypted format and extension** from `.gfsnap` below — never write or accept a `.gfsnap` file through the unencrypted path, and never accept the precursor's plain file through whatever eventually reads `.gfsnap`. The two must stay visibly incompatible so an unencrypted backup is never mistaken for (or silently upgraded into) a real encrypted snapshot.
+- **Version check is a warning, not a hard reject.** The real protocol's "reject if version ≤ local" rule exists to protect single-writer ordering across two devices; a single-device manual restore has no such ordering to protect, so an older backup is allowed with a dismissible warning (never-block, per `AGENTS.md` invariant #7), not refused outright.
+
+When Phase 7 is implemented, extend this precursor's snapshot-production/apply code path for the real protocol rather than replacing it wholesale.
+
+---
+
 ## Concepts
 
 | Concept | Description |

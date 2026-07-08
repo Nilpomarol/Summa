@@ -11,6 +11,9 @@ import com.gestorfinances.app.data.repository.PersonSummary
 import com.gestorfinances.app.data.repository.TagSummary
 import com.gestorfinances.app.data.repository.TripSummary
 import com.gestorfinances.app.domain.rules.RecurrenceFrequency
+import com.gestorfinances.app.ui.common.BannerKind
+import com.gestorfinances.app.ui.common.InlineBanner
+import com.gestorfinances.app.ui.common.parseEuroCents
 
 /**
  * The INCOME body: account, then either the settlement toggle + settlement person
@@ -64,6 +67,18 @@ internal fun IncomeFormSection(
             selectedId = form.settlementPersonId,
             onSelect = onSettlementPersonSelected,
         )
+        // This quick toggle always records a person-to-user settlement, so the outstanding debt
+        // is what the person actually owes (never-block invariant: warn, don't stop, on overpay --
+        // mirrors PeopleScreen's dedicated SettlementSheet).
+        val selectedPerson = people.firstOrNull { it.id == form.settlementPersonId }
+        val outstandingCents = selectedPerson?.balanceCents?.coerceAtLeast(0L)
+        val parsedAmount = parseEuroCents(form.amount, allowNegative = false)
+        if (outstandingCents != null && parsedAmount != null && parsedAmount > outstandingCents) {
+            InlineBanner(
+                kind = BannerKind.Alert,
+                text = stringResource(R.string.settlement_warning_overpay),
+            )
+        }
     } else {
         FormRecurringSection(
             isRecurring = form.isRecurring,

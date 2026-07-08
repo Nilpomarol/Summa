@@ -421,10 +421,12 @@ fun TripDetailScreen(
             text = { Text(text = stringResource(R.string.trip_archive_warning)) },
             confirmButton = {
                 DestructiveTextButton(
-                    onClick = {
-                        viewModel.onArchiveConfirmed()
-                        onBack()
-                    },
+                    // Only navigate back once the archive actually succeeds — awaiting
+                    // `onSuccess` (rather than calling `onBack()` unconditionally right after
+                    // firing the coroutine) keeps the user on this page with the failure shown
+                    // inline (`detail.errorMessage`) instead of silently landing back on
+                    // whatever screen this page was opened from.
+                    onClick = { viewModel.onArchiveConfirmed(onSuccess = onBack) },
                 ) {
                     Text(text = stringResource(R.string.common_archive))
                 }

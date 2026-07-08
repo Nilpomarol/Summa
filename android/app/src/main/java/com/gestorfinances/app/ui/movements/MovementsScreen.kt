@@ -1115,7 +1115,7 @@ private fun TripFilterSheet(
                         if (currentTripId != selectedTripId) {
                             currentTagId = null
                         }
-                        val tripTags = tags.filter { it.supportsTrip(trip.id) }
+                        val tripTags = tags.filter { it.supportsTrip(trip) }
                         if (tripTags.isEmpty()) {
                             onSelect(trip.id, null)
                             onDismiss()
@@ -1146,8 +1146,9 @@ private fun TripFilterSheet(
                 }
             }
             
+            val currentTrip = currentTripId?.let { id -> trips.firstOrNull { it.id == id } }
             currentTripId?.let { tripId ->
-                val tripTags = tags.filter { it.supportsTrip(tripId) }
+                val tripTags = tags.filter { it.supportsTrip(currentTrip) }
                 if (tripTags.isNotEmpty()) {
                     HorizontalDivider(color = FinanceTheme.colors.cardBorder)
                     Text(
@@ -1221,7 +1222,7 @@ private fun TripFilterSheet(
                 }
             }
             
-            if (currentTripId != null && tags.any { it.supportsTrip(currentTripId) }) {
+            if (currentTripId != null && tags.any { it.supportsTrip(currentTrip) }) {
                 PrimaryButton(
                     text = stringResource(android.R.string.ok),
                     onClick = {

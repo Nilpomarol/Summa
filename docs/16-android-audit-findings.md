@@ -19,7 +19,7 @@ The audit was performed as a senior-architect review across correctness, functio
 | Tag | Meaning |
 |---|---|
 | `T1` | Tier 1 — Foundation. Fixed before any feature work, to keep a strong base. |
-| `P5R-3` / `P5R-4` / `P5R-5` / `P5R-6` / `P5R-7` | Owned by that Phase 5R slice (redesign + logic validation). |
+| `P5R-3` / `P5R-4` / `P5R-5` / `P5R-6` / `P5R-7` / `P5R-15` | Owned by that Phase 5R slice (redesign + logic validation, or — for `P5R-15` — the whole-app stabilization audit run before real user data entered the app). |
 | `P8` | Owned by Phase 8 release hardening. |
 | `WONTFIX` | Accepted risk; no action planned. |
 | `DESCOPE` | Explicitly moved out of its original roadmap note to a different owner. |
@@ -37,22 +37,30 @@ The implementation plan has three tiers:
 | ID | Title | Severity | Disposition | Owner | Conf. |
 |---|---|---|---|---|---|
 | **C1** | No DB migration runner | Critical | **RESOLVED** P5R-3 | Migration 002 (`splits.tag_id`) is the first real migration; SQLDelight `.sqm` runner wired; regression test green | High |
-| **C2** | `DataSeeder` hard-deletes 9 tables, user-reachable | Critical | P8 | Release-prep (remove); DEBUG gate applied when WIP merges (HEAD has no DataSeeder) | High |
+| **C2** | `DataSeeder` hard-deletes 9 tables, user-reachable | Critical | **RESOLVED (gate)** P5R-15 | `DataSeeder`/its Settings entry point is now behind `BuildConfig.DEBUG` (does not exist in a release build) plus a destructive `AlertDialog` confirmation in debug builds; full removal still owned by P8 | High |
 | **C3** | Recurring confirm non-atomic | Critical | **RESOLVED** P5R-6 | `MovementRepository.runInTransaction` wraps `create` + `advanceCursor` in one TX; rollback test green | High |
 | **C4** | Quick-template-create non-atomic | Critical | **RESOLVED** P5R-6 | Same `runInTransaction` wrapper covers `createQuickTemplate` + movement create/update; rollback test green | High |
 | **C5** | External-split edit non-atomic | Critical | **RESOLVED** P5R-3 | `SplitRepository.replaceExternalSplit` archives + inserts in one TX; rollback test green | High |
 | **C6** | ~~Over-refund CHECK vs "never block"~~ **INVALID — false positive** | — | INVALID | Not a defect; CHECK is correct (see §4) | High |
+| **C7** | Manual template edit silently destroys `split_config` | Critical | **RESOLVED** P5R-15 | `RecurringViewModel.onSaveClicked` now carries the existing template's `split_config` forward on edit instead of always nulling it; regression test verified against pre-fix code | High |
+| **C8** | Movement payer-switch conflates `movements.id`/`splits.id` | Critical | **RESOLVED** P5R-15 | `MovementFormState` splits the ambiguous `id` into `movementId`/`externalSplitId`; a payer-kind switch now does an explicit archive-old + create-new in one transaction instead of routing to `update`/`replaceExternalSplit` keyed on the wrong table; two regression tests (both directions), both verified against pre-fix code | High |
 | **F1** | `AutoCategorizer` built but unwired | Functional | **RESOLVED (suggestion)** P5R-6 | Read-only `AutoCatRuleRepository` + movement-form suggestion chip (tap-to-apply, never auto-applied); rules CRUD UI still not built (tracked separately, e.g. 6C prep) | High |
 | **F2** | §2.6 form can't express group bill | Functional | **WONTFIX-by-design** P5R-3 | T2-1 decided: type-4 `total = user share`; group-bill case out of scope v1 | High |
 | **F3** | `RecurringAdvancer` while-loop unbounded | Functional | **RESOLVED** P5R-6 | Hard ceiling (10,000 occurrences) added; all call sites already `runCatching`-wrapped so the failure surfaces as a benign error, never a hang | Medium |
 | **F4** | `debt_balance` golden vector has one case | Functional | **RESOLVED** P5R-5 | Canonical external, archived-row, partial/multi-settlement, and over-settlement vectors added | Medium |
 | **F5** | No undo affordance despite spec §5.9 | Functional | P8 | Release polish | Medium |
 | **F6** | Inconsistent warn-vs-block across rules | Functional | **RESOLVED** P5R-5 (settlement) / P5R-6 (refund) | Settlement side confirmed warn-not-block in P5R-5; refund side verified already correct during P5R-6 audit — `MovementsScreen.kt`'s `RefundFormDialog` already shows a dismissible over-refund `InlineBanner` without blocking save (pre-existing, not newly built) | Medium |
-| **U1** | "Load demo data" destructive trap | Usability | P8 | Release-prep (remove); same WIP-merge timing as C2 | High |
+| **F8** | Fix/Var Sankey "Estalvi" node computed ad hoc | Functional | **RESOLVED** P5R-15 | Savings node now derives from the canonical `netActualCents`; added an explicit "Sense categoria" leaf so the diagram's flows still sum to income, instead of silently omitting uncategorized expense from the subtraction | Medium |
+| **F9** | Quick income-form "Liquidació" toggle has no over-payment warning | Functional | **RESOLVED** P5R-15 | Reuses the same dismissible `settlement_warning_overpay` banner `PeopleScreen`'s `SettlementSheet` already shows, comparing against the selected person's `balanceCents` | Medium |
+| **F10** | Tag picker leaks event-type-scoped tags into any trip | Functional | **RESOLVED** P5R-15 | `TagSummary.supportsTrip` now takes the full `TripSummary` and compares `tripType`, not just `tripId`; threaded through every tag-picker call site (movement form, trip/tag filter sheet) | Medium |
+| **F11** | Trips-as-blocks toggle silently no-ops on 3 of 5 Analysis tabs | Functional | P5R-9 or later | `groupTripsAsBlocks` is only honored by `actualBreakdown` (used by Resum/Categories); `Comparativa`/`Historic`/`Fix-Var` call `actualByCategory`/`categoryTrends`, which have no `group_trips` param at all — not data-corrupting (no double-count), but the toggle appears globally active while doing nothing on 3 tabs. Deferred: either extend those two queries to honor the param, or scope the toggle/its "active filter" indicator to the tabs that actually respect it | Low |
+| **U1** | "Load demo data" destructive trap | Usability | **RESOLVED (gate)** P5R-15 | Same fix as C2 — debug-only + confirmation dialog | High |
 | **U2** | External-payer form missing share field | Usability | **RESOLVED** P5R-3 | 4-type cascade UI built; DEBT path = type-4 (someone else paid, user owes); WONTFIX-by-design on separate share field (F2) | High |
 | **U3** | No P5R-3 manual checklist yet | Usability | P5R-3 | This slice | High |
 | **U4** | No instrumentation/UI tests | Usability | P8 | Optional | Medium |
 | **U5** | Spec §5.9 nav drift (Recurring placement) | Usability | T1 | Doc-only | High |
+| **U6** | `AppOverlay` doesn't stack — Tags/Budgets from Trip Detail loses Trip Detail | Usability | **RESOLVED** P5R-15 | `AppOverlay.Tags`/`Budgets` gained an optional `returnTo: AppOverlay?`; `back()` restores it instead of clearing to `null` when set; only the Trip-Detail-opened call sites set it, the two direct entry points are unaffected; 4 new `AppNavStateTest` cases | Medium |
+| **U7** | Trip-archive failure silently swallowed from Dashboard entry point | Usability | **RESOLVED** P5R-15 | `onBack()` no longer fires before the archive result is known; on failure the error now renders on `TripDetailState.errorMessage` when archived from Trip Detail (previously only the Trips-list-level `errorMessage`, unread by Dashboard) | Medium |
 | **O1** | `Movements.sq` 4× SQL duplication | Bloat | **RESOLVED** P5R-3 | `v_movement_summary` view; all 4 queries now `SELECT * FROM v_movement_summary` | High |
 | **O2** | `analysis_actual_breakdown` redundancy | Bloat | **RESOLVED** P5R-4 | Refund bug fixed (`> 0` → `<> 0`); category columns carried through `active_groups`; outer joins + 9-column GROUP BY removed; GROUP BY now `(row_kind, category_id, trip_id)`; breakdown test added to `validate_shared_sql.py` | Medium |
 | **O3** | `analysis_net_worth` O(N²) self-join | Bloat | **RESOLVED** P5R-4 | Window function `SUM(delta_cents) OVER (ORDER BY bucket)` already in place | Medium |
@@ -66,6 +74,15 @@ The implementation plan has three tiers:
 | **M5** | Untested multi-write paths | Maintainability | T1 + per-fix | Harness + slices | High |
 | **M6** | `external_expense` missing `sl.archived_at` filter | Maintainability | **RESOLVED** P5R-3 | Fixed in `v_movement_summary` external branch | Medium |
 | **F7** | `tripActualByTag` silently drops external-split tags | Functional | **RESOLVED** P5R-7 | `v_actual_expense` now exposes `tag_id` on every row; `tripActualByTag` groups on it directly, no `movements` re-join | High |
+| **M7** | Dead `AnalysisRepository` methods + unused composable | Maintainability | Deferred | `dailyIncomeVsExpense`, `accountFlowOverTime`, `largestExpenses`, `topMerchants` never called from any UI; `AnalysisTabCommon.kt`'s `NoDataText()` never called. Note: `largestExpenses`/`topMerchants`'s backing queries don't accept `:account_id`/`:category_id` — a future wire-up must add those params or the filter chips would silently not apply | Low |
+| **M8** | Duplicated percent-formatting logic across Analysis | Maintainability | Deferred | The same "&lt;1%" floor logic is independently reimplemented in `DashboardScreen.kt`, `AnalysisWidgets.kt`, `CategoriesTab.kt`, `FixVariableTab.kt` — should be one shared `formatPercentLabel(fraction)` | Low |
+| **M9** | ~21 orphaned strings in Core Ledger area | Maintainability | Deferred | Left behind by the P5R-2/P5R-3 redesigns: `account_action_*`, `account_detail_*`, `account_flow_*`, `movement_action_edit/archive`, `movement_detail_*`, `category_parent_value` — none referenced anywhere | Low |
+| **M10** | Duplicate `ColorDot` composables | Maintainability | Deferred | `FormControls.kt` and `MovementsScreen.kt` each define their own `ColorDot`, using different color-resolution helpers (`parseAvatarColor` vs `categoryColor`) | Low |
+| **M11** | Duplicate `displayOrder`+name sort logic | Maintainability | Deferred | `AccountsViewModel.kt` and `CategoriesScreen.kt` independently implement the identical `sortedWith(compareBy { it.displayOrder }.thenBy { it.name.lowercase() })` — no shared extension | Low |
+| **M12** | Duplicate `MovementType.label()` in `RecurringScreen` | Maintainability | Deferred | Reimplements (rather than imports) the shared version already in `ui/common/Labels.kt` | Low |
+| **M13** | Duplicated split-mapping logic in `SplitRepository` | Maintainability | Deferred | `getForMovement`/`getForMovementById` have verbatim-identical processing beyond which query they call — should share one private mapping helper | Low |
+| **M14** | `movementsForCategory` duplicates `v_account_flow` sign logic ad hoc | Maintainability | Deferred | Hand-rolls the income/refund-positive, else-negative `CASE` instead of joining `v_account_flow` (as `accountFlowForAccount` does); currently harmless only because a schema CHECK guarantees transfer/settlement rows can never reach the query's `ELSE` branch — a second, easy-to-miss copy of money-sign logic outside the canonical view | Low |
+| **M15** | `docs/04-data-model.md` missing a `v_movement_summary` section | Maintainability | Deferred | The other 7 canonical views each have a dedicated `CREATE VIEW` + prose section in `docs/04`; `v_movement_summary` is only referenced in prose elsewhere. Documentation-completeness only — the view itself is correctly wired and tested everywhere | Low |
 
 ---
 
@@ -81,11 +98,11 @@ The implementation plan has three tiers:
 - **P5R-6 gotcha (fixed):** `002_add_splits_tag_id.sql` embeds its own full copy of `v_movement_summary` (needed because v1 databases predate that view and only ever run this migration to get it). When P5R-6 extended `shared/queries/v_movement_summary.sql` with the orphan-refund columns, that embedded copy was initially left stale — any v1→v2 upgrader got the old view recreated and hit `no such column: v_movement_summary.refunds_expense_id` at query time, even though fresh installs (which read the view straight from `shared/schema/schema.sql`) were fine. Fixed by syncing the migration's embedded view text and regenerating `1.sqm`. **Lesson for future view edits:** a change to a `shared/queries/*.sql` view that is also embedded in a `shared/migrations/*.sql` file must update both copies in the same change — `MigrationTest.kt` now asserts on the migrated view's `sqlite_master.sql` text to catch this class of drift going forward.
 - **Confidence:** High.
 
-#### C2 — `DataSeeder` hard-deletes 9 tables, user-reachable
-- **Evidence:** `DataSeeder.kt` runs `PRAGMA foreign_keys=OFF` then `DELETE FROM` over `split_lines, splits, movements, templates, tags, trips, people, categories, accounts`. `SettingsViewModel.onSeedDataRequested` calls it directly. This is the only hard-delete surface in the codebase.
-- **Impact:** A user who taps "load demo data" on real data irrecoverably destroys everything. Soft-delete/`archived_at` is bypassed.
-- **Disposition note:** This is a development seeding helper, not a production feature. It will be **removed** for the release build. **HEAD status:** `DataSeeder` and the `SettingsViewModel.onSeedDataRequested` entry point exist only in the in-progress external-split WIP branch, not in committed `main`; therefore Tier 1 cannot gate code that isn't there. The `BuildConfig.DEBUG` gate is applied at the **WIP-merge moment** (a ~2-line change in `SettingsViewModel`/`SettingsScreen` plus enabling `buildFeatures.buildConfig`), and the path is removed entirely in P8.
-- **Fix:** At WIP merge — gate behind `BuildConfig.DEBUG`. At P8 — remove the path entirely.
+#### C2 — `DataSeeder` hard-deletes 9 tables, user-reachable — **RESOLVED (gate, P5R-15)**
+- **Evidence:** `DataSeeder.kt` runs `PRAGMA foreign_keys=OFF` then `DELETE FROM` over `split_lines, splits, movements, templates, tags, trips, people, categories, accounts`. `SettingsViewModel.onSeedDataRequested` called it directly, on a single tap, from the normal production Settings screen, with no confirmation and no build-type gate — the WIP-merge gate this row originally called for was never actually applied once the feature landed on `main`. Rediscovered live by the P5R-15 stabilization audit, independently of this pre-existing entry.
+- **Impact:** Any real user who opened Configuració and tapped "Genera dades de prova" — intentionally or by mistake — permanently lost every account, movement, split, trip, tag, category, template, and person, replaced with the hardcoded demo dataset. No undo.
+- **Resolution:** `android/app/build.gradle.kts` now generates `BuildConfig.DEBUG` (`buildFeatures.buildConfig = true`). `SettingsScreen.kt` wraps the whole "Depuració i proves" section in `if (BuildConfig.DEBUG)`, so it does not exist at all in a release build (`assembleRelease` confirmed clean). Even in debug builds, the button now only opens a confirmation (`onSeedDataClicked` → `seedDataConfirmationPending`), and the seed only runs from `onSeedDataConfirmed`, via a destructive `AlertDialog` mirroring the existing trip/tag archive pattern. `DataSeeder.kt` itself was intentionally left untouched — the fix is entirely at the UI-reachability layer, which is sufficient now that the path is release-unreachable and confirmation-gated in debug.
+- **Remaining scope:** full removal of `DataSeeder`/the seed-data path is still owned by **P8**, per the original disposition — this resolution only closes the "user-reachable, unconfirmed, in a release build" part of the risk.
 - **Confidence:** High.
 
 #### C3 — Recurring confirm non-atomic — **RESOLVED (P5R-6)**
@@ -110,6 +127,18 @@ The implementation plan has three tiers:
 - **Evidence cited:** `shared/schema/schema.sql:218` and `shared/migrations/001_initial.sql:218`: `CHECK ( actual_refund_cents IS NULL OR actual_refund_cents <= amount_cents )`. The original audit asserted this conflicts with `AGENTS.md` invariant #7 and spec §3.3b's "warn and allow over-refund."
 - **Why the audit was wrong:** The CHECK is a **same-row** invariant — a single refund's analysis reduction (`actual_refund_cents`) cannot exceed its own cash inflow (`amount_cents`). That is always true: the spending-analysis reduction for one refund can never exceed the money that refund deposited. The spec's "warn and allow over-refund" (§3.3b) and `AGENTS.md` invariant #7 refer to a **different, cross-row** relationship — *total refunds vs the original expense* (`Σ refunds.amount_cents ≤ expense.amount_cents`), which `docs/04-data-model.md` §4 explicitly says is app-enforced and warn-and-allow. No valid scenario produces `actual_refund_cents > amount_cents` on one row: a shared-expense refund has `actual < amount` (only the user's share reduces), a partial refund has `actual ≤ amount`, and a goodwill credit that exceeds the original expense caps the analysis reduction at the remaining un-refunded amount (still `≤ amount_cents`), with the cash excess never counting as income (§3.3b).
 - **Disposition:** INVALID. The CHECK stays. Removing it would introduce a real data-integrity hole (analysis reduction decoupled from cash flow), not fix one. No code or schema change.
+- **Confidence:** High.
+
+#### C7 — Manual template edit silently destroys `split_config` — **RESOLVED (P5R-15)**
+- **Evidence:** `RecurringViewModel.onSaveClicked()`'s `TemplateDraft(...)` construction always set `splitConfig = null`, for both the create path and the edit path (`form.id != null`). `TemplateRepository.update()` issues a full-row `UPDATE templates SET ... split_config = :split_config ...`, so every manual edit overwrote whatever split config the template had. `TemplateFormState` had no `splitConfig` field, and `TemplateSummary.toFormState()` never captured it — the value was silently dropped the moment the user opened "Edit template." This is the same bug class already fixed once for a *different* code path: the pattern-detection confirm flow's `DetectedRecurringCandidate.toTemplateDraft(existing)` already carries `existing?.splitConfig` forward correctly, with a comment explaining why; the manual edit form never received the same treatment.
+- **Impact:** User creates a shared recurring expense (real split_config), later opens Recurrents > Edit template to fix a typo/amount, saves. `split_config` becomes `NULL`. Every subsequent confirmed occurrence books as a full personal expense — the other person's owed share silently stops being tracked, corrupting `v_person_balance` with zero indication anything went wrong.
+- **Resolution:** `onSaveClicked` now looks up the currently-loaded template's `splitConfig` (from `_state.value.templates`, already in memory) and carries it through unchanged on edit, mirroring the already-correct detection-confirm path. `RecurringViewModelTest.editingATemplateWithAnExistingSplitConfigPreservesIt` covers it — verified failing against the pre-fix code (`AssertionError` on the preserved-value assertion) before the fix, passing after.
+- **Confidence:** High.
+
+#### C8 — Movement payer-switch conflates `movements.id`/`splits.id` — **RESOLVED (P5R-15)**
+- **Evidence:** `MovementSummary.id` was overloaded: for a normal movement it's `movements.id`; for an `external_expense` ("Un altre ha pagat" / DEBT) row it's actually `splits.id` (the `v_movement_summary` external-expense UNION branch selects `s.id`). `MovementFormState.id` was populated straight from `MovementSummary.id` with no memory of which table it came from, and the edit form lets the user flip "Qui ha pagat?" freely without resetting it. Switching DEBT→non-DEBT during an edit routed to `movementRepository.update(draft)` keyed on a `splits.id` — no `movements` row matched, so the `UPDATE` silently affected 0 rows and the edit was lost with no error. Switching non-DEBT→DEBT routed to `SplitRepository.replaceExternalSplit(movementsId, ...)` — the archive-old step matched nothing (wrong table), a brand-new external split was inserted anyway, and the original movement was left live and untouched: two records now counted for one "edited" expense, double-counting account balances, actual spend, and the payer's debt.
+- **Impact:** Reachable through the ordinary edit-movement flow (open any shared/for-other/debt expense, change who paid, save) — not an edge case. No confirmation, no error, no prior test coverage of this path.
+- **Resolution:** `MovementFormState.id` split into two explicit, mutually-exclusive fields (`movementId`, `externalSplitId`) plus a computed `isNew`. `toFormState()` populates the correct field per the source row's actual kind. `attemptSave` now detects a payer-kind switch and performs an explicit archive-old + create-new sequence wrapped in one `movementRepository.runInTransaction { }` block, instead of routing to `update`/`replaceExternalSplit` keyed on the wrong id. All other `form.id` call sites (trip selection, duplicate-check exclusion, template split-config carry-forward, `MovementFormSheet`'s new/edit checks) updated accordingly. Two regression tests cover both directions, both verified failing against the pre-fix routing logic before the fix and passing after.
 - **Confidence:** High.
 
 ### Functional
@@ -156,11 +185,34 @@ The implementation plan has three tiers:
 - **Resolution:** `shared/queries/v_actual_expense.sql` now exposes `tag_id` directly on every `UNION ALL` branch (movements' own `tag_id`, refunds inherit their linked expense's `tag_id` the same way they already inherit `is_one_time`, and external splits expose their own `s.tag_id`). `TripAnalysis.sq`'s `tripActualByTag` was simplified to group on `e.tag_id` directly — the `LEFT JOIN movements` re-join is gone entirely (a net deletion, not just a fix). Covered by a repository regression test seeding an external split with its own tag on a trip and asserting it now surfaces in `tripActualByTag`.
 - **Confidence:** High.
 
+#### F8 — Fix/Var Sankey "Estalvi" node computed ad hoc — **RESOLVED (P5R-15)**
+- **Evidence:** `FixVariableTab.kt`'s Sankey computed `savings = (income - fixedCents - variableCents).coerceAtLeast(0L)`. `fixedCents`/`variableCents` come from `actualByCategory` filtered by `category_nature`, whose `LEFT JOIN categories` + `c.nature = :category_nature` filter silently excludes any expense with `category_id IS NULL` — so uncategorized spend was never subtracted, inflating "Estalvi" by exactly that amount whenever any existed. The canonical savings figure elsewhere on the same tab/screen (`AnalysisPeriodTotals.netActualCents`, from `v_actual_expense`/`v_actual_income`) correctly includes uncategorized spend — so the tab could show two disagreeing "how much did I save" numbers.
+- **Impact:** Misleading number shown to the user, not a data-corruption bug — but exactly the kind of "wrong number on screen" this audit was scoped to catch.
+- **Resolution:** Savings node now derives from `netActualCents` (clamped ≥0). Rather than silently swap the number (which would leave the diagram's flows summing to less than income), an explicit "Sense categoria" leaf/node was added so `fixed + variable + uncategorized + savings = income` stays a true, literal breakdown — chosen after confirming a category's `nature` is `NOT NULL` (the only way total expense can exceed `fixed + variable` is genuine uncategorized spend).
+- **Confidence:** Medium.
+
+#### F9 — Quick income-form "Liquidació" toggle has no over-payment warning — **RESOLVED (P5R-15)**
+- **Evidence:** The dedicated `SettlementSheet` in `PeopleScreen.kt` correctly warns (dismissible `settlement_warning_overpay` banner) when a settlement exceeds what's owed, per `AGENTS.md` invariant #7. The income form's secondary "Liquidació" quick-entry toggle (`IncomeFormSection.kt`, save path in `MovementsViewModel.kt`) created the same kind of `SETTLEMENT` movement but validated only amount/date/account/person — never compared against the selected person's `balanceCents`, no warning shown. Not data-corrupting (the write itself was a valid settlement row) but a real invariant-#7 gap on a second, less-visible entry point.
+- **Resolution:** `IncomeFormSection`/`MovementsViewModel` now compute the selected person's outstanding balance and show the exact same dismissible `settlement_warning_overpay` banner `SettlementSheet` already uses — one warning implementation, two entry points, instead of one correct and one silent.
+- **Confidence:** Medium.
+
+#### F10 — Tag picker leaks event-type-scoped tags into any trip — **RESOLVED (P5R-15)**
+- **Evidence:** `MovementFormCommon.kt`'s `TagSummary.supportsTrip(tripId: String?)` only checked `this.tripId == null || this.tripId == tripId` — it never compared `this.tripType` against the selected trip's actual `TripType`. A tag scoped to one event type (e.g. "Celebració") was therefore selectable for any trip, including a plain "Viatge" — defeating the point of the 3-way tag-scope model P5R-7 built. No schema `CHECK` is violated (the movement-level constraint is unaffected), but the resulting tag assignment is semantically wrong and pollutes tag/type-based analysis.
+- **Resolution:** `supportsTrip` now takes the full `TripSummary` and checks both `tripId` and `tripType` correctly, threaded through every call site: `MovementsViewModel.kt` (trip selection, save validation, normalize-on-load), `MovementsScreen.kt`'s trip/tag filter sheet, `MovementFormCommon.kt`'s `FormTripTagSection`.
+- **Confidence:** Medium.
+
+#### F11 — Trips-as-blocks toggle silently no-ops on 3 of 5 Analysis tabs — **DEFERRED**
+- **Evidence:** `AnalysisFilterSheet.kt`'s single `groupTripsAsBlocks` switch is presented as screen-wide, and `AnalysisUiState.hasActiveFilters` treats it as globally active. Only `ResumTab`/`CategoriesTab` (via `actualBreakdown(..., groupTrips = ...)`) actually honor it — `ComparativaTab`, `HistoricTab`'s category trends, and `FixVariableTab` all call `actualByCategory`/`categoryTrends`, neither of which has a `group_trips` parameter at all, so trip expenses always show broken out by real category there regardless of the toggle.
+- **Impact:** Not data-corrupting — no double-counting, each euro is still counted once under its real category — but a user toggling the switch sees it silently do nothing on 3 of 5 tabs while the "active filter" indicator still reports it as engaged.
+- **Disposition:** Deferred per this audit's own triage criteria (not data-corrupting or blocking). Future fix: either extend `actualByCategory`/`categoryTrends` to honor `group_trips` for consistency, or scope the toggle/its filter-active indicator to only the tabs that respect it, and document the intentional scope in `docs/11`.
+- **Confidence:** Medium.
+
 ### Usability
 
-#### U1 — "Load demo data" destructive trap
-- **Evidence:** See C2. Whatever dialog guards the Settings action, the underlying operation is unconditional and unrecoverable at the VM layer.
-- **Disposition note:** Dev helper; gated at the WIP-merge moment, removed in P8. Same lifecycle as C2 (the WIP-only-in-HEAD caveat applies).
+#### U1 — "Load demo data" destructive trap — **RESOLVED (gate, P5R-15)**
+- **Evidence:** See C2 — same underlying fix.
+- **Resolution:** Same as C2: `BuildConfig.DEBUG`-gated, plus a destructive confirmation dialog in debug builds.
+- **Remaining scope:** full removal still owned by P8, same as C2.
 - **Confidence:** High.
 
 #### U2 — External-payer form missing share field
@@ -182,6 +234,16 @@ The implementation plan has three tiers:
 - **Evidence:** `docs/00-Full_Spec.md:690` lists Recurring under Finances (top-level), but `docs/07-ui-ux.md:22` and the implemented shell (`docs/15` §4.1) place Recurring inside Gestió.
 - **Fix:** Doc-only. Reconcile spec §5.9 to the implemented IA. T1-4.
 - **Confidence:** High.
+
+#### U6 — `AppOverlay` doesn't stack — Tags/Budgets from Trip Detail loses Trip Detail — **RESOLVED (P5R-15)**
+- **Evidence:** `AppOverlay` was a single nullable field. `TripDetailScreen`'s "Gestiona etiquetes"/"Pressupost del viatge" actions did `nav = nav.copy(overlay = AppOverlay.Tags/Budgets(...))`, overwriting the current `TripDetail` overlay rather than pushing onto anything; `back()` only ever cleared the overlay straight to the underlying section. Opening Tags/Budgets from Trip Detail then pressing Back skipped Trip Detail entirely, landing on the Trips list or Dashboard instead — directly contradicting `docs/14-trips-tags-ui.md`'s own claim that the overlay "slots into the existing `back()` reducer for free... with zero changes needed," which was only true for the two direct entry points, not this one.
+- **Resolution:** `AppOverlay.Tags`/`Budgets` gained an optional `returnTo: AppOverlay? = null`. `back()` restores `returnTo` when set, instead of clearing to `null`. Only the Trip-Detail-opened call sites in `MainActivity.kt` set `returnTo = overlay` (the current `TripDetail`); the pre-existing direct entry points (Trips list, Dashboard, the budgets notification) keep `returnTo = null` and behave exactly as before. `docs/14-trips-tags-ui.md` §2 corrected to describe the mechanism accurately. 4 new `AppNavStateTest` cases cover both the un-nested regression guard and the two documented nested scenarios (Trips list → Trip Detail → Tags → Back → Back; Dashboard → Trip Detail → Budgets → Back → Back).
+- **Confidence:** High.
+
+#### U7 — Trip-archive failure silently swallowed from Dashboard entry point — **RESOLVED (P5R-15)**
+- **Evidence:** `TripsScreen.kt`'s archive-confirm button fired `viewModel.onArchiveConfirmed(); onBack()` back-to-back — `onBack()` popped the nav immediately while the archive coroutine was still in flight. On failure, `TripsViewModel.onArchiveConfirmed` set the top-level `TripsUiState.errorMessage`, which only `TripsContent` (the Trips list) ever rendered. If Trip Detail was reached from the Dashboard's active-trip card, `onBack()` returned to Dashboard, which never reads that field — an archive failure produced no visible feedback at all.
+- **Resolution:** `onArchiveConfirmed` now takes an `onSuccess` callback invoked only after the archive genuinely succeeds; `TripDetailScreen`'s archive dialog passes `onSuccess = onBack`, so navigation only happens once the result is known. On failure while archiving from Trip Detail, the error now renders on `TripDetailState.errorMessage` (visible on whichever screen Trip Detail is still showing) instead of the list-only top-level field. Two new `TripsViewModelTest` cases cover the failure-surfaces-inline path and that `onSuccess` only fires after the coroutine actually completes (guarding against reintroducing the original race).
+- **Confidence:** Medium.
 
 ### Over-engineering / Bloat
 
@@ -247,6 +309,10 @@ The implementation plan has three tiers:
 - **Fix:** Add `AND sl.archived_at IS NULL` to the JOIN clauses. Resolved with O1 when the queries are refactored onto `v_movement_summary`.
 - **Confidence:** Medium.
 
+#### M7–M15 — P5R-15 stabilization audit: minor cleanup, deferred
+None of these are data-corrupting or blocking (the bar this audit used to decide what gets fixed immediately vs. logged), so per the audit's own "log lower-severity findings and defer rather than gold-plate" instruction, none were fixed in P5R-15 — see the master table (§3) for the one-line description of each. They're grouped here rather than given full individual write-ups since they're genuinely small: dead repository methods/composable (M7), duplicated percent-formatting (M8), orphaned strings (M9), duplicate `ColorDot` (M10), duplicate sort logic (M11), a duplicate `MovementType.label()` shadowing the shared one (M12), duplicated split-mapping in `SplitRepository` (M13), `movementsForCategory`'s ad hoc sign logic (M14), and a documentation-completeness gap for `v_movement_summary` in `docs/04` (M15). Pick these up opportunistically in a future maintenance pass (e.g. P5R-9's component-consolidation slice, which already covers similar ground) rather than as a dedicated slice.
+- **Confidence:** High (all independently confirmed by the audit streams that found them; none required further investigation to classify as low-severity).
+
 ---
 
 ## 5. Cross-references
@@ -258,6 +324,7 @@ The implementation plan has three tiers:
   - **P5R-5** (people/splits/debts): F4, F6 (settlement side), §2.6 person-page flow.
   - **P5R-6** (recurring/refunds/budgets): C3, C4, F1 (wiring — or 6C prep), F3, F6 (refund side), plus P4 deferred items (orphan refunds, budget bar in category detail).
   - **P5R-7** (trips/tags): F7 (found and resolved within this slice — `tripActualByTag` external-split tag bug).
+  - **P5R-15** (whole-app stabilization audit, before real user data entered the app): C2/U1 (gate — full removal still P8), C7, C8, F8, F9, F10, U6, U7 all found and resolved within this slice; F11 and M7–M15 found and logged/deferred (not fixed, per the audit's own data-corrupting-or-blocking bar).
   - **P5R-8** (settings/sync): DeviceAccessState placeholder (pre-existing).
   - **P8** (release): C2/U1 full removal, F5, U4 (optional), M4, M1.
 

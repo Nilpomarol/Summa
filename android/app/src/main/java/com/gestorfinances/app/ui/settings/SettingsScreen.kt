@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -22,6 +23,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -31,8 +33,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.gestorfinances.app.BuildConfig
 import com.gestorfinances.app.R
 import com.gestorfinances.app.ui.common.BannerKind
+import com.gestorfinances.app.ui.common.DestructiveTextButton
 import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.PrimaryButton
@@ -153,59 +157,81 @@ fun SettingsScreen(
             )
         }
 
-        item {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 16.dp, bottom = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                Text(
-                    text = stringResource(R.string.settings_debug_title),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-        }
-
-        item {
-            FinanceCard(modifier = Modifier.fillMaxWidth()) {
+        if (BuildConfig.DEBUG) {
+            item {
                 Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp, bottom = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.BugReport,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Text(
-                            text = stringResource(R.string.settings_seed_data_title),
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                    }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     Text(
-                        text = stringResource(R.string.settings_seed_data_body),
-                        color = FinanceTheme.colors.mutedText,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    PrimaryButton(
-                        text = stringResource(R.string.settings_seed_data_action),
-                        onClick = {
-                            viewModel.onSeedDataRequested {
-                                onBack() // Navigate back to refresh
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
+                        text = stringResource(R.string.settings_debug_title),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
                     )
                 }
             }
+
+            item {
+                FinanceCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.BugReport,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(
+                                text = stringResource(R.string.settings_seed_data_title),
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                        }
+                        Text(
+                            text = stringResource(R.string.settings_seed_data_body),
+                            color = FinanceTheme.colors.mutedText,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        PrimaryButton(
+                            text = stringResource(R.string.settings_seed_data_action),
+                            onClick = viewModel::onSeedDataClicked,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+            }
         }
+    }
+
+    if (state.seedDataConfirmationPending) {
+        AlertDialog(
+            onDismissRequest = viewModel::onSeedDataDismissed,
+            title = { Text(text = stringResource(R.string.settings_seed_data_confirm_title)) },
+            text = { Text(text = stringResource(R.string.settings_seed_data_confirm_body)) },
+            confirmButton = {
+                DestructiveTextButton(
+                    onClick = {
+                        viewModel.onSeedDataConfirmed {
+                            onBack() // Navigate back to refresh
+                        }
+                    },
+                ) {
+                    Text(text = stringResource(R.string.settings_seed_data_action))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::onSeedDataDismissed) {
+                    Text(text = stringResource(R.string.common_cancel))
+                }
+            },
+        )
     }
 }
 

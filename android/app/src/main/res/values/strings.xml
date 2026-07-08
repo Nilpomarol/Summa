@@ -821,4 +821,6 @@
     <string name="settings_seed_data_title">Genera dades de prova</string>
     <string name="settings_seed_data_body">Elimina totes les dades actuals i crea un set de prova complet (comptes, categories, moviments de 3 mesos).</string>
     <string name="settings_seed_data_action">Genera dades</string>
+    <string name="settings_seed_data_confirm_title">Eliminar totes les dades?</string>
+    <string name="settings_seed_data_confirm_body">Aquesta acció esborra permanentment tots els comptes, moviments, categories, persones, viatges i etiquetes actuals i els substitueix per dades de prova. No es pot desfer.</string>
 </resources>

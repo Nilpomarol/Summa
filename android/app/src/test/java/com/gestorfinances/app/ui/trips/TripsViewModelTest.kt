@@ -184,6 +184,85 @@ class TripsViewModelTest {
         }
     }
 
+    // Regression: `TripDetailScreen`'s own archive-confirm dialog used to call
+    // `viewModel.onArchiveConfirmed()` and `onBack()` back-to-back, racing the archive
+    // coroutine — a failure there was silently swallowed because it only ever set the
+    // top-level `TripsUiState.errorMessage`, which `TripDetailScreen` (and whatever screen
+    // `onBack()` had already navigated to) never reads. `onArchiveConfirmed` now only invokes
+    // its `onSuccess` callback once the archive actually completes, and on failure attaches the
+    // error to `detail` (which `TripDetailScreen` renders inline) whenever the archived trip is
+    // the one currently open.
+    @Test
+    fun `archive failure while trip detail is open surfaces the error inline instead of navigating away`() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.trips.create(tripDraft("mallorca"), createdAt = NOW)
+            val viewModel = viewModel(store)
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+
+            val trip = viewModel.state.value.trips.single()
+            viewModel.onDetailClicked(trip)
+            advanceUntilIdle()
+            assertEquals("mallorca", viewModel.state.value.detail?.trip?.id)
+
+            // Deterministically forces the archive UPDATE to fail without depending on any
+            // particular exception type — mirrors RecurringViewModelTest's pattern.
+            store.driver.execute(
+                null,
+                """
+                CREATE TRIGGER reject_archive
+                BEFORE UPDATE ON trips
+                WHEN NEW.archived_at IS NOT NULL
+                BEGIN
+                    SELECT RAISE(ABORT, 'simulated failure for regression test');
+                END;
+                """.trimIndent(),
+                0,
+            )
+
+            viewModel.onArchiveClicked(trip)
+            var onSuccessCalled = false
+            viewModel.onArchiveConfirmed(onSuccess = { onSuccessCalled = true })
+            advanceUntilIdle()
+
+            assertTrue("onSuccess must not fire on a failed archive", !onSuccessCalled)
+            assertNull(viewModel.state.value.archiveCandidate)
+            assertNull(
+                "the list-level errorMessage must stay clear; Trip Detail is where the error is shown",
+                viewModel.state.value.errorMessage,
+            )
+            assertEquals(true, viewModel.state.value.detail?.errorMessage != null)
+            assertEquals("mallorca", store.trips.getActive("mallorca")?.id)
+        }
+    }
+
+    @Test
+    fun archivingFromTripDetailInvokesOnSuccessOnlyAfterTheArchiveCompletes() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.trips.create(tripDraft("mallorca"), createdAt = NOW)
+            val viewModel = viewModel(store)
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+
+            val trip = viewModel.state.value.trips.single()
+            viewModel.onDetailClicked(trip)
+            advanceUntilIdle()
+
+            viewModel.onArchiveClicked(trip)
+            var onSuccessCalled = false
+            viewModel.onArchiveConfirmed(onSuccess = { onSuccessCalled = true })
+
+            // Not yet advanced: the coroutine hasn't completed, so onSuccess must not have fired
+            // synchronously (that would reintroduce the original race with navigation).
+            assertTrue(!onSuccessCalled)
+
+            advanceUntilIdle()
+
+            assertTrue(onSuccessCalled)
+            assertNull(store.trips.getActive("mallorca"))
+        }
+    }
+
     @Test
     fun dismissingTheArchiveConfirmationLeavesTheTripUntouched() = runTest(dispatcher) {
         freshStore().use { store ->
@@ -455,7 +534,7 @@ class TripsViewModelTest {
     }
 
     private class TestStore(
-        private val driver: JdbcSqliteDriver,
+        val driver: JdbcSqliteDriver,
         val trips: TripRepository,
         val tripAnalysis: TripAnalysisRepository,
         val movements: MovementRepository,
