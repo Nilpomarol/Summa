@@ -68,6 +68,7 @@ internal fun FixVariableTab(
     val data = state.fixVariable
     val fixedColor = FinanceTheme.colors.debt
     val variableColor = FinanceTheme.colors.transfer
+    val uncategorizedColor = FinanceTheme.colors.expense
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = contentPadding,
@@ -115,14 +116,17 @@ internal fun FixVariableTab(
                             income = income,
                             fixedCents = fixedCents,
                             variableCents = variableCents,
+                            netActualCents = data.totals.netActualCents,
                             incomeLabel = stringResource(R.string.analysis_sankey_income),
                             fixedLabel = stringResource(R.string.analysis_sankey_fixed),
                             variableLabel = stringResource(R.string.analysis_sankey_variable),
                             savingsLabel = stringResource(R.string.analysis_sankey_savings),
+                            uncategorizedLabel = stringResource(R.string.common_no_category),
                             incomeColor = FinanceTheme.colors.income,
                             fixedColor = fixedColor,
                             variableColor = variableColor,
                             savingsColor = MaterialTheme.colorScheme.primary,
+                            uncategorizedColor = uncategorizedColor,
                         )
                         SankeyDiagram(columns = columns, links = links)
                     }
@@ -175,21 +179,31 @@ private fun buildSankey(
     income: Long,
     fixedCents: Long,
     variableCents: Long,
+    netActualCents: Long,
     incomeLabel: String,
     fixedLabel: String,
     variableLabel: String,
     savingsLabel: String,
+    uncategorizedLabel: String,
     incomeColor: androidx.compose.ui.graphics.Color,
     fixedColor: androidx.compose.ui.graphics.Color,
     variableColor: androidx.compose.ui.graphics.Color,
     savingsColor: androidx.compose.ui.graphics.Color,
+    uncategorizedColor: androidx.compose.ui.graphics.Color,
 ): Pair<List<List<SankeyNode>>, List<SankeyLink>> {
-    val savings = (income - fixedCents - variableCents).coerceAtLeast(0L)
+    // Savings must match the canonical figure shown elsewhere on this screen (derived from
+    // v_actual_expense/v_actual_income), not an ad hoc income - fixed - variable subtraction —
+    // the latter silently drops truly uncategorized expense (category_id IS NULL). Any such
+    // spend is surfaced as its own node below instead, so the diagram stays internally consistent:
+    // fixed + variable + uncategorized + savings sums back to income.
+    val savings = netActualCents.coerceAtLeast(0L)
+    val uncategorizedCents = (data.totals.actualExpenseCents - fixedCents - variableCents).coerceAtLeast(0L)
 
     val incomeNode = SankeyNode("income", incomeLabel, income, incomeColor)
     val groupNodes = buildList {
         if (fixedCents > 0) add(SankeyNode("fixed", fixedLabel, fixedCents, fixedColor))
         if (variableCents > 0) add(SankeyNode("variable", variableLabel, variableCents, variableColor))
+        if (uncategorizedCents > 0) add(SankeyNode("uncategorized", uncategorizedLabel, uncategorizedCents, uncategorizedColor))
         if (savings > 0) add(SankeyNode("savings", savingsLabel, savings, savingsColor))
     }
     val fixedLeaves = data.fixedCategories.sortedByDescending { it.expenseCents }.take(SANKEY_LEAVES_PER_GROUP)
@@ -202,6 +216,7 @@ private fun buildSankey(
     val links = buildList {
         if (fixedCents > 0) add(SankeyLink("income", "fixed", fixedCents))
         if (variableCents > 0) add(SankeyLink("income", "variable", variableCents))
+        if (uncategorizedCents > 0) add(SankeyLink("income", "uncategorized", uncategorizedCents))
         if (savings > 0) add(SankeyLink("income", "savings", savings))
         fixedLeaves.forEach { add(SankeyLink("fixed", "f:${it.categoryId}", it.expenseCents)) }
         variableLeaves.forEach { add(SankeyLink("variable", "v:${it.categoryId}", it.expenseCents)) }

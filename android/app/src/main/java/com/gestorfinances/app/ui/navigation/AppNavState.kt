@@ -30,13 +30,19 @@ enum class TopLevelSection(
  * A child page layered above the current [TopLevelSection], reached from within a section:
  * Budgets from Analysis or from an event, Tags from an event. It carries the optional trip
  * context it was opened with so Back returns to the right place.
+ *
+ * [Budgets] and [Tags] also carry an optional [returnTo] overlay: when opened from
+ * [TripDetail] (its own "Gestiona etiquetes"/"Pressupost del viatge" actions), `returnTo` holds
+ * that [TripDetail] so [AppNavState.back] restores it instead of clearing straight to the
+ * underlying section. Opened any other way (from the Trips list, Analysis, or a notification),
+ * `returnTo` stays null and Back behaves exactly as before.
  */
 sealed interface AppOverlay {
     val tripId: String?
 
-    data class Budgets(override val tripId: String?) : AppOverlay
+    data class Budgets(override val tripId: String?, val returnTo: AppOverlay? = null) : AppOverlay
 
-    data class Tags(override val tripId: String?) : AppOverlay
+    data class Tags(override val tripId: String?, val returnTo: AppOverlay? = null) : AppOverlay
 
     data class TripDetail(override val tripId: String) : AppOverlay
 }
@@ -59,6 +65,8 @@ data class AppNavState(
 
     /** Pop one level: overlay → Gestió child → top-level → Inici. */
     fun back(): AppNavState = when {
+        overlay is AppOverlay.Tags && overlay.returnTo != null -> copy(overlay = overlay.returnTo)
+        overlay is AppOverlay.Budgets && overlay.returnTo != null -> copy(overlay = overlay.returnTo)
         overlay != null -> copy(overlay = null)
         managementDestination != null -> copy(managementDestination = null)
         section != TopLevelSection.DASHBOARD -> Home

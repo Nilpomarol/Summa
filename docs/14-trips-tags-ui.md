@@ -25,7 +25,7 @@ Out of scope, unchanged from P5: person groups, multi-tag movements, many-to-man
 
 Trips/events live under **Gestió > Esdeveniments** (`ManagementDestination.EVENTS`), matching `docs/07-ui-ux.md` and spec section 5.9.
 
-Trip detail is a **full page**, not a dialog: `AppOverlay.TripDetail(tripId)` (`ui/navigation/AppNavState.kt`) renders as a full-screen replacement the same way `AppOverlay.Tags`/`AppOverlay.Budgets` already do, with its own header row (Back arrow + overflow menu) rather than a system `TopAppBar`. It slots into the existing `back()` reducer for free (`overlay != null -> copy(overlay = null)`), so Back always returns to wherever it was opened from, with zero changes to the reducer itself. Trip detail is reached from two places only:
+Trip detail is a **full page**, not a dialog: `AppOverlay.TripDetail(tripId)` (`ui/navigation/AppNavState.kt`) renders as a full-screen replacement the same way `AppOverlay.Tags`/`AppOverlay.Budgets` already do, with its own header row (Back arrow + overflow menu) rather than a system `TopAppBar`. Opened directly from a `TopLevelSection`/`ManagementDestination` (the two entry points below), it slots into the existing `back()` reducer for free (`overlay != null -> copy(overlay = null)`). Opened *from within* Trip Detail itself — its "Gestiona etiquetes"/"Pressupost del viatge" actions push `AppOverlay.Tags`/`AppOverlay.Budgets` with a `returnTo` field set to the current `TripDetail` overlay, so `back()` restores it instead of clearing to the underlying section; this keeps Trip Detail on the back-stack instead of losing it. Trip detail is reached from two places only:
 
 - the Trips (Esdeveniments) list, tapping a trip row;
 - the Dashboard's active-trip card, via its "Veure viatge" link.

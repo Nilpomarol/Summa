@@ -346,12 +346,12 @@ class MovementsViewModel(
         val form = _state.value.form ?: return
         val trip = tripId?.let { selectedId -> _state.value.trips.firstOrNull { it.id == selectedId } }
         val tag = form.tagId?.let { tagId -> _state.value.tags.firstOrNull { it.id == tagId } }
-        val accountId = if (form.id == null && trip?.defaultAccountId != null) {
+        val accountId = if (form.isNew && trip?.defaultAccountId != null) {
             trip.defaultAccountId
         } else {
             form.accountId
         }
-        val tagId = if (tag != null && tag.supportsTrip(tripId)) form.tagId else null
+        val tagId = if (tag != null && tag.supportsTrip(trip)) form.tagId else null
         onFormChanged(form.copy(tripId = tripId, tagId = tagId, accountId = accountId))
     }
 
@@ -549,10 +549,21 @@ class MovementsViewModel(
             viewModelScope.launch {
                 val result = withContext(ioDispatcher) {
                     runCatching {
-                        if (form.id == null) {
-                            repo.createExternalPaidByPerson(draft, createdAt = now)
-                        } else {
-                            repo.replaceExternalSplit(form.id, draft, now)
+                        movementRepository.runInTransaction {
+                            when {
+                                form.externalSplitId != null ->
+                                    repo.replaceExternalSplit(form.externalSplitId, draft, now)
+                                form.movementId != null -> {
+                                    // Kind switch: the edited entity used to be a direct movement
+                                    // (personal/shared/for-other) and the payer was just switched
+                                    // to "someone else" -- archive the old movement (and its split,
+                                    // if any) and create a fresh external split so it isn't
+                                    // double-counted (audit BLOCKER).
+                                    movementRepository.archive(form.movementId, archivedAt = now)
+                                    repo.createExternalPaidByPerson(draft, createdAt = now)
+                                }
+                                else -> repo.createExternalPaidByPerson(draft, createdAt = now)
+                            }
                         }
                     }
                 }
@@ -582,6 +593,9 @@ class MovementsViewModel(
         val tag = form.tagId?.let { tagId ->
             _state.value.tags.firstOrNull { it.id == tagId }
         }
+        val trip = form.tripId?.let { tripId ->
+            _state.value.trips.firstOrNull { it.id == tripId }
+        }
         val splitDraft = form.splitEditor?.toMovementSplitDraft(amount)
 
         val errorRes = when {
@@ -597,7 +611,7 @@ class MovementsViewModel(
             form.type == MovementType.TRANSFER && form.accountId == form.destinationAccountId ->
                 R.string.movement_validation_transfer_same_account
             category != null && !category.supports(form.type) -> R.string.movement_validation_category_invalid
-            form.tagId != null && (form.tripId == null || tag == null || !tag.supportsTrip(form.tripId)) ->
+            form.tagId != null && (form.tripId == null || tag == null || !tag.supportsTrip(trip)) ->
                 R.string.tag_validation_trip_required
             form.expenseKind == ExpenseKind.FOR_OTHER &&
                 (form.forOtherPersonId == null || form.forOtherPersonId !in activePersonIds) ->
@@ -631,7 +645,7 @@ class MovementsViewModel(
         }
 
         val draft = MovementDraft(
-            id = form.id ?: UUID.randomUUID().toString(),
+            id = form.movementId ?: UUID.randomUUID().toString(),
             type = form.type,
             amountCents = requireNotNull(amount),
             date = requireNotNull(date).toString(),
@@ -693,10 +707,18 @@ class MovementsViewModel(
                                 splitForTemplate,
                             )
                         }
-                        if (form.id == null) {
-                            movementRepository.create(draft, createdAt = now)
-                        } else {
-                            movementRepository.update(draft, updatedAt = now)
+                        when {
+                            form.externalSplitId != null -> {
+                                // Kind switch: the edited entity used to be a DEBT ("someone else
+                                // paid") external split and the payer was just switched back to
+                                // "jo" -- archive the old split and create a fresh movement so it
+                                // isn't double-counted (audit BLOCKER).
+                                requireNotNull(splitRepository) { "split repository unavailable" }
+                                    .archiveExternalSplit(form.externalSplitId, archivedAt = now)
+                                movementRepository.create(draft, createdAt = now)
+                            }
+                            form.movementId == null -> movementRepository.create(draft, createdAt = now)
+                            else -> movementRepository.update(draft, updatedAt = now)
                         }
                     }
                 }
@@ -728,7 +750,7 @@ class MovementsViewModel(
         splitWrite: MovementSplitWrite,
     ): MovementSplitWrite {
         if (splitWrite !is MovementSplitWrite.KeepExisting) return splitWrite
-        val movementId = form.id ?: return splitWrite
+        val movementId = form.movementId ?: return splitWrite
         val existing = splitRepository?.getForMovement(movementId) ?: return splitWrite
         return MovementSplitWrite.Replace(existing)
     }
@@ -910,9 +932,12 @@ class MovementsViewModel(
         val tag = normalized.tagId?.let { tId ->
             _state.value.tags.firstOrNull { it.id == tId }
         }
+        val trip = normalized.tripId?.let { tripId ->
+            _state.value.trips.firstOrNull { it.id == tripId }
+        }
 
         val finalCategoryId = if (category != null && !category.supports(effectiveType)) null else normalized.categoryId
-        val finalTagId = if (normalized.tripId == null || tag == null || !tag.supportsTrip(normalized.tripId)) null else normalized.tagId
+        val finalTagId = if (normalized.tripId == null || tag == null || !tag.supportsTrip(trip)) null else normalized.tagId
 
         return normalized.copy(
             categoryId = finalCategoryId,
@@ -954,7 +979,7 @@ class MovementsViewModel(
         if (candidateName.isEmpty()) return false
         val candidate = DuplicateMovement(accountId, amountCents, date, candidateName)
         return _state.value.movements.any { existing ->
-            if (existing.id == form.id) return@any false
+            if (existing.id == form.movementId || existing.id == form.externalSplitId) return@any false
             val existingDate = parseDate(existing.date) ?: return@any false
             DuplicateDetector.isDuplicate(
                 existing = DuplicateMovement(
@@ -1083,7 +1108,16 @@ enum class ExpenseKind {
 }
 
 data class MovementFormState(
-    val id: String? = null,
+    /** Set when editing an existing direct movement ([com.gestorfinances.app.data.repository.MovementType]
+     * other than EXTERNAL_EXPENSE) -- `movements.id`. Mutually exclusive with [externalSplitId]:
+     * an in-progress edit's backing entity is always one or the other, never both. Tracking them
+     * separately (rather than a single ambiguous id) lets [MovementsViewModel] detect when the
+     * user switches "Qui ha pagat?" to/from "Un altre" mid-edit and archive-and-recreate instead
+     * of silently writing to the wrong table (audit BLOCKER). */
+    val movementId: String? = null,
+    /** Set when editing an existing DEBT ("Un altre ha pagat") expense -- `splits.id`, per
+     * `v_movement_summary`'s external-expense branch. See [movementId]. */
+    val externalSplitId: String? = null,
     val type: MovementType = MovementType.EXPENSE,
     val amount: String = "",
     val date: String = "",
@@ -1112,7 +1146,11 @@ data class MovementFormState(
     val showAdvanced: Boolean = false,
     /** Read-only auto-categorization hint (audit F1); never applied without the user tapping it. */
     val suggestedCategoryId: String? = null,
-)
+) {
+    /** True for a fresh "add" flow with no backing entity yet, as opposed to editing an existing
+     * movement or external split. */
+    val isNew: Boolean get() = movementId == null && externalSplitId == null
+}
 
 data class RefundFormState(
     val expenseId: String,
@@ -1217,7 +1255,7 @@ private fun MovementSummary.toFormState(splitDraft: MovementSplitDraft? = null):
     // DEBT (type 4): stored as EXTERNAL_EXPENSE — map back to EXPENSE + expenseKind=DEBT.
     if (type == MovementType.EXTERNAL_EXPENSE) {
         return MovementFormState(
-            id = id,
+            externalSplitId = id,
             type = MovementType.EXPENSE,
             amount = formatEuroInput(amountCents),
             date = date,
@@ -1238,7 +1276,7 @@ private fun MovementSummary.toFormState(splitDraft: MovementSplitDraft? = null):
         personLines.size == 1 && personLines.first().owedAmountCents == amountCents
     ) {
         return MovementFormState(
-            id = id,
+            movementId = id,
             type = type,
             amount = formatEuroInput(amountCents),
             date = date,
@@ -1290,7 +1328,7 @@ private fun MovementSummary.toFormState(splitDraft: MovementSplitDraft? = null):
     }
 
     return MovementFormState(
-        id = id,
+        movementId = id,
         type = type,
         amount = formatEuroInput(amountCents),
         date = date,

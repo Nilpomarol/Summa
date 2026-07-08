@@ -119,7 +119,7 @@ fun MovementFormSheet(
             }
 
             val titleText = when {
-                form.id == null -> when (form.type) {
+                form.isNew -> when (form.type) {
                     MovementType.EXPENSE -> "Nova despesa"
                     MovementType.INCOME -> "Nou ingrés"
                     MovementType.TRANSFER -> "Nova transferència"
@@ -287,7 +287,7 @@ fun MovementFormSheet(
             PrimaryButton(
                 text = when {
                     form.duplicateWarning -> stringResource(R.string.movement_duplicate_override)
-                    form.id == null -> stringResource(R.string.movement_save_new)
+                    form.isNew -> stringResource(R.string.movement_save_new)
                     else -> stringResource(R.string.movement_save_changes)
                 },
                 onClick = if (form.duplicateWarning) onOverride else onSave,

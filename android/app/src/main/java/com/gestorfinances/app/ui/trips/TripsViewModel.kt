@@ -168,7 +168,16 @@ class TripsViewModel(
         _state.value = _state.value.copy(archiveCandidate = null)
     }
 
-    fun onArchiveConfirmed() {
+    /**
+     * Archives [TripsUiState.archiveCandidate]. [onSuccess] fires only once the archive has
+     * actually completed, so a caller that also navigates away (Trip Detail's own confirm
+     * dialog) can defer that navigation until success instead of racing the coroutine. On
+     * failure, the error is attached to `detail` when the archived trip is the one currently
+     * open (Trip Detail renders `detail.errorMessage` inline, which stays reachable even after
+     * the dialog closes), and to the top-level `errorMessage` otherwise (the Trips list renders
+     * that one).
+     */
+    fun onArchiveConfirmed(onSuccess: () -> Unit = {}) {
         val trip = _state.value.archiveCandidate ?: return
         val now = Instant.now().toString()
         viewModelScope.launch {
@@ -179,12 +188,22 @@ class TripsViewModel(
                 onSuccess = {
                     _state.value = _state.value.copy(archiveCandidate = null)
                     refresh()
+                    onSuccess()
                 },
                 onFailure = {
-                    _state.value = _state.value.copy(
-                        archiveCandidate = null,
-                        errorMessage = it.message ?: it.javaClass.simpleName,
-                    )
+                    val message = it.message ?: it.javaClass.simpleName
+                    val openDetail = _state.value.detail
+                    _state.value = if (openDetail != null && openDetail.trip.id == trip.id) {
+                        _state.value.copy(
+                            archiveCandidate = null,
+                            detail = openDetail.copy(errorMessage = message),
+                        )
+                    } else {
+                        _state.value.copy(
+                            archiveCandidate = null,
+                            errorMessage = message,
+                        )
+                    }
                 },
             )
         }
