@@ -2,8 +2,13 @@ package com.gestorfinances.app.ui.budgets
 
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import com.gestorfinances.app.data.db.GestorDatabase
+import com.gestorfinances.app.data.repository.BudgetDraft
+import com.gestorfinances.app.data.repository.BudgetPeriod
 import com.gestorfinances.app.data.repository.BudgetRepository
 import com.gestorfinances.app.data.repository.BudgetScope
+import com.gestorfinances.app.data.repository.CategoryDraft
+import com.gestorfinances.app.data.repository.CategoryKind
+import com.gestorfinances.app.data.repository.CategoryNature
 import com.gestorfinances.app.data.repository.CategoryRepository
 import com.gestorfinances.app.data.repository.TripDraft
 import com.gestorfinances.app.data.repository.TripRepository
@@ -20,6 +25,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -60,6 +66,106 @@ class BudgetsViewModelTest {
             assertEquals(BudgetScope.TRIP, evaluation.budget.scope)
             assertEquals("mallorca", evaluation.budget.tripId)
             assertEquals(25_000L, evaluation.budget.limitAmountCents)
+        }
+    }
+
+    @Test
+    fun categoryBudgetWithoutASelectedCategoryIsRejectedOnCategoryField() = runTest(dispatcher) {
+        freshStore().use { store ->
+            val viewModel = viewModel(store)
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+
+            viewModel.onAddClicked()
+            viewModel.onFormChanged(
+                viewModel.state.value.form!!.copy(
+                    scope = BudgetScope.CATEGORY,
+                    categoryId = null,
+                    limit = "100",
+                ),
+            )
+            viewModel.onSaveClicked()
+            advanceUntilIdle()
+
+            val form = requireNotNull(viewModel.state.value.form)
+            assertEquals(
+                com.gestorfinances.app.R.string.budget_validation_category_required,
+                form.errorRes,
+            )
+            assertEquals(BudgetFormField.CATEGORY, form.errorField)
+        }
+    }
+
+    @Test
+    fun deletingABudgetSetsTheArchiveCandidateWithoutArchivingIt() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.categories.create(categoryDraft("food"), createdAt = NOW)
+            store.budgets.create(budgetDraft("food-budget", categoryId = "food"), createdAt = NOW)
+            val viewModel = viewModel(store)
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+
+            val evaluation = viewModel.state.value.evaluations.single()
+            viewModel.onDeleteClicked(evaluation.budget)
+
+            assertEquals(evaluation.budget, viewModel.state.value.archiveCandidate)
+            assertEquals(1, store.budgets.evaluateAll("2026-08-01", "2026-08-31").size)
+        }
+    }
+
+    @Test
+    fun confirmingTheArchiveCandidateActuallyArchivesTheBudget() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.categories.create(categoryDraft("food"), createdAt = NOW)
+            store.budgets.create(budgetDraft("food-budget", categoryId = "food"), createdAt = NOW)
+            val viewModel = viewModel(store)
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+
+            val evaluation = viewModel.state.value.evaluations.single()
+            viewModel.onDeleteClicked(evaluation.budget)
+            viewModel.onArchiveConfirmed()
+            advanceUntilIdle()
+
+            assertNull(viewModel.state.value.archiveCandidate)
+            assertTrue(viewModel.state.value.evaluations.isEmpty())
+            assertTrue(store.budgets.evaluateAll("2026-08-01", "2026-08-31").isEmpty())
+        }
+    }
+
+    @Test
+    fun dismissingTheArchiveCandidateLeavesTheBudgetUntouched() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.categories.create(categoryDraft("food"), createdAt = NOW)
+            store.budgets.create(budgetDraft("food-budget", categoryId = "food"), createdAt = NOW)
+            val viewModel = viewModel(store)
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+
+            val evaluation = viewModel.state.value.evaluations.single()
+            viewModel.onDeleteClicked(evaluation.budget)
+            viewModel.onArchiveDismissed()
+            advanceUntilIdle()
+
+            assertNull(viewModel.state.value.archiveCandidate)
+            assertEquals(1, store.budgets.evaluateAll("2026-08-01", "2026-08-31").size)
+        }
+    }
+
+    @Test
+    fun onAddClickedWithACategoryIdSeedsACategoryScopedForm() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.categories.create(categoryDraft("food"), createdAt = NOW)
+            val viewModel = viewModel(store)
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+
+            viewModel.onAddClicked(categoryId = "food")
+
+            val form = requireNotNull(viewModel.state.value.form)
+            assertEquals(BudgetScope.CATEGORY, form.scope)
+            assertEquals("food", form.categoryId)
+            assertNull(form.id)
         }
     }
 
@@ -108,6 +214,27 @@ class BudgetsViewModelTest {
             color = null,
             notes = null,
             defaultAccountId = null,
+        )
+
+    private fun categoryDraft(id: String): CategoryDraft =
+        CategoryDraft(
+            id = id,
+            name = id,
+            kind = CategoryKind.EXPENSE,
+            nature = CategoryNature.VARIABLE,
+            parentId = null,
+            icon = null,
+            color = null,
+            displayOrder = 0,
+        )
+
+    private fun budgetDraft(id: String, categoryId: String): BudgetDraft =
+        BudgetDraft(
+            id = id,
+            categoryId = categoryId,
+            limitAmountCents = 25_000L,
+            alertThresholdPercent = 80L,
+            startDate = null,
         )
 
     private companion object {

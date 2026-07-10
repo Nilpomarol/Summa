@@ -57,6 +57,7 @@ class TagsViewModelTest {
                 R.string.tag_validation_name_required,
                 viewModel.state.value.form!!.errorRes,
             )
+            assertEquals(TagFormField.NAME, viewModel.state.value.form!!.errorField)
             assertTrue(store.tags.listActive().isEmpty())
         }
     }
@@ -79,6 +80,7 @@ class TagsViewModelTest {
                 R.string.tag_validation_trip_required,
                 viewModel.state.value.form!!.errorRes,
             )
+            assertEquals(TagFormField.TRIP, viewModel.state.value.form!!.errorField)
         }
     }
 

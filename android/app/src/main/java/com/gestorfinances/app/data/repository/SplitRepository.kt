@@ -123,43 +123,46 @@ class SplitRepository(
         }
     }
 
-    fun getForMovement(movementId: String): MovementSplitDraft? {
-        val lines = queries.splitWithLinesByMovementId(
-            movement_id = movementId
-        ).executeAsList()
-
-        if (lines.isEmpty()) return null
-
-        return MovementSplitDraft(
-            entryMethod = SplitEntryMethod.entries.first { it.dbValue == lines.first().entry_method },
-            lines = lines.map { line ->
-                SplitLineDraft(
-                    participantKind = SplitParticipantKind.entries.first { it.dbValue == line.participant_kind },
-                    personId = line.person_id,
-                    owedAmountCents = line.owed_amount_cents,
-                    owedPercent = line.owed_percent
-                )
-            }
+    fun getForMovement(movementId: String): MovementSplitDraft? =
+        buildSplitDraft(
+            queries.splitWithLinesByMovementId(movement_id = movementId, mapper = ::mapSplitLineRow).executeAsList(),
         )
-    }
 
-    fun getForMovementById(id: String): MovementSplitDraft? {
-        val lines = queries.splitWithLinesById(
-            id = id
-        ).executeAsList()
+    fun getForMovementById(id: String): MovementSplitDraft? =
+        buildSplitDraft(
+            queries.splitWithLinesById(id = id, mapper = ::mapSplitLineRow).executeAsList(),
+        )
 
+    private fun buildSplitDraft(lines: List<SplitLineRow>): MovementSplitDraft? {
         if (lines.isEmpty()) return null
-
         return MovementSplitDraft(
-            entryMethod = SplitEntryMethod.entries.first { it.dbValue == lines.first().entry_method },
+            entryMethod = SplitEntryMethod.entries.first { it.dbValue == lines.first().entryMethod },
             lines = lines.map { line ->
                 SplitLineDraft(
-                    participantKind = SplitParticipantKind.entries.first { it.dbValue == line.participant_kind },
-                    personId = line.person_id,
-                    owedAmountCents = line.owed_amount_cents,
-                    owedPercent = line.owed_percent
+                    participantKind = SplitParticipantKind.entries.first { it.dbValue == line.participantKind },
+                    personId = line.personId,
+                    owedAmountCents = line.owedAmountCents,
+                    owedPercent = line.owedPercent,
                 )
-            }
+            },
         )
     }
 }
+
+/** Row shape shared by `splitWithLinesByMovementId`/`splitWithLinesById` (identical column lists). */
+private data class SplitLineRow(
+    val entryMethod: String,
+    val participantKind: String,
+    val personId: String?,
+    val owedAmountCents: Long,
+    val owedPercent: Double?,
+)
+
+private fun mapSplitLineRow(
+    splitId: String,
+    entryMethod: String,
+    participantKind: String,
+    personId: String?,
+    owedAmountCents: Long,
+    owedPercent: Double?,
+): SplitLineRow = SplitLineRow(entryMethod, participantKind, personId, owedAmountCents, owedPercent)

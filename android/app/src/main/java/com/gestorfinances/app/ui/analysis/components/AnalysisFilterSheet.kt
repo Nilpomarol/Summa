@@ -32,7 +32,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AnalysisOneTimeMode
@@ -49,6 +49,7 @@ import com.gestorfinances.app.ui.analysis.AnalysisNatureFilter
 import com.gestorfinances.app.ui.analysis.AnalysisUiState
 import com.gestorfinances.app.ui.analysis.labelRes
 import com.gestorfinances.app.ui.common.FilterSelectorField
+import androidx.compose.material3.rememberModalBottomSheetState
 import com.gestorfinances.app.ui.common.IconChip
 import com.gestorfinances.app.ui.common.SegmentedControl
 import com.gestorfinances.app.ui.common.accountIcon
@@ -178,7 +179,9 @@ internal fun AnalysisFilterSheet(
                                     text = {
                                         Text(
                                             text = account.name,
-                                            style = MaterialTheme.typography.bodyLarge
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
                                         )
                                     },
                                     leadingIcon = {
@@ -278,7 +281,9 @@ internal fun AnalysisFilterSheet(
                                     text = {
                                         Text(
                                             text = category.name,
-                                            style = MaterialTheme.typography.bodyLarge
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
                                         )
                                     },
                                     leadingIcon = {

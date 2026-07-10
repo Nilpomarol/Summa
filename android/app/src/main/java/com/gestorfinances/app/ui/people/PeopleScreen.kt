@@ -1,5 +1,6 @@
 package com.gestorfinances.app.ui.people
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -24,6 +25,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Handshake
@@ -42,7 +44,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -59,6 +60,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -79,10 +81,16 @@ import com.gestorfinances.app.ui.common.FinanceFilterChip
 import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.MovementListItem
+import androidx.compose.material3.rememberModalBottomSheetState
+import com.gestorfinances.app.ui.common.PageHeaderRow
 import com.gestorfinances.app.ui.common.PrimaryButton
+import com.gestorfinances.app.ui.common.doneKeyboardActions
 import com.gestorfinances.app.ui.common.formatEuroCents
 import com.gestorfinances.app.ui.common.formatSlashDate
+import com.gestorfinances.app.ui.common.nextFieldKeyboardActions
 import com.gestorfinances.app.ui.common.parseEuroCents
+import com.gestorfinances.app.ui.common.scrollToWhen
+import com.gestorfinances.app.ui.movements.FormDatePicker
 import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.categoryColor
 import com.gestorfinances.app.ui.theme.categoryTint
@@ -101,15 +109,53 @@ fun PeopleScreen(
         viewModel.onScreenShown()
     }
 
-    PeopleContent(
-        state = state,
-        modifier = modifier,
-        onAdd = viewModel::onAddClicked,
-        onEdit = viewModel::onEditClicked,
-        onArchive = viewModel::onArchiveClicked,
-        onExternalSplit = onAddDebtForPerson,
-        onOpenDetail = viewModel::onPersonDetailClicked,
-    )
+    val detail = state.detail
+    val settlementForm = state.settlementForm
+    when {
+        settlementForm != null && detail != null -> {
+            BackHandler(onBack = viewModel::onSettlementDismissed)
+            SettlementScreen(
+                form = settlementForm,
+                accounts = state.accounts,
+                onFormChange = viewModel::onSettlementFormChanged,
+                onBack = viewModel::onSettlementDismissed,
+                onSave = viewModel::onSettlementSaveClicked,
+                modifier = modifier,
+            )
+        }
+        detail != null -> {
+            BackHandler(onBack = viewModel::onPersonDetailDismissed)
+            PersonDetailScreen(
+                detail = detail,
+                onBack = viewModel::onPersonDetailDismissed,
+                onOpenDebtSource = onOpenDebtSource,
+                onExternalSplit = {
+                    viewModel.onPersonDetailDismissed()
+                    onAddDebtForPerson(detail.person)
+                },
+                onSettleUp = { viewModel.onSettleUpClicked(detail.person) },
+                onEdit = {
+                    viewModel.onPersonDetailDismissed()
+                    viewModel.onEditClicked(detail.person)
+                },
+                onCopyMessageClicked = viewModel::onCopyMessageClicked,
+                onCopyMessageHandled = viewModel::onCopyMessageHandled,
+                onMessageCopied = onMessageCopied,
+                modifier = modifier,
+            )
+        }
+        else -> {
+            PeopleContent(
+                state = state,
+                modifier = modifier,
+                onAdd = viewModel::onAddClicked,
+                onEdit = viewModel::onEditClicked,
+                onArchive = viewModel::onArchiveClicked,
+                onExternalSplit = onAddDebtForPerson,
+                onOpenDetail = viewModel::onPersonDetailClicked,
+            )
+        }
+    }
 
     state.form?.let { form ->
         PersonFormSheet(
@@ -117,39 +163,6 @@ fun PeopleScreen(
             onFormChange = viewModel::onFormChanged,
             onDismiss = viewModel::onFormDismissed,
             onSave = viewModel::onSaveClicked,
-        )
-    }
-
-    state.detail?.let { detail ->
-        PersonDetailSheet(
-            detail = detail,
-            onDismiss = viewModel::onPersonDetailDismissed,
-            onOpenDebtSource = onOpenDebtSource,
-            onExternalSplit = {
-                viewModel.onPersonDetailDismissed()
-                onAddDebtForPerson(detail.person)
-            },
-            onSettleUp = {
-                viewModel.onPersonDetailDismissed()
-                viewModel.onSettleUpClicked(detail.person)
-            },
-            onEdit = {
-                viewModel.onPersonDetailDismissed()
-                viewModel.onEditClicked(detail.person)
-            },
-            onCopyMessageClicked = viewModel::onCopyMessageClicked,
-            onCopyMessageHandled = viewModel::onCopyMessageHandled,
-            onMessageCopied = onMessageCopied,
-        )
-    }
-
-    state.settlementForm?.let { form ->
-        SettlementSheet(
-            form = form,
-            accounts = state.accounts,
-            onFormChange = viewModel::onSettlementFormChanged,
-            onDismiss = viewModel::onSettlementDismissed,
-            onSave = viewModel::onSettlementSaveClicked,
         )
     }
 
@@ -468,11 +481,10 @@ private fun PersonRow(
 // Person detail — bottom sheet
 // ---------------------------------------------------------------------------
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PersonDetailSheet(
+private fun PersonDetailScreen(
     detail: PersonDetailState,
-    onDismiss: () -> Unit,
+    onBack: () -> Unit,
     onOpenDebtSource: (String) -> Unit,
     onExternalSplit: () -> Unit,
     onSettleUp: () -> Unit,
@@ -480,8 +492,8 @@ private fun PersonDetailSheet(
     onCopyMessageClicked: () -> Unit,
     onCopyMessageHandled: () -> Unit,
     onMessageCopied: (String) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val clipboardManager = LocalClipboardManager.current
 
     detail.copyMessage?.let { message ->
@@ -494,142 +506,138 @@ private fun PersonDetailSheet(
         }
     }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface,
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .navigationBarsPadding()
+            .padding(bottom = 8.dp),
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.75f)
-                .navigationBarsPadding()
-                .padding(bottom = 8.dp),
+                .padding(horizontal = 20.dp, vertical = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 6.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+            PageHeaderRow(onBack = onBack)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    PersonAvatar(person = detail.person)
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = detail.person.name,
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                        detail.person.notes?.takeIf { it.isNotBlank() }?.let { notes ->
-                            Text(
-                                text = notes,
-                                color = FinanceTheme.colors.mutedText,
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                        }
-                    }
-                    Column(horizontalAlignment = Alignment.End) {
-                        MoneyText(
-                            cents = kotlin.math.abs(detail.person.balanceCents),
-                            color = debtDirectionColor(detail.person.balanceCents),
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                        Text(
-                            text = detail.person.balanceLabel(),
-                            color = debtDirectionColor(detail.person.balanceCents),
-                            style = MaterialTheme.typography.labelSmall,
-                        )
-                    }
-                }
-
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (detail.person.balanceCents != 0L) {
-                        PrimaryButton(
-                            text = stringResource(R.string.person_action_settle_up),
-                            onClick = onSettleUp,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        SecondaryActionButton(
-                            icon = Icons.Outlined.Handshake,
-                            label = stringResource(R.string.person_action_external_split),
-                            onClick = onExternalSplit,
-                            modifier = Modifier.weight(1f),
-                        )
-                        SecondaryActionButton(
-                            icon = Icons.Outlined.ContentCopy,
-                            label = stringResource(R.string.person_action_copy_message),
-                            onClick = onCopyMessageClicked,
-                            modifier = Modifier.weight(1f),
-                        )
-                        SecondaryActionButton(
-                            icon = Icons.Outlined.Edit,
-                            label = stringResource(R.string.common_edit),
-                            onClick = onEdit,
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                }
-
-                if (detail.isLoading) {
+                PersonAvatar(person = detail.person)
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = stringResource(R.string.person_loading),
-                        color = FinanceTheme.colors.mutedText,
-                        style = MaterialTheme.typography.bodyMedium,
+                        text = detail.person.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
+                    detail.person.notes?.takeIf { it.isNotBlank() }?.let { notes ->
+                        Text(
+                            text = notes,
+                            color = FinanceTheme.colors.mutedText,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
                 }
-
-                detail.errorMessage?.let { message ->
+                Column(horizontalAlignment = Alignment.End) {
+                    MoneyText(
+                        cents = kotlin.math.abs(detail.person.balanceCents),
+                        color = debtDirectionColor(detail.person.balanceCents),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
                     Text(
-                        text = message,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium,
+                        text = detail.person.balanceLabel(),
+                        color = debtDirectionColor(detail.person.balanceCents),
+                        style = MaterialTheme.typography.labelSmall,
                     )
                 }
             }
 
-            HorizontalDivider()
-
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                Text(
-                    text = stringResource(R.string.person_detail_breakdown),
-                    style = MaterialTheme.typography.titleSmall,
-                )
-
-                if (!detail.isLoading && detail.items.isEmpty()) {
-                    Text(
-                        text = if (detail.person.balanceCents == 0L) {
-                            stringResource(R.string.person_detail_settled_body)
-                        } else {
-                            stringResource(R.string.debt_breakdown_empty)
-                        },
-                        color = FinanceTheme.colors.mutedText,
-                        style = MaterialTheme.typography.bodyMedium,
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (detail.person.balanceCents != 0L) {
+                    PrimaryButton(
+                        text = stringResource(R.string.person_action_settle_up),
+                        onClick = onSettleUp,
+                        modifier = Modifier.fillMaxWidth(),
                     )
-                } else if (detail.history.isNotEmpty()) {
-                    Column {
-                        detail.history.forEachIndexed { index, entry ->
-                            MovementListItem(
-                                movement = entry.movement,
-                                onClick = { onOpenDebtSource(entry.item.sourceId) },
-                                personEffectCents = entry.item.effectCents,
-                            )
-                            if (index < detail.history.lastIndex) {
-                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                            }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    SecondaryActionButton(
+                        icon = Icons.Outlined.Handshake,
+                        label = stringResource(R.string.person_action_external_split),
+                        onClick = onExternalSplit,
+                        modifier = Modifier.weight(1f),
+                    )
+                    SecondaryActionButton(
+                        icon = Icons.Outlined.ContentCopy,
+                        label = stringResource(R.string.person_action_copy_message),
+                        onClick = onCopyMessageClicked,
+                        modifier = Modifier.weight(1f),
+                    )
+                    SecondaryActionButton(
+                        icon = Icons.Outlined.Edit,
+                        label = stringResource(R.string.common_edit),
+                        onClick = onEdit,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+
+            if (detail.isLoading) {
+                Text(
+                    text = stringResource(R.string.person_loading),
+                    color = FinanceTheme.colors.mutedText,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+
+            detail.errorMessage?.let { message ->
+                Text(
+                    text = message,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+        }
+
+        HorizontalDivider()
+
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.person_detail_breakdown),
+                style = MaterialTheme.typography.titleSmall,
+            )
+
+            if (!detail.isLoading && detail.items.isEmpty()) {
+                Text(
+                    text = if (detail.person.balanceCents == 0L) {
+                        stringResource(R.string.person_detail_settled_body)
+                    } else {
+                        stringResource(R.string.debt_breakdown_empty)
+                    },
+                    color = FinanceTheme.colors.mutedText,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            } else if (detail.history.isNotEmpty()) {
+                Column {
+                    detail.history.forEachIndexed { index, entry ->
+                        MovementListItem(
+                            movement = entry.movement,
+                            onClick = { onOpenDebtSource(entry.item.sourceId) },
+                            personEffectCents = entry.item.effectCents,
+                        )
+                        if (index < detail.history.lastIndex) {
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                         }
                     }
                 }
@@ -780,136 +788,145 @@ private fun PersonRowMenu(
 // Settlement — bottom sheet
 // ---------------------------------------------------------------------------
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SettlementSheet(
+private fun SettlementScreen(
     form: SettlementFormState,
     accounts: List<AccountSummary>,
     onFormChange: (SettlementFormState) -> Unit,
-    onDismiss: () -> Unit,
+    onBack: () -> Unit,
     onSave: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val parsedAmount = parseEuroCents(form.amount, allowNegative = false)
     val isOverpay = parsedAmount != null && parsedAmount > form.outstandingCents
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface,
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp)
+            .navigationBarsPadding()
+            .imePadding()
+            .padding(bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-                .navigationBarsPadding()
-                .imePadding()
-                .padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+        PageHeaderRow(
+            onBack = onBack,
+            title = stringResource(R.string.settlement_title_with_person, form.personName),
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                text = stringResource(R.string.settlement_title_with_person, form.personName),
-                style = MaterialTheme.typography.titleLarge,
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text(
-                    text = stringResource(
-                        when (form.direction) {
-                            SettlementDirection.PERSON_TO_USER -> R.string.settlement_direction_person_to_user
-                            SettlementDirection.USER_TO_PERSON -> R.string.settlement_direction_user_to_person
-                        },
-                    ),
-                    modifier = Modifier.weight(1f),
-                    color = FinanceTheme.colors.mutedText,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                MoneyText(
-                    cents = form.outstandingCents,
-                    color = when (form.direction) {
-                        SettlementDirection.PERSON_TO_USER -> FinanceTheme.colors.income
-                        SettlementDirection.USER_TO_PERSON -> FinanceTheme.colors.debt
+                text = stringResource(
+                    when (form.direction) {
+                        SettlementDirection.PERSON_TO_USER -> R.string.settlement_direction_person_to_user
+                        SettlementDirection.USER_TO_PERSON -> R.string.settlement_direction_user_to_person
                     },
-                    style = MaterialTheme.typography.titleMedium,
-                )
-            }
-            form.errorRes?.let {
-                Text(
-                    text = stringResource(it),
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-            form.errorMessage?.let {
-                Text(
-                    text = it,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-            OutlinedTextField(
-                value = form.amount,
-                onValueChange = { onFormChange(form.copy(amount = it)) },
-                label = { Text(text = stringResource(R.string.settlement_field_amount)) },
-                prefix = { Text(text = "€") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                shape = MaterialTheme.shapes.small,
-                modifier = Modifier.fillMaxWidth(),
+                ),
+                modifier = Modifier.weight(1f),
+                color = FinanceTheme.colors.mutedText,
+                style = MaterialTheme.typography.bodyMedium,
             )
-            if (isOverpay) {
-                InlineBanner(
-                    kind = BannerKind.Alert,
-                    text = stringResource(R.string.settlement_warning_overpay),
+            MoneyText(
+                cents = form.outstandingCents,
+                color = when (form.direction) {
+                    SettlementDirection.PERSON_TO_USER -> FinanceTheme.colors.income
+                    SettlementDirection.USER_TO_PERSON -> FinanceTheme.colors.debt
+                },
+                style = MaterialTheme.typography.titleMedium,
+            )
+        }
+        form.errorMessage?.let {
+            Text(
+                text = it,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+        val amountError = form.errorField == SettlementFormField.AMOUNT
+        OutlinedTextField(
+            value = form.amount,
+            onValueChange = { onFormChange(form.copy(amount = it)) },
+            label = { Text(text = stringResource(R.string.settlement_field_amount)) },
+            prefix = { Text(text = "€") },
+            singleLine = true,
+            isError = amountError,
+            supportingText = if (amountError && form.errorRes != null) {
+                { Text(text = stringResource(form.errorRes)) }
+            } else null,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
+            keyboardActions = doneKeyboardActions(),
+            shape = MaterialTheme.shapes.small,
+            modifier = Modifier
+                .fillMaxWidth()
+                .scrollToWhen(amountError),
+        )
+        if (isOverpay) {
+            InlineBanner(
+                kind = BannerKind.Alert,
+                text = stringResource(R.string.settlement_warning_overpay),
+            )
+        }
+        val accountError = form.errorField == SettlementFormField.ACCOUNT
+        ChipFlowSection(
+            label = stringResource(R.string.settlement_field_account),
+            modifier = Modifier.scrollToWhen(accountError),
+        ) {
+            accounts.forEach { account ->
+                FinanceFilterChip(
+                    selected = form.accountId == account.id,
+                    label = account.name,
+                    onClick = { onFormChange(form.copy(accountId = account.id)) },
                 )
             }
-            ChipFlowSection(label = stringResource(R.string.settlement_field_account)) {
-                accounts.forEach { account ->
-                    FinanceFilterChip(
-                        selected = form.accountId == account.id,
-                        label = account.name,
-                        onClick = { onFormChange(form.copy(accountId = account.id)) },
-                    )
-                }
-            }
-            OutlinedTextField(
-                value = form.date,
-                onValueChange = { onFormChange(form.copy(date = it)) },
-                label = { Text(text = stringResource(R.string.settlement_field_date)) },
-                supportingText = { Text(text = stringResource(R.string.movement_date_format_hint)) },
-                singleLine = true,
-                shape = MaterialTheme.shapes.small,
-                modifier = Modifier.fillMaxWidth(),
+        }
+        if (accountError && form.errorRes != null) {
+            Text(
+                text = stringResource(form.errorRes),
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.labelSmall,
             )
-            OutlinedTextField(
-                value = form.notes,
-                onValueChange = { onFormChange(form.copy(notes = it)) },
-                label = { Text(text = stringResource(R.string.settlement_field_notes)) },
-                minLines = 2,
+        }
+        val dateError = form.errorField == SettlementFormField.DATE
+        FormDatePicker(
+            label = stringResource(R.string.settlement_field_date),
+            date = form.date,
+            onDateChange = { onFormChange(form.copy(date = it)) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .scrollToWhen(dateError),
+            isError = dateError,
+            supportingText = if (dateError && form.errorRes != null) {
+                stringResource(form.errorRes)
+            } else null,
+        )
+        OutlinedTextField(
+            value = form.notes,
+            onValueChange = { onFormChange(form.copy(notes = it)) },
+            label = { Text(text = stringResource(R.string.settlement_field_notes)) },
+            minLines = 2,
+            shape = MaterialTheme.shapes.small,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            OutlinedButton(
+                onClick = onBack,
+                modifier = Modifier.weight(1f),
                 shape = MaterialTheme.shapes.small,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                OutlinedButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.weight(1f),
-                    shape = MaterialTheme.shapes.small,
-                ) {
-                    Text(text = stringResource(R.string.common_cancel))
-                }
-                PrimaryButton(
-                    text = stringResource(R.string.settlement_save),
-                    onClick = onSave,
-                    modifier = Modifier.weight(1f),
-                )
+                Text(text = stringResource(R.string.common_cancel))
             }
+            PrimaryButton(
+                text = stringResource(R.string.settlement_save),
+                onClick = onSave,
+                modifier = Modifier.weight(1f),
+            )
         }
     }
 }
@@ -950,13 +967,6 @@ private fun PersonFormSheet(
                 style = MaterialTheme.typography.titleLarge,
             )
 
-            form.errorRes?.let {
-                Text(
-                    text = stringResource(it),
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
             form.errorMessage?.let {
                 Text(
                     text = it,
@@ -967,13 +977,24 @@ private fun PersonFormSheet(
 
             PersonPreviewCard(form = form)
 
+            val nameError = form.errorField == PersonFormField.NAME
             OutlinedTextField(
                 value = form.name,
-                onValueChange = { onFormChange(form.copy(name = it, errorRes = null, errorMessage = null)) },
+                onValueChange = {
+                    onFormChange(form.copy(name = it, errorRes = null, errorField = null, errorMessage = null))
+                },
                 label = { Text(text = stringResource(R.string.person_field_name)) },
                 singleLine = true,
+                isError = nameError,
+                supportingText = if (nameError && form.errorRes != null) {
+                    { Text(text = stringResource(form.errorRes)) }
+                } else null,
                 shape = MaterialTheme.shapes.small,
-                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                keyboardActions = nextFieldKeyboardActions(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .scrollToWhen(nameError),
             )
             OutlinedTextField(
                 value = form.notes,

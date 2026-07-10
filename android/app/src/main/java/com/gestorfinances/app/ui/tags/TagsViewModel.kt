@@ -79,7 +79,9 @@ class TagsViewModel(
     }
 
     fun onFormChanged(form: TagFormState) {
-        _state.value = _state.value.copy(form = form.copy(errorRes = null, errorMessage = null))
+        _state.value = _state.value.copy(
+            form = form.copy(errorRes = null, errorField = null, errorMessage = null),
+        )
     }
 
     fun onFormDismissed() {
@@ -90,16 +92,18 @@ class TagsViewModel(
         val form = _state.value.form ?: return
         val name = form.name.trim()
         val activeTripIds = _state.value.trips.map { it.id }.toSet()
-        val errorRes = when {
-            name.isEmpty() -> R.string.tag_validation_name_required
-            form.tripId != null && form.tripId !in activeTripIds -> R.string.tag_validation_trip_required
+        val (errorRes, errorField) = when {
+            name.isEmpty() -> R.string.tag_validation_name_required to TagFormField.NAME
+            form.tripId != null && form.tripId !in activeTripIds ->
+                R.string.tag_validation_trip_required to TagFormField.TRIP
             // Mirrors the schema's CHECK (trip_id IS NULL OR trip_type IS NULL): a tag is
             // global, event-type-scoped, or trip-specific — never two of those at once.
-            form.tripId != null && form.tripType != null -> R.string.tag_validation_scope_exclusive
-            else -> null
+            form.tripId != null && form.tripType != null ->
+                R.string.tag_validation_scope_exclusive to TagFormField.TRIP
+            else -> null to null
         }
         if (errorRes != null) {
-            _state.value = _state.value.copy(form = form.copy(errorRes = errorRes))
+            _state.value = _state.value.copy(form = form.copy(errorRes = errorRes, errorField = errorField))
             return
         }
 
@@ -206,6 +210,12 @@ data class TagsUiState(
         }
 }
 
+/** Identifies which field a tag-form validation error belongs to (audit U8, `docs/17` WP2). */
+enum class TagFormField {
+    NAME,
+    TRIP,
+}
+
 data class TagFormState(
     val id: String? = null,
     val name: String = "",
@@ -215,6 +225,7 @@ data class TagFormState(
     val categoryId: String? = null,
     val tripType: TripType? = null,
     val errorRes: Int? = null,
+    val errorField: TagFormField? = null,
     val errorMessage: String? = null,
 )
 

@@ -50,6 +50,7 @@ class GoldenVectorTest {
             "recurring_advance.json",
             "refund_actual.json",
             "split_rounding.json",
+            "template_split_rescale.json",
         )
 
         assertEquals(covered, goldenRoot.listFiles { file -> file.extension == "json" }!!.map { it.name }.toSet())
@@ -87,6 +88,21 @@ class GoldenVectorTest {
             expected.optionalString("reason")?.let {
                 assertEquals(case.name(), it, result.reason)
             }
+        }
+    }
+
+    @Test
+    fun templateSplitRescaleMatchesGoldenVectors() {
+        golden("template_split_rescale.json").cases().forEach { case ->
+            val input = case.obj("input")
+            val result = SplitCalculator.rescale(
+                weightsCents = input.longArray("weights_cents"),
+                totalCents = input.long("total_cents"),
+                payerIndex = input.int("payer_index"),
+            )
+
+            val expected = case.obj("expected")
+            assertEquals(case.name(), expected.longArray("shares_cents"), result.sharesCents)
         }
     }
 

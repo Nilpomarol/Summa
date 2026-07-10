@@ -1,5 +1,6 @@
 package com.gestorfinances.app.ui.budgets
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -7,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -20,17 +22,16 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -51,19 +52,25 @@ import com.gestorfinances.app.data.repository.CategoryRecord
 import com.gestorfinances.app.data.repository.TripSummary
 import com.gestorfinances.app.ui.common.BannerKind
 import com.gestorfinances.app.ui.common.BudgetProgressBar
-import com.gestorfinances.app.ui.common.ChipFlowSection
+import com.gestorfinances.app.ui.common.PageHeaderRow
 import com.gestorfinances.app.ui.common.color
 import com.gestorfinances.app.ui.common.label
 import com.gestorfinances.app.ui.common.progressFraction
 import com.gestorfinances.app.ui.common.DestructiveTextButton
 import com.gestorfinances.app.ui.common.FinanceCard
-import com.gestorfinances.app.ui.common.FinanceFilterChip
+import com.gestorfinances.app.ui.common.IconChip
 import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.NeutralPill
 import com.gestorfinances.app.ui.common.PrimaryButton
 import com.gestorfinances.app.ui.common.SegmentedControl
+import com.gestorfinances.app.ui.common.categoryIcon
 import com.gestorfinances.app.ui.common.formatEuroCents
+import com.gestorfinances.app.ui.common.scrollToWhen
+import com.gestorfinances.app.ui.movements.FormDatePicker
+import com.gestorfinances.app.ui.movements.FormSelect
+import com.gestorfinances.app.ui.movements.SelectOption
 import com.gestorfinances.app.ui.theme.FinanceTheme
+import com.gestorfinances.app.ui.theme.categoryColor
 
 @Composable
 fun BudgetsScreen(
@@ -78,23 +85,44 @@ fun BudgetsScreen(
         viewModel.onScreenShown(contextTripId)
     }
 
-    BudgetsContent(
-        state = state,
-        modifier = modifier,
-        onBack = onBack,
-        onAdd = viewModel::onAddClicked,
-        onEdit = viewModel::onEditClicked,
-        onDelete = viewModel::onDeleteClicked,
-    )
-
-    state.form?.let { form ->
-        BudgetFormDialog(
+    val form = state.form
+    if (form != null) {
+        BackHandler(onBack = viewModel::onFormDismissed)
+        BudgetFormScreen(
             form = form,
             categories = state.categories,
             trips = state.trips,
             onFormChange = viewModel::onFormChanged,
-            onDismiss = viewModel::onFormDismissed,
+            onBack = viewModel::onFormDismissed,
             onSave = viewModel::onSaveClicked,
+            modifier = modifier,
+        )
+    } else {
+        BudgetsContent(
+            state = state,
+            modifier = modifier,
+            onBack = onBack,
+            onAdd = { viewModel.onAddClicked() },
+            onEdit = viewModel::onEditClicked,
+            onDelete = viewModel::onDeleteClicked,
+        )
+    }
+
+    state.archiveCandidate?.let {
+        AlertDialog(
+            onDismissRequest = viewModel::onArchiveDismissed,
+            title = { Text(text = stringResource(R.string.budget_archive_confirm_title)) },
+            text = { Text(text = stringResource(R.string.budget_archive_warning)) },
+            confirmButton = {
+                DestructiveTextButton(onClick = viewModel::onArchiveConfirmed) {
+                    Text(text = stringResource(R.string.common_archive))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::onArchiveDismissed) {
+                    Text(text = stringResource(R.string.common_cancel))
+                }
+            },
         )
     }
 }
@@ -118,7 +146,7 @@ private fun BudgetsContent(
                 IconButton(onClick = onBack) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = stringResource(R.string.common_done),
+                        contentDescription = stringResource(R.string.common_back),
                     )
                 }
                 Spacer(modifier = Modifier.width(4.dp))
@@ -263,133 +291,175 @@ private fun EmptyBudgetsCard(onAdd: () -> Unit) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun BudgetFormDialog(
+private fun BudgetFormScreen(
     form: BudgetFormState,
     categories: List<CategoryRecord>,
     trips: List<TripSummary>,
     onFormChange: (BudgetFormState) -> Unit,
-    onDismiss: () -> Unit,
+    onBack: () -> Unit,
     onSave: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface,
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp)
+            .navigationBarsPadding()
+            .padding(bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-                .navigationBarsPadding()
-                .padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Text(
-                text = stringResource(
-                    if (form.id == null) R.string.budget_new_title else R.string.budget_edit_title,
-                ),
-                style = MaterialTheme.typography.titleLarge,
+        PageHeaderRow(
+            onBack = onBack,
+            title = stringResource(
+                if (form.id == null) R.string.budget_new_title else R.string.budget_edit_title,
+            ),
+        )
+        form.errorMessage?.let {
+            InlineBanner(kind = BannerKind.Error, text = it)
+        }
+        SegmentedControl(
+            options = BudgetScope.entries,
+            selected = form.scope,
+            label = { it.label() },
+            onSelect = { scope ->
+                onFormChange(
+                    form.copy(
+                        scope = scope,
+                        categoryId = if (scope == BudgetScope.CATEGORY) form.categoryId else null,
+                        tripId = if (scope == BudgetScope.TRIP) form.tripId else null,
+                    ),
+                )
+            },
+        )
+        val categoryError = form.errorField == BudgetFormField.CATEGORY
+        val tripError = form.errorField == BudgetFormField.TRIP
+        if (form.scope == BudgetScope.CATEGORY) {
+            FormSelect(
+                label = stringResource(R.string.budget_field_category),
+                options = categories.map { category ->
+                    SelectOption(
+                        id = category.id,
+                        label = category.name,
+                        leading = {
+                            IconChip(
+                                icon = categoryIcon(category.icon),
+                                contentDescription = null,
+                                color = categoryColor(category.color),
+                                size = 24.dp,
+                            )
+                        },
+                    )
+                },
+                selectedId = form.categoryId,
+                onSelect = { onFormChange(form.copy(categoryId = it)) },
+                modifier = Modifier.scrollToWhen(categoryError),
+                isError = categoryError,
+                supportingText = if (categoryError && form.errorRes != null) {
+                    stringResource(form.errorRes)
+                } else null,
             )
-            form.errorRes?.let {
-                InlineBanner(kind = BannerKind.Error, text = stringResource(it))
-            }
-            form.errorMessage?.let {
-                InlineBanner(kind = BannerKind.Error, text = it)
-            }
-            SegmentedControl(
-                options = BudgetScope.entries,
-                selected = form.scope,
-                label = { it.label() },
-                onSelect = { scope ->
+        } else {
+            FormSelect(
+                label = stringResource(R.string.budget_field_trip),
+                options = trips.map { trip ->
+                    SelectOption(
+                        id = trip.id,
+                        label = trip.name,
+                        leading = {
+                            IconChip(
+                                icon = categoryIcon(trip.icon),
+                                contentDescription = null,
+                                color = categoryColor(trip.color),
+                                size = 24.dp,
+                            )
+                        },
+                    )
+                },
+                selectedId = form.tripId,
+                onSelect = { tripId ->
+                    val trip = trips.firstOrNull { it.id == tripId }
                     onFormChange(
                         form.copy(
-                            scope = scope,
-                            categoryId = if (scope == BudgetScope.CATEGORY) form.categoryId else null,
-                            tripId = if (scope == BudgetScope.TRIP) form.tripId else null,
+                            tripId = tripId,
+                            startDate = form.startDate.ifBlank { trip?.startDate.orEmpty() },
                         ),
                     )
                 },
+                modifier = Modifier.scrollToWhen(tripError),
+                isError = tripError,
+                supportingText = if (tripError && form.errorRes != null) {
+                    stringResource(form.errorRes)
+                } else null,
             )
-            if (form.scope == BudgetScope.CATEGORY) {
-                ChipFlowSection(label = stringResource(R.string.budget_field_category)) {
-                    categories.forEach { category ->
-                        FinanceFilterChip(
-                            selected = form.categoryId == category.id,
-                            label = category.name,
-                            onClick = { onFormChange(form.copy(categoryId = category.id)) },
-                        )
-                    }
-                }
-            } else {
-                ChipFlowSection(label = stringResource(R.string.budget_field_trip)) {
-                    trips.forEach { trip ->
-                        FinanceFilterChip(
-                            selected = form.tripId == trip.id,
-                            label = trip.name,
-                            onClick = {
-                                onFormChange(
-                                    form.copy(
-                                        tripId = trip.id,
-                                        startDate = form.startDate.ifBlank { trip.startDate.orEmpty() },
-                                    ),
-                                )
-                            },
-                        )
-                    }
-                }
-            }
-            OutlinedTextField(
-                value = form.limit,
-                onValueChange = { onFormChange(form.copy(limit = it)) },
-                label = { Text(text = stringResource(R.string.budget_field_limit)) },
-                prefix = { Text(text = "€") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        }
+        val limitError = form.errorField == BudgetFormField.LIMIT
+        OutlinedTextField(
+            value = form.limit,
+            onValueChange = { onFormChange(form.copy(limit = it)) },
+            label = { Text(text = stringResource(R.string.budget_field_limit)) },
+            prefix = { Text(text = "€") },
+            singleLine = true,
+            isError = limitError,
+            supportingText = if (limitError && form.errorRes != null) {
+                { Text(text = stringResource(form.errorRes)) }
+            } else null,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            shape = MaterialTheme.shapes.small,
+            modifier = Modifier
+                .fillMaxWidth()
+                .scrollToWhen(limitError),
+        )
+        val thresholdError = form.errorField == BudgetFormField.THRESHOLD
+        OutlinedTextField(
+            value = form.threshold,
+            onValueChange = { onFormChange(form.copy(threshold = it)) },
+            label = { Text(text = stringResource(R.string.budget_field_threshold)) },
+            suffix = { Text(text = "%") },
+            singleLine = true,
+            isError = thresholdError,
+            supportingText = if (thresholdError && form.errorRes != null) {
+                { Text(text = stringResource(form.errorRes)) }
+            } else null,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            shape = MaterialTheme.shapes.small,
+            modifier = Modifier
+                .fillMaxWidth()
+                .scrollToWhen(thresholdError),
+        )
+        val startDateError = form.errorField == BudgetFormField.START_DATE
+        FormDatePicker(
+            label = stringResource(R.string.budget_field_start),
+            date = form.startDate,
+            onDateChange = { onFormChange(form.copy(startDate = it)) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .scrollToWhen(startDateError),
+            isError = startDateError,
+            supportingText = if (startDateError && form.errorRes != null) {
+                stringResource(form.errorRes)
+            } else null,
+            onClear = { onFormChange(form.copy(startDate = "")) },
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            OutlinedButton(
+                onClick = onBack,
+                modifier = Modifier.weight(1f),
                 shape = MaterialTheme.shapes.small,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedTextField(
-                value = form.threshold,
-                onValueChange = { onFormChange(form.copy(threshold = it)) },
-                label = { Text(text = stringResource(R.string.budget_field_threshold)) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                shape = MaterialTheme.shapes.small,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedTextField(
-                value = form.startDate,
-                onValueChange = { onFormChange(form.copy(startDate = it)) },
-                label = { Text(text = stringResource(R.string.budget_field_start)) },
-                supportingText = { Text(text = stringResource(R.string.movement_date_format_hint)) },
-                singleLine = true,
-                shape = MaterialTheme.shapes.small,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                OutlinedButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.weight(1f),
-                    shape = MaterialTheme.shapes.small,
-                ) {
-                    Text(text = stringResource(R.string.common_cancel))
-                }
-                PrimaryButton(
-                    text = stringResource(
-                        if (form.id == null) R.string.budget_save_new else R.string.budget_save_changes,
-                    ),
-                    onClick = onSave,
-                    modifier = Modifier.weight(1f),
-                )
+                Text(text = stringResource(R.string.common_cancel))
             }
+            PrimaryButton(
+                text = stringResource(
+                    if (form.id == null) R.string.budget_save_new else R.string.budget_save_changes,
+                ),
+                onClick = onSave,
+                modifier = Modifier.weight(1f),
+            )
         }
     }
 }

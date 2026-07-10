@@ -1,5 +1,6 @@
 package com.gestorfinances.app.ui.accounts
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -26,6 +27,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
@@ -34,19 +36,16 @@ import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -58,6 +57,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -77,11 +77,15 @@ import com.gestorfinances.app.ui.common.IconPickerRow
 import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.NeutralPill
 import com.gestorfinances.app.ui.common.MovementListItem
+import com.gestorfinances.app.ui.common.PageHeaderRow
 import com.gestorfinances.app.ui.common.PrimaryButton
+import com.gestorfinances.app.ui.common.scrollToWhen
 import com.gestorfinances.app.ui.common.accountIcon
 import com.gestorfinances.app.ui.common.accountTypeIcon
+import com.gestorfinances.app.ui.common.doneKeyboardActions
 import com.gestorfinances.app.ui.common.formatEuroCents
 import com.gestorfinances.app.ui.common.label
+import com.gestorfinances.app.ui.common.nextFieldKeyboardActions
 import com.gestorfinances.app.ui.common.parseEuroCents
 import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.categoryColor
@@ -98,24 +102,43 @@ fun AccountsScreen(
         viewModel.onScreenShown()
     }
 
-    AccountsContent(
-        state = state,
-        modifier = modifier,
-        onAdd = viewModel::onAddClicked,
-        onEdit = viewModel::onEditClicked,
-        onArchive = viewModel::onArchiveClicked,
-        onFlow = viewModel::onFlowClicked,
-        onMoveUp = viewModel::onMoveUpClicked,
-        onMoveDown = viewModel::onMoveDownClicked,
-    )
-
-    state.form?.let { form ->
-        AccountFormSheet(
-            form = form,
-            onFormChange = viewModel::onFormChanged,
-            onDismiss = viewModel::onFormDismissed,
-            onSave = viewModel::onSaveClicked,
-        )
+    val form = state.form
+    val flowDetail = state.flowDetail
+    when {
+        form != null -> {
+            BackHandler(onBack = viewModel::onFormDismissed)
+            AccountFormScreen(
+                form = form,
+                onFormChange = viewModel::onFormChanged,
+                onBack = viewModel::onFormDismissed,
+                onSave = viewModel::onSaveClicked,
+                modifier = modifier,
+            )
+        }
+        flowDetail != null -> {
+            BackHandler(onBack = viewModel::onFlowDismissed)
+            AccountFlowScreen(
+                detail = flowDetail,
+                onBack = viewModel::onFlowDismissed,
+                onViewAnalysis = {
+                    viewModel.onFlowDismissed()
+                    onViewAnalysis(flowDetail.account.id, flowDetail.account.name)
+                },
+                modifier = modifier,
+            )
+        }
+        else -> {
+            AccountsContent(
+                state = state,
+                modifier = modifier,
+                onAdd = viewModel::onAddClicked,
+                onEdit = viewModel::onEditClicked,
+                onArchive = viewModel::onArchiveClicked,
+                onFlow = viewModel::onFlowClicked,
+                onMoveUp = viewModel::onMoveUpClicked,
+                onMoveDown = viewModel::onMoveDownClicked,
+            )
+        }
     }
 
     state.archiveCandidate?.let {
@@ -132,17 +155,6 @@ fun AccountsScreen(
                 TextButton(onClick = viewModel::onArchiveDismissed) {
                     Text(text = stringResource(R.string.common_cancel))
                 }
-            },
-        )
-    }
-
-    state.flowDetail?.let { detail ->
-        AccountFlowSheet(
-            detail = detail,
-            onDismiss = viewModel::onFlowDismissed,
-            onViewAnalysis = {
-                viewModel.onFlowDismissed()
-                onViewAnalysis(detail.account.id, detail.account.name)
             },
         )
     }
@@ -334,6 +346,8 @@ private fun AccountBreakdownRow(account: AccountSummary, netWorthCents: Long) {
             style = MaterialTheme.typography.bodyMedium,
             color = FinanceTheme.colors.heroOnSurface,
             modifier = Modifier.weight(1f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
         if (percentText != null) {
             Text(
@@ -528,151 +542,153 @@ private fun AccountRowMenu(
 // Account form — bottom sheet
 // ---------------------------------------------------------------------------
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AccountFormSheet(
+private fun AccountFormScreen(
     form: AccountFormState,
     onFormChange: (AccountFormState) -> Unit,
-    onDismiss: () -> Unit,
+    onBack: () -> Unit,
     onSave: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface,
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp)
+            .navigationBarsPadding()
+            .imePadding()
+            .padding(bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Column(
+        PageHeaderRow(
+            onBack = onBack,
+            title = stringResource(
+                if (form.id == null) R.string.account_form_new_title
+                else R.string.account_form_edit_title,
+            ),
+        )
+
+        form.errorMessage?.let {
+            Text(
+                text = it,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+
+        // Live preview
+        AccountPreviewCard(form = form)
+
+        // Name
+        val nameError = form.errorField == AccountFormField.NAME
+        OutlinedTextField(
+            value = form.name,
+            onValueChange = {
+                onFormChange(form.copy(name = it, errorRes = null, errorField = null, errorMessage = null))
+            },
+            label = { Text(text = stringResource(R.string.account_field_name)) },
+            singleLine = true,
+            isError = nameError,
+            supportingText = if (nameError && form.errorRes != null) {
+                { Text(text = stringResource(form.errorRes)) }
+            } else null,
+            shape = MaterialTheme.shapes.small,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+            keyboardActions = nextFieldKeyboardActions(),
             modifier = Modifier
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-                .navigationBarsPadding()
-                .imePadding()
-                .padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .scrollToWhen(nameError),
+        )
+
+        // Starting balance
+        val startingBalanceError = form.errorField == AccountFormField.STARTING_BALANCE
+        OutlinedTextField(
+            value = form.startingBalance,
+            onValueChange = {
+                onFormChange(
+                    form.copy(startingBalance = it, errorRes = null, errorField = null, errorMessage = null),
+                )
+            },
+            label = { Text(text = stringResource(R.string.account_field_starting_balance)) },
+            prefix = { Text(text = "€") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
+            keyboardActions = doneKeyboardActions(),
+            singleLine = true,
+            isError = startingBalanceError,
+            supportingText = if (startingBalanceError && form.errorRes != null) {
+                { Text(text = stringResource(form.errorRes)) }
+            } else null,
+            shape = MaterialTheme.shapes.small,
+            modifier = Modifier
+                .fillMaxWidth()
+                .scrollToWhen(startingBalanceError),
+        )
+
+        // Color picker
+        ColorPickerRow(
+            label = stringResource(R.string.account_field_color),
+            selectedHex = form.colorHex,
+            onSelect = { onFormChange(form.copy(colorHex = it)) },
+        )
+
+        // Icon picker
+        IconPickerRow(
+            label = stringResource(R.string.account_field_icon),
+            options = AccountIconPalette,
+            selectedKey = form.iconKey,
+            onSelect = { onFormChange(form.copy(iconKey = it)) },
+        )
+
+        // Type chips
+        ChipFlowSection(label = stringResource(R.string.account_field_type)) {
+            AccountType.entries.forEach { type ->
+                FinanceFilterChip(
+                    selected = form.type == type,
+                    label = type.label(),
+                    onClick = { onFormChange(form.copy(type = type)) },
+                )
+            }
+        }
+
+        // Default toggle
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Title
             Text(
+                text = stringResource(R.string.account_field_default),
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f),
+            )
+            Switch(
+                checked = form.isDefault,
+                onCheckedChange = { onFormChange(form.copy(isDefault = it)) },
+            )
+        }
+
+        // Advanced options (low balance threshold)
+        AdvancedAccountOptions(form = form, onFormChange = onFormChange)
+
+        // Action buttons
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            OutlinedButton(
+                onClick = onBack,
+                modifier = Modifier.weight(1f),
+                shape = MaterialTheme.shapes.small,
+            ) {
+                Text(text = stringResource(R.string.common_cancel))
+            }
+            PrimaryButton(
                 text = stringResource(
-                    if (form.id == null) R.string.account_form_new_title
-                    else R.string.account_form_edit_title,
+                    if (form.id == null) R.string.account_save_new
+                    else R.string.account_save_changes,
                 ),
-                style = MaterialTheme.typography.titleLarge,
+                onClick = onSave,
+                modifier = Modifier.weight(1f),
             )
-
-            // Errors
-            form.errorRes?.let {
-                Text(
-                    text = stringResource(it),
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-            form.errorMessage?.let {
-                Text(
-                    text = it,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-
-            // Live preview
-            AccountPreviewCard(form = form)
-
-            // Name
-            OutlinedTextField(
-                value = form.name,
-                onValueChange = {
-                    onFormChange(form.copy(name = it, errorRes = null, errorMessage = null))
-                },
-                label = { Text(text = stringResource(R.string.account_field_name)) },
-                singleLine = true,
-                shape = MaterialTheme.shapes.small,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            // Starting balance
-            OutlinedTextField(
-                value = form.startingBalance,
-                onValueChange = {
-                    onFormChange(form.copy(startingBalance = it, errorRes = null, errorMessage = null))
-                },
-                label = { Text(text = stringResource(R.string.account_field_starting_balance)) },
-                prefix = { Text(text = "€") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                singleLine = true,
-                shape = MaterialTheme.shapes.small,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            // Color picker
-            ColorPickerRow(
-                label = stringResource(R.string.account_field_color),
-                selectedHex = form.colorHex,
-                onSelect = { onFormChange(form.copy(colorHex = it)) },
-            )
-
-            // Icon picker
-            IconPickerRow(
-                label = stringResource(R.string.account_field_icon),
-                options = AccountIconPalette,
-                selectedKey = form.iconKey,
-                onSelect = { onFormChange(form.copy(iconKey = it)) },
-            )
-
-            // Type chips
-            ChipFlowSection(label = stringResource(R.string.account_field_type)) {
-                AccountType.entries.forEach { type ->
-                    FinanceFilterChip(
-                        selected = form.type == type,
-                        label = type.label(),
-                        onClick = { onFormChange(form.copy(type = type)) },
-                    )
-                }
-            }
-
-            // Default toggle
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(R.string.account_field_default),
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.weight(1f),
-                )
-                Switch(
-                    checked = form.isDefault,
-                    onCheckedChange = { onFormChange(form.copy(isDefault = it)) },
-                )
-            }
-
-            // Advanced options (low balance threshold)
-            AdvancedAccountOptions(form = form, onFormChange = onFormChange)
-
-            // Action buttons
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                OutlinedButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.weight(1f),
-                    shape = MaterialTheme.shapes.small,
-                ) {
-                    Text(text = stringResource(R.string.common_cancel))
-                }
-                PrimaryButton(
-                    text = stringResource(
-                        if (form.id == null) R.string.account_save_new
-                        else R.string.account_save_changes,
-                    ),
-                    onClick = onSave,
-                    modifier = Modifier.weight(1f),
-                )
-            }
         }
     }
 }
@@ -760,19 +776,28 @@ private fun AdvancedAccountOptions(
             }
         }
         if (form.showAdvanced) {
+            val thresholdError = form.errorField == AccountFormField.LOW_BALANCE_THRESHOLD
             OutlinedTextField(
                 value = form.lowBalanceThreshold,
                 onValueChange = {
-                    onFormChange(form.copy(lowBalanceThreshold = it, errorRes = null, errorMessage = null))
+                    onFormChange(
+                        form.copy(lowBalanceThreshold = it, errorRes = null, errorField = null, errorMessage = null),
+                    )
                 },
                 label = { Text(text = stringResource(R.string.account_field_low_balance_threshold)) },
                 prefix = { Text(text = "€") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
+                keyboardActions = doneKeyboardActions(),
                 singleLine = true,
+                isError = thresholdError,
+                supportingText = if (thresholdError && form.errorRes != null) {
+                    { Text(text = stringResource(form.errorRes)) }
+                } else null,
                 shape = MaterialTheme.shapes.small,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 8.dp),
+                    .padding(top = 8.dp)
+                    .scrollToWhen(thresholdError),
             )
         }
     }
@@ -782,129 +807,129 @@ private fun AdvancedAccountOptions(
 // Account flow sheet (Step 4)
 // ---------------------------------------------------------------------------
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AccountFlowSheet(
+private fun AccountFlowScreen(
     detail: AccountFlowDetailState,
-    onDismiss: () -> Unit,
+    onBack: () -> Unit,
     onViewAnalysis: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val account = detail.account
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface,
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .navigationBarsPadding()
+            .padding(bottom = 8.dp),
     ) {
-        Column(
+        // Header: back + icon + name/count + analysis button (single row)
+        val movementCountText = if (!detail.isLoading) {
+            pluralStringResource(
+                R.plurals.account_flow_movement_count,
+                detail.entries.size,
+                detail.entries.size,
+            )
+        } else null
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.75f)
-                .navigationBarsPadding()
-                .padding(bottom = 8.dp),
+                .padding(start = 4.dp, end = 20.dp, top = 6.dp, bottom = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            // Header: icon + name/count + analysis button (single row)
-            val movementCountText = if (!detail.isLoading) {
-                pluralStringResource(
-                    R.plurals.account_flow_movement_count,
-                    detail.entries.size,
-                    detail.entries.size,
+            IconButton(onClick = onBack) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = stringResource(R.string.common_back),
                 )
-            } else null
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                IconChip(
-                    icon = if (account.icon != null) accountIcon(account.icon)
-                           else accountTypeIcon(account.type),
-                    contentDescription = null,
-                    color = categoryColor(account.color),
-                )
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = account.name,
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                    if (movementCountText != null) {
-                        Text(
-                            text = movementCountText,
-                            color = FinanceTheme.colors.mutedText,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                }
-                TextButton(onClick = onViewAnalysis) {
-                    Icon(
-                        imageVector = Icons.Outlined.BarChart,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(text = stringResource(R.string.account_flow_view_analysis))
-                }
             }
-
-            HorizontalDivider()
-
-            // Movement list
-            when {
-                detail.isLoading -> {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = stringResource(R.string.account_flow_loading),
-                            color = FinanceTheme.colors.mutedText,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                }
-                detail.entries.isEmpty() -> {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = stringResource(R.string.account_flow_empty),
-                            color = FinanceTheme.colors.mutedText,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                }
-                else -> {
-                    LazyColumn(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth(),
-                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
-                    ) {
-                        items(detail.entries) { movement ->
-                            MovementListItem(movement = movement)
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                        }
-                    }
-                }
-            }
-
-            detail.errorMessage?.let { msg ->
+            IconChip(
+                icon = if (account.icon != null) accountIcon(account.icon)
+                       else accountTypeIcon(account.type),
+                contentDescription = null,
+                color = categoryColor(account.color),
+            )
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = msg,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                    text = account.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
+                if (movementCountText != null) {
+                    Text(
+                        text = movementCountText,
+                        color = FinanceTheme.colors.mutedText,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
             }
+            TextButton(onClick = onViewAnalysis) {
+                Icon(
+                    imageVector = Icons.Outlined.BarChart,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(text = stringResource(R.string.account_flow_view_analysis))
+            }
+        }
+
+        HorizontalDivider()
+
+        // Movement list
+        when {
+            detail.isLoading -> {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = stringResource(R.string.account_flow_loading),
+                        color = FinanceTheme.colors.mutedText,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
+            detail.entries.isEmpty() -> {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = stringResource(R.string.account_flow_empty),
+                        color = FinanceTheme.colors.mutedText,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
+            else -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
+                ) {
+                    items(detail.entries) { movement ->
+                        MovementListItem(movement = movement)
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    }
+                }
+            }
+        }
+
+        detail.errorMessage?.let { msg ->
+            Text(
+                text = msg,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+            )
         }
     }
 }

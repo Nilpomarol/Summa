@@ -144,7 +144,7 @@ Soft warnings (duplicate matches, over-settlements, live dependencies on archive
 - The user may confirm and resubmit with an override flag.
 - The repository accepts the override flag and writes unconditionally.
 
-Read-only rejection (this device lacks the sync token) is deferred to Phase 5R-8, where a `DeviceAccessState` seam will be added to the shell and write paths.
+Read-only rejection (this device lacks the sync token) is deferred to Phase 7. `P5R-8` added the `DeviceAccessState` seam to the shell only (see §8) — write paths do not check it yet, since there is nothing to reject until the real token protocol exists.
 
 ---
 
@@ -230,7 +230,7 @@ Do not introduce Hilt or another DI framework in Phase 0/1. Revisit only if cons
 - Compose screens use native Android string resources generated from the shared Catalan key set once that catalog is extracted.
 - Form drafts may use local Compose state for purely visual fields, but saveable business drafts should live in the ViewModel so warnings, overrides, and validation are testable.
 - Read-only sync state is part of global app state and is rendered as a prominent banner plus disabled edit actions.
-- The app shell (`LedgerShell`) is a plain `Surface` with a bottom bar; it does **not** provide a `Scaffold` or a top app bar. Each screen owns its own top bar so it can set the correct title and actions without fighting inset consumption from an outer Scaffold.
+- The app shell (`LedgerShell`) renders a `Scaffold` (bottom bar, snackbar host, and a `topBar` slot reserved for the global read-only banner); each screen still owns its own in-content top bar so it can set the correct title and actions without fighting inset consumption from the outer Scaffold.
 - Shell navigation is a single `AppNavState` value (`section`, `managementDestination?`, `overlay?`). Back is handled by the pure `AppNavState.back()` reducer, not by individual screens.
 
 ---
@@ -342,11 +342,12 @@ No service in `domain/rules` should open the database, read resources directly, 
 
 ## 8. Sync and Read-Only Integration
 
-Sync implementation waits until Phase 7, but architecture hooks should exist early:
+Sync implementation waits until Phase 7, but architecture hooks exist early:
 
-- `DeviceAccessState` or equivalent exposes whether the current device may write.
-- Write use cases check the access state before validation and persistence.
-- UI reads the same state to show the read-only banner and disable edit actions.
+- `DeviceAccessState` (`android/app/src/main/java/com/gestorfinances/app/data/sync/DeviceAccessState.kt`) is a sealed interface — `Writer` or `ReadOnly(holderDeviceName)` — exposed as a `StateFlow` from `AppContainer`. **Implemented in `P5R-8` as a no-op**: `AppContainer` always emits `Writer` until Phase 7 wires the real token/handoff protocol.
+- `LedgerShell` (`MainActivity.kt`) collects this state and renders a persistent `InlineBanner` in the outer `Scaffold`'s `topBar` slot whenever it is `ReadOnly` — never rendered today since the state never changes.
+- Write use cases do **not** yet check the access state before validation and persistence — there is nothing to reject until a real token exists, so that gating is left to Phase 7 rather than adding untestable dead branches now.
+- UI reads the same state to show the read-only banner; disabling edit actions (FAB, edit/delete buttons) is also deferred to Phase 7, alongside the actual write-path gating.
 - Snapshot operations live outside normal repositories. They use SQLite backup API or `VACUUM INTO`, then encryption, as specified in `docs/02-synchronization.md` and `docs/03-architecture.md`.
 - Applying a snapshot is an application-level operation: close the database, atomically replace the DB file, reopen, and refresh UI state.
 

@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.Error
@@ -137,6 +138,40 @@ fun SectionHeader(
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.weight(1f),
         )
+        trailing?.invoke()
+    }
+}
+
+/**
+ * Back-button + optional title header, the first row of a full-page screen converted from a
+ * bottom sheet (design §8). [trailing] covers variants that carry extra content next to the
+ * title (e.g. a save/analysis action); screens whose header needs more than a single title line
+ * (an icon chip, a multi-line block) compose their own header instead of using this.
+ */
+@Composable
+fun PageHeaderRow(
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+    title: String? = null,
+    trailing: (@Composable () -> Unit)? = null,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = onBack) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = stringResource(R.string.common_back),
+            )
+        }
+        if (title != null) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.weight(1f),
+            )
+        }
         trailing?.invoke()
     }
 }
@@ -283,10 +318,7 @@ fun FilterSelectorField(
                 )
             }
             if (active && onClear != null) {
-                IconButton(
-                    onClick = { onClear() },
-                    modifier = Modifier.size(24.dp)
-                ) {
+                IconButton(onClick = { onClear() }) {
                     Icon(
                         imageVector = Icons.Default.Close,
                         contentDescription = stringResource(R.string.common_remove),
@@ -326,7 +358,7 @@ fun <T> SegmentedControl(
         options.forEach { option ->
             val isSelected = option == selected
             Surface(
-                onClick = { onSelect(option) },
+                onClick = { if (!isSelected) onSelect(option) },
                 modifier = Modifier.weight(1f),
                 shape = MaterialTheme.shapes.extraSmall,
                 color = if (isSelected) MaterialTheme.colorScheme.surface else Color.Transparent,
@@ -389,7 +421,7 @@ fun <T> LabeledSegmentedControl(
                 options.forEach { option ->
                     val isSelected = option == selected
                     Surface(
-                        onClick = { onSelect(option) },
+                        onClick = { if (!isSelected) onSelect(option) },
                         modifier = Modifier.weight(1f),
                         shape = MaterialTheme.shapes.extraSmall,
                         color = if (isSelected) {
@@ -468,7 +500,7 @@ fun DestructiveTextButton(
     }
 }
 
-/** 40×40 bordered icon button for top-bar actions (design §6). */
+/** Bordered icon button for top-bar actions (design §6); 44dp touch target (design §10). */
 @Composable
 fun TopBarIconButton(
     icon: ImageVector,
@@ -479,7 +511,7 @@ fun TopBarIconButton(
 ) {
     Surface(
         onClick = onClick,
-        modifier = modifier.size(40.dp),
+        modifier = modifier.size(44.dp),
         enabled = enabled,
         shape = MaterialTheme.shapes.small,
         color = MaterialTheme.colorScheme.surface,

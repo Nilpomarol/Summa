@@ -14,6 +14,7 @@ import com.gestorfinances.app.domain.rules.RecurrenceFrequency
 import com.gestorfinances.app.ui.common.BannerKind
 import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.parseEuroCents
+import com.gestorfinances.app.ui.common.scrollToWhen
 
 /**
  * The INCOME body: account, then either the settlement toggle + settlement person
@@ -35,12 +36,17 @@ internal fun IncomeFormSection(
     onTripSelected: (String?) -> Unit,
     onTagSelected: (String?) -> Unit,
 ) {
+    val accountError = form.errorField == MovementFormField.ACCOUNT
     AccountSelect(
         label = stringResource(R.string.movement_field_account),
         selectedId = form.accountId,
         accounts = accounts,
         onSelect = { onFormChange(form.copy(accountId = it)) },
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .scrollToWhen(accountError),
+        isError = accountError,
+        supportingText = if (accountError && form.errorRes != null) stringResource(form.errorRes) else null,
     )
 
     FormToggleRow(
@@ -49,6 +55,7 @@ internal fun IncomeFormSection(
         onCheckedChange = onSettlementToggled,
     )
     if (form.isSettlement) {
+        val personError = form.errorField == MovementFormField.PERSON
         FormSelect(
             label = stringResource(R.string.settlement_field_person),
             options = people.map { person ->
@@ -66,6 +73,9 @@ internal fun IncomeFormSection(
             },
             selectedId = form.settlementPersonId,
             onSelect = onSettlementPersonSelected,
+            modifier = Modifier.scrollToWhen(personError),
+            isError = personError,
+            supportingText = if (personError && form.errorRes != null) stringResource(form.errorRes) else null,
         )
         // This quick toggle always records a person-to-user settlement, so the outstanding debt
         // is what the person actually owes (never-block invariant: warn, don't stop, on overpay --
@@ -83,6 +93,8 @@ internal fun IncomeFormSection(
         FormRecurringSection(
             isRecurring = form.isRecurring,
             frequency = form.recurringFrequency,
+            linked = form.templateId != null,
+            templateStatus = form.templateStatus,
             onToggle = onRecurringToggled,
             onFrequencyChange = onRecurringFrequencyChanged,
         )
@@ -94,6 +106,10 @@ internal fun IncomeFormSection(
             tagId = form.tagId,
             onTripSelected = onTripSelected,
             onTagSelected = onTagSelected,
+            isTagError = form.errorField == MovementFormField.TAG,
+            tagErrorText = if (form.errorField == MovementFormField.TAG && form.errorRes != null) {
+                stringResource(form.errorRes)
+            } else null,
         )
     }
 }

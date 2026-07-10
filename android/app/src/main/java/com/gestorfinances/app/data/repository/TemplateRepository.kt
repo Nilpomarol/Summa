@@ -194,6 +194,27 @@ private fun TemplateSplitConfig.encode(): String = templateJson.encodeToString(t
 private fun decodeSplitConfig(raw: String?): TemplateSplitConfig? =
     raw?.takeIf { it.isNotBlank() }?.let { templateJson.decodeFromString<TemplateSplitConfig>(it) }
 
+/**
+ * Converts a resolved split write into the template's carried-forward split shape. A template can
+ * only be created from [ExpenseKind.PERSONAL]/[ExpenseKind.SHARED]/[ExpenseKind.FOR_OTHER] (DEBT
+ * has no template support), so the user is always the payer. Returns null when the movement itself
+ * has no split (plain personal expense/income/transfer) — `RecurringViewModel.toSplitWrite` already
+ * treats a null `split_config` as "no split to carry forward."
+ */
+internal fun MovementSplitWrite.toTemplateSplitConfig(): TemplateSplitConfig? {
+    val draft = (this as? MovementSplitWrite.Replace)?.draft ?: return null
+    return TemplateSplitConfig(
+        entryMethod = draft.entryMethod.dbValue,
+        payer = "user",
+        lines = draft.lines.map { line ->
+            TemplateSplitConfigLine(
+                party = line.personId ?: "user",
+                owedAmountCents = line.owedAmountCents,
+            )
+        },
+    )
+}
+
 /** Mirrors the templates CHECK constraints so app code fails fast with a clear message. */
 private fun validate(draft: TemplateDraft) {
     require(draft.type == MovementType.EXPENSE || draft.type == MovementType.INCOME || draft.type == MovementType.TRANSFER) {

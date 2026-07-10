@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.MaterialTheme
@@ -38,7 +39,8 @@ fun ManagementScreen(
     val rows = listOf(
         listOf(ManagementDestination.ACCOUNTS, ManagementDestination.CATEGORIES),
         listOf(ManagementDestination.PEOPLE, ManagementDestination.EVENTS),
-        listOf(ManagementDestination.RECURRING, ManagementDestination.SETTINGS),
+        listOf(ManagementDestination.RECURRING, ManagementDestination.BUDGETS),
+        listOf(ManagementDestination.SETTINGS),
     )
 
     Column(
@@ -109,6 +111,7 @@ private fun ManagementDestination.accentColor(): Color = when (this) {
     ManagementDestination.PEOPLE -> FinanceTheme.colors.settlement
     ManagementDestination.EVENTS -> FinanceTheme.colors.refund
     ManagementDestination.RECURRING -> FinanceTheme.colors.transfer
+    ManagementDestination.BUDGETS -> FinanceTheme.colors.alert
     ManagementDestination.SETTINGS -> MaterialTheme.colorScheme.onSurfaceVariant
 }
 
@@ -121,5 +124,6 @@ enum class ManagementDestination(
     PEOPLE(R.string.management_people_title, Icons.Filled.Groups),
     EVENTS(R.string.management_events_title, Icons.Filled.CalendarMonth),
     RECURRING(R.string.management_recurring_title, Icons.Filled.Autorenew),
+    BUDGETS(R.string.management_budgets_title, Icons.Filled.Savings),
     SETTINGS(R.string.management_settings_title, Icons.Filled.Settings),
 }

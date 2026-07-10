@@ -227,6 +227,12 @@ class CoreLedgerRepositoryTest {
             assertEquals("Supermercat", checkingFlow.last().categoryName)
             assertTrue(store.movements.getActive("expense")!!.isOneTime)
 
+            // movementsForCategory derives its sign from v_account_flow (M14) rather than a
+            // hand-rolled CASE, so an expense must come back negative like accountFlowForAccount.
+            val groceriesFlow = store.movements.movementsForCategory("groceries")
+            assertEquals(listOf(-2_500L), groceriesFlow.map { it.deltaCents })
+            assertEquals("Supermercat", groceriesFlow.single().categoryName)
+
             store.movements.archive("expense", archivedAt = LATER)
 
             assertNull(store.movements.getActive("expense"))
@@ -338,7 +344,7 @@ class CoreLedgerRepositoryTest {
             ).associateBy { it.categoryId }
             assertEquals(setOf("groceries"), variableCategories.keys)
 
-            val daily = store.analysis.dailyIncomeVsExpense(
+            val daily = store.analysis.incomeVsExpense(
                 fromDate = "2026-06-01",
                 toDate = "2026-07-01",
             ).associateBy { it.bucket }

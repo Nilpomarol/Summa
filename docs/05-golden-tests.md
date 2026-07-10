@@ -40,6 +40,7 @@ The validator checks the common envelope, requires each `rule` to match its file
 | File | Pins | Kind |
 |---|---|---|
 | `split_rounding.json` | equal / percentage / exact splits → absolute cents; remainder cent(s) to the **payer** (spec §3.7, §2.4) | procedural |
+| `template_split_rescale.json` | materializing a template's `split_config` against a confirmed amount that differs from the config's own sum — **proportional rescale**, remainder to payer (spec §3.10 addendum) | procedural |
 | `recurring_advance.json` | due-occurrence generation + cursor advance, incl. **month-end / leap clamping** (spec §3.10) | procedural |
 | `auto_categorize.json` | rule matching, priority, **newer-wins** tie-break (spec §3.15, §4.4) | procedural |
 | `duplicate_detection.json` | the v1 dedup heuristic (spec §4.6) — **see thresholds below** | procedural |
@@ -53,6 +54,15 @@ The validator checks the common envelope, requires each `rule` to match its file
 - **equal:** `base = total // n`, `rem = total % n`; every share = `base`, then the **payer's** share += `rem`. Σ shares = total exactly.
 - **percentage:** weights given as **basis points** (integers summing to 10000). `share_i = (total * bps_i) // 10000`; any leftover cents from flooring go to the **payer**. Σ = total.
 - **exact:** amounts are stored as given; validation requires `Σ = total` (a non-reconciling set is rejected).
+
+### Template split rescale (spec §3.10 addendum)
+A recurring **shared** template's `split_config` lines carry `owed_amount_cents` that were reconciled against the amount at the time the template was created/edited. Confirming a due occurrence can present a **different** amount (variable-amount templates, an amount edited after detection, or a NEW-detected candidate whose amount is a group median while its split weights came from one source movement) — the config's line amounts are then treated as **weights**, not fixed cents:
+- `share_i = (total * weight_i) // weight_sum`, floored, for every line;
+- any leftover cents from flooring go to the **payer's** line (`payer` in the config; same convention as split_rounding's percentage method);
+- a zero-weight line stays zero unless it is the payer;
+- if the config already reconciles with `total_cents`, this is the identity (Σ shares = Σ weights = total).
+
+This replaces silently dropping the split (booking a full personal expense) whenever the confirmed amount doesn't exactly match the stored config.
 
 ### Recurring advancement (spec §3.10)
 Given a template (`frequency`, `day_of_month` anchor for monthly/yearly, `interval_count`+`custom_unit` for custom), a `cursor` (= `next_due_date`), and `today`: emit every occurrence date `≤ today` starting at `cursor`, and return the new cursor (first occurrence `> today`). **Monthly/yearly clamp to the month's last day from the anchor day each period** (so day-31 yields Jan 31 → Feb 28 → Mar 31, *not* Mar 28). Weekly = +7d, fortnightly = +14d, custom = +`interval_count`×`custom_unit`.

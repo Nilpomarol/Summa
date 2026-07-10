@@ -249,7 +249,7 @@ private fun ColorSwatch(
 ) {
     Box(
         modifier = Modifier
-            .size(32.dp)
+            .size(44.dp)
             .clip(CircleShape)
             .clickable(onClick = onSelect),
         contentAlignment = Alignment.Center,
@@ -273,7 +273,7 @@ private fun CustomColorSwatch(
 ) {
     Box(
         modifier = Modifier
-            .size(32.dp)
+            .size(44.dp)
             .clip(CircleShape)
             .then(
                 if (customColor == null) {

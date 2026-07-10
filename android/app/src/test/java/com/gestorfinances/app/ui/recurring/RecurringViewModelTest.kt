@@ -9,9 +9,15 @@ import com.gestorfinances.app.data.repository.AccountType
 import com.gestorfinances.app.data.repository.CategoryRepository
 import com.gestorfinances.app.data.repository.MovementDraft
 import com.gestorfinances.app.data.repository.MovementRepository
+import com.gestorfinances.app.data.repository.MovementSplitDraft
+import com.gestorfinances.app.data.repository.MovementSplitWrite
 import com.gestorfinances.app.data.repository.MovementType
 import com.gestorfinances.app.data.repository.PersonDraft
 import com.gestorfinances.app.data.repository.PersonRepository
+import com.gestorfinances.app.data.repository.SplitEntryMethod
+import com.gestorfinances.app.data.repository.SplitLineDraft
+import com.gestorfinances.app.data.repository.SplitParticipantKind
+import com.gestorfinances.app.data.repository.SplitRepository
 import com.gestorfinances.app.data.repository.TemplateDraft
 import com.gestorfinances.app.data.repository.TemplateRepository
 import com.gestorfinances.app.data.repository.TemplateSplitConfig
@@ -47,6 +53,40 @@ class RecurringViewModelTest {
     @After
     fun tearDown() {
         Dispatchers.resetMain()
+    }
+
+    // Regression: template rows / due-prompt cards used to show the movement's full total no
+    // matter the split, unlike MovementListItem (which shows the user's own share as the primary
+    // figure and the total as a secondary line for a shared movement). userShareCents is the pure
+    // rule TemplateAmountDisplay now uses to derive that primary figure.
+    @Test
+    fun `userShareCents returns the rescaled user line when the config reconciles`() {
+        val config = TemplateSplitConfig(
+            entryMethod = "equal",
+            payer = "user",
+            lines = listOf(
+                TemplateSplitConfigLine(party = "user", owedAmountCents = 500),
+                TemplateSplitConfigLine(party = "laura", owedAmountCents = 500),
+            ),
+        )
+
+        assertEquals(500L, config.userShareCents(1_000))
+    }
+
+    @Test
+    fun `userShareCents rescales the user's share when the amount has since changed`() {
+        val config = TemplateSplitConfig(
+            entryMethod = "equal",
+            payer = "user",
+            lines = listOf(
+                TemplateSplitConfigLine(party = "user", owedAmountCents = 500),
+                TemplateSplitConfigLine(party = "laura", owedAmountCents = 500),
+            ),
+        )
+
+        // Confirmed amount (1200) differs from the stored config sum (1000) -- the user's share
+        // must scale proportionally (600), not stay pinned to the stale stored value (500).
+        assertEquals(600L, config.userShareCents(1_200))
     }
 
     @Test
@@ -114,6 +154,7 @@ class RecurringViewModelTest {
                 R.string.template_validation_interval_required,
                 viewModel.state.value.form!!.errorRes,
             )
+            assertEquals(TemplateFormField.SCHEDULE, viewModel.state.value.form!!.errorField)
             assertTrue(store.templates.listActive().isEmpty())
         }
     }
@@ -143,6 +184,7 @@ class RecurringViewModelTest {
                 R.string.template_validation_amount_flex_invalid,
                 viewModel.state.value.form!!.errorRes,
             )
+            assertEquals(TemplateFormField.AMOUNT_FLEX, viewModel.state.value.form!!.errorField)
             assertTrue(store.templates.listActive().isEmpty())
         }
     }
@@ -338,6 +380,50 @@ class RecurringViewModelTest {
             val movement = store.movements.listActive().single()
             assertTrue("confirmed occurrence must be shared, not a plain expense", movement.isShared)
             assertEquals(500L, store.people.getActive("laura")!!.balanceCents)
+        }
+    }
+
+    // Regression: toSplitWrite used to drop the split entirely (KeepExisting -> plain personal
+    // expense) whenever the confirmed amount didn't exactly equal the stored split_config sum --
+    // which is the common case for a variable-amount template or one whose amount was edited since
+    // the split was set. It must now rescale the split's line weights to the confirmed amount
+    // (SplitCalculator.rescale) instead of silently losing the share.
+    @Test
+    fun confirmingADuePromptWithAnEditedAmountRescalesTheSplitInsteadOfDroppingIt() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            store.people.create(
+                PersonDraft(id = "laura", name = "Laura", avatar = null, color = null, notes = null),
+                createdAt = NOW,
+            )
+            store.templates.create(
+                monthlyTemplateDraft("dinner", nextDueDate = "2026-01-01").copy(
+                    amountCents = 1_000,
+                    splitConfig = TemplateSplitConfig(
+                        entryMethod = "equal",
+                        payer = "user",
+                        lines = listOf(
+                            TemplateSplitConfigLine(party = "user", owedAmountCents = 500),
+                            TemplateSplitConfigLine(party = "laura", owedAmountCents = 500),
+                        ),
+                    ),
+                ),
+                createdAt = NOW,
+            )
+            val viewModel = viewModel(store, today = LocalDate.parse("2026-01-15"))
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+
+            val prompt = viewModel.state.value.duePrompts.single()
+            viewModel.onConfirmClicked(prompt)
+            viewModel.onConfirmFormChanged(viewModel.state.value.confirmPrompt!!.copy(amount = "12"))
+            viewModel.onConfirmSaveClicked()
+            advanceUntilIdle()
+
+            val movement = store.movements.listActive().single()
+            assertTrue("edited-amount occurrence must still be shared, not dropped to personal", movement.isShared)
+            assertEquals(12_00L, movement.amountCents)
+            assertEquals(600L, store.people.getActive("laura")!!.balanceCents)
         }
     }
 
@@ -591,6 +677,138 @@ class RecurringViewModelTest {
         }
     }
 
+    // Regression: the pattern detector never carried split info through its NEW-candidate path —
+    // RecurringCandidateMovement/DetectedRecurringCandidate had no split field at all, and
+    // toTemplateDraft(existing) only ever read existing?.splitConfig (always null for NEW, since
+    // there's no existing template to read from). Confirming a detected NEW candidate for a
+    // recurring SHARED expense silently created a plain personal template. Fixed by resolving the
+    // split from the most recent source movement (the same one the detector already treats as
+    // representative for name/payee/lastDate) when applying a NEW candidate.
+    @Test
+    fun `confirming a new detected candidate for a shared recurring expense carries the split forward`() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            store.people.create(
+                PersonDraft(id = "laura", name = "Laura", avatar = null, color = null, notes = null),
+                createdAt = NOW,
+            )
+            monthlyMovementDates("2026-01-05", months = 4).forEachIndexed { i, date ->
+                store.movements.create(
+                    movementDraft(id = "dinner-$i", date = date, amountCents = 1_000, name = "Sopar").copy(
+                        splitWrite = MovementSplitWrite.Replace(
+                            MovementSplitDraft(
+                                entryMethod = SplitEntryMethod.EQUAL,
+                                lines = listOf(
+                                    SplitLineDraft(SplitParticipantKind.USER, personId = null, owedAmountCents = 500),
+                                    SplitLineDraft(SplitParticipantKind.PERSON, personId = "laura", owedAmountCents = 500),
+                                ),
+                            ),
+                        ),
+                    ),
+                    createdAt = NOW,
+                )
+            }
+            val viewModel = viewModel(store, today = LocalDate.parse("2026-04-10"))
+            viewModel.onDetectRecurringClicked()
+            advanceUntilIdle()
+            viewModel.onDetectionConfirmAllClicked()
+            advanceUntilIdle()
+
+            val created = store.templates.listActive().single()
+            assertEquals(
+                TemplateSplitConfig(
+                    entryMethod = "equal",
+                    payer = "user",
+                    lines = listOf(
+                        TemplateSplitConfigLine(party = "user", owedAmountCents = 500),
+                        TemplateSplitConfigLine(party = "laura", owedAmountCents = 500),
+                    ),
+                ),
+                created.splitConfig,
+            )
+        }
+    }
+
+    // Regression: the detection *review sheet* (before confirming anything) used to show only the
+    // candidate's raw group total with no split awareness at all -- DetectedRecurringCandidate is
+    // deliberately split-blind (correct layering), but that meant the review row for a shared
+    // group looked identical to a personal one, hiding sharing from the user until after they'd
+    // already confirmed it. The split preview must now be resolved and attached to the review item
+    // itself, before any confirm action.
+    @Test
+    fun `the detection review sheet resolves a shared candidate's split before confirming`() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            store.people.create(
+                PersonDraft(id = "laura", name = "Laura", avatar = null, color = null, notes = null),
+                createdAt = NOW,
+            )
+            monthlyMovementDates("2026-01-05", months = 4).forEachIndexed { i, date ->
+                store.movements.create(
+                    movementDraft(id = "dinner-$i", date = date, amountCents = 1_000, name = "Sopar").copy(
+                        splitWrite = MovementSplitWrite.Replace(
+                            MovementSplitDraft(
+                                entryMethod = SplitEntryMethod.EQUAL,
+                                lines = listOf(
+                                    SplitLineDraft(SplitParticipantKind.USER, personId = null, owedAmountCents = 500),
+                                    SplitLineDraft(SplitParticipantKind.PERSON, personId = "laura", owedAmountCents = 500),
+                                ),
+                            ),
+                        ),
+                    ),
+                    createdAt = NOW,
+                )
+            }
+            val viewModel = viewModel(store, today = LocalDate.parse("2026-04-10"))
+            viewModel.onDetectRecurringClicked()
+            advanceUntilIdle()
+
+            val item = viewModel.state.value.detectionReview!!.items.single()
+            assertEquals(
+                TemplateSplitConfig(
+                    entryMethod = "equal",
+                    payer = "user",
+                    lines = listOf(
+                        TemplateSplitConfigLine(party = "user", owedAmountCents = 500),
+                        TemplateSplitConfigLine(party = "laura", owedAmountCents = 500),
+                    ),
+                ),
+                item.splitConfig,
+            )
+            // The group's amount (1000) already matches the split's stored sum here, so the
+            // user's share is the unscaled stored value.
+            assertEquals(500L, item.splitConfig?.userShareCents(item.candidate.amountCents!!))
+
+            // Confirming still applies correctly -- the preview and the actual apply must agree.
+            viewModel.onDetectionConfirmAllClicked()
+            advanceUntilIdle()
+            assertEquals(item.splitConfig, store.templates.listActive().single().splitConfig)
+        }
+    }
+
+    // Companion to the above: a NEW candidate for a plain (non-shared) recurring expense must still
+    // get a null split_config -- guards against the fix above over-eagerly resolving a split that
+    // doesn't exist.
+    @Test
+    fun `confirming a new detected candidate for a plain recurring expense leaves split_config null`() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            monthlyMovementDates("2026-01-05", months = 4).forEachIndexed { i, date ->
+                store.movements.create(
+                    movementDraft(id = "netflix-$i", date = date, amountCents = 1200, name = "Netflix"),
+                    createdAt = NOW,
+                )
+            }
+            val viewModel = viewModel(store, today = LocalDate.parse("2026-04-10"))
+            viewModel.onDetectRecurringClicked()
+            advanceUntilIdle()
+            viewModel.onDetectionConfirmAllClicked()
+            advanceUntilIdle()
+
+            assertNull(store.templates.listActive().single().splitConfig)
+        }
+    }
+
     // Regression (spec-guardian + simplicity-guardian, independently): TemplateRepository.update
     // is a full-row overwrite. Confirming an "Actualitza" (UPDATE) candidate against a manually
     // configured template must not silently wipe fields the detector doesn't derive.
@@ -781,6 +999,8 @@ class RecurringViewModelTest {
             accountRepository = store.accounts,
             categoryRepository = store.categories,
             movementRepository = store.movements,
+            splitRepository = store.splits,
+            personRepository = store.people,
             ioDispatcher = dispatcher,
             today = { today },
         )
@@ -835,6 +1055,7 @@ class RecurringViewModelTest {
             templates = TemplateRepository(database.templatesQueries),
             movements = MovementRepository(database.movementsQueries, database.splitsQueries),
             people = PersonRepository(database.peopleQueries),
+            splits = SplitRepository(database.splitsQueries),
         )
     }
 
@@ -845,6 +1066,7 @@ class RecurringViewModelTest {
         val templates: TemplateRepository,
         val movements: MovementRepository,
         val people: PersonRepository,
+        val splits: SplitRepository,
     ) : AutoCloseable {
         override fun close() {
             driver.close()

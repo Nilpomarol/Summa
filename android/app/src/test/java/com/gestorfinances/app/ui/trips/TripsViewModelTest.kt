@@ -61,6 +61,7 @@ class TripsViewModelTest {
                 R.string.trip_validation_name_required,
                 viewModel.state.value.form!!.errorRes,
             )
+            assertEquals(TripFormField.NAME, viewModel.state.value.form!!.errorField)
             assertTrue(store.trips.listActive().isEmpty())
         }
     }
@@ -83,6 +84,7 @@ class TripsViewModelTest {
                 R.string.trip_validation_start_date_invalid,
                 viewModel.state.value.form!!.errorRes,
             )
+            assertEquals(TripFormField.START_DATE, viewModel.state.value.form!!.errorField)
             assertTrue(store.trips.listActive().isEmpty())
         }
     }
@@ -109,6 +111,7 @@ class TripsViewModelTest {
                 R.string.trip_validation_date_order,
                 viewModel.state.value.form!!.errorRes,
             )
+            assertEquals(TripFormField.END_DATE, viewModel.state.value.form!!.errorField)
         }
     }
 
@@ -130,6 +133,7 @@ class TripsViewModelTest {
                 R.string.movement_validation_account_required,
                 viewModel.state.value.form!!.errorRes,
             )
+            assertEquals(TripFormField.ACCOUNT, viewModel.state.value.form!!.errorField)
         }
     }
 

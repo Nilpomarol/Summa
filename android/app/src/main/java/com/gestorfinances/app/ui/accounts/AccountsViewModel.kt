@@ -14,6 +14,7 @@ import com.gestorfinances.app.notifications.NotificationRefresher
 import com.gestorfinances.app.ui.common.EntityColorPalette
 import com.gestorfinances.app.ui.common.formatEuroInput
 import com.gestorfinances.app.ui.common.parseEuroCents
+import com.gestorfinances.app.ui.common.sortedByDisplayOrderThenName
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
@@ -145,16 +146,17 @@ class AccountsViewModel(
             .takeIf { it.isNotBlank() }
             ?.let { parseEuroCents(it, allowNegative = true) }
 
-        val errorRes = when {
-            name.isEmpty() -> R.string.account_validation_name_required
-            startingBalance == null -> R.string.account_validation_starting_balance_invalid
+        val (errorRes, errorField) = when {
+            name.isEmpty() -> R.string.account_validation_name_required to AccountFormField.NAME
+            startingBalance == null ->
+                R.string.account_validation_starting_balance_invalid to AccountFormField.STARTING_BALANCE
             form.lowBalanceThreshold.isNotBlank() && lowBalanceThreshold == null ->
-                R.string.account_validation_low_balance_invalid
-            else -> null
+                R.string.account_validation_low_balance_invalid to AccountFormField.LOW_BALANCE_THRESHOLD
+            else -> null to null
         }
 
         if (errorRes != null) {
-            _state.value = _state.value.copy(form = form.copy(errorRes = errorRes))
+            _state.value = _state.value.copy(form = form.copy(errorRes = errorRes, errorField = errorField))
             return
         }
 
@@ -224,7 +226,7 @@ class AccountsViewModel(
 
     private fun moveAccount(account: AccountSummary, offset: Int) {
         val ordered = _state.value.accounts
-            .sortedWith(compareBy<AccountSummary> { it.displayOrder }.thenBy { it.name.lowercase() })
+            .sortedByDisplayOrderThenName(displayOrder = { it.displayOrder }, name = { it.name })
             .toMutableList()
         val fromIndex = ordered.indexOfFirst { it.id == account.id }
         val toIndex = (fromIndex + offset).coerceIn(0, ordered.lastIndex)
@@ -282,6 +284,13 @@ data class AccountFlowDetailState(
     val errorMessage: String? = null,
 )
 
+/** Identifies which field an account-form validation error belongs to (audit U8, `docs/17` WP2). */
+enum class AccountFormField {
+    NAME,
+    STARTING_BALANCE,
+    LOW_BALANCE_THRESHOLD,
+}
+
 data class AccountFormState(
     val id: String? = null,
     val name: String = "",
@@ -294,6 +303,7 @@ data class AccountFormState(
     val lowBalanceThreshold: String = "",
     val showAdvanced: Boolean = false,
     val errorRes: Int? = null,
+    val errorField: AccountFormField? = null,
     val errorMessage: String? = null,
 )
 

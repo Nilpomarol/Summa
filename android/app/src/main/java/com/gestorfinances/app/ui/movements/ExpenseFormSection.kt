@@ -14,6 +14,7 @@ import com.gestorfinances.app.domain.rules.RecurrenceFrequency
 import com.gestorfinances.app.ui.common.BannerKind
 import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.LabeledSegmentedControl
+import com.gestorfinances.app.ui.common.scrollToWhen
 
 /**
  * The EXPENSE body of the movement form: the 4-type cascade ("Qui ha pagat?" → "Per a qui?")
@@ -61,6 +62,8 @@ internal fun ExpenseFormSection(
             }
         },
     )
+    val personError = form.errorField == MovementFormField.PERSON
+    val personErrorText = if (personError && form.errorRes != null) stringResource(form.errorRes) else null
     if (form.expenseKind == ExpenseKind.DEBT) {
         // Una altra persona paid: payer person picker
         FormSelect(
@@ -80,15 +83,23 @@ internal fun ExpenseFormSection(
             },
             selectedId = form.forOtherPersonId,
             onSelect = onOtherPersonSelected,
+            modifier = Modifier.scrollToWhen(personError),
+            isError = personError,
+            supportingText = personErrorText,
         )
     } else {
         // Jo paid: account + level 2
+        val accountError = form.errorField == MovementFormField.ACCOUNT
         AccountSelect(
             label = stringResource(R.string.movement_field_account),
             selectedId = form.accountId,
             accounts = accounts,
             onSelect = { onFormChange(form.copy(accountId = it)) },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .scrollToWhen(accountError),
+            isError = accountError,
+            supportingText = if (accountError && form.errorRes != null) stringResource(form.errorRes) else null,
         )
         // Level 2: Per a qui?
         LabeledSegmentedControl(
@@ -131,10 +142,14 @@ internal fun ExpenseFormSection(
                 },
                 selectedId = form.forOtherPersonId,
                 onSelect = onOtherPersonSelected,
+                modifier = Modifier.scrollToWhen(personError),
+                isError = personError,
+                supportingText = personErrorText,
             )
         }
         // SHARED: split editor or "unchanged" banner
         if (form.expenseKind == ExpenseKind.SHARED) {
+            val splitError = form.errorField == MovementFormField.SPLIT
             if (form.splitEditor != null) {
                 SplitEditorCard(
                     splitEditor = form.splitEditor,
@@ -142,6 +157,7 @@ internal fun ExpenseFormSection(
                     amountInput = form.amount,
                     onChange = onSplitEditorChange,
                     onCreatePerson = onCreatePersonInSplit,
+                    modifier = Modifier.scrollToWhen(splitError),
                 )
             } else if (sharedEnabled) {
                 InlineBanner(
@@ -157,6 +173,8 @@ internal fun ExpenseFormSection(
         FormRecurringSection(
             isRecurring = form.isRecurring,
             frequency = form.recurringFrequency,
+            linked = form.templateId != null,
+            templateStatus = form.templateStatus,
             onToggle = onRecurringToggled,
             onFrequencyChange = onRecurringFrequencyChanged,
         )
@@ -169,5 +187,9 @@ internal fun ExpenseFormSection(
         tagId = form.tagId,
         onTripSelected = onTripSelected,
         onTagSelected = onTagSelected,
+        isTagError = form.errorField == MovementFormField.TAG,
+        tagErrorText = if (form.errorField == MovementFormField.TAG && form.errorRes != null) {
+            stringResource(form.errorRes)
+        } else null,
     )
 }

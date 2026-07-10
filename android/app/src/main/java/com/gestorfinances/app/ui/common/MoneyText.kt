@@ -125,3 +125,7 @@ private fun groupThousands(value: Long): String {
 
 internal fun formatEuroInput(cents: Long): String =
     formatEuroCents(cents).removeSuffix(" €")
+
+/** Whole-number percent label with a "<1%" floor so small-but-present shares aren't shown as 0%. */
+internal fun formatPercentLabel(fraction: Float): String =
+    if (fraction < 0.005f) "<1%" else "${(fraction * 100f).roundToInt()}%"

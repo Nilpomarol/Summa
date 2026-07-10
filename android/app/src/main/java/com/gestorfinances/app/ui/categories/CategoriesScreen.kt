@@ -1,5 +1,6 @@
 package com.gestorfinances.app.ui.categories
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,6 +25,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.PushPin
@@ -36,18 +38,15 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -61,6 +60,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.R
@@ -72,18 +73,22 @@ import com.gestorfinances.app.ui.common.CategoryIconPalette
 import com.gestorfinances.app.ui.common.CollapsibleSectionHeader
 import com.gestorfinances.app.ui.common.ColorPickerRow
 import com.gestorfinances.app.ui.common.DestructiveTextButton
+import com.gestorfinances.app.ui.common.doneKeyboardActions
 import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.IconChip
 import com.gestorfinances.app.ui.common.IconPickerRow
 import com.gestorfinances.app.ui.common.LabeledSegmentedControl
 import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.MovementListItem
+import com.gestorfinances.app.ui.common.PageHeaderRow
 import com.gestorfinances.app.ui.common.PrimaryButton
 import com.gestorfinances.app.ui.common.TopBarIconButton
 import com.gestorfinances.app.ui.common.categoryIcon
 import com.gestorfinances.app.ui.common.color
 import com.gestorfinances.app.ui.common.formatEuroCents
 import com.gestorfinances.app.ui.common.progressFraction
+import com.gestorfinances.app.ui.common.scrollToWhen
+import com.gestorfinances.app.ui.common.sortedByDisplayOrderThenName
 import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.categoryColor
 
@@ -91,6 +96,7 @@ import com.gestorfinances.app.ui.theme.categoryColor
 fun CategoriesScreen(
     viewModel: CategoriesViewModel,
     onViewAnalysis: (categoryId: String, categoryName: String) -> Unit = { _, _ -> },
+    onDefineBudget: (categoryId: String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsState()
@@ -99,23 +105,46 @@ fun CategoriesScreen(
         viewModel.onScreenShown()
     }
 
-    CategoriesContent(
-        state = state,
-        modifier = modifier,
-        onAdd = viewModel::onAddClicked,
-        onEdit = viewModel::onEditClicked,
-        onArchive = viewModel::onArchiveClicked,
-        onFlow = viewModel::onFlowClicked,
-    )
-
-    state.form?.let { form ->
-        CategoryFormSheet(
-            form = form,
-            categories = state.categories,
-            onFormChange = viewModel::onFormChanged,
-            onDismiss = viewModel::onFormDismissed,
-            onSave = viewModel::onSaveClicked,
-        )
+    val form = state.form
+    val flowDetail = state.flowDetail
+    when {
+        form != null -> {
+            BackHandler(onBack = viewModel::onFormDismissed)
+            CategoryFormScreen(
+                form = form,
+                categories = state.categories,
+                onFormChange = viewModel::onFormChanged,
+                onBack = viewModel::onFormDismissed,
+                onSave = viewModel::onSaveClicked,
+                modifier = modifier,
+            )
+        }
+        flowDetail != null -> {
+            BackHandler(onBack = viewModel::onFlowDismissed)
+            CategoryFlowScreen(
+                detail = flowDetail,
+                onBack = viewModel::onFlowDismissed,
+                onViewAnalysis = {
+                    viewModel.onFlowDismissed()
+                    onViewAnalysis(flowDetail.category.id, flowDetail.category.name)
+                },
+                onDefineBudget = {
+                    viewModel.onFlowDismissed()
+                    onDefineBudget(flowDetail.category.id)
+                },
+                modifier = modifier,
+            )
+        }
+        else -> {
+            CategoriesContent(
+                state = state,
+                modifier = modifier,
+                onAdd = viewModel::onAddClicked,
+                onEdit = viewModel::onEditClicked,
+                onArchive = viewModel::onArchiveClicked,
+                onFlow = viewModel::onFlowClicked,
+            )
+        }
     }
 
     state.archiveCandidate?.let {
@@ -132,17 +161,6 @@ fun CategoriesScreen(
                 TextButton(onClick = viewModel::onArchiveDismissed) {
                     Text(text = stringResource(R.string.common_cancel))
                 }
-            },
-        )
-    }
-
-    state.flowDetail?.let { detail ->
-        CategoryFlowSheet(
-            detail = detail,
-            onDismiss = viewModel::onFlowDismissed,
-            onViewAnalysis = {
-                viewModel.onFlowDismissed()
-                onViewAnalysis(detail.category.id, detail.category.name)
             },
         )
     }
@@ -661,139 +679,142 @@ private fun CategoryMenuDropdown(
 // Category form — bottom sheet
 // ---------------------------------------------------------------------------
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CategoryFormSheet(
+private fun CategoryFormScreen(
     form: CategoryFormState,
     categories: List<CategoryRecord>,
     onFormChange: (CategoryFormState) -> Unit,
-    onDismiss: () -> Unit,
+    onBack: () -> Unit,
     onSave: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface,
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp)
+            .navigationBarsPadding()
+            .imePadding()
+            .padding(bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Column(
+        PageHeaderRow(
+            onBack = onBack,
+            title = stringResource(
+                if (form.id == null) R.string.category_form_new_title
+                else R.string.category_form_edit_title,
+            ),
+        )
+
+        form.errorMessage?.let {
+            Text(
+                text = it,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+
+        // Live preview
+        CategoryPreviewCard(form = form)
+
+        // Name
+        val nameError = form.errorField == CategoryFormField.NAME
+        OutlinedTextField(
+            value = form.name,
+            onValueChange = {
+                onFormChange(form.copy(name = it, errorRes = null, errorField = null, errorMessage = null))
+            },
+            label = { Text(text = stringResource(R.string.category_field_name)) },
+            singleLine = true,
+            isError = nameError,
+            supportingText = if (nameError && form.errorRes != null) {
+                { Text(text = stringResource(form.errorRes)) }
+            } else null,
+            shape = MaterialTheme.shapes.small,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = doneKeyboardActions(),
             modifier = Modifier
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-                .navigationBarsPadding()
-                .imePadding()
-                .padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            // Title
+                .scrollToWhen(nameError),
+        )
+
+        // Kind selector
+        LabeledSegmentedControl(
+            label = stringResource(R.string.category_field_kind),
+            options = CategoryKind.entries,
+            selected = form.kind,
+            optionLabel = { it.shortLabel() },
+            onSelect = { kind ->
+                onFormChange(
+                    form.copy(kind = kind, parentId = null, errorRes = null, errorField = null, errorMessage = null),
+                )
+            },
+        )
+
+        // Nature selector
+        LabeledSegmentedControl(
+            label = stringResource(R.string.category_field_nature),
+            options = CategoryNature.entries,
+            selected = form.nature,
+            optionLabel = { it.label() },
+            onSelect = { nature ->
+                onFormChange(form.copy(nature = nature, errorRes = null, errorField = null, errorMessage = null))
+            },
+        )
+
+        // Color picker
+        ColorPickerRow(
+            label = stringResource(R.string.category_field_color),
+            selectedHex = form.colorHex,
+            onSelect = { onFormChange(form.copy(colorHex = it)) },
+        )
+
+        // Icon picker
+        IconPickerRow(
+            label = stringResource(R.string.category_field_icon),
+            options = CategoryIconPalette,
+            selectedKey = form.iconKey,
+            onSelect = { onFormChange(form.copy(iconKey = it)) },
+        )
+
+        // Parent picker
+        val parentError = form.errorField == CategoryFormField.PARENT
+        CategoryParentPicker(
+            form = form,
+            categories = categories,
+            onParentSelected = {
+                onFormChange(form.copy(parentId = it, errorRes = null, errorField = null, errorMessage = null))
+            },
+            modifier = Modifier.scrollToWhen(parentError),
+        )
+        if (parentError && form.errorRes != null) {
             Text(
-                text = stringResource(
-                    if (form.id == null) R.string.category_form_new_title
-                    else R.string.category_form_edit_title,
-                ),
-                style = MaterialTheme.typography.titleLarge,
+                text = stringResource(form.errorRes),
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.labelSmall,
             )
+        }
 
-            // Errors
-            form.errorRes?.let {
-                Text(
-                    text = stringResource(it),
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-            form.errorMessage?.let {
-                Text(
-                    text = it,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-
-            // Live preview
-            CategoryPreviewCard(form = form)
-
-            // Name
-            OutlinedTextField(
-                value = form.name,
-                onValueChange = {
-                    onFormChange(form.copy(name = it, errorRes = null, errorMessage = null))
-                },
-                label = { Text(text = stringResource(R.string.category_field_name)) },
-                singleLine = true,
+        // Action buttons
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            OutlinedButton(
+                onClick = onBack,
+                modifier = Modifier.weight(1f),
                 shape = MaterialTheme.shapes.small,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            // Kind selector
-            LabeledSegmentedControl(
-                label = stringResource(R.string.category_field_kind),
-                options = CategoryKind.entries,
-                selected = form.kind,
-                optionLabel = { it.shortLabel() },
-                onSelect = { kind ->
-                    onFormChange(
-                        form.copy(kind = kind, parentId = null, errorRes = null, errorMessage = null),
-                    )
-                },
-            )
-
-            // Nature selector
-            LabeledSegmentedControl(
-                label = stringResource(R.string.category_field_nature),
-                options = CategoryNature.entries,
-                selected = form.nature,
-                optionLabel = { it.label() },
-                onSelect = { nature ->
-                    onFormChange(form.copy(nature = nature, errorRes = null, errorMessage = null))
-                },
-            )
-
-            // Color picker
-            ColorPickerRow(
-                label = stringResource(R.string.category_field_color),
-                selectedHex = form.colorHex,
-                onSelect = { onFormChange(form.copy(colorHex = it)) },
-            )
-
-            // Icon picker
-            IconPickerRow(
-                label = stringResource(R.string.category_field_icon),
-                options = CategoryIconPalette,
-                selectedKey = form.iconKey,
-                onSelect = { onFormChange(form.copy(iconKey = it)) },
-            )
-
-            // Parent picker
-            CategoryParentPicker(
-                form = form,
-                categories = categories,
-                onParentSelected = { onFormChange(form.copy(parentId = it, errorRes = null, errorMessage = null)) },
-            )
-
-            // Action buttons
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                OutlinedButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.weight(1f),
-                    shape = MaterialTheme.shapes.small,
-                ) {
-                    Text(text = stringResource(R.string.common_cancel))
-                }
-                PrimaryButton(
-                    text = stringResource(
-                        if (form.id == null) R.string.category_save_new
-                        else R.string.category_save_changes,
-                    ),
-                    onClick = onSave,
-                    modifier = Modifier.weight(1f),
-                )
+                Text(text = stringResource(R.string.common_cancel))
             }
+            PrimaryButton(
+                text = stringResource(
+                    if (form.id == null) R.string.category_save_new
+                    else R.string.category_save_changes,
+                ),
+                onClick = onSave,
+                modifier = Modifier.weight(1f),
+            )
         }
     }
 }
@@ -836,6 +857,7 @@ private fun CategoryParentPicker(
     form: CategoryFormState,
     categories: List<CategoryRecord>,
     onParentSelected: (String?) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val hasActiveChildren = form.id != null && categories.any { it.parentId == form.id }
 
@@ -864,7 +886,7 @@ private fun CategoryParentPicker(
         else parentOptions.filter { it.name.contains(query.trim(), ignoreCase = true) }
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             text = stringResource(R.string.category_field_parent),
             style = MaterialTheme.typography.labelMedium,
@@ -994,166 +1016,178 @@ private fun ParentOptionRow(
 // Category flow sheet
 // ---------------------------------------------------------------------------
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CategoryFlowSheet(
+private fun CategoryFlowScreen(
     detail: CategoryFlowDetailState,
-    onDismiss: () -> Unit,
+    onBack: () -> Unit,
     onViewAnalysis: () -> Unit,
+    onDefineBudget: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val category = detail.category
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface,
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .navigationBarsPadding()
+            .padding(bottom = 8.dp),
     ) {
-        Column(
+        // Header: back + icon + name/count + analysis button
+        val movementCountText = if (!detail.isLoading) {
+            pluralStringResource(
+                R.plurals.account_flow_movement_count,
+                detail.entries.size,
+                detail.entries.size,
+            )
+        } else null
+
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.75f)
-                .navigationBarsPadding()
-                .padding(bottom = 8.dp),
+                .padding(start = 4.dp, end = 20.dp, top = 6.dp, bottom = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            // Header: icon + name/count + analysis button
-            val movementCountText = if (!detail.isLoading) {
-                pluralStringResource(
-                    R.plurals.account_flow_movement_count,
-                    detail.entries.size,
-                    detail.entries.size,
+            IconButton(onClick = onBack) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = stringResource(R.string.common_back),
                 )
-            } else null
+            }
+            IconChip(
+                icon = categoryIcon(category.icon),
+                contentDescription = null,
+                color = categoryColor(category.color),
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = category.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (movementCountText != null) {
+                    Text(
+                        text = movementCountText,
+                        color = FinanceTheme.colors.mutedText,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
+            TextButton(onClick = onViewAnalysis) {
+                Icon(
+                    imageVector = Icons.Outlined.BarChart,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(text = stringResource(R.string.category_flow_view_analysis))
+            }
+        }
 
-            Row(
+        detail.budgetEvaluation?.let { evaluation ->
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                IconChip(
-                    icon = categoryIcon(category.icon),
-                    contentDescription = null,
-                    color = categoryColor(category.color),
+                BudgetProgressBar(
+                    fraction = evaluation.progressFraction(),
+                    color = evaluation.status.color(),
                 )
-                Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = category.name,
-                        style = MaterialTheme.typography.titleMedium,
+                        text = stringResource(
+                            R.string.budget_progress,
+                            formatEuroCents(evaluation.actualCents),
+                            formatEuroCents(evaluation.budget.limitAmountCents),
+                        ),
+                        modifier = Modifier.weight(1f),
+                        color = FinanceTheme.colors.mutedText,
+                        style = MaterialTheme.typography.bodyMedium,
                     )
-                    if (movementCountText != null) {
-                        Text(
-                            text = movementCountText,
-                            color = FinanceTheme.colors.mutedText,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                }
-                TextButton(onClick = onViewAnalysis) {
-                    Icon(
-                        imageVector = Icons.Outlined.BarChart,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(text = stringResource(R.string.category_flow_view_analysis))
-                }
-            }
-
-            detail.budgetEvaluation?.let { evaluation ->
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    BudgetProgressBar(
-                        fraction = evaluation.progressFraction(),
+                    Text(
+                        text = if (evaluation.remainingCents >= 0L) {
+                            stringResource(R.string.budget_remaining, formatEuroCents(evaluation.remainingCents))
+                        } else {
+                            stringResource(R.string.budget_over, formatEuroCents(-evaluation.remainingCents))
+                        },
                         color = evaluation.status.color(),
+                        style = MaterialTheme.typography.labelMedium,
                     )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = stringResource(
-                                R.string.budget_progress,
-                                formatEuroCents(evaluation.actualCents),
-                                formatEuroCents(evaluation.budget.limitAmountCents),
-                            ),
-                            modifier = Modifier.weight(1f),
-                            color = FinanceTheme.colors.mutedText,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        Text(
-                            text = if (evaluation.remainingCents >= 0L) {
-                                stringResource(R.string.budget_remaining, formatEuroCents(evaluation.remainingCents))
-                            } else {
-                                stringResource(R.string.budget_over, formatEuroCents(-evaluation.remainingCents))
-                            },
-                            color = evaluation.status.color(),
-                            style = MaterialTheme.typography.labelMedium,
+                }
+            }
+        }
+
+        if (detail.budgetEvaluation == null &&
+            (category.kind == CategoryKind.EXPENSE || category.kind == CategoryKind.BOTH)
+        ) {
+            TextButton(
+                onClick = onDefineBudget,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            ) {
+                Text(text = stringResource(R.string.category_flow_define_budget))
+            }
+        }
+
+        HorizontalDivider()
+
+        // Movement list
+        when {
+            detail.isLoading -> {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = stringResource(R.string.category_flow_loading),
+                        color = FinanceTheme.colors.mutedText,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
+            detail.entries.isEmpty() -> {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = stringResource(R.string.category_flow_empty),
+                        color = FinanceTheme.colors.mutedText,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
+            else -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
+                ) {
+                    items(detail.entries) { movement ->
+                        MovementListItem(movement = movement)
+                        HorizontalDivider(
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
                         )
                     }
                 }
             }
+        }
 
-            HorizontalDivider()
-
-            // Movement list
-            when {
-                detail.isLoading -> {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = stringResource(R.string.category_flow_loading),
-                            color = FinanceTheme.colors.mutedText,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                }
-                detail.entries.isEmpty() -> {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = stringResource(R.string.category_flow_empty),
-                            color = FinanceTheme.colors.mutedText,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                }
-                else -> {
-                    LazyColumn(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth(),
-                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
-                    ) {
-                        items(detail.entries) { movement ->
-                            MovementListItem(movement = movement)
-                            HorizontalDivider(
-                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                            )
-                        }
-                    }
-                }
-            }
-
-            detail.errorMessage?.let { msg ->
-                Text(
-                    text = msg,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
-                )
-            }
+        detail.errorMessage?.let { msg ->
+            Text(
+                text = msg,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+            )
         }
     }
 }
@@ -1187,4 +1221,4 @@ private fun CategoryNature.label(): String =
     }
 
 private fun List<CategoryRecord>.sortedForDisplay(): List<CategoryRecord> =
-    sortedWith(compareBy<CategoryRecord> { it.displayOrder }.thenBy { it.name.lowercase() })
+    sortedByDisplayOrderThenName(displayOrder = { it.displayOrder }, name = { it.name })

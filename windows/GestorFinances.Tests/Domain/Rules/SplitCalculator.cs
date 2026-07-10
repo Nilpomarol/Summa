@@ -47,6 +47,38 @@ public static class SplitCalculator
         return new SplitCalculation(true, shares);
     }
 
+    /// <summary>
+    /// Rescales <paramref name="weightsCents"/> (e.g. a template's stored split_config line
+    /// amounts) proportionally to <paramref name="totalCents"/> when the two no longer match — a
+    /// recurring occurrence's confirmed amount can differ from the split's own stored sum
+    /// (variable-amount templates, an amount edited after detection, or a NEW-detected candidate
+    /// whose split came from a single source movement while its amount is a group median). Floors
+    /// each share, then adds the leftover to the payer's line, same convention as
+    /// <see cref="Percentage"/>. Identity when the weights already sum to
+    /// <paramref name="totalCents"/>. See shared/golden/template_split_rescale.json.
+    /// </summary>
+    public static SplitCalculation Rescale(IReadOnlyList<long> weightsCents, long totalCents, int payerIndex)
+    {
+        var validationError = ValidateCommon(totalCents, weightsCents.Count, payerIndex);
+        if (validationError is not null)
+        {
+            return validationError;
+        }
+
+        if (weightsCents.Any(value => value < 0))
+        {
+            return new SplitCalculation(false, Array.Empty<long>(), "weights must be non-negative");
+        }
+
+        var weightSum = weightsCents.Sum();
+        var shares = weightSum == 0L
+            ? new long[weightsCents.Count]
+            : weightsCents.Select(weight => totalCents * weight / weightSum).ToArray();
+        var leftover = totalCents - shares.Sum();
+        shares[payerIndex] += leftover;
+        return new SplitCalculation(true, shares);
+    }
+
     public static SplitCalculation Exact(long totalCents, IReadOnlyList<long> amountsCents)
     {
         if (totalCents <= 0)

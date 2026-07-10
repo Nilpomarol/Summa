@@ -75,7 +75,6 @@ data class DetectedRecurringCandidate(
  */
 object RecurringPatternDetector {
     private const val MIN_OCCURRENCES = 3
-    private const val MIN_GAP_MATCH_FRACTION = 0.8
     private const val STALE_MULTIPLIER = 1.5
 
     /** Amount is treated as "variable" once the spread exceeds both this fraction of the median... */
@@ -83,6 +82,17 @@ object RecurringPatternDetector {
 
     /** ...and this absolute floor (1 euro), so tiny amounts don't get a degenerate near-zero tolerance. */
     private const val AMOUNT_TOLERANCE_FLOOR_CENTS = 100L
+
+    /** Monthly anchor-day tolerance: an occurrence may land up to this many days from the modal
+     * day-of-month (month-end clamped) and still count — absorbs weekend/bank-processing drift. */
+    private const val MONTH_DAY_TOLERANCE = 3
+
+    /** Weekly/fortnightly anchor tolerance, in days, wrap-aware around the period. */
+    private const val PERIOD_DAY_TOLERANCE = 1L
+
+    /** At most one whole period (month/week/fortnight) may be skipped across the series — a single
+     * missed occurrence stays tolerated; two or more do not. */
+    private const val MAX_SKIPPED_PERIODS = 1
 
     private val WEEKLY_RANGE = 6L..8L
     private val FORTNIGHTLY_RANGE = 13L..15L
@@ -122,8 +132,10 @@ object RecurringPatternDetector {
     ): DetectedRecurringCandidate? {
         if (group.size < MIN_OCCURRENCES) return null
         val sorted = group.sortedBy { it.date }
-        val gaps = sorted.zipWithNext { a, b -> ChronoUnit.DAYS.between(a.date, b.date) }
-        val frequency = classifyCadence(gaps) ?: return null
+        val dates = sorted.map { it.date }
+        val gaps = dates.zipWithNext { a, b -> ChronoUnit.DAYS.between(a, b) }
+        val frequency = classifyCadenceFamily(gaps) ?: return null
+        if (!isAnchoredSeries(frequency, dates)) return null
 
         val last = sorted.last()
         val key = groupKey(last)
@@ -142,8 +154,8 @@ object RecurringPatternDetector {
 
         val (amountCents, amountFlexCents, isVariable) = deriveAmount(sorted.map { it.amountCents })
 
-        val dayOfMonth = if (frequency == RecurrenceFrequency.MONTHLY) modeDayOfMonth(sorted.map { it.date }) else null
-        val weekday = if (frequency != RecurrenceFrequency.MONTHLY) modeWeekday(sorted.map { it.date }) else null
+        val dayOfMonth = if (frequency == RecurrenceFrequency.MONTHLY) modeDayOfMonth(dates) else null
+        val weekday = if (frequency != RecurrenceFrequency.MONTHLY) modeWeekday(dates) else null
         val nextDue = if (isStale) last.date else projectNextDue(frequency, dayOfMonth, last.date)
 
         return DetectedRecurringCandidate(
@@ -170,15 +182,11 @@ object RecurringPatternDetector {
     }
 
     /**
-     * Classifies the [gaps] (consecutive day-differences between sorted occurrences) into a
-     * cadence. Uses the median gap (resistant to a single long gap from a missed occurrence) to
-     * pick a tolerance band, then requires the gaps to actually fall in that band: either at
-     * least [MIN_GAP_MATCH_FRACTION] of them (scales with series length), or all but one (a flat
-     * floor so a single missed occurrence is always tolerated even in a short, e.g. 3-5
-     * occurrence, series where 80% of a handful of gaps is stricter than "one miss"). Returns
-     * null — no detection — when nothing fits, rather than guessing.
+     * Picks the broad cadence family from the *median* gap (resistant to a single long gap from a
+     * missed occurrence) — just enough to choose which anchor check applies next. Returns null —
+     * no detection — when the median doesn't land in any known band, rather than guessing.
      */
-    private fun classifyCadence(gaps: List<Long>): RecurrenceFrequency? {
+    private fun classifyCadenceFamily(gaps: List<Long>): RecurrenceFrequency? {
         if (gaps.isEmpty()) return null
         val sortedGaps = gaps.sorted()
         val medianGap = if (sortedGaps.size % 2 == 1) {
@@ -187,22 +195,70 @@ object RecurringPatternDetector {
             (sortedGaps[sortedGaps.size / 2 - 1] + sortedGaps[sortedGaps.size / 2]) / 2.0
         }
 
-        val frequency = when {
+        return when {
             medianGap in WEEKLY_RANGE.first.toDouble()..WEEKLY_RANGE.last.toDouble() -> RecurrenceFrequency.WEEKLY
             medianGap in FORTNIGHTLY_RANGE.first.toDouble()..FORTNIGHTLY_RANGE.last.toDouble() -> RecurrenceFrequency.FORTNIGHTLY
             medianGap in MONTHLY_RANGE.first.toDouble()..MONTHLY_RANGE.last.toDouble() -> RecurrenceFrequency.MONTHLY
-            else -> return null
+            else -> null
+        }
+    }
+
+    /**
+     * Validates [dates] against an inferred calendar anchor instead of neighbor-to-neighbor gaps:
+     * infers the expected day-of-month (monthly) or day-offset within the period (weekly/
+     * fortnightly), then checks each occurrence's distance from that anchor. Unlike comparing
+     * consecutive gaps against a fixed day-count band, this tolerates a billing date that drifts by
+     * a day or two (weekends, bank processing) without corrupting multiple gaps at once — the
+     * documented limitation this replaces (docs/13-recurring-refunds-budgets-ui.md).
+     */
+    private fun isAnchoredSeries(frequency: RecurrenceFrequency, dates: List<LocalDate>): Boolean =
+        when (frequency) {
+            RecurrenceFrequency.MONTHLY -> isValidMonthlySeries(dates)
+            RecurrenceFrequency.WEEKLY -> isValidPeriodicSeries(dates, periodDays = 7L)
+            RecurrenceFrequency.FORTNIGHTLY -> isValidPeriodicSeries(dates, periodDays = 14L)
+            RecurrenceFrequency.YEARLY, RecurrenceFrequency.CUSTOM -> false
         }
 
-        val range = when (frequency) {
-            RecurrenceFrequency.WEEKLY -> WEEKLY_RANGE
-            RecurrenceFrequency.FORTNIGHTLY -> FORTNIGHTLY_RANGE
-            RecurrenceFrequency.MONTHLY -> MONTHLY_RANGE
-            else -> return null
+    private fun isValidMonthlySeries(dates: List<LocalDate>): Boolean {
+        val anchorDay = modeDayOfMonth(dates)
+        val firstMonth = dates.first().withDayOfMonth(1)
+        val monthIndices = dates.map { ChronoUnit.MONTHS.between(firstMonth, it.withDayOfMonth(1)) }
+        if (!hasValidCadenceIndices(monthIndices)) return false
+        return dates.all { date ->
+            val effectiveAnchor = minOf(anchorDay, date.lengthOfMonth())
+            abs(date.dayOfMonth - effectiveAnchor) <= MONTH_DAY_TOLERANCE
         }
-        val badCount = gaps.count { it !in range }
-        val matchFraction = (gaps.size - badCount) / gaps.size.toDouble()
-        return frequency.takeIf { matchFraction >= MIN_GAP_MATCH_FRACTION || badCount <= 1 }
+    }
+
+    private fun isValidPeriodicSeries(dates: List<LocalDate>, periodDays: Long): Boolean {
+        val first = dates.first()
+        val daysSinceFirst = dates.map { ChronoUnit.DAYS.between(first, it) }
+        val residuals = daysSinceFirst.map { it.mod(periodDays) }
+        val anchorResidual = residuals
+            .groupingBy { it }
+            .eachCount()
+            .entries
+            .sortedWith(compareByDescending<Map.Entry<Long, Int>> { it.value }.thenBy { it.key })
+            .first()
+            .key
+        val cycleIndices = daysSinceFirst.map { Math.round(it / periodDays.toDouble()) }
+        if (!hasValidCadenceIndices(cycleIndices)) return false
+        return residuals.all { residual ->
+            val diff = abs(residual - anchorResidual)
+            minOf(diff, periodDays - diff) <= PERIOD_DAY_TOLERANCE
+        }
+    }
+
+    /** No two occurrences may land in the same period (index collision), and at most one gap
+     * between consecutive period indices may skip a period ([MAX_SKIPPED_PERIODS]) — a single
+     * missed occurrence stays tolerated; two or more, or a gap skipping more than one period at
+     * once, do not. */
+    private fun hasValidCadenceIndices(indices: List<Long>): Boolean {
+        val sorted = indices.sorted()
+        if (sorted.toSet().size != sorted.size) return false
+        val diffs = sorted.zipWithNext { a, b -> b - a }
+        if (diffs.any { it > 1 + MAX_SKIPPED_PERIODS }) return false
+        return diffs.count { it > 1 } <= MAX_SKIPPED_PERIODS
     }
 
     private fun cadenceDaysFor(frequency: RecurrenceFrequency): Long = when (frequency) {

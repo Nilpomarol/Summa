@@ -75,7 +75,7 @@ class PeopleViewModel(
 
     fun onSettlementFormChanged(form: SettlementFormState) {
         _state.value = _state.value.copy(
-            settlementForm = form.copy(errorRes = null, errorMessage = null),
+            settlementForm = form.copy(errorRes = null, errorField = null, errorMessage = null),
         )
     }
 
@@ -91,17 +91,19 @@ class PeopleViewModel(
             _state.value.accounts.firstOrNull { it.id == accountId }
         }
 
-        val errorRes = when {
-            amount == null -> R.string.movement_validation_amount_required
-            amount <= 0L -> R.string.movement_validation_amount_positive
-            account == null -> R.string.settlement_validation_account_required
-            form.date.isBlank() -> R.string.movement_validation_date_required
-            date == null -> R.string.movement_validation_date_invalid
-            else -> null
+        val (errorRes, errorField) = when {
+            amount == null -> R.string.movement_validation_amount_required to SettlementFormField.AMOUNT
+            amount <= 0L -> R.string.movement_validation_amount_positive to SettlementFormField.AMOUNT
+            account == null -> R.string.settlement_validation_account_required to SettlementFormField.ACCOUNT
+            form.date.isBlank() -> R.string.movement_validation_date_required to SettlementFormField.DATE
+            date == null -> R.string.movement_validation_date_invalid to SettlementFormField.DATE
+            else -> null to null
         }
 
         if (errorRes != null) {
-            _state.value = _state.value.copy(settlementForm = form.copy(errorRes = errorRes))
+            _state.value = _state.value.copy(
+                settlementForm = form.copy(errorRes = errorRes, errorField = errorField),
+            )
             return
         }
 
@@ -125,6 +127,12 @@ class PeopleViewModel(
                     _state.value = _state.value.copy(settlementForm = null)
                     refreshPeople()
                     refreshNotifications()
+                    // The settlement form is a local swap on top of the person-detail page (not a
+                    // separate destination), so saving reveals that page again -- reload it so the
+                    // balance it shows reflects the settlement just recorded, instead of the value
+                    // from before this save.
+                    _state.value.detail?.person?.takeIf { it.id == form.personId }
+                        ?.let { onPersonDetailClicked(it) }
                 },
                 onFailure = {
                     _state.value = _state.value.copy(
@@ -230,7 +238,10 @@ class PeopleViewModel(
 
         if (name.isEmpty()) {
             _state.value = _state.value.copy(
-                form = form.copy(errorRes = R.string.person_validation_name_required),
+                form = form.copy(
+                    errorRes = R.string.person_validation_name_required,
+                    errorField = PersonFormField.NAME,
+                ),
             )
             return
         }
@@ -351,14 +362,27 @@ data class PersonDetailState(
     val copyMessage: PersonDebtMessage? = null,
 )
 
+/** Identifies which field a person-form validation error belongs to (audit U8, `docs/17` WP2). */
+enum class PersonFormField {
+    NAME,
+}
+
 data class PersonFormState(
     val id: String? = null,
     val name: String = "",
     val notes: String = "",
     val color: String? = null,
     val errorRes: Int? = null,
+    val errorField: PersonFormField? = null,
     val errorMessage: String? = null,
 )
+
+/** Identifies which field a settlement-form validation error belongs to (audit U8, `docs/17` WP2). */
+enum class SettlementFormField {
+    AMOUNT,
+    ACCOUNT,
+    DATE,
+}
 
 data class SettlementFormState(
     val personId: String,
@@ -370,6 +394,7 @@ data class SettlementFormState(
     val date: String = "",
     val notes: String = "",
     val errorRes: Int? = null,
+    val errorField: SettlementFormField? = null,
     val errorMessage: String? = null,
 )
 

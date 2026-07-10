@@ -53,6 +53,7 @@ class PeopleViewModelTest {
             viewModel.onSaveClicked()
 
             assertEquals(R.string.person_validation_name_required, viewModel.state.value.form!!.errorRes)
+            assertEquals(PersonFormField.NAME, viewModel.state.value.form!!.errorField)
             assertTrue(store.people.listActive().isEmpty())
         }
     }
@@ -283,6 +284,7 @@ class PeopleViewModelTest {
                 R.string.settlement_validation_account_required,
                 viewModel.state.value.settlementForm!!.errorRes,
             )
+            assertEquals(SettlementFormField.ACCOUNT, viewModel.state.value.settlementForm!!.errorField)
         }
     }
 

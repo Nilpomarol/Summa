@@ -11,6 +11,7 @@ import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountSummary
 import com.gestorfinances.app.domain.rules.RecurrenceFrequency
+import com.gestorfinances.app.ui.common.scrollToWhen
 
 /**
  * The TRANSFER body: origin + destination account row, then the recurring tail.
@@ -24,6 +25,9 @@ internal fun TransferFormSection(
     onRecurringToggled: (Boolean) -> Unit,
     onRecurringFrequencyChanged: (RecurrenceFrequency) -> Unit,
 ) {
+    val accountError = form.errorField == MovementFormField.ACCOUNT
+    val destinationError = form.errorField == MovementFormField.DESTINATION_ACCOUNT
+    val errorText = if (form.errorRes != null) stringResource(form.errorRes) else null
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -34,20 +38,30 @@ internal fun TransferFormSection(
             selectedId = form.accountId,
             accounts = accounts,
             onSelect = { onFormChange(form.copy(accountId = it)) },
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f)
+                .scrollToWhen(accountError),
+            isError = accountError,
+            supportingText = if (accountError) errorText else null,
         )
         AccountSelect(
             label = stringResource(R.string.movement_field_destination_account),
             selectedId = form.destinationAccountId,
             accounts = accounts.filter { it.id != form.accountId },
             onSelect = { onFormChange(form.copy(destinationAccountId = it)) },
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f)
+                .scrollToWhen(destinationError),
+            isError = destinationError,
+            supportingText = if (destinationError) errorText else null,
         )
     }
 
     FormRecurringSection(
         isRecurring = form.isRecurring,
         frequency = form.recurringFrequency,
+        linked = form.templateId != null,
+        templateStatus = form.templateStatus,
         onToggle = onRecurringToggled,
         onFrequencyChange = onRecurringFrequencyChanged,
     )

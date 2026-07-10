@@ -148,7 +148,7 @@ private fun ValueModeToggle(
     )
     Surface(
         onClick = { onValueModeSelected(nextMode) },
-        modifier = Modifier.size(40.dp),
+        modifier = Modifier.size(44.dp),
         shape = MaterialTheme.shapes.small,
         color = MaterialTheme.colorScheme.surface,
         contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -367,10 +367,7 @@ private fun SteppedPeriod(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        IconButton(
-            onClick = onPreviousPeriod,
-            modifier = Modifier.size(40.dp),
-        ) {
+        IconButton(onClick = onPreviousPeriod) {
             Icon(
                 imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowLeft,
                 contentDescription = stringResource(R.string.common_back),
@@ -417,10 +414,7 @@ private fun SteppedPeriod(
                 }
             }
         }
-        IconButton(
-            onClick = onNextPeriod,
-            modifier = Modifier.size(40.dp),
-        ) {
+        IconButton(onClick = onNextPeriod) {
             Icon(
                 imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
                 contentDescription = stringResource(R.string.common_next),
