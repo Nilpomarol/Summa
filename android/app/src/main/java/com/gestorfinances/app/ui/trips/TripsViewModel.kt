@@ -210,7 +210,9 @@ class TripsViewModel(
     }
 
     fun onFormChanged(form: TripFormState) {
-        _state.value = _state.value.copy(form = form.copy(errorRes = null, errorMessage = null))
+        _state.value = _state.value.copy(
+            form = form.copy(errorRes = null, errorField = null, errorMessage = null),
+        )
     }
 
     fun onFormDismissed() {
@@ -224,17 +226,21 @@ class TripsViewModel(
         val endDate = parseDateOrNull(form.endDate)
         val activeAccountIds = _state.value.accounts.map { it.id }.toSet()
 
-        val errorRes = when {
-            name.isEmpty() -> R.string.trip_validation_name_required
-            form.startDate.isNotBlank() && startDate == null -> R.string.trip_validation_start_date_invalid
-            form.endDate.isNotBlank() && endDate == null -> R.string.trip_validation_end_date_invalid
-            startDate != null && endDate != null && endDate < startDate -> R.string.trip_validation_date_order
-            form.defaultAccountId != null && form.defaultAccountId !in activeAccountIds -> R.string.movement_validation_account_required
-            else -> null
+        val (errorRes, errorField) = when {
+            name.isEmpty() -> R.string.trip_validation_name_required to TripFormField.NAME
+            form.startDate.isNotBlank() && startDate == null ->
+                R.string.trip_validation_start_date_invalid to TripFormField.START_DATE
+            form.endDate.isNotBlank() && endDate == null ->
+                R.string.trip_validation_end_date_invalid to TripFormField.END_DATE
+            startDate != null && endDate != null && endDate < startDate ->
+                R.string.trip_validation_date_order to TripFormField.END_DATE
+            form.defaultAccountId != null && form.defaultAccountId !in activeAccountIds ->
+                R.string.movement_validation_account_required to TripFormField.ACCOUNT
+            else -> null to null
         }
 
         if (errorRes != null) {
-            _state.value = _state.value.copy(form = form.copy(errorRes = errorRes))
+            _state.value = _state.value.copy(form = form.copy(errorRes = errorRes, errorField = errorField))
             return
         }
 
@@ -347,6 +353,14 @@ data class TripsUiState(
         get() = trips.filter { statusFilter == null || it.status == statusFilter }
 }
 
+/** Identifies which field a trip-form validation error belongs to (audit U8, `docs/17` WP2). */
+enum class TripFormField {
+    NAME,
+    START_DATE,
+    END_DATE,
+    ACCOUNT,
+}
+
 data class TripFormState(
     val id: String? = null,
     val name: String = "",
@@ -359,6 +373,7 @@ data class TripFormState(
     val notes: String = "",
     val defaultAccountId: String? = null,
     val errorRes: Int? = null,
+    val errorField: TripFormField? = null,
     val errorMessage: String? = null,
 )
 

@@ -30,7 +30,7 @@ Phase 4 adds **Recurrents** under the Gestió hub, per `docs/07-ui-ux.md` §IA. 
 - Anàlisi;
 - Gestió.
 
-Budgets are reached from Analysis/Categories management and from a category's detail, not from the bottom bar; a category-scoped budget is created or edited from the category context so the scope is preserved. Refunds are not a destination: a refund starts from an **expense's** movement detail (`Add refund`). Notification and alert settings live under **Gestió > Configuració** (system tools, §5.8). Recurring templates live under **Gestió > Recurrents**. The global "New movement" action is unchanged and remains centered in the bottom bar; "New recurring" starts from Recurrents, and "New budget" from the budgets surface.
+Budgets are a primary **Gestió** tile (`Gestió > Pressupostos`, `docs/17` WP4 — previously only reachable indirectly from Analysis/Categories, an audit finding, F13), not from the bottom bar; a trip-scoped budget is still also reachable from a trip's own "Pressupost del viatge" action (`AppOverlay.Budgets` with a `tripId` context), and a category-scoped budget can be created directly from a category's flow detail via a "Defineix un pressupost" CTA when that category has no budget yet, pre-scoping the form to that category. Refunds are not a destination: a refund starts from an **expense's** movement detail (`Add refund`). Notification and alert settings live under **Gestió > Configuració** (system tools, §5.8). Recurring templates live under **Gestió > Recurrents**. The global "New movement" action is unchanged and remains centered in the bottom bar; "New recurring" starts from Recurrents, and "New budget" from the budgets surface. A budget due/threshold notification now lands on `Gestió > Pressupostos` (previously an Analysis-tab overlay).
 
 ---
 
@@ -81,7 +81,7 @@ Content:
 
 Behavior:
 
-- **Add payment / Confirm** — opens the pre-filled movement form (the existing Add/Edit movement flow, carrying the previous split forward for shared templates), editable before save; on save it creates the movement with `template_id` set and advances the template cursor;
+- **Add payment / Confirm** — opens a lightweight prompt (amount + date, pre-filled from the template), editable before save; for a shared template it also shows a live split preview (each party's share, rescaled to the amount as it's edited — see `template_split_rescale` golden); on save it creates the movement with `template_id` set and advances the template cursor;
 - **Skip this period** — dismisses this occurrence and advances the cursor, no movement created;
 - editing a confirmed instance while the recurring flag stays set updates the template (§4.3);
 - confirm-all materializes each queued occurrence with its pre-filled values; skip-all advances past all of them; both are dismissible/undoable, never silent;
@@ -110,7 +110,7 @@ Fields:
 Validation:
 
 - hard errors only for schema-invalid data: non-positive fixed amount (unless variable), missing account, transfer without a distinct destination, category set on a transfer, custom frequency without interval+unit, non-custom frequency carrying interval/unit, anchor out of range;
-- a shared template requires a reconciled split, same as a one-off shared expense;
+- a shared template's split does not need to reconcile with the current amount at edit/detection time — materializing an occurrence rescales the split's line weights to whatever amount is confirmed (`template_split_rescale` golden), so a variable-amount or since-edited shared template never silently loses its split;
 - warnings (never blocking) for unusual but valid setups.
 
 State:
@@ -159,14 +159,15 @@ Scope for P4: **category-monthly** (`scope='category'`, `period='monthly'`). Ove
 
 Budgets list:
 
-- reached from category management / analysis;
+- reached from `Gestió > Pressupostos` (primary), plus a category's flow detail and a trip's own budget action;
 - each budget row shows category, monthly limit, this-period actual, remaining/over, and a progress bar colored green / amber / red by threshold;
+- deleting a budget requires confirmation (`docs/17` WP4/U10) — an `AlertDialog` (`budget_archive_confirm_title`/`budget_archive_warning`), the same pattern as Tags/Categories/Accounts, before the archive is applied;
 - empty state with a New budget action.
 
 Add/Edit budget:
 
-- fields: category (expense-supporting), monthly limit amount, optional alert threshold percent (1–100), start date (optional);
-- validation: positive limit, a category required for category scope, threshold within 1–100;
+- fields: category or trip picked via a `FormSelect` (icon/color leading, filtered to expense-supporting categories, mirroring the movement form's category picker) rather than a chip flood, monthly limit amount, optional alert threshold percent (1–100, defaults to `80` for a new budget with a `%` suffix), start date (optional);
+- validation: positive limit, a category or trip required for its scope, threshold within 1–100;
 - save returns schema-invalid errors only.
 
 Evaluation:
@@ -281,7 +282,7 @@ All values are Catalan. Keep adding strings beside the slice that needs them; do
 - A stale detected pattern (last occurrence well past its own cadence) defaults to a proposed `ended` status; a recent one defaults to `active`. Both remain reviewable before confirming — nothing is auto-applied.
 - Deleting a template severs its movements' links (they stop showing the recurring badge and become eligible for re-detection); ending a template does not. Deleting a movement can optionally roll its template's due date back, but only when that movement is provably the template's immediate prior occurrence (see rows 10-14 below).
 
-**Known limitation (not yet fixed):** cadence classification (`RecurringPatternDetector.classifyCadence`) compares *consecutive* gaps against a fixed day-range band (e.g. 27-31 days for monthly) rather than each occurrence's distance from an inferred anchor day. A subscription whose billing date drifts by even 1-2 days (weekends, bank processing) can push two or more gaps outside the band at once, and the whole group gets silently dropped rather than degraded — this is most likely to bite a genuinely new pattern that was never linked to a template before (an existing template's own history isn't affected, since it's matched by signature, not re-derived). Diagnosed but deliberately deferred (2026-07-05) since the delete/unlink defect below was judged the more likely cause of reported "detection isn't working" symptoms. If revisited, the fix is to switch to anchor-based deviation: infer the expected day-of-month/weekday first, then check each occurrence's distance from that anchor instead of from its neighbor.
+**Fixed (2026-07-09):** cadence classification used to compare *consecutive* gaps against a fixed day-range band (e.g. 27-31 days for monthly), so a subscription whose billing date drifted by even 1-2 days (weekends, bank processing) could push two or more gaps outside the band at once and get silently dropped rather than degraded. `RecurringPatternDetector` now uses the median gap only to pick the broad cadence family (weekly/fortnightly/monthly), then validates each occurrence's distance from an inferred anchor — the modal day-of-month (month-end clamped) for monthly, or the modal day-offset within the period for weekly/fortnightly — tolerating drift of a few days per occurrence and at most one skipped period across the whole series. Two occurrences landing in the same calendar month/week (a period collision) still reject the group outright, same as before.
 
 **Implementation notes (fixes applied after initial ship, full history in `docs/06-roadmap.md` P5R-13):**
 - Editing a template's Status field (including a detected "Actualitza" candidate's suggested status) silently had no effect — `Templates.sq`'s `updateTemplate` omitted `status` from its SET clause. Fixed.
@@ -290,6 +291,7 @@ All values are Catalan. Keep adding strings beside the slice that needs them; do
 - A failure partway through confirming several accepted candidates could abandon the rest and, on retry, duplicate an already-created template. Fixed by applying each candidate independently and only retrying genuinely failed ones.
 - Deleting a template never unlinked its movements (the mirror image of the fix above) — they stayed excluded from detection forever. Fixed via `MovementRepository.unlinkAllForTemplate()`, atomic with the archive.
 - Deleting a movement never offered to un-advance its template's due date, even when that movement was provably the last real occurrence. Fixed via `RecurringAdvancer.isImmediatePriorOccurrence()`, scoped to ACTIVE templates only and gated behind an opt-in checkbox.
+- Confirming a detected **NEW** candidate for a recurring *shared* expense silently created a plain personal template — the detector never carried split data through its pipeline at all, and the confirm path only ever read an *existing* template's `split_config` (always null for NEW). Fixed by resolving the split from the most recent source movement when applying a NEW candidate; UPDATE candidates were already correct (they carry the existing template's split forward unchanged) and are unaffected.
 
 **Manual checklist:**
 
@@ -309,6 +311,12 @@ All values are Catalan. Keep adding strings beside the slice that needs them; do
 | 12 | Confirm a monthly template's due-prompt (creates a movement, advances the cursor), then delete that same movement from the ledger | The archive-confirmation dialog now shows an extra checkbox naming the movement; checking it and confirming rolls the template's due date back to that movement's date, making it due again |
 | 13 | Same setup, but leave the checkbox unchecked when confirming | The due date stays advanced — today's behavior, unchanged |
 | 14 | Confirm two consecutive occurrences, then delete the *older* one | The archive-confirmation dialog shows no checkbox at all — only the immediately preceding occurrence ever offers to revert the due date |
+| 15 | Seed 3+ monthly shared-expense movements (split with a person) for the same account/category/name, without linking any to a template, then run detection and confirm the "Nou" candidate | The created template is shared — confirming its next due occurrence later creates a split movement, not a plain personal expense |
+| 16 | On the "Recurrents" list, look at a shared template's row and its due-prompt card | Both show a "Compartit" badge, so a shared template is visually distinguishable from a personal one before opening it |
+| 17 | Tap "Add payment" on a shared template's due prompt, then edit the amount field to a value different from the split's stored total | A "Repartiment" preview appears below the amount field, live-updating each party's share as the amount changes (rescaled, not just the original stored shares) |
+| 18 | Confirm that edited-amount occurrence | The created movement is still shared (not booked as a plain personal expense) and the other person's balance reflects the rescaled share shown in the preview, not the template's original split amounts |
+| 19 | Create a variable-amount shared template (toggle "Import variable" with a split configured), then confirm a due occurrence with a freshly typed amount | The split preview appears as soon as a valid amount is entered, and the confirmed movement is shared with shares proportional to the split's original weights |
+| 20 | Seed a drifting monthly subscription (e.g. billing on the 14th, 15th, 16th, 15th across four months), run detection | Detected as a "Nou" monthly candidate — the 1-2 day drift no longer causes it to be silently dropped |
 
 ---
 
@@ -334,3 +342,56 @@ All values are Catalan. Keep adding strings beside the slice that needs them; do
 | 4 | With items still remaining, tap "Tanca" | Sheet closes. Backgrounding and returning to the app (same process) does not bring it back |
 | 5 | Force-stop and relaunch after step 4 | Sheet reappears for the still-unaddressed items |
 | 6 | Navigate to Management > Recurring at any point | The passive in-screen due-prompts list still works exactly as before, independent of the auto-sheet, and now also shows a "Finalitza la sèrie" action on each card |
+
+---
+
+## 15. Movement Form — Recurrence Truth (mobile) — `docs/17` WP3, fixes F12
+
+**Problem fixed:** the movement form's recurring section previously always defaulted to a MONTHLY frequency select on edit, regardless of the linked template's real cadence, and let the user "change" it there with no effect on the actual template — the form silently misrepresented and ignored the movement's real recurrence. Toggling recurrence off on a linked movement also silently just detached it, with no way to end the whole series from the form.
+
+**Fixed behavior (`FormRecurringSection`, `ExpenseFormSection`/`IncomeFormSection`/`TransferFormSection`):**
+
+- Editing a movement with `templateId != null` loads the real template (`MovementsViewModel.onEditClicked`) and threads its `frequency`/`status` into the form (`MovementFormState.recurringFrequency`/`templateStatus`).
+- While linked, the frequency control is **read-only**: a muted line "Recurrent · {freqüència} — gestionat a Recurrents" replaces the editable cadence select. If the linked template's status is ENDED (ending a template doesn't unlink prior movements), the line instead reads "La plantilla ha finalitzat — aquest moviment ja no es repetirà" so an old occurrence of a dead series never looks like an ongoing one. There is no navigation from the form to the template editor in this slice — the label is honest and sufficient; wiring cross-overlay navigation would add real complexity for a single-slice screen swap the user can already reach from Gestió > Recurrents.
+- Turning the recurrence toggle **off** on a linked movement is a third pre-save warning sharing WP1/WP2's dismissible banner slot (`DataLossWarning.RECURRING_STOP`, never a hard block): "Finalitza la plantilla" (default primary action — ends the template and detaches this movement atomically in the same save) or "Només desvincula aquest moviment" (the prior behavior — detaches only this movement, the template keeps running for future occurrences).
+- A quick-created template (recurrence toggled on for a brand-new/unlinked movement) now carries the form's `notes` field instead of always creating a note-less template.
+
+**Known limitation:** `pendingDataLossWarning` holds a single value. If a save would *both* drop a stored split (WP1's `SPLIT_REMOVED`) *and* stop a linked recurrence in the same edit, only the split warning surfaces; accepting it also skips the recurrence question on the same re-run and defaults to "unlink" (the template is left ACTIVE, never ended) without asking. Not data loss, not a hard block — just an unannounced default in this rare compound case. A future slice could chain pending warnings instead of holding one; out of scope for WP3.
+
+**Manual checklist:**
+
+| # | Step | Expected |
+|---|------|----------|
+| 1 | Create a weekly recurring expense via the movement form | Movement saved, linked to a new ACTIVE weekly template |
+| 2 | Edit that movement | Recurring section shows "Recurrent · Setmanal — gestionat a Recurrents"; no editable frequency control |
+| 3 | Toggle recurrence off, tap Save | Warning banner appears with "Finalitza la plantilla" (primary) and "Només desvincula aquest moviment" (secondary); nothing saved yet |
+| 4 | Tap "Finalitza la plantilla" | Movement saved and detached; template now listed under Finalitzats in the Recurring screen; no more due prompts for it |
+| 5 | Repeat 1-3 on a fresh recurring movement, tap "Només desvincula aquest moviment" instead | Movement saved and detached; template stays ACTIVE and still due in the future |
+
+---
+
+## 16. Budgets — Discovery, Safe Delete, Form Polish (mobile) — `docs/17` WP4, fixes F13/U10
+
+**Problem fixed:** budgets had no primary entry point (F13 — reachable only indirectly from Analysis/Categories or a trip's own action, and a category with no budget yet had no way to create one from its own detail screen), archiving a budget happened immediately on tap with no confirmation (U10), and the form used a chip-flood category/trip picker with no icon/color identity, a plain empty threshold default, and a back arrow whose `contentDescription` read "Fet" instead of "Enrere".
+
+**Fixed behavior:**
+
+- `ManagementDestination.BUDGETS` ("Pressupostos", `Icons.Filled.Savings`, `FinanceTheme.colors.alert` accent) is a seventh Gestió tile (grid reflows to 2-2-2-1, Settings still last); `MainActivity`'s `MANAGEMENT` branch routes it to `BudgetsScreen(contextTripId = null)`. The existing `AppOverlay.Budgets` mechanism (trip-scoped, opened from `TripDetail`'s "Pressupost del viatge") is unchanged.
+- The budget due/threshold notification deep-link (`DESTINATION_BUDGETS`) now opens `Gestió > Pressupostos` instead of an Analysis-tab overlay.
+- A category's flow detail screen (`CategoryFlowScreen`) shows a `TextButton` "Defineix un pressupost" (`category_flow_define_budget`) when the category supports expenses and has no budget evaluation yet; it seeds `BudgetsViewModel.onAddClicked(categoryId)` — a new overload producing `BudgetFormState(scope = CATEGORY, categoryId = …)` — and navigates to `Gestió > Pressupostos`, landing directly on the pre-scoped form.
+- Archiving a budget no longer archives on tap: `onDeleteClicked` sets `archiveCandidate: BudgetSummary?`; a standard `AlertDialog` (`budget_archive_confirm_title`/`budget_archive_warning`, the same pattern `TagsScreen`/`CategoriesScreen`/`AccountsScreen` already use) offers Cancel (`onArchiveDismissed`, clears the candidate, nothing archived) or Elimina (`onArchiveConfirmed`, archives and refreshes notifications).
+- New budgets default `threshold` to `"80"` with a trailing `%` suffix on the field. The category and trip pickers are `FormSelect` (icon-chip leading, using each category's/trip's own icon+color) instead of a `ChipFlowSection` of `FinanceFilterChip`s; the category list was already filtered to expense-supporting categories upstream in `BudgetsViewModel.refresh()`.
+- The form's back arrow `contentDescription` now reads `common_back` ("Enrere") instead of the previously-wrong `common_done` ("Fet").
+- The budget start-date field is unchanged (still a free-text `YYYY-MM-DD` field) — the date-picker unification is `docs/17` WP5, out of scope here.
+
+**Manual checklist:**
+
+| # | Step | Expected |
+|---|------|----------|
+| 1 | Open `Gestió` | A "Pressupostos" tile exists (piggy-bank icon) among the seven tiles, Settings still last |
+| 2 | Tap it, create a category budget | Lands on the budgets list, then the polished form: `FormSelect` category picker with icon chips, threshold pre-filled "80" with a "%" suffix; save creates the budget |
+| 3 | Tap the ⋮ menu on a budget row, choose "Elimina" | A confirmation dialog appears; tapping Cancel leaves the budget untouched |
+| 4 | Repeat, this time confirming | The budget is archived and disappears from the list |
+| 5 | Open a category with no budget yet from Categories → its flow detail | A "Defineix un pressupost" button appears; tapping it lands directly on a budget form pre-scoped to that category (`scope = CATEGORY`, `categoryId` set) |
+| 6 | Trigger a budget threshold/over notification and tap it | The app opens on `Gestió > Pressupostos`, not the old Analysis-tab overlay |
+| 7 | Open a trip's own "Pressupost del viatge" action | Still opens the trip-scoped budget overlay as before, back returns to the trip detail |

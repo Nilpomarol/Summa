@@ -19,11 +19,20 @@ import com.gestorfinances.app.data.repository.TagRepository
 import com.gestorfinances.app.data.repository.TemplateRepository
 import com.gestorfinances.app.data.repository.TripAnalysisRepository
 import com.gestorfinances.app.data.repository.TripRepository
+import com.gestorfinances.app.data.sync.DeviceAccessState
 import com.gestorfinances.app.notifications.FinanceNotificationCoordinator
 import com.gestorfinances.app.notifications.NotificationPreferences
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 class AppContainer(context: Context) {
     private val appContext = context.applicationContext
+
+    // No-op until Phase 7 wires the real sync/token protocol (docs/02-synchronization.md);
+    // always reports this device as the writer.
+    private val _deviceAccessState = MutableStateFlow<DeviceAccessState>(DeviceAccessState.Writer)
+    val deviceAccessState: StateFlow<DeviceAccessState> = _deviceAccessState.asStateFlow()
 
     private val driverLazy = lazy {
         DatabaseDriverFactory(appContext).create()

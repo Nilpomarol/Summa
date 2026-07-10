@@ -64,12 +64,12 @@ import com.gestorfinances.app.ui.common.categoryIcon
 import com.gestorfinances.app.ui.common.formatBasisPoints
 import com.gestorfinances.app.ui.common.formatLongDate
 import com.gestorfinances.app.ui.common.formatMonth
+import com.gestorfinances.app.ui.common.formatPercentLabel
 import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.categoryColor
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlin.math.abs
-import kotlin.math.roundToInt
 
 const val MAX_TREND_SERIES = 4
 const val MAX_RECURRING_COST_ITEMS = 3
@@ -90,10 +90,7 @@ internal fun CategoryBreakdownRow(
     val amount = category.netCents
     val displayAmount = amount.divideCents(divisor)
     val fraction = (abs(amount).toFloat() / totalCents.toFloat()).coerceIn(0f, 1f)
-    val pctText = when {
-        fraction < 0.005f -> "<1%"
-        else -> "${(fraction * 100).roundToInt()}%"
-    }
+    val pctText = formatPercentLabel(fraction)
     val title = if (category.rowKind == AnalysisBreakdownKind.TRIP) {
         category.tripName?.let { stringResource(R.string.trip_analysis_block_title, it) }
             ?: stringResource(R.string.nav_trips)
@@ -618,7 +615,7 @@ private fun RecurringCostItemRow(item: RecurringCostItem, totalCents: Long) {
                     style = MaterialTheme.typography.titleSmall,
                 )
                 Text(
-                    text = formatRecurringCostSharePercent(shareOfTotal),
+                    text = formatPercentLabel(shareOfTotal),
                     color = FinanceTheme.colors.mutedText,
                     style = MaterialTheme.typography.labelSmall,
                 )
@@ -636,7 +633,3 @@ private fun RecurringCostItemRow(item: RecurringCostItem, totalCents: Long) {
     }
 }
 
-private fun formatRecurringCostSharePercent(fraction: Float): String = when {
-    fraction < 0.005f -> "<1%"
-    else -> "${(fraction * 100).roundToInt()}%"
-}

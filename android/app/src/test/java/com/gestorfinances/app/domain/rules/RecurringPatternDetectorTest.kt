@@ -140,7 +140,8 @@ class RecurringPatternDetectorTest {
     @Test
     fun `one missed occurrence at the exact 80 percent boundary still detects`() {
         // 6 occurrences, 5 gaps: four ~30-day gaps plus one ~60-day gap (a missed occurrence).
-        // matchFraction = 4/5 = 0.80, exactly at MIN_GAP_MATCH_FRACTION — must still pass.
+        // The one skipped month pushes a single month-index delta to 2 -- exactly at the
+        // one-skip tolerance (hasValidCadenceIndices) -- must still pass.
         val base = LocalDate.parse("2026-01-05")
         val dates = listOf(0L, 30L, 60L, 90L, 120L, 180L).map { base.plusDays(it) }
         val movements = dates.mapIndexed { i, d -> candidate("b$i", date = d.toString(), amountCents = 4000, name = "Assegurança") }
@@ -155,8 +156,8 @@ class RecurringPatternDetectorTest {
     @Test
     fun `a single missed occurrence is tolerated even in a short four-occurrence series`() {
         // 4 occurrences, 3 gaps: two ~30-day gaps plus one ~60-day gap (a missed occurrence).
-        // matchFraction = 2/3 = 0.67, below MIN_GAP_MATCH_FRACTION -- but badCount = 1, so the
-        // flat "at most one miss" floor must still let this through.
+        // Only one month-index delta is 2 (one skipped month) -- hasValidCadenceIndices'
+        // one-skip tolerance must still let this through even in a short series.
         val base = LocalDate.parse("2026-01-05")
         val dates = listOf(0L, 30L, 90L, 120L).map { base.plusDays(it) }
         val movements = dates.mapIndexed { i, d -> candidate("s$i", date = d.toString(), amountCents = 2500, name = "Streaming") }
@@ -170,9 +171,9 @@ class RecurringPatternDetectorTest {
 
     @Test
     fun `two missed occurrences out of five gaps is still rejected`() {
-        // 6 occurrences, 5 gaps: three ~30-day gaps plus two ~60-day gaps.
-        // matchFraction = 3/5 = 0.60 (below threshold) and badCount = 2 (above the one-miss floor)
-        // -- neither tolerance condition is met, so this must not be detected.
+        // 6 occurrences, 5 gaps: three ~30-day gaps plus two ~60-day gaps (two skipped months).
+        // Two month-index deltas of 2 exceed the one-skip tolerance (hasValidCadenceIndices),
+        // so this must not be detected.
         val base = LocalDate.parse("2026-01-05")
         val dates = listOf(0L, 30L, 90L, 150L, 180L, 210L).map { base.plusDays(it) }
         val movements = dates.mapIndexed { i, d -> candidate("q$i", date = d.toString(), amountCents = 2500, name = "Irregular") }
@@ -294,6 +295,59 @@ class RecurringPatternDetectorTest {
 
         assertEquals(RecurrenceFrequency.MONTHLY, only.frequency)
         assertEquals(1, only.dayOfMonth)
+    }
+
+    // Regression for the documented limitation (docs/13-recurring-refunds-budgets-ui.md): a
+    // subscription whose billing date drifts by 1-2 days (weekends, bank processing) used to be
+    // able to push two or more *neighbor* gaps outside the fixed day-count band at once and get
+    // silently dropped. Anchor-based validation checks each occurrence's own distance from the
+    // modal day-of-month instead, so drift alone never kills detection.
+    @Test
+    fun `a subscription whose billing date drifts a day or two each month is still detected`() {
+        val movements = listOf(
+            candidate("dr1", date = "2026-01-14", amountCents = 999, name = "Streaming drift"),
+            candidate("dr2", date = "2026-02-15", amountCents = 999, name = "Streaming drift"),
+            candidate("dr3", date = "2026-03-16", amountCents = 999, name = "Streaming drift"),
+            candidate("dr4", date = "2026-04-15", amountCents = 999, name = "Streaming drift"),
+        )
+
+        val result = RecurringPatternDetector.detect(movements, existingTemplates = emptyList(), today = LocalDate.parse("2026-04-20"))
+
+        val only = result.single()
+        assertEquals(RecurrenceFrequency.MONTHLY, only.frequency)
+        assertEquals(4, only.occurrenceCount)
+    }
+
+    // A pattern with two or more occurrences sharing the same calendar month cannot be "once a
+    // month", regardless of what the neighbor-gap arithmetic would suggest.
+    @Test
+    fun `two occurrences in the same calendar month reject a monthly classification`() {
+        val movements = listOf(
+            candidate("sm1", date = "2026-01-01", amountCents = 1000, name = "Mateix mes"),
+            candidate("sm2", date = "2026-01-28", amountCents = 1000, name = "Mateix mes"),
+            candidate("sm3", date = "2026-02-27", amountCents = 1000, name = "Mateix mes"),
+            candidate("sm4", date = "2026-03-28", amountCents = 1000, name = "Mateix mes"),
+        )
+
+        val result = RecurringPatternDetector.detect(movements, existingTemplates = emptyList(), today = LocalDate.parse("2026-04-01"))
+
+        assertTrue("two occurrences in the same month must not pass as monthly", result.isEmpty())
+    }
+
+    // A mean/median gap of ~14 days must classify as fortnightly, not weekly, and must validate
+    // against a 14-day period anchor rather than a 7-day one.
+    @Test
+    fun `fortnightly cadence is not misclassified as weekly`() {
+        val movements = listOf(
+            candidate("fn1", date = "2026-01-05", amountCents = 600, name = "Entrenador"),
+            candidate("fn2", date = "2026-01-19", amountCents = 600, name = "Entrenador"),
+            candidate("fn3", date = "2026-02-02", amountCents = 600, name = "Entrenador"),
+            candidate("fn4", date = "2026-02-16", amountCents = 600, name = "Entrenador"),
+        )
+
+        val result = RecurringPatternDetector.detect(movements, existingTemplates = emptyList(), today = LocalDate.parse("2026-02-20"))
+
+        assertEquals(RecurrenceFrequency.FORTNIGHTLY, result.single().frequency)
     }
 
     @Test

@@ -1,7 +1,6 @@
 package com.gestorfinances.app.ui.movements
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,6 +9,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -28,17 +28,13 @@ import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.ChevronLeft
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.CalendarMonth
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.rememberDatePickerState
@@ -69,8 +65,6 @@ import com.gestorfinances.app.data.repository.SettlementDirection
 import com.gestorfinances.app.data.repository.TagSummary
 import com.gestorfinances.app.data.repository.TripSummary
 import com.gestorfinances.app.ui.common.BannerKind
-import com.gestorfinances.app.ui.common.ChipFlowSection
-import com.gestorfinances.app.ui.common.DestructiveTextButton
 import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.FinanceFilterChip
 import com.gestorfinances.app.ui.common.IconChip
@@ -80,16 +74,14 @@ import com.gestorfinances.app.ui.common.MovementListItem
 import com.gestorfinances.app.ui.common.PrimaryButton
 import com.gestorfinances.app.ui.common.chipVisual
 import com.gestorfinances.app.ui.common.contextLine
-import com.gestorfinances.app.ui.common.formatEuroCents
 import com.gestorfinances.app.ui.common.movementTitle
-import com.gestorfinances.app.ui.common.parseEuroCents
 import com.gestorfinances.app.ui.common.label
 import com.gestorfinances.app.ui.common.signedAmountCents
 import com.gestorfinances.app.ui.common.SectionHeader
 import com.gestorfinances.app.ui.common.TopBarIconButton
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.shape.RoundedCornerShape
 import com.gestorfinances.app.ui.common.FilterSelectorField
 import com.gestorfinances.app.ui.common.categoryIcon
 import com.gestorfinances.app.ui.common.formatMonthYear
@@ -106,7 +98,8 @@ import java.time.format.DateTimeFormatter
 fun MovementsScreen(
     viewModel: MovementsViewModel,
     modifier: Modifier = Modifier,
-    showDialogs: Boolean = true,
+    onAdd: () -> Unit = viewModel::onAddClicked,
+    onDetail: (MovementSummary) -> Unit = viewModel::onDetailClicked,
 ) {
     val state by viewModel.state.collectAsState()
 
@@ -119,119 +112,9 @@ fun MovementsScreen(
         modifier = modifier,
         onFiltersChange = viewModel::onFiltersChanged,
         onClearFilters = viewModel::onClearFiltersClicked,
-        onDetail = viewModel::onDetailClicked,
-        onAdd = viewModel::onAddClicked,
+        onDetail = onDetail,
+        onAdd = onAdd,
     )
-
-    if (showDialogs) {
-        MovementDialogs(
-            state = state,
-            viewModel = viewModel,
-        )
-    }
-}
-
-@Composable
-fun MovementDialogHost(
-    viewModel: MovementsViewModel,
-) {
-    val state by viewModel.state.collectAsState()
-
-    MovementDialogs(
-        state = state,
-        viewModel = viewModel,
-    )
-}
-
-@Composable
-private fun MovementDialogs(
-    state: MovementsUiState,
-    viewModel: MovementsViewModel,
-) {
-    state.detailMovement?.let { movement ->
-        MovementDetailSheet(
-            movement = movement,
-            refunds = state.detailRefunds,
-            accounts = state.accounts,
-            onDismiss = viewModel::onDetailDismissed,
-            onEdit = { viewModel.onEditClicked(movement) },
-            onArchive = { viewModel.onArchiveClicked(movement) },
-            onAddRefund = { viewModel.onAddRefundClicked(movement) },
-        )
-    }
-
-    state.refundForm?.let { form ->
-        RefundFormDialog(
-            form = form,
-            accounts = state.accounts,
-            categories = state.categories,
-            onFormChange = viewModel::onRefundFormChanged,
-            onDismiss = viewModel::onRefundDismissed,
-            onSave = viewModel::onRefundSaveClicked,
-        )
-    }
-
-    state.form?.let { form ->
-        MovementFormSheet(
-            form = form,
-            accounts = state.accounts,
-            categories = state.categories,
-            people = state.people,
-            trips = state.trips,
-            tags = state.tags,
-            onFormChange = viewModel::onFormChanged,
-            onTripSelected = viewModel::onTripSelected,
-            onTagSelected = viewModel::onTagSelected,
-            onSharedToggled = viewModel::onSharedToggled,
-            onSplitEditorChange = viewModel::onSplitEditorChanged,
-            onSettlementToggled = viewModel::onSettlementToggled,
-            onSettlementPersonSelected = viewModel::onSettlementPersonSelected,
-            onOtherPersonSelected = viewModel::onOtherPersonSelected,
-            onRecurringToggled = viewModel::onRecurringToggled,
-            onRecurringFrequencyChanged = viewModel::onRecurringFrequencyChanged,
-            onAdvancedToggled = viewModel::onAdvancedToggled,
-            onCreatePersonInSplit = viewModel::onCreatePersonInSplit,
-            onDismiss = viewModel::onFormDismissed,
-            onSave = viewModel::onSaveClicked,
-            onOverride = viewModel::onDuplicateOverrideClicked,
-        )
-    }
-
-    state.archiveCandidate?.let { candidate ->
-        var revertDueDate by remember(candidate) { mutableStateOf(false) }
-        AlertDialog(
-            onDismissRequest = viewModel::onArchiveDismissed,
-            title = { Text(text = stringResource(R.string.movement_archive_confirm_title)) },
-            text = {
-                Column {
-                    Text(text = stringResource(R.string.movement_archive_warning))
-                    if (candidate.revertibleTemplateId != null) {
-                        val label = candidate.movement.name?.takeIf { it.isNotBlank() }
-                            ?: candidate.movement.payee.orEmpty()
-                        Row(
-                            modifier = Modifier
-                                .clickable { revertDueDate = !revertDueDate }
-                                .padding(top = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Checkbox(checked = revertDueDate, onCheckedChange = { revertDueDate = it })
-                            Text(text = stringResource(R.string.movement_archive_revert_due_checkbox, label))
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                DestructiveTextButton(onClick = { viewModel.onArchiveConfirmed(revertDueDate = revertDueDate) }) {
-                    Text(text = stringResource(R.string.common_archive))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = viewModel::onArchiveDismissed) {
-                    Text(text = stringResource(R.string.common_cancel))
-                }
-            },
-        )
-    }
 }
 
 @Composable
@@ -454,7 +337,9 @@ private fun MovementFiltersCard(
             }
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(IntrinsicSize.Max),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 FilterSelectorField(
@@ -463,7 +348,7 @@ private fun MovementFiltersCard(
                     active = filters.accountId != null,
                     onClick = { activeSheet = FilterSheetType.ACCOUNT },
                     onClear = { onFiltersChange(filters.copy(accountId = null)) },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f).fillMaxHeight()
                 )
                 FilterSelectorField(
                     label = stringResource(R.string.movement_filter_category),
@@ -471,11 +356,13 @@ private fun MovementFiltersCard(
                     active = filters.categoryId != null || filters.uncategorizedOnly,
                     onClick = { activeSheet = FilterSheetType.CATEGORY },
                     onClear = { onFiltersChange(filters.copy(categoryId = null, uncategorizedOnly = false)) },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f).fillMaxHeight()
                 )
             }
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(IntrinsicSize.Max),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 FilterSelectorField(
@@ -484,7 +371,7 @@ private fun MovementFiltersCard(
                     active = filters.tripId != null,
                     onClick = { activeSheet = FilterSheetType.TRIP },
                     onClear = { onFiltersChange(filters.copy(tripId = null, tagId = null)) },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f).fillMaxHeight()
                 )
                 FilterSelectorField(
                     label = stringResource(R.string.movement_filter_period),
@@ -492,7 +379,7 @@ private fun MovementFiltersCard(
                     active = filters.dateFrom.isNotBlank() || filters.dateTo.isNotBlank(),
                     onClick = { activeSheet = FilterSheetType.PERIOD },
                     onClear = { onFiltersChange(filters.copy(dateFrom = "", dateTo = "")) },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f).fillMaxHeight()
                 )
             }
         }
@@ -598,171 +485,6 @@ private fun NoFilteredMovementsCard(onClearFilters: () -> Unit) {
 }
 
 
-
-private val PillShape = RoundedCornerShape(percent = 50)
-
-@Composable
-private fun ColorDot(colorHex: String?, size: androidx.compose.ui.unit.Dp) {
-    Box(
-        modifier = Modifier
-            .size(size)
-            .background(categoryColor(colorHex), PillShape)
-    )
-}
-
-@Composable
-private fun DetailLine(
-    label: String,
-    value: String,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(
-            text = label,
-            color = FinanceTheme.colors.mutedText,
-            style = MaterialTheme.typography.labelMedium,
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyMedium,
-        )
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun RefundFormDialog(
-    form: RefundFormState,
-    accounts: List<AccountSummary>,
-    categories: List<CategoryRecord>,
-    onFormChange: (RefundFormState) -> Unit,
-    onDismiss: () -> Unit,
-    onSave: () -> Unit,
-) {
-    val parsedAmount = parseEuroCents(form.amount, allowNegative = false)
-    val isOverRefund = parsedAmount != null && parsedAmount > form.remainingCents
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-                .navigationBarsPadding()
-                .padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Text(
-                text = stringResource(R.string.refund_add_title),
-                style = MaterialTheme.typography.titleLarge,
-            )
-            form.expenseName.takeIf { it.isNotBlank() }?.let {
-                DetailLine(label = stringResource(R.string.refund_field_linked_expense), value = it)
-            }
-            Text(
-                text = stringResource(R.string.refund_remaining, formatEuroCents(form.remainingCents)),
-                color = FinanceTheme.colors.mutedText,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            form.errorRes?.let {
-                InlineBanner(kind = BannerKind.Error, text = stringResource(it))
-            }
-            form.errorMessage?.let {
-                InlineBanner(kind = BannerKind.Error, text = it)
-            }
-            OutlinedTextField(
-                value = form.amount,
-                onValueChange = { onFormChange(form.copy(amount = it)) },
-                label = { Text(text = stringResource(R.string.refund_field_amount)) },
-                prefix = { Text(text = "€") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                shape = MaterialTheme.shapes.small,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            if (isOverRefund) {
-                InlineBanner(
-                    kind = BannerKind.Alert,
-                    text = stringResource(R.string.refund_warning_over),
-                )
-            }
-            if (form.expenseIsShared) {
-                OutlinedTextField(
-                    value = form.actualAmount,
-                    onValueChange = { onFormChange(form.copy(actualAmount = it)) },
-                    label = { Text(text = stringResource(R.string.refund_field_actual)) },
-                    prefix = { Text(text = "€") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-            ChipFlowSection(label = stringResource(R.string.refund_field_account)) {
-                accounts.forEach { account ->
-                    FinanceFilterChip(
-                        selected = form.accountId == account.id,
-                        label = account.name,
-                        onClick = { onFormChange(form.copy(accountId = account.id)) },
-                    )
-                }
-            }
-            ChipFlowSection(label = stringResource(R.string.refund_field_category)) {
-                FinanceFilterChip(
-                    selected = form.categoryId == null,
-                    label = stringResource(R.string.common_no_category),
-                    onClick = { onFormChange(form.copy(categoryId = null)) },
-                )
-                categories.filter { it.supports(MovementType.EXPENSE) }.forEach { category ->
-                    FinanceFilterChip(
-                        selected = form.categoryId == category.id,
-                        label = category.name,
-                        onClick = { onFormChange(form.copy(categoryId = category.id)) },
-                    )
-                }
-            }
-            OutlinedTextField(
-                value = form.date,
-                onValueChange = { onFormChange(form.copy(date = it)) },
-                label = { Text(text = stringResource(R.string.refund_field_date)) },
-                supportingText = { Text(text = stringResource(R.string.movement_date_format_hint)) },
-                singleLine = true,
-                shape = MaterialTheme.shapes.small,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedTextField(
-                value = form.notes,
-                onValueChange = { onFormChange(form.copy(notes = it)) },
-                label = { Text(text = stringResource(R.string.refund_field_notes)) },
-                minLines = 2,
-                shape = MaterialTheme.shapes.small,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                OutlinedButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.weight(1f),
-                    shape = MaterialTheme.shapes.small,
-                ) {
-                    Text(text = stringResource(R.string.common_cancel))
-                }
-                PrimaryButton(
-                    text = stringResource(R.string.refund_save),
-                    onClick = onSave,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-        }
-    }
-}
-
 @Composable
 private fun MovementType.filterLabel(): String =
     when (this) {
@@ -839,7 +561,7 @@ private fun AccountFilterSheet(
                 text = stringResource(R.string.movement_filter_account),
                 style = MaterialTheme.typography.titleLarge
             )
-            
+
             val isAllSelected = selectedAccountId == null
             Surface(
                 onClick = {
@@ -891,7 +613,9 @@ private fun AccountFilterSheet(
                         Text(
                             text = account.name,
                             style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                         if (isSelected) {
                             Icon(
@@ -934,7 +658,7 @@ private fun CategoryFilterSheet(
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(bottom = 4.dp)
             )
-            
+
             val isAllSelected = selectedCategoryId == null && !uncategorizedOnly
             Surface(
                 onClick = {
@@ -1028,7 +752,9 @@ private fun CategoryFilterSheet(
                         Text(
                             text = category.name,
                             style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                         if (isSelected) {
                             Icon(
@@ -1074,7 +800,7 @@ private fun TripFilterSheet(
                 text = stringResource(R.string.movement_field_trip),
                 style = MaterialTheme.typography.titleLarge
             )
-            
+
             val isAllTripsSelected = currentTripId == null
             Surface(
                 onClick = {
@@ -1133,7 +859,9 @@ private fun TripFilterSheet(
                         Text(
                             text = trip.name,
                             style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                         if (isSelected) {
                             Icon(
@@ -1207,7 +935,9 @@ private fun TripFilterSheet(
                                 Text(
                                     text = tag.name,
                                     style = MaterialTheme.typography.bodyLarge,
-                                    modifier = Modifier.weight(1f)
+                                    modifier = Modifier.weight(1f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
                                 )
                                 if (isTagSelected) {
                                     Icon(
@@ -1257,7 +987,7 @@ private fun PeriodFilterSheet(
     
     var showFromDatePicker by remember { mutableStateOf(false) }
     var showToDatePicker by remember { mutableStateOf(false) }
-    
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.surface,
@@ -1289,10 +1019,10 @@ private fun PeriodFilterSheet(
             }
             
             Text(
-                text = "Filtra per mes",
+                text = stringResource(R.string.movement_filter_month_sheet_title),
                 style = MaterialTheme.typography.titleMedium
             )
-            
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center,
@@ -1300,7 +1030,7 @@ private fun PeriodFilterSheet(
             ) {
                 TopBarIconButton(
                     icon = Icons.Outlined.ChevronLeft,
-                    contentDescription = "Any anterior",
+                    contentDescription = stringResource(R.string.common_back),
                     onClick = { currentYear-- }
                 )
                 Text(
@@ -1310,7 +1040,7 @@ private fun PeriodFilterSheet(
                 )
                 TopBarIconButton(
                     icon = Icons.Outlined.ChevronRight,
-                    contentDescription = "Any següent",
+                    contentDescription = stringResource(R.string.common_next),
                     onClick = { currentYear++ }
                 )
             }
@@ -1365,18 +1095,20 @@ private fun PeriodFilterSheet(
             HorizontalDivider(color = FinanceTheme.colors.cardBorder)
             
             Text(
-                text = "Rang personalitzat",
+                text = stringResource(R.string.movement_filter_custom_range_title),
                 style = MaterialTheme.typography.titleMedium
             )
-            
+
+            val dateFromPlaceholder = stringResource(R.string.movement_filter_date_from)
+            val dateToPlaceholder = stringResource(R.string.movement_filter_date_to)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                val displayFrom = remember(dateFrom) {
+                val displayFrom = remember(dateFrom, dateFromPlaceholder) {
                     runCatching {
                         LocalDate.parse(dateFrom).format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
-                    }.getOrDefault(dateFrom.ifBlank { "Des de" })
+                    }.getOrDefault(dateFrom.ifBlank { dateFromPlaceholder })
                 }
                 Surface(
                     onClick = { showFromDatePicker = true },
@@ -1407,10 +1139,10 @@ private fun PeriodFilterSheet(
                     }
                 }
                 
-                val displayTo = remember(dateTo) {
+                val displayTo = remember(dateTo, dateToPlaceholder) {
                     runCatching {
                         LocalDate.parse(dateTo).format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
-                    }.getOrDefault(dateTo.ifBlank { "Fins a" })
+                    }.getOrDefault(dateTo.ifBlank { dateToPlaceholder })
                 }
                 Surface(
                     onClick = { showToDatePicker = true },
@@ -1444,7 +1176,7 @@ private fun PeriodFilterSheet(
             
             if (dateFrom.isNotBlank() || dateTo.isNotBlank()) {
                 PrimaryButton(
-                    text = "Aplica",
+                    text = stringResource(R.string.common_apply),
                     onClick = { onDismiss() },
                     modifier = Modifier.fillMaxWidth()
                 )

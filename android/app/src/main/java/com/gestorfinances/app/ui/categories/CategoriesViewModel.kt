@@ -20,6 +20,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
 import java.util.UUID
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -32,6 +33,7 @@ class CategoriesViewModel(
     private val analysisRepository: AnalysisRepository,
     private val movementRepository: MovementRepository,
     private val budgetRepository: BudgetRepository,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
     private val _state = MutableStateFlow(CategoriesUiState())
     val state: StateFlow<CategoriesUiState> = _state.asStateFlow()
@@ -66,7 +68,7 @@ class CategoriesViewModel(
         val category = _state.value.archiveCandidate ?: return
         val now = Instant.now().toString()
         viewModelScope.launch {
-            val result = withContext(Dispatchers.IO) {
+            val result = withContext(ioDispatcher) {
                 runCatching { categoryRepository.archive(category.id, archivedAt = now) }
             }
             result.fold(
@@ -101,16 +103,17 @@ class CategoriesViewModel(
         val hasActiveChildren = form.id != null &&
             _state.value.categories.any { it.parentId == form.id }
 
-        val errorRes = when {
-            name.isEmpty() -> R.string.category_validation_name_required
+        val (errorRes, errorField) = when {
+            name.isEmpty() -> R.string.category_validation_name_required to CategoryFormField.NAME
             form.parentId != null && (parent == null || parent.parentId != null || parent.id == form.id) ->
-                R.string.category_validation_parent_invalid
-            form.parentId != null && hasActiveChildren -> R.string.category_validation_parent_has_children
-            else -> null
+                R.string.category_validation_parent_invalid to CategoryFormField.PARENT
+            form.parentId != null && hasActiveChildren ->
+                R.string.category_validation_parent_has_children to CategoryFormField.PARENT
+            else -> null to null
         }
 
         if (errorRes != null) {
-            _state.value = _state.value.copy(form = form.copy(errorRes = errorRes))
+            _state.value = _state.value.copy(form = form.copy(errorRes = errorRes, errorField = errorField))
             return
         }
 
@@ -127,7 +130,7 @@ class CategoriesViewModel(
         )
 
         viewModelScope.launch {
-            val result = withContext(Dispatchers.IO) {
+            val result = withContext(ioDispatcher) {
                 runCatching {
                     if (form.id == null) {
                         categoryRepository.create(draft, createdAt = now)
@@ -158,7 +161,7 @@ class CategoriesViewModel(
             ),
         )
         viewModelScope.launch {
-            val result = withContext(Dispatchers.IO) {
+            val result = withContext(ioDispatcher) {
                 runCatching {
                     val entries = movementRepository.listActiveForCategory(category.id)
                     val budgetEvaluation = categoryBudgetEvaluation(category.id)
@@ -205,7 +208,7 @@ class CategoriesViewModel(
     private fun refreshCategories() {
         viewModelScope.launch {
             _state.value = _state.value.copy(isLoading = true, errorMessage = null)
-            val result = withContext(Dispatchers.IO) {
+            val result = withContext(ioDispatcher) {
                 runCatching {
                     val categories = categoryRepository.listActive()
                     val monthSpend = loadMonthSpend()
@@ -303,6 +306,12 @@ data class CategoryFlowDetailState(
     val errorMessage: String? = null,
 )
 
+/** Identifies which field a category-form validation error belongs to (audit U8, `docs/17` WP2). */
+enum class CategoryFormField {
+    NAME,
+    PARENT,
+}
+
 data class CategoryFormState(
     val id: String? = null,
     val name: String = "",
@@ -313,6 +322,7 @@ data class CategoryFormState(
     val iconKey: String? = null,
     val displayOrder: Long = 0,
     val errorRes: Int? = null,
+    val errorField: CategoryFormField? = null,
     val errorMessage: String? = null,
 )
 

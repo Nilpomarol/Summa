@@ -45,9 +45,9 @@ import com.gestorfinances.app.ui.common.Treemap
 import com.gestorfinances.app.ui.common.TreemapItem
 import com.gestorfinances.app.ui.common.categoryIcon
 import com.gestorfinances.app.ui.common.formatEuroCompact
+import com.gestorfinances.app.ui.common.formatPercentLabel
 import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.categoryColor
-import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 private const val TREEMAP_MAX_BLOCKS = 12
@@ -153,11 +153,8 @@ private fun treemapItems(
     }
 }
 
-/** Whole-number percent share, with a "<1%" floor so small-but-present blocks aren't shown as 0%. */
-private fun percentLabel(valueCents: Long, totalCents: Long): String {
-    val fraction = valueCents.toFloat() / totalCents.toFloat()
-    return if (fraction < 0.005f) "<1%" else "${(fraction * 100f).roundToInt()}%"
-}
+private fun percentLabel(valueCents: Long, totalCents: Long): String =
+    formatPercentLabel(valueCents.toFloat() / totalCents.toFloat())
 
 @Composable
 private fun CategoryDistributionRow(

@@ -47,9 +47,15 @@ class BudgetsViewModel(
         refresh(openContextForm = contextTripId != null)
     }
 
-    fun onAddClicked() {
+    fun onAddClicked(categoryId: String? = null) {
         val state = _state.value
-        _state.value = state.copy(form = newBudgetForm(state.contextTripId, state.trips))
+        _state.value = state.copy(
+            form = if (categoryId != null) {
+                BudgetFormState(scope = BudgetScope.CATEGORY, categoryId = categoryId)
+            } else {
+                newBudgetForm(state.contextTripId, state.trips)
+            },
+        )
     }
 
     fun onEditClicked(budget: BudgetSummary) {
@@ -57,7 +63,9 @@ class BudgetsViewModel(
     }
 
     fun onFormChanged(form: BudgetFormState) {
-        _state.value = _state.value.copy(form = form.copy(errorRes = null, errorMessage = null))
+        _state.value = _state.value.copy(
+            form = form.copy(errorRes = null, errorField = null, errorMessage = null),
+        )
     }
 
     fun onFormDismissed() {
@@ -65,12 +73,32 @@ class BudgetsViewModel(
     }
 
     fun onDeleteClicked(budget: BudgetSummary) {
+        _state.value = _state.value.copy(archiveCandidate = budget)
+    }
+
+    fun onArchiveDismissed() {
+        _state.value = _state.value.copy(archiveCandidate = null)
+    }
+
+    fun onArchiveConfirmed() {
+        val budget = _state.value.archiveCandidate ?: return
         val now = Instant.now().toString()
         viewModelScope.launch {
             val result = withContext(ioDispatcher) {
                 runCatching { budgetRepository.archive(budget.id, archivedAt = now) }
             }
-            result.fold(onSuccess = { refresh() }, onFailure = ::showError)
+            result.fold(
+                onSuccess = {
+                    _state.value = _state.value.copy(archiveCandidate = null)
+                    refresh()
+                },
+                onFailure = {
+                    _state.value = _state.value.copy(
+                        archiveCandidate = null,
+                        errorMessage = it.message ?: it.javaClass.simpleName,
+                    )
+                },
+            )
             if (result.isSuccess) {
                 refreshNotifications()
             }
@@ -83,18 +111,19 @@ class BudgetsViewModel(
         val threshold = form.threshold.trim().toLongOrNull()
         val startValid = form.startDate.isBlank() || parseDate(form.startDate) != null
 
-        val errorRes = when {
+        val (errorRes, errorField) = when {
             form.scope == BudgetScope.CATEGORY && form.categoryId == null ->
-                R.string.budget_validation_category_required
-            form.scope == BudgetScope.TRIP && form.tripId == null -> R.string.budget_validation_trip_required
-            limit == null || limit <= 0L -> R.string.budget_validation_limit_positive
+                R.string.budget_validation_category_required to BudgetFormField.CATEGORY
+            form.scope == BudgetScope.TRIP && form.tripId == null ->
+                R.string.budget_validation_trip_required to BudgetFormField.TRIP
+            limit == null || limit <= 0L -> R.string.budget_validation_limit_positive to BudgetFormField.LIMIT
             form.threshold.isNotBlank() && (threshold == null || threshold !in 1L..100L) ->
-                R.string.budget_validation_threshold_range
-            !startValid -> R.string.movement_validation_date_invalid
-            else -> null
+                R.string.budget_validation_threshold_range to BudgetFormField.THRESHOLD
+            !startValid -> R.string.movement_validation_date_invalid to BudgetFormField.START_DATE
+            else -> null to null
         }
         if (errorRes != null) {
-            _state.value = _state.value.copy(form = form.copy(errorRes = errorRes))
+            _state.value = _state.value.copy(form = form.copy(errorRes = errorRes, errorField = errorField))
             return
         }
 
@@ -132,10 +161,6 @@ class BudgetsViewModel(
                 },
             )
         }
-    }
-
-    private fun showError(throwable: Throwable) {
-        _state.value = _state.value.copy(errorMessage = throwable.message ?: throwable.javaClass.simpleName)
     }
 
     private fun refresh(openContextForm: Boolean = false) {
@@ -219,7 +244,17 @@ data class BudgetsUiState(
     val isLoading: Boolean = true,
     val errorMessage: String? = null,
     val form: BudgetFormState? = null,
+    val archiveCandidate: BudgetSummary? = null,
 )
+
+/** Identifies which field a budget-form validation error belongs to (audit U8, `docs/17` WP2). */
+enum class BudgetFormField {
+    CATEGORY,
+    TRIP,
+    LIMIT,
+    THRESHOLD,
+    START_DATE,
+}
 
 data class BudgetFormState(
     val id: String? = null,
@@ -227,9 +262,10 @@ data class BudgetFormState(
     val categoryId: String? = null,
     val tripId: String? = null,
     val limit: String = "",
-    val threshold: String = "",
+    val threshold: String = "80",
     val startDate: String = "",
     val errorRes: Int? = null,
+    val errorField: BudgetFormField? = null,
     val errorMessage: String? = null,
 )
 

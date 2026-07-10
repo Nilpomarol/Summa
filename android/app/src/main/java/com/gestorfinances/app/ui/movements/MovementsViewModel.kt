@@ -33,9 +33,9 @@ import com.gestorfinances.app.data.repository.TagRepository
 import com.gestorfinances.app.data.repository.TagSummary
 import com.gestorfinances.app.data.repository.TemplateDraft
 import com.gestorfinances.app.data.repository.TemplateRepository
-import com.gestorfinances.app.data.repository.TemplateSplitConfig
-import com.gestorfinances.app.data.repository.TemplateSplitConfigLine
 import com.gestorfinances.app.data.repository.TemplateStatus
+import com.gestorfinances.app.data.repository.TemplateSummary
+import com.gestorfinances.app.data.repository.toTemplateSplitConfig
 import com.gestorfinances.app.data.repository.TripRepository
 import com.gestorfinances.app.data.repository.TripSummary
 import com.gestorfinances.app.domain.rules.AutoCategorizeMovement
@@ -121,17 +121,19 @@ class MovementsViewModel(
     fun onEditClicked(movement: MovementSummary) {
         if (movement.type == MovementType.SETTLEMENT || movement.type == MovementType.REFUND) return
         viewModelScope.launch {
-            val splitDraft = when {
-                movement.isShared -> withContext(ioDispatcher) {
-                    splitRepository?.getForMovement(movement.id)
+            val (splitDraft, template) = withContext(ioDispatcher) {
+                val split = when {
+                    movement.isShared -> splitRepository?.getForMovement(movement.id)
+                    movement.type == MovementType.EXTERNAL_EXPENSE -> splitRepository?.getForMovementById(movement.id)
+                    else -> null
                 }
-                movement.type == MovementType.EXTERNAL_EXPENSE -> withContext(ioDispatcher) {
-                    splitRepository?.getForMovementById(movement.id)
-                }
-                else -> null
+                // Audit F12/`docs/17` WP3: load the real template so the form can show the actual
+                // linked frequency/status instead of silently defaulting or ignoring it.
+                val linkedTemplate = movement.templateId?.let { templateRepository?.getActive(it) }
+                split to linkedTemplate
             }
             _state.value = _state.value.copy(
-                form = movement.toFormState(splitDraft),
+                form = movement.toFormState(splitDraft, template),
                 detailMovement = null
             )
         }
@@ -195,8 +197,10 @@ class MovementsViewModel(
 
     fun onAddRefundClicked(expense: MovementSummary) {
         val refundedSoFar = _state.value.detailRefunds.sumOf { it.amountCents }
+        // detailMovement stays set: the refund form is a local swap on top of the movement-detail
+        // page (MovementDetailScreen), not a separate destination — cancelling it must reveal the
+        // detail page again, not the underlying screen the detail page itself was opened from.
         _state.value = _state.value.copy(
-            detailMovement = null,
             refundForm = RefundFormState(
                 expenseId = expense.id,
                 expenseName = expense.name ?: expense.payee ?: expense.categoryName.orEmpty(),
@@ -210,7 +214,9 @@ class MovementsViewModel(
     }
 
     fun onRefundFormChanged(form: RefundFormState) {
-        _state.value = _state.value.copy(refundForm = form.copy(errorRes = null, errorMessage = null))
+        _state.value = _state.value.copy(
+            refundForm = form.copy(errorRes = null, errorField = null, errorMessage = null),
+        )
     }
 
     fun onRefundDismissed() {
@@ -228,18 +234,18 @@ class MovementsViewModel(
         val date = parseDate(form.date)
         val activeAccountIds = _state.value.accounts.map { it.id }.toSet()
 
-        val errorRes = when {
-            amount == null -> R.string.refund_validation_amount_required
-            amount <= 0L -> R.string.movement_validation_amount_positive
+        val (errorRes, errorField) = when {
+            amount == null -> R.string.refund_validation_amount_required to RefundFormField.AMOUNT
+            amount <= 0L -> R.string.movement_validation_amount_positive to RefundFormField.AMOUNT
             form.accountId == null || form.accountId !in activeAccountIds ->
-                R.string.movement_validation_account_required
-            form.date.isBlank() -> R.string.movement_validation_date_required
-            date == null -> R.string.movement_validation_date_invalid
-            actual != null && actual > amount -> R.string.refund_validation_actual_over
-            else -> null
+                R.string.movement_validation_account_required to RefundFormField.ACCOUNT
+            form.date.isBlank() -> R.string.movement_validation_date_required to RefundFormField.DATE
+            date == null -> R.string.movement_validation_date_invalid to RefundFormField.DATE
+            actual != null && actual > amount -> R.string.refund_validation_actual_over to RefundFormField.ACTUAL_AMOUNT
+            else -> null to null
         }
         if (errorRes != null) {
-            _state.value = _state.value.copy(refundForm = form.copy(errorRes = errorRes))
+            _state.value = _state.value.copy(refundForm = form.copy(errorRes = errorRes, errorField = errorField))
             return
         }
 
@@ -296,7 +302,7 @@ class MovementsViewModel(
         _state.value = _state.value.copy(archiveCandidate = null)
     }
 
-    fun onArchiveConfirmed(revertDueDate: Boolean = false) {
+    fun onArchiveConfirmed(revertDueDate: Boolean = false, onSuccess: () -> Unit = {}) {
         val candidate = _state.value.archiveCandidate ?: return
         val movement = candidate.movement
         val now = Instant.now().toString()
@@ -324,9 +330,10 @@ class MovementsViewModel(
             }
             result.fold(
                 onSuccess = {
-                    _state.value = _state.value.copy(archiveCandidate = null)
+                    _state.value = _state.value.copy(archiveCandidate = null, detailMovement = null)
                     refresh(dataChanged = true)
                     refreshNotifications()
+                    onSuccess()
                 },
                 onFailure = {
                     _state.value = _state.value.copy(
@@ -369,9 +376,12 @@ class MovementsViewModel(
                 removeExistingSplit = false,
             )
         } else {
+            // splitEditor is retained (not nulled) so an off/on round trip within the same
+            // session doesn't lose manually-entered split state; it's hidden while the kind is
+            // PERSONAL and stripped at draft-build time in attemptSave if the save actually goes
+            // through with sharing off.
             form.copy(
                 expenseKind = ExpenseKind.PERSONAL,
-                splitEditor = null,
                 removeExistingSplit = form.existingSplit,
             )
         }
@@ -450,12 +460,38 @@ class MovementsViewModel(
         _state.value = _state.value.copy(form = null)
     }
 
-    fun onSaveClicked() = attemptSave(forceSave = false)
+    /** "Revisa" -- dismisses the duplicate/data-loss warning without saving, restoring the normal
+     * Save button (audit U8, `docs/17` WP2 step 4). */
+    fun onWarningDismissed() {
+        val form = _state.value.form ?: return
+        _state.value = _state.value.copy(
+            form = form.copy(duplicateWarning = false, pendingDataLossWarning = null),
+        )
+    }
 
-    /** Save anyway after the duplicate warning was shown (never block — warn). */
-    fun onDuplicateOverrideClicked() = attemptSave(forceSave = true)
+    fun onSaveClicked() = attemptSave(forceSave = false, acceptDataLoss = false)
 
-    private fun attemptSave(forceSave: Boolean) {
+    /** Save anyway after the duplicate warning was shown (never block — warn). By the time this
+     * warning is showing, the data-loss gate below has already run clean for the current form (it
+     * runs first), so it's safe to accept both at once here. */
+    fun onDuplicateOverrideClicked() = attemptSave(forceSave = true, acceptDataLoss = true)
+
+    /** Save anyway after the pending data-loss warning was shown (audit C9/`docs/17` WP1 — never
+     * block, warn). This gate runs before the duplicate check, so accepting it re-runs the save
+     * from the top with `forceSave = false` — a duplicate that only becomes apparent on this
+     * re-run still gets its own warning rather than being silently bypassed. */
+    fun onDataLossOverrideClicked() = attemptSave(forceSave = false, acceptDataLoss = true)
+
+    /** "Finalitza la plantilla" choice on the [DataLossWarning.RECURRING_STOP] banner (audit F12,
+     * `docs/17` WP3): the template is marked [TemplateStatus.ENDED] atomically with this save. */
+    fun onRecurrenceStopEndClicked() = attemptSave(forceSave = false, acceptDataLoss = true, endTemplate = true)
+
+    /** "Només desvincula aquest moviment" choice on the same banner: the old behavior -- this
+     * movement is detached (`templateId = null` on save, already computed from `form.isRecurring`
+     * being false) while the template itself keeps running untouched. */
+    fun onRecurrenceStopUnlinkClicked() = attemptSave(forceSave = false, acceptDataLoss = true, endTemplate = false)
+
+    private fun attemptSave(forceSave: Boolean, acceptDataLoss: Boolean, endTemplate: Boolean = false) {
         val form = _state.value.form ?: return
 
         // Settlement save path (income + liquidació toggle)
@@ -464,19 +500,19 @@ class MovementsViewModel(
             val date = parseDate(form.date)
             val activeAccountIds = _state.value.accounts.map { it.id }.toSet()
             val activePersonIds = _state.value.people.map { it.id }.toSet()
-            val errorRes = when {
-                amount == null -> R.string.movement_validation_amount_required
-                amount <= 0L -> R.string.movement_validation_amount_positive
-                form.date.isBlank() -> R.string.movement_validation_date_required
-                date == null -> R.string.movement_validation_date_invalid
+            val (errorRes, errorField) = when {
+                amount == null -> R.string.movement_validation_amount_required to MovementFormField.AMOUNT
+                amount <= 0L -> R.string.movement_validation_amount_positive to MovementFormField.AMOUNT
+                form.date.isBlank() -> R.string.movement_validation_date_required to MovementFormField.DATE
+                date == null -> R.string.movement_validation_date_invalid to MovementFormField.DATE
                 form.accountId == null || form.accountId !in activeAccountIds ->
-                    R.string.movement_validation_account_required
+                    R.string.movement_validation_account_required to MovementFormField.ACCOUNT
                 form.settlementPersonId == null || form.settlementPersonId !in activePersonIds ->
-                    R.string.settlement_validation_person_required
-                else -> null
+                    R.string.settlement_validation_person_required to MovementFormField.PERSON
+                else -> null to null
             }
             if (errorRes != null) {
-                _state.value = _state.value.copy(form = form.copy(errorRes = errorRes))
+                _state.value = _state.value.copy(form = form.copy(errorRes = errorRes, errorField = errorField))
                 return
             }
             val now = Instant.now().toString()
@@ -514,19 +550,37 @@ class MovementsViewModel(
             val amount = parseEuroCents(form.amount, allowNegative = false)
             val date = parseDate(form.date)
             val activePersonIds = _state.value.people.map { it.id }.toSet()
-            val errorRes = when {
-                amount == null -> R.string.movement_validation_amount_required
-                amount <= 0L -> R.string.movement_validation_amount_positive
-                form.date.isBlank() -> R.string.movement_validation_date_required
-                date == null -> R.string.movement_validation_date_invalid
+            val (errorRes, errorField) = when {
+                amount == null -> R.string.movement_validation_amount_required to MovementFormField.AMOUNT
+                amount <= 0L -> R.string.movement_validation_amount_positive to MovementFormField.AMOUNT
+                form.date.isBlank() -> R.string.movement_validation_date_required to MovementFormField.DATE
+                date == null -> R.string.movement_validation_date_invalid to MovementFormField.DATE
                 form.forOtherPersonId == null || form.forOtherPersonId !in activePersonIds ->
-                    R.string.settlement_validation_person_required
-                else -> null
+                    R.string.settlement_validation_person_required to MovementFormField.PERSON
+                else -> null to null
             }
             if (errorRes != null) {
-                _state.value = _state.value.copy(form = form.copy(errorRes = errorRes))
+                _state.value = _state.value.copy(form = form.copy(errorRes = errorRes, errorField = errorField))
                 return
             }
+
+            // Crossing the movement/external-split boundary (audit C8/C9): the existing direct
+            // movement is archived and a bare external split created in its place, which drops the
+            // payee/notes/recurrence link -- splits carry none of those fields. Warn before doing
+            // it (never block). Editing an already-external split (externalSplitId != null) or
+            // creating a brand-new one doesn't cross the boundary, so it isn't gated.
+            if (!acceptDataLoss && form.movementId != null) {
+                _state.value = _state.value.copy(
+                    form = form.copy(
+                        pendingDataLossWarning = DataLossWarning.PAYER_SWITCH,
+                        errorRes = null,
+                        errorField = null,
+                        errorMessage = null,
+                    ),
+                )
+                return
+            }
+
             val now = Instant.now().toString()
             val draft = ExternalSplitDraft(
                 id = UUID.randomUUID().toString(),
@@ -596,33 +650,85 @@ class MovementsViewModel(
         val trip = form.tripId?.let { tripId ->
             _state.value.trips.firstOrNull { it.id == tripId }
         }
-        val splitDraft = form.splitEditor?.toMovementSplitDraft(amount)
+        // Only EXPENSE+SHARED/FOR_OTHER can carry a split. `form.splitEditor`/`expenseKind` may
+        // still hold a prior kind's selection (retained, not nulled, per audit C9/`docs/17` WP1),
+        // so validation and the draft below must gate on the *effective* (final) kind rather than
+        // the raw field, or a stale split from a since-abandoned kind would wrongly block/write.
+        val isForOther = form.type == MovementType.EXPENSE && form.expenseKind == ExpenseKind.FOR_OTHER
+        val isShared = form.type == MovementType.EXPENSE && form.expenseKind == ExpenseKind.SHARED
+        val effectiveSplitEditor = form.splitEditor.takeIf { isShared }
+        val splitDraft = effectiveSplitEditor?.toMovementSplitDraft(amount)
+        // Whether the *kind* can carry a split at all -- true for SHARED even when splitEditor is
+        // currently null (that null means "unchanged," not "none": KeepExisting below leaves the
+        // stored split as-is). Only false here means the save would actually drop it.
+        val finalKindCarriesSplit = isForOther || isShared
 
-        val errorRes = when {
-            amount == null -> R.string.movement_validation_amount_required
-            amount <= 0L -> R.string.movement_validation_amount_positive
-            form.date.isBlank() -> R.string.movement_validation_date_required
-            date == null -> R.string.movement_validation_date_invalid
+        val (errorRes, errorField) = when {
+            amount == null -> R.string.movement_validation_amount_required to MovementFormField.AMOUNT
+            amount <= 0L -> R.string.movement_validation_amount_positive to MovementFormField.AMOUNT
+            form.date.isBlank() -> R.string.movement_validation_date_required to MovementFormField.DATE
+            date == null -> R.string.movement_validation_date_invalid to MovementFormField.DATE
             form.accountId == null || form.accountId !in activeAccountIds ->
-                R.string.movement_validation_account_required
+                R.string.movement_validation_account_required to MovementFormField.ACCOUNT
             form.type == MovementType.TRANSFER &&
                 (form.destinationAccountId == null || form.destinationAccountId !in activeAccountIds) ->
-                R.string.movement_validation_destination_required
+                R.string.movement_validation_destination_required to MovementFormField.DESTINATION_ACCOUNT
             form.type == MovementType.TRANSFER && form.accountId == form.destinationAccountId ->
-                R.string.movement_validation_transfer_same_account
-            category != null && !category.supports(form.type) -> R.string.movement_validation_category_invalid
+                R.string.movement_validation_transfer_same_account to MovementFormField.DESTINATION_ACCOUNT
+            category != null && !category.supports(form.type) ->
+                R.string.movement_validation_category_invalid to MovementFormField.CATEGORY
             form.tagId != null && (form.tripId == null || tag == null || !tag.supportsTrip(trip)) ->
-                R.string.tag_validation_trip_required
-            form.expenseKind == ExpenseKind.FOR_OTHER &&
-                (form.forOtherPersonId == null || form.forOtherPersonId !in activePersonIds) ->
-                R.string.settlement_validation_person_required
-            form.splitEditor != null && splitDraft == null ->
-                form.splitEditor.calculation(amount).errorRes ?: R.string.split_validation_reconcile
-            else -> null
+                R.string.tag_validation_trip_required to MovementFormField.TAG
+            isForOther && (form.forOtherPersonId == null || form.forOtherPersonId !in activePersonIds) ->
+                R.string.settlement_validation_person_required to MovementFormField.PERSON
+            effectiveSplitEditor != null && splitDraft == null ->
+                (effectiveSplitEditor.calculation(amount).errorRes ?: R.string.split_validation_reconcile) to
+                    MovementFormField.SPLIT
+            else -> null to null
         }
 
         if (errorRes != null) {
-            _state.value = _state.value.copy(form = form.copy(errorRes = errorRes))
+            _state.value = _state.value.copy(form = form.copy(errorRes = errorRes, errorField = errorField))
+            return
+        }
+
+        // Data-loss gate (audit C9/`docs/17` WP1): an existing stored split that the final kind
+        // can't carry (explicit un-share, or a type/kind switch away from SHARED/FOR_OTHER) would
+        // otherwise be silently dropped by the `MovementSplitWrite.Remove` branch below. Warn once,
+        // save only after the user accepts (never block).
+        // Known limitation (`docs/17` WP3): `pendingDataLossWarning` holds a single value, so if a
+        // save would *both* drop a split and stop a linked recurrence in the same edit, only this
+        // warning surfaces first; accepting it (`acceptDataLoss = true`) also skips the
+        // `isRecurrenceStop` gate below on the same re-run and defaults to "unlink" (the template
+        // is left ACTIVE, never ended) without asking. Not data loss and not a hard block, just an
+        // unannounced default in this rare compound case -- documented in `docs/13` §15.
+        val willRemoveExistingSplit = !form.isNew && form.existingSplit && !finalKindCarriesSplit
+        if (!acceptDataLoss && willRemoveExistingSplit) {
+            _state.value = _state.value.copy(
+                form = form.copy(
+                    pendingDataLossWarning = DataLossWarning.SPLIT_REMOVED,
+                    errorRes = null,
+                    errorMessage = null,
+                ),
+            )
+            return
+        }
+
+        // Recurring toggle-off (audit F12/`docs/17` WP3): turning recurrence off on a movement
+        // that's still linked to a template is ambiguous -- does the whole series stop, or does
+        // only this occurrence detach? Warn once (never block) and let the two accept paths above
+        // decide: [onRecurrenceStopEndClicked] also ends the template below; [onRecurrenceStopUnlinkClicked]
+        // just proceeds (the draft's `templateId` is already null below since `form.isRecurring` is false).
+        val isRecurrenceStop = !form.isRecurring && form.templateId != null
+        if (!acceptDataLoss && isRecurrenceStop) {
+            _state.value = _state.value.copy(
+                form = form.copy(
+                    pendingDataLossWarning = DataLossWarning.RECURRING_STOP,
+                    errorRes = null,
+                    errorField = null,
+                    errorMessage = null,
+                ),
+            )
             return
         }
 
@@ -659,7 +765,7 @@ class MovementsViewModel(
             notes = form.notes.nullIfBlank(),
             isOneTime = form.type == MovementType.EXPENSE && form.isOneTime,
             splitWrite = when {
-                form.expenseKind == ExpenseKind.FOR_OTHER && form.forOtherPersonId != null ->
+                isForOther && form.forOtherPersonId != null ->
                     MovementSplitWrite.Replace(
                         MovementSplitDraft(
                             entryMethod = SplitEntryMethod.EXACT,
@@ -669,17 +775,17 @@ class MovementsViewModel(
                             ),
                         ),
                     )
-                form.splitEditor != null -> MovementSplitWrite.Replace(requireNotNull(splitDraft).let { d ->
+                effectiveSplitEditor != null -> MovementSplitWrite.Replace(requireNotNull(splitDraft).let { d ->
                     // Preserve percentages if the method is PERCENTAGE
                     if (d.entryMethod == SplitEntryMethod.PERCENTAGE) {
                         d.copy(lines = d.lines.map { line ->
                             val participantId = line.personId ?: USER_PARTICIPANT_ID
-                            val rawPercent = form.splitEditor.percentages[participantId].orEmpty()
+                            val rawPercent = effectiveSplitEditor.percentages[participantId].orEmpty()
                             line.copy(owedPercent = parsePercentBasisPoints(rawPercent)?.toDouble()?.div(100.0))
                         })
                     } else d
                 })
-                form.removeExistingSplit -> MovementSplitWrite.Remove
+                willRemoveExistingSplit -> MovementSplitWrite.Remove
                 else -> MovementSplitWrite.KeepExisting
             },
             templateId = recurringTemplateId,
@@ -706,6 +812,13 @@ class MovementsViewModel(
                                 now,
                                 splitForTemplate,
                             )
+                        }
+                        // "Finalitza la plantilla" choice on the recurring-stop warning (audit F12,
+                        // `docs/17` WP3): end the template in the same transaction as this
+                        // movement's own save, which detaches it (`templateId = null` below).
+                        if (endTemplate && form.templateId != null) {
+                            requireNotNull(templateRepository) { "template repository unavailable" }
+                                .setStatus(form.templateId, TemplateStatus.ENDED, updatedAt = now)
                         }
                         when {
                             form.externalSplitId != null -> {
@@ -784,7 +897,7 @@ class MovementsViewModel(
             categoryId = form.categoryId.takeIf { form.type != MovementType.TRANSFER },
             name = form.name.nullIfBlank(),
             payee = form.payee.nullIfBlank(),
-            notes = null,
+            notes = form.notes.nullIfBlank(),
             splitConfig = splitWrite.toTemplateSplitConfig(),
             frequency = form.recurringFrequency,
             intervalCount = null,
@@ -858,94 +971,48 @@ class MovementsViewModel(
         }
     }
 
+    /**
+     * Runs on every form edit. Used to be a per-type "wipe whatever the new type/kind doesn't
+     * render" pass -- that silently destroyed entered data on a type/kind switch (audit C9): a
+     * shared expense flipped to TRANSFER and back lost its split, a payer switch lost the other
+     * person, etc. Per `docs/17` WP1, the form now retains every entered value (`splitEditor`,
+     * `forOtherPersonId`, `settlementPersonId`, `payee`, `notes`, `isOneTime`, `accountId`, …) for
+     * the life of the form regardless of type/kind -- the UI already renders only the
+     * type/kind-relevant section, so retained-but-hidden state is invisible to the user.
+     * Incompatible values are stripped only at draft-build time in [attemptSave]; a stored split
+     * that the final kind can't carry goes through [MovementFormState.pendingDataLossWarning]
+     * instead of being silently dropped here. The only normalization left is read-only:
+     * category/tag compatibility against the current type, the auto-cat suggestion, and clearing
+     * transient error/warning flags so a fresh edit re-evaluates them from scratch.
+     */
     private fun normalizeForm(form: MovementFormState): MovementFormState {
-        var normalized = form
-
-        when (form.type) {
-            MovementType.TRANSFER -> {
-                normalized = normalized.copy(
-                    categoryId = null,
-                    isOneTime = false,
-                    splitEditor = null,
-                    removeExistingSplit = form.existingSplit || form.removeExistingSplit,
-                    isSettlement = false,
-                    settlementPersonId = null,
-                    expenseKind = null,
-                    forOtherPersonId = null,
-                )
-            }
-            MovementType.INCOME -> {
-                normalized = normalized.copy(
-                    isOneTime = false,
-                    splitEditor = null,
-                    removeExistingSplit = form.existingSplit || form.removeExistingSplit,
-                    expenseKind = null,
-                    forOtherPersonId = null,
-                )
-            }
-            MovementType.EXPENSE -> {
-                normalized = normalized.copy(
-                    isSettlement = false,
-                    settlementPersonId = null,
-                )
-                when (form.expenseKind) {
-                    ExpenseKind.DEBT -> {
-                        // Someone else paid — no account, no split editor.
-                        normalized = normalized.copy(
-                            accountId = null,
-                            destinationAccountId = null,
-                            isOneTime = false,
-                            splitEditor = null,
-                            removeExistingSplit = form.existingSplit || form.removeExistingSplit,
-                        )
-                    }
-                    ExpenseKind.FOR_OTHER -> {
-                        // I paid, one person owes the full amount — no split editor.
-                        normalized = normalized.copy(
-                            splitEditor = null,
-                            removeExistingSplit = false,
-                        )
-                    }
-                    ExpenseKind.SHARED -> {
-                        normalized = normalized.copy(forOtherPersonId = null)
-                    }
-                    ExpenseKind.PERSONAL, null -> {
-                        normalized = normalized.copy(
-                            splitEditor = null,
-                            forOtherPersonId = null,
-                        )
-                    }
-                }
-            }
-            else -> {}
-        }
-
-        // Category compatibility against the effective type.
-        val effectiveType = if (normalized.type == MovementType.EXPENSE && normalized.expenseKind == ExpenseKind.DEBT) {
+        val effectiveType = if (form.type == MovementType.EXPENSE && form.expenseKind == ExpenseKind.DEBT) {
             MovementType.EXTERNAL_EXPENSE
         } else {
-            normalized.type
+            form.type
         }
-        val category = normalized.categoryId?.let { catId ->
+        val category = form.categoryId?.let { catId ->
             _state.value.categories.firstOrNull { it.id == catId }
         }
-        val tag = normalized.tagId?.let { tId ->
+        val tag = form.tagId?.let { tId ->
             _state.value.tags.firstOrNull { it.id == tId }
         }
-        val trip = normalized.tripId?.let { tripId ->
+        val trip = form.tripId?.let { tripId ->
             _state.value.trips.firstOrNull { it.id == tripId }
         }
 
-        val finalCategoryId = if (category != null && !category.supports(effectiveType)) null else normalized.categoryId
-        val finalTagId = if (normalized.tripId == null || tag == null || !tag.supportsTrip(trip)) null else normalized.tagId
+        val finalCategoryId = if (category != null && !category.supports(effectiveType)) null else form.categoryId
+        val finalTagId = if (form.tripId == null || tag == null || !tag.supportsTrip(trip)) null else form.tagId
 
-        return normalized.copy(
+        return form.copy(
             categoryId = finalCategoryId,
             tagId = finalTagId,
-            suggestedCategoryId = suggestCategoryId(normalized),
+            suggestedCategoryId = suggestCategoryId(form),
             errorRes = null,
+            errorField = null,
             errorMessage = null,
             duplicateWarning = false,
+            pendingDataLossWarning = null,
         )
     }
 
@@ -1047,7 +1114,8 @@ data class MovementsUiState(
     val visibleMovements: List<MovementSummary>
         get() = movements.filter { filters.matches(it) }
 
-    /** True while any of this ViewModel's own dialogs (rendered by `MovementDialogHost`) is open --
+    /** True while any of this ViewModel's own pages/dialogs (`AppOverlay.MovementForm`/
+     * `MovementDetail`, or the local archive/refund state nested inside the latter) is open --
      * used to keep other app-level auto-triggered overlays (e.g. the due-reminders sheet) from
      * appearing on top of one of these. */
     val hasOpenDialog: Boolean get() =
@@ -1107,6 +1175,37 @@ enum class ExpenseKind {
     DEBT,       // type 4: Una altra persona paid, I owe them
 }
 
+/** Identifies which field a movement-form validation error belongs to (audit U8, `docs/17` WP2) --
+ * paired with [MovementFormState.errorRes] so the form can highlight the offending control and
+ * scroll it into view instead of only showing a message the user may have scrolled past. Kept as
+ * a single field (not a list): the validation chain in `attemptSave` already stops at the first
+ * failing condition. */
+enum class MovementFormField {
+    AMOUNT,
+    DATE,
+    ACCOUNT,
+    DESTINATION_ACCOUNT,
+    CATEGORY,
+    TAG,
+    PERSON,
+    SPLIT,
+}
+
+/** The two destructive-save shapes [MovementsViewModel.attemptSave] warns about before writing
+ * (audit C9/`docs/17` WP1) -- never a hard block, always a dismissible "save anyway." */
+enum class DataLossWarning {
+    /** An existing stored split will be removed because the final kind can't carry one. */
+    SPLIT_REMOVED,
+    /** An existing direct movement/external split will be archived and recreated on the other
+     * side of the movement/external-split boundary (the C8 payer-switch path), dropping payee,
+     * notes, and any recurrence link -- `splits` rows carry none of those fields. */
+    PAYER_SWITCH,
+    /** Recurrence was toggled off on a movement still linked to a template (audit F12,
+     * `docs/17` WP3): ambiguous whether the whole series should stop or just this occurrence
+     * should detach -- offers both choices instead of silently doing either. */
+    RECURRING_STOP,
+}
+
 data class MovementFormState(
     /** Set when editing an existing direct movement ([com.gestorfinances.app.data.repository.MovementType]
      * other than EXTERNAL_EXPENSE) -- `movements.id`. Mutually exclusive with [externalSplitId]:
@@ -1131,10 +1230,19 @@ data class MovementFormState(
     val notes: String = "",
     val isOneTime: Boolean = false,
     val existingSplit: Boolean = false,
+    /** UI toggle-state only (drives the sharing-switch's checked state) — save-path removal is
+     * computed independently in `attemptSave` via `finalKindCarriesSplit`. */
     val removeExistingSplit: Boolean = false,
     val splitEditor: SplitEditorState? = null,
     val duplicateWarning: Boolean = false,
+    /** Set by [MovementsViewModel]'s pre-save gate (audit C9/`docs/17` WP1) when the save-in-
+     * progress would remove a stored split or cross the movement/external-split boundary --
+     * mirrors [duplicateWarning]'s dismissible "save anyway" mechanism, never a hard block. */
+    val pendingDataLossWarning: DataLossWarning? = null,
     val errorRes: Int? = null,
+    /** Which control [errorRes] refers to (audit U8, `docs/17` WP2) -- null for a save-time
+     * failure that isn't attributable to a single field. */
+    val errorField: MovementFormField? = null,
     val errorMessage: String? = null,
     val isSettlement: Boolean = false,
     val settlementPersonId: String? = null,
@@ -1143,6 +1251,9 @@ data class MovementFormState(
     val isRecurring: Boolean = false,
     val recurringFrequency: RecurrenceFrequency = RecurrenceFrequency.MONTHLY,
     val templateId: String? = null,
+    /** The linked template's status when [templateId] is set (audit F12, `docs/17` WP3) -- loaded
+     * on edit so the form can reflect the template's real state; null for a new/unlinked movement. */
+    val templateStatus: TemplateStatus? = null,
     val showAdvanced: Boolean = false,
     /** Read-only auto-categorization hint (audit F1); never applied without the user tapping it. */
     val suggestedCategoryId: String? = null,
@@ -1150,6 +1261,14 @@ data class MovementFormState(
     /** True for a fresh "add" flow with no backing entity yet, as opposed to editing an existing
      * movement or external split. */
     val isNew: Boolean get() = movementId == null && externalSplitId == null
+}
+
+/** Identifies which field a refund-form validation error belongs to (audit U8, `docs/17` WP2). */
+enum class RefundFormField {
+    AMOUNT,
+    ACTUAL_AMOUNT,
+    ACCOUNT,
+    DATE,
 }
 
 data class RefundFormState(
@@ -1164,6 +1283,7 @@ data class RefundFormState(
     val date: String = "",
     val notes: String = "",
     val errorRes: Int? = null,
+    val errorField: RefundFormField? = null,
     val errorMessage: String? = null,
 )
 
@@ -1251,8 +1371,12 @@ private fun MovementFilters.matches(movement: MovementSummary): Boolean {
     return true
 }
 
-private fun MovementSummary.toFormState(splitDraft: MovementSplitDraft? = null): MovementFormState {
+private fun MovementSummary.toFormState(
+    splitDraft: MovementSplitDraft? = null,
+    template: TemplateSummary? = null,
+): MovementFormState {
     // DEBT (type 4): stored as EXTERNAL_EXPENSE — map back to EXPENSE + expenseKind=DEBT.
+    // DEBT carries no recurrence support (external splits have no template link).
     if (type == MovementType.EXTERNAL_EXPENSE) {
         return MovementFormState(
             externalSplitId = id,
@@ -1291,7 +1415,11 @@ private fun MovementSummary.toFormState(splitDraft: MovementSplitDraft? = null):
             existingSplit = true,
             expenseKind = ExpenseKind.FOR_OTHER,
             forOtherPersonId = personLines.first().personId,
-            showAdvanced = isOneTime || !payee.isNullOrEmpty() || !notes.isNullOrEmpty(),
+            isRecurring = isRecurring,
+            templateId = templateId,
+            recurringFrequency = template?.frequency ?: RecurrenceFrequency.MONTHLY,
+            templateStatus = template?.status,
+            showAdvanced = isOneTime || isRecurring || !payee.isNullOrEmpty() || !notes.isNullOrEmpty(),
         )
     }
 
@@ -1345,6 +1473,8 @@ private fun MovementSummary.toFormState(splitDraft: MovementSplitDraft? = null):
         splitEditor = splitEditor,
         isRecurring = isRecurring,
         templateId = templateId,
+        recurringFrequency = template?.frequency ?: RecurrenceFrequency.MONTHLY,
+        templateStatus = template?.status,
         expenseKind = expenseKind,
         showAdvanced = isOneTime || isRecurring || isShared || !payee.isNullOrEmpty() || !notes.isNullOrEmpty(),
     )
@@ -1369,27 +1499,6 @@ private fun parseDateOrNull(raw: String): LocalDate? =
 
 private fun String.nullIfBlank(): String? =
     trim().takeIf { it.isNotEmpty() }
-
-/**
- * Carries a quick-created recurring template's split forward (§4.4): recurring templates can only
- * be created from [ExpenseKind.PERSONAL]/[ExpenseKind.SHARED]/[ExpenseKind.FOR_OTHER] (DEBT has no
- * template support), so the user is always the payer. Returns null when the movement itself has no
- * split (plain personal expense/income/transfer) — `RecurringViewModel.toSplitWrite` already treats
- * a null `split_config` as "no split to carry forward."
- */
-private fun MovementSplitWrite.toTemplateSplitConfig(): TemplateSplitConfig? {
-    val draft = (this as? MovementSplitWrite.Replace)?.draft ?: return null
-    return TemplateSplitConfig(
-        entryMethod = draft.entryMethod.dbValue,
-        payer = "user",
-        lines = draft.lines.map { line ->
-            TemplateSplitConfigLine(
-                party = line.personId ?: "user",
-                owedAmountCents = line.owedAmountCents,
-            )
-        },
-    )
-}
 
 private val actualMovementTypes = setOf(
     MovementType.EXPENSE,

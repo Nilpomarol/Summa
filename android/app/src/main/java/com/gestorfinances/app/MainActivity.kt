@@ -50,7 +50,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStoreOwner
 import com.gestorfinances.app.data.repository.DatabaseMeta
+import com.gestorfinances.app.data.repository.MovementSummary
 import com.gestorfinances.app.data.repository.PersonSummary
+import com.gestorfinances.app.data.sync.DeviceAccessState
 import com.gestorfinances.app.di.AppContainer
 import com.gestorfinances.app.ui.accounts.AccountsScreen
 import com.gestorfinances.app.ui.accounts.AccountsViewModel
@@ -60,12 +62,15 @@ import com.gestorfinances.app.ui.budgets.BudgetsScreen
 import com.gestorfinances.app.ui.budgets.BudgetsViewModel
 import com.gestorfinances.app.ui.categories.CategoriesScreen
 import com.gestorfinances.app.ui.categories.CategoriesViewModel
+import com.gestorfinances.app.ui.common.BannerKind
+import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.dashboard.DashboardScreen
 import com.gestorfinances.app.ui.dashboard.DashboardViewModel
 import com.gestorfinances.app.ui.management.ManagementDestination
 import com.gestorfinances.app.ui.management.ManagementScreen
+import com.gestorfinances.app.ui.movements.MovementDetailScreen
 import com.gestorfinances.app.ui.movements.MovementFilters
-import com.gestorfinances.app.ui.movements.MovementDialogHost
+import com.gestorfinances.app.ui.movements.MovementFormScreen
 import com.gestorfinances.app.ui.movements.MovementsScreen
 import com.gestorfinances.app.ui.movements.MovementsViewModel
 import com.gestorfinances.app.ui.navigation.AppNavState
@@ -233,6 +238,10 @@ private fun LedgerShell(
         return
     }
 
+    // No-op today (AppContainer always reports Writer) — a seam for Phase 7's real sync/token
+    // protocol so the shell doesn't need shape changes once it lands (docs/09 §8).
+    val deviceAccessState by appContainer.deviceAccessState.collectAsState()
+
     var nav by remember { mutableStateOf(AppNavState.Home) }
     val onboardingViewModel = remember(viewModelStoreOwner) {
         ViewModelProvider(
@@ -323,6 +332,8 @@ private fun LedgerShell(
                 accountRepository = appContainer.accountRepository,
                 categoryRepository = appContainer.categoryRepository,
                 movementRepository = appContainer.movementRepository,
+                splitRepository = appContainer.splitRepository,
+                personRepository = appContainer.personRepository,
                 notificationRefresher = appContainer.notificationCoordinator,
             ),
         )[RecurringViewModel::class.java]
@@ -438,6 +449,7 @@ private fun LedgerShell(
         val hasAccount = movementsState.accounts.isNotEmpty() || accountsState.accounts.isNotEmpty()
         if (hasAccount) {
             movementsViewModel.onAddClicked(tripId)
+            nav = nav.copy(overlay = AppOverlay.MovementForm(tripId = tripId))
         } else {
             showManagement(ManagementDestination.ACCOUNTS)
             accountsViewModel.onAddClicked()
@@ -456,8 +468,7 @@ private fun LedgerShell(
                 onNotificationDestinationConsumed()
             }
             DESTINATION_BUDGETS -> {
-                nav = AppNavState.topLevel(TopLevelSection.ANALYSIS)
-                    .copy(overlay = AppOverlay.Budgets(tripId = null))
+                showManagement(ManagementDestination.BUDGETS)
                 onNotificationDestinationConsumed()
             }
             DESTINATION_ACCOUNTS -> {
@@ -483,19 +494,36 @@ private fun LedgerShell(
     val openDebtSource: (String) -> Unit = { sourceId ->
         peopleViewModel.onPersonDetailDismissed()
         movementsViewModel.onDetailSourceClicked(sourceId)
-        showTopLevel(TopLevelSection.MOVEMENTS)
+        nav = AppNavState.topLevel(TopLevelSection.MOVEMENTS)
+            .copy(overlay = AppOverlay.MovementDetail(movementId = sourceId))
+    }
+
+    val openMovementDetail: (MovementSummary) -> Unit = { movement ->
+        movementsViewModel.onDetailClicked(movement)
+        nav = nav.copy(overlay = AppOverlay.MovementDetail(movementId = movement.id))
     }
 
     val openExternalExpenseForm: (PersonSummary) -> Unit = { person ->
         peopleViewModel.onPersonDetailDismissed()
         movementsViewModel.onAddClicked(tripId = null, debtPayerPersonId = person.id)
-        // MovementDialogHost (rendered globally below, regardless of nav.section) shows the form —
-        // stay on the current tab instead of switching to Moviments.
+        // Stay on the current tab instead of switching to Moviments — the form now renders as its
+        // own overlay page (AppOverlay.MovementForm) regardless of which section is selected.
+        nav = nav.copy(overlay = AppOverlay.MovementForm(debtPayerPersonId = person.id))
     }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
+        topBar = {
+            val access = deviceAccessState
+            if (access is DeviceAccessState.ReadOnly) {
+                InlineBanner(
+                    kind = BannerKind.Alert,
+                    text = stringResource(R.string.sync_read_only_banner, access.holderDeviceName),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
+        },
         bottomBar = {
             FinanceBottomBar(
                 selectedSection = nav.section,
@@ -544,7 +572,76 @@ private fun LedgerShell(
                     onManageBudget = { tripId ->
                         nav = nav.copy(overlay = AppOverlay.Budgets(tripId = tripId, returnTo = overlay))
                     },
-                    onMovementDetail = movementsViewModel::onDetailClicked,
+                    onMovementDetail = openMovementDetail,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                )
+                return@Scaffold
+            }
+            is AppOverlay.MovementForm -> {
+                // Unlike TripDetail (whose LaunchedEffect triggers the load), the ViewModel call
+                // that seeds `movementsState.form` already ran at the trigger site (openMovementForm
+                // / openExternalExpenseForm) before this overlay was set — this branch just renders
+                // whatever's there. `hasShownForm` distinguishes "not loaded yet" (form still null on
+                // the very first frame) from "was open, now saved/dismissed" so only the latter pops
+                // the overlay automatically.
+                var hasShownForm by remember(overlay) { mutableStateOf(false) }
+                LaunchedEffect(movementsState.form) {
+                    if (movementsState.form != null) {
+                        hasShownForm = true
+                    } else if (hasShownForm) {
+                        nav = nav.back()
+                    }
+                }
+                movementsState.form?.let { form ->
+                    MovementFormScreen(
+                        form = form,
+                        accounts = movementsState.accounts,
+                        categories = movementsState.categories,
+                        people = movementsState.people,
+                        trips = movementsState.trips,
+                        tags = movementsState.tags,
+                        onFormChange = movementsViewModel::onFormChanged,
+                        onTripSelected = movementsViewModel::onTripSelected,
+                        onTagSelected = movementsViewModel::onTagSelected,
+                        onSharedToggled = movementsViewModel::onSharedToggled,
+                        onSplitEditorChange = movementsViewModel::onSplitEditorChanged,
+                        onSettlementToggled = movementsViewModel::onSettlementToggled,
+                        onSettlementPersonSelected = movementsViewModel::onSettlementPersonSelected,
+                        onOtherPersonSelected = movementsViewModel::onOtherPersonSelected,
+                        onRecurringToggled = movementsViewModel::onRecurringToggled,
+                        onRecurringFrequencyChanged = movementsViewModel::onRecurringFrequencyChanged,
+                        onAdvancedToggled = movementsViewModel::onAdvancedToggled,
+                        onCreatePersonInSplit = movementsViewModel::onCreatePersonInSplit,
+                        onBack = {
+                            movementsViewModel.onFormDismissed()
+                            nav = nav.back()
+                        },
+                        onSave = movementsViewModel::onSaveClicked,
+                        onOverride = movementsViewModel::onDuplicateOverrideClicked,
+                        onDataLossOverride = movementsViewModel::onDataLossOverrideClicked,
+                        onRecurrenceStopEnd = movementsViewModel::onRecurrenceStopEndClicked,
+                        onRecurrenceStopUnlink = movementsViewModel::onRecurrenceStopUnlinkClicked,
+                        onWarningDismissed = movementsViewModel::onWarningDismissed,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(innerPadding),
+                    )
+                }
+                return@Scaffold
+            }
+            is AppOverlay.MovementDetail -> {
+                MovementDetailScreen(
+                    viewModel = movementsViewModel,
+                    onBack = {
+                        movementsViewModel.onDetailDismissed()
+                        nav = nav.back()
+                    },
+                    onEdit = { movement ->
+                        movementsViewModel.onEditClicked(movement)
+                        nav = nav.copy(overlay = AppOverlay.MovementForm())
+                    },
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),
@@ -560,7 +657,7 @@ private fun LedgerShell(
                 onViewAnalysis = { showTopLevel(TopLevelSection.ANALYSIS) },
                 onSettings = { showManagement(ManagementDestination.SETTINGS) },
                 onDrillDown = openMovements,
-                onMovementDetail = movementsViewModel::onDetailClicked,
+                onMovementDetail = openMovementDetail,
                 onViewTrip = { trip -> nav = nav.copy(overlay = AppOverlay.TripDetail(tripId = trip.id)) },
                 onAddTripMovement = { trip -> openMovementForm(trip.id) },
                 modifier = Modifier
@@ -572,7 +669,8 @@ private fun LedgerShell(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
-                showDialogs = false,
+                onAdd = { openMovementForm() },
+                onDetail = openMovementDetail,
             )
             TopLevelSection.ANALYSIS -> AnalysisScreen(
                 viewModel = analysisViewModel,
@@ -602,6 +700,10 @@ private fun LedgerShell(
                     onViewAnalysis = { categoryId, categoryName ->
                         analysisViewModel.setCategoryFilter(categoryId, categoryName)
                         showTopLevel(TopLevelSection.ANALYSIS)
+                    },
+                    onDefineBudget = { categoryId ->
+                        budgetsViewModel.onAddClicked(categoryId)
+                        showManagement(ManagementDestination.BUDGETS)
                     },
                     modifier = Modifier
                         .fillMaxSize()
@@ -634,6 +736,14 @@ private fun LedgerShell(
                         .fillMaxSize()
                         .padding(innerPadding),
                 )
+                ManagementDestination.BUDGETS -> BudgetsScreen(
+                    viewModel = budgetsViewModel,
+                    onBack = { nav = nav.back() },
+                    contextTripId = null,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                )
                 ManagementDestination.SETTINGS -> SettingsScreen(
                     viewModel = settingsViewModel,
                     notificationPermissionGranted = notificationPermissionGranted,
@@ -648,7 +758,6 @@ private fun LedgerShell(
             }
         }
     }
-    MovementDialogHost(viewModel = movementsViewModel)
     RecurringOverlays(viewModel = recurringViewModel)
 
     // Surfaces due recurring items proactively instead of requiring a manual visit to

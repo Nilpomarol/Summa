@@ -54,14 +54,10 @@ GROUP BY template_id;
 
 movementsForCategory:
 SELECT
-    movements.account_id,
-    movements.date,
-    movements.id AS movement_id,
-    CASE movements.type
-        WHEN 'income' THEN movements.amount_cents
-        WHEN 'refund' THEN movements.amount_cents
-        ELSE -movements.amount_cents
-    END AS delta_cents,
+    v_account_flow.account_id,
+    v_account_flow.date,
+    v_account_flow.movement_id,
+    v_account_flow.delta_cents,
     movements.type,
     movements.name,
     movements.payee,
@@ -72,12 +68,16 @@ SELECT
     origin_accounts.name AS origin_account_name,
     movements.dest_account_id AS destination_account_id,
     destination_accounts.name AS destination_account_name
-FROM movements
-JOIN accounts AS origin_accounts ON origin_accounts.id = movements.account_id
-LEFT JOIN accounts AS destination_accounts ON destination_accounts.id = movements.dest_account_id
-LEFT JOIN categories ON categories.id = movements.category_id
+FROM v_account_flow
+JOIN movements
+    ON movements.id = v_account_flow.movement_id
+JOIN accounts AS origin_accounts
+    ON origin_accounts.id = movements.account_id
+LEFT JOIN accounts AS destination_accounts
+    ON destination_accounts.id = movements.dest_account_id
+LEFT JOIN categories
+    ON categories.id = movements.category_id
 WHERE movements.category_id = :category_id
-  AND movements.archived_at IS NULL
 ORDER BY movements.date DESC, movements.created_at DESC;
 
 insertMovement:

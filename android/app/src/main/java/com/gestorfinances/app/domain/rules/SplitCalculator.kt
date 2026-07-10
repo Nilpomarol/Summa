@@ -43,6 +43,35 @@ object SplitCalculator {
         return SplitCalculation(valid = true, sharesCents = shares)
     }
 
+    /**
+     * Rescales [weightsCents] (e.g. a template's stored `split_config` line amounts) proportionally
+     * to [totalCents] when the two no longer match — a recurring occurrence's confirmed amount can
+     * differ from the split's own stored sum (variable-amount templates, an amount edited after
+     * detection, or a NEW-detected candidate whose split came from a single source movement while
+     * its amount is a group median). Floors each share, then adds the leftover to the payer's line,
+     * same convention as [percentage]. Identity when the weights already sum to [totalCents].
+     */
+    fun rescale(
+        weightsCents: List<Long>,
+        totalCents: Long,
+        payerIndex: Int,
+    ): SplitCalculation {
+        val validationError = validateCommon(totalCents, weightsCents.size, payerIndex)
+        if (validationError != null) return validationError
+        if (weightsCents.any { it < 0 }) {
+            return SplitCalculation(valid = false, reason = "weights must be non-negative")
+        }
+        val weightSum = weightsCents.sum()
+        val shares = if (weightSum == 0L) {
+            MutableList(weightsCents.size) { 0L }
+        } else {
+            weightsCents.map { totalCents * it / weightSum }.toMutableList()
+        }
+        val leftover = totalCents - shares.sum()
+        shares[payerIndex] += leftover
+        return SplitCalculation(valid = true, sharesCents = shares)
+    }
+
     fun exact(
         totalCents: Long,
         amountsCents: List<Long>,

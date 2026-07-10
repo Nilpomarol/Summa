@@ -78,9 +78,11 @@ Each entry: **purpose · content blocks · primary actions · platform note.**
 **Account detail**
 - Blocks: balance + starting balance; scoped movement list; low-balance threshold indicator.
 - Actions: Edit account; New movement (prefilled account); removal strategies (delete-soft / delete-empty / delete-with-movements / reassign-then-delete).
+- Platform: mobile full-screen; desktop pane.
 
 **Add / Edit account**
 - Blocks: name; starting balance; type; icon; colour; set-as-default; low-balance threshold.
+- Platform: mobile full-screen; desktop dialog.
 
 **Recurring**
 - Blocks: **mobile** — list ordered by day + monthly total; **desktop** — month calendar grid (solid = instance exists, greyed = pending) + monthly total + month nav. **Due prompts** queue (one card per due occurrence).
@@ -88,6 +90,7 @@ Each entry: **purpose · content blocks · primary actions · platform note.**
 
 **Add / Edit template (recurring)**
 - Blocks: the movement pre-fill fields; schedule (frequency, anchor day/weekday, custom interval+unit); amount (fixed or variable) + flexibility (± amount, ± days); split config (if shared); notification lead days; active/paused.
+- Platform: mobile full-screen; desktop dialog.
 
 ### Management
 
@@ -103,9 +106,11 @@ Each entry: **purpose · content blocks · primary actions · platform note.**
 
 **Category detail**
 - Blocks: this-month + this-year totals, share of year; budget status; movement list (drill).
+- Platform: mobile full-screen; desktop pane.
 
 **Add / Edit category**
 - Blocks: name; kind (expense/income/both); nature (fixed/variable); parent (optional); icon; colour.
+- Platform: mobile full-screen; desktop dialog.
 
 **People list**
 - Blocks: person rows with net balance (owes you / you owe); totals.
@@ -114,8 +119,9 @@ Each entry: **purpose · content blocks · primary actions · platform note.**
 **Person detail**
 - Blocks: net balance; itemized breakdown (which splits / expenses-paid-by-them / settlements compose it); history.
 - Actions: **Settle up** (helper) · Export/share debt statement · Edit · Delete (warn if balance ≠ 0).
+- Platform: mobile full-screen; desktop pane.
 
-**Add / Edit person**
+**Add / Edit person** — mobile stays a compact bottom sheet (short form, no scrolling risk).
 - Blocks: name; avatar; colour; notes.
 
 **Events / Esdeveniments list** (stored as trips/events in the data model)
@@ -128,14 +134,17 @@ Each entry: **purpose · content blocks · primary actions · platform note.**
 
 **Add / Edit event**
 - Blocks: name; type (trip/celebration/other); start/end (end optional); default account; budget; notes; status.
+- Platform: mobile full-screen (layers over Event detail when opened from there); desktop dialog.
 
 **Tags management** (inside Events)
 - Blocks: tag list (global vs event-local marker), reached from event detail and event-scoped movement/tag pickers.
 - Actions: New tag; edit; delete; scope (global / event-local).
+- Add/Edit tag — mobile full-screen; desktop dialog.
 
 **Budgets**
 - Blocks: budget list with progress (limit vs actual, over/under); scope (category-monthly first).
 - Actions: New budget; edit; set alert threshold.
+- Add/Edit budget — mobile full-screen; desktop dialog.
 
 ### Editors / flows (modal or sub-screens)
 
@@ -145,9 +154,11 @@ Each entry: **purpose · content blocks · primary actions · platform note.**
 
 **Settle-up**
 - Blocks: person; direction (inferred, editable); amount (prefilled = outstanding); account; notes; over-settlement warning.
+- Platform: mobile full-screen (layers over Person detail); desktop dialog.
 
 **Refund**
 - Blocks: linked expense; amount (cash); actual-refund amount (shared-expense case); category (inherited); date; over-refund warning.
+- Platform: mobile full-screen (layers over Movement detail); desktop dialog.
 
 **CSV import wizard** (desktop only) — spec §4.6b
 - Step 1 Upload: choose file.

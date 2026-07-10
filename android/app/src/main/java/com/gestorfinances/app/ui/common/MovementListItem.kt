@@ -1,9 +1,7 @@
 package com.gestorfinances.app.ui.common
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.Handshake
@@ -23,6 +20,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
@@ -49,20 +48,17 @@ fun MovementListItem(
     val typeColor = FinanceTheme.colors.amountColor(movement.type)
     val eventLine = listOfNotNull(movement.tripName, movement.tagName).joinToString(" · ")
 
+    val borderColor = FinanceTheme.colors.cardBorder
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
+            .drawBehind {
+                drawLine(borderColor, Offset(0f, size.height), Offset(size.width, size.height), strokeWidth = 1.dp.toPx())
+            }
             .padding(vertical = 10.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        // Color rail: category color for expense/income, type hue otherwise — gives every row identity.
-        Box(
-            modifier = Modifier
-                .size(width = 4.dp, height = 40.dp)
-                .background(visual.second, RoundedCornerShape(2.dp)),
-        )
-        Spacer(modifier = Modifier.width(10.dp))
         IconChip(
             icon = visual.first,
             contentDescription = null,
@@ -146,10 +142,11 @@ fun MovementListItem(
                 val isExternal = movement.type == MovementType.EXTERNAL_EXPENSE
 
                 if (isShared || isExternal) {
-                    // Show my share as primary
+                    // Show my share as primary. External expense = real debt (red); merely-shared expense
+                    // uses the neutral "shared" hue since splitting a cost isn't a debt or a warning.
                     MoneyText(
                         cents = if (isExternal) movement.amountCents else movement.userShareCents,
-                        color = typeColor,
+                        color = if (isExternal) FinanceTheme.colors.debt else FinanceTheme.colors.shared,
                         style = MaterialTheme.typography.titleMedium,
                         signed = isExternal, // External shows minus
                     )

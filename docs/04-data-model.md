@@ -522,6 +522,39 @@ GROUP BY trip_id;
 
 `v_trip_actual_total` is a thin rollup over `v_actual_expense` used by the trip list/detail cards (`total_actual_cents`); it lives under `shared/queries/` like the other derived views so both apps join against one definition instead of pasting the same `GROUP BY trip_id` subquery per call site.
 
+### 7.7 Movement summary (list/detail display rollup)
+
+`v_movement_summary` is the single query every movement list/detail/filter surface joins against (P5R-3 `O1`, replacing four call sites that each re-derived the same display columns). It resolves account/category/trip/tag names, the linked-expense name and archived flag for a refund (§ orphan-refund banner), the "someone else paid" payer name for a shared expense, `is_shared`/`user_share_cents` for display, and — via a second `UNION ALL` branch — synthesizes an `'external_expense'` row for §2.6 external splits, which have no `movements` row of their own:
+
+```sql
+CREATE VIEW v_movement_summary AS
+SELECT m.id, m.type, m.amount_cents, m.date,
+       -- account/category/trip/tag names via LEFT JOIN
+       -- refunds_expense_name/refunds_expense_archived: self-join on refunds_expense_id
+       -- paid_by_person_name: the other participant when a shared expense's user line is 0
+       -- is_shared (v_movement_shared) and user_share_cents (the user's own split line)
+       ...
+FROM movements m
+JOIN accounts ON accounts.id = m.account_id
+LEFT JOIN categories ON categories.id = m.category_id
+LEFT JOIN trips ON trips.id = m.trip_id
+LEFT JOIN tags ON tags.id = m.tag_id
+LEFT JOIN accounts AS destination_accounts ON destination_accounts.id = m.dest_account_id
+LEFT JOIN people AS settlement_people ON settlement_people.id = m.person_id
+LEFT JOIN v_movement_shared ON v_movement_shared.movement_id = m.id
+LEFT JOIN movements AS refunded_expense ON refunded_expense.id = m.refunds_expense_id
+WHERE m.archived_at IS NULL
+UNION ALL
+-- §2.6 external split rows (no movements row): synthesizes type = 'external_expense'
+SELECT s.id, 'external_expense', sl.owed_amount_cents, s.date, ...
+FROM splits s
+JOIN split_lines sl ON sl.split_id = s.id AND sl.participant_kind = 'user' AND sl.archived_at IS NULL
+JOIN people p ON p.id = s.payer_person_id
+WHERE s.movement_id IS NULL AND s.payer_person_id IS NOT NULL AND s.archived_at IS NULL;
+```
+
+Full column list and subquery detail live in `shared/queries/v_movement_summary.sql`. Unlike the other six views above — each touched exactly once, at `P0A-3` — `v_movement_summary` has been edited multiple times since (adding `tag_id`, then the refund-linked-expense columns): any future edit must also update its embedded copy in `shared/migrations/002_add_splits_tag_id.sql` (the v1→v2 upgrader path), or an existing install can drift out of sync with a fresh install's schema — the exact bug class documented in `docs/06-roadmap.md` P5R-6's and P5R-7's post-close fixes.
+
 ---
 
 Implementation note for the shared P2 queries: actual analysis uses `:one_time_mode` (`include`, `exclude`, `only`) and nullable `:category_nature` (`fixed`, `variable`) parameters. `only` applies to extraordinary expense rows and suppresses income rows for that view. Flow analysis remains based on `v_account_flow`; the flow-over-time query returns account bucket rows plus a shared bucket total for charting.

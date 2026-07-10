@@ -64,12 +64,12 @@ import com.gestorfinances.app.ui.common.categoryIcon
 import com.gestorfinances.app.ui.common.label
 import com.gestorfinances.app.ui.common.formatBasisPoints
 import com.gestorfinances.app.ui.common.formatMonthYear
+import com.gestorfinances.app.ui.common.formatPercentLabel
 import com.gestorfinances.app.ui.movements.MovementFilters
 import com.gestorfinances.app.ui.movements.MovementSourceMode
 import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.categoryColor
 import java.time.YearMonth
-import kotlin.math.roundToInt
 
 @Composable
 fun DashboardScreen(
@@ -733,10 +733,7 @@ private fun CategoryBreakdownRow(
     val amount = if (mode == CategoryDisplayMode.EXPENSES) category.expenseCents else category.incomeCents
     val displayAmount = if (mode == CategoryDisplayMode.EXPENSES) -amount else amount
     val fraction = (amount.toFloat() / totalCents.toFloat()).coerceIn(0f, 1f)
-    val pctText = when {
-        fraction < 0.005f -> "<1%"
-        else -> "${(fraction * 100).roundToInt()}%"
-    }
+    val pctText = formatPercentLabel(fraction)
 
     Column(
         modifier = Modifier

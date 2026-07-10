@@ -1,6 +1,8 @@
 package com.gestorfinances.app.ui.trips
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,18 +25,15 @@ import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -47,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.lazy.LazyColumn
@@ -71,6 +71,7 @@ import com.gestorfinances.app.ui.common.BudgetProgressBar
 import com.gestorfinances.app.ui.common.CategoryIconPalette
 import com.gestorfinances.app.ui.common.ChipFlowSection
 import com.gestorfinances.app.ui.common.ColorPickerRow
+import com.gestorfinances.app.ui.common.doneKeyboardActions
 import com.gestorfinances.app.ui.common.DestructiveTextButton
 import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.FinanceFilterChip
@@ -82,12 +83,15 @@ import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.MovementListItem
 import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.NeutralPill
+import com.gestorfinances.app.ui.common.PageHeaderRow
 import com.gestorfinances.app.ui.common.PrimaryButton
 import com.gestorfinances.app.ui.common.SegmentedControl
 import com.gestorfinances.app.ui.common.BannerKind
 import com.gestorfinances.app.ui.common.color
 import com.gestorfinances.app.ui.common.formatEuroCents
+import com.gestorfinances.app.ui.common.formatPercentLabel
 import com.gestorfinances.app.ui.common.progressFraction
+import com.gestorfinances.app.ui.common.scrollToWhen
 import com.gestorfinances.app.ui.movements.FormDatePicker
 import com.gestorfinances.app.ui.movements.FormSelect
 import com.gestorfinances.app.ui.movements.SelectOption
@@ -97,7 +101,6 @@ import com.gestorfinances.app.ui.common.categoryIcon
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 import kotlin.math.abs
-import kotlin.math.roundToInt
 
 @Composable
 fun TripsScreen(
@@ -112,24 +115,27 @@ fun TripsScreen(
         viewModel.onScreenShown()
     }
 
-    TripsContent(
-        state = state,
-        modifier = modifier,
-        onStatusFilter = viewModel::onStatusFilterChanged,
-        onAdd = viewModel::onAddClicked,
-        onEdit = viewModel::onEditClicked,
-        onArchive = viewModel::onArchiveClicked,
-        onDetail = onOpenDetail,
-        onManageTags = onManageTags,
-    )
-
-    state.form?.let { form ->
-        TripFormDialog(
+    val form = state.form
+    if (form != null) {
+        BackHandler(onBack = viewModel::onFormDismissed)
+        TripFormScreen(
             form = form,
             accounts = state.accounts,
             onFormChange = viewModel::onFormChanged,
-            onDismiss = viewModel::onFormDismissed,
+            onBack = viewModel::onFormDismissed,
             onSave = viewModel::onSaveClicked,
+            modifier = modifier,
+        )
+    } else {
+        TripsContent(
+            state = state,
+            modifier = modifier,
+            onStatusFilter = viewModel::onStatusFilterChanged,
+            onAdd = viewModel::onAddClicked,
+            onEdit = viewModel::onEditClicked,
+            onArchive = viewModel::onArchiveClicked,
+            onDetail = onOpenDetail,
+            onManageTags = onManageTags,
         )
     }
 
@@ -296,6 +302,8 @@ private fun TripRow(
                     Text(
                         text = trip.name,
                         style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                     Text(
                         text = trip.summaryLine(),
@@ -380,38 +388,42 @@ fun TripDetailScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val detail = state.detail
+    val form = state.form
 
     Box(modifier = modifier.fillMaxSize()) {
-        if (detail == null) {
-            Text(
-                text = stringResource(R.string.trip_loading),
-                color = FinanceTheme.colors.mutedText,
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(20.dp),
-            )
-        } else {
-            TripDetailContent(
-                detail = detail,
-                onBack = onBack,
-                onEdit = { viewModel.onEditClicked(detail.trip) },
-                onArchive = { viewModel.onArchiveClicked(detail.trip) },
-                onNewMovement = { onNewMovement(detail.trip) },
-                onManageTags = { onManageTags(detail.trip.id) },
-                onManageBudget = { onManageBudget(detail.trip.id) },
-                onExcludeOneTimeToggled = viewModel::onExcludeOneTimeToggled,
-                onMovementDetail = onMovementDetail,
-            )
+        when {
+            form != null -> {
+                BackHandler(onBack = viewModel::onFormDismissed)
+                TripFormScreen(
+                    form = form,
+                    accounts = state.accounts,
+                    onFormChange = viewModel::onFormChanged,
+                    onBack = viewModel::onFormDismissed,
+                    onSave = viewModel::onSaveClicked,
+                )
+            }
+            detail == null -> {
+                Text(
+                    text = stringResource(R.string.trip_loading),
+                    color = FinanceTheme.colors.mutedText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(20.dp),
+                )
+            }
+            else -> {
+                TripDetailContent(
+                    detail = detail,
+                    onBack = onBack,
+                    onEdit = { viewModel.onEditClicked(detail.trip) },
+                    onArchive = { viewModel.onArchiveClicked(detail.trip) },
+                    onNewMovement = { onNewMovement(detail.trip) },
+                    onManageTags = { onManageTags(detail.trip.id) },
+                    onManageBudget = { onManageBudget(detail.trip.id) },
+                    onExcludeOneTimeToggled = viewModel::onExcludeOneTimeToggled,
+                    onMovementDetail = onMovementDetail,
+                )
+            }
         }
-    }
-
-    state.form?.let { form ->
-        TripFormDialog(
-            form = form,
-            accounts = state.accounts,
-            onFormChange = viewModel::onFormChanged,
-            onDismiss = viewModel::onFormDismissed,
-            onSave = viewModel::onSaveClicked,
-        )
     }
 
     state.archiveCandidate?.let {
@@ -633,6 +645,8 @@ private fun TripDetailHeader(trip: TripSummary) {
                 Text(
                     text = trip.name,
                     style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 trip.dateRange()?.let {
                     Text(
@@ -888,7 +902,7 @@ private fun TripBreakdownRow(
 ) {
     val fraction = (abs(cents).toFloat() / maxCents.toFloat()).coerceIn(0f, 1f)
     val pctFraction = (percentOfCents.toFloat() / totalCents.toFloat()).coerceIn(0f, 1f)
-    val pctText = if (pctFraction < 0.005f) "<1%" else "${(pctFraction * 100).roundToInt()}%"
+    val pctText = formatPercentLabel(pctFraction)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -972,120 +986,131 @@ private fun DetailLine(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun TripFormDialog(
+private fun TripFormScreen(
     form: TripFormState,
     accounts: List<AccountSummary>,
     onFormChange: (TripFormState) -> Unit,
-    onDismiss: () -> Unit,
+    onBack: () -> Unit,
     onSave: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface,
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp)
+            .navigationBarsPadding()
+            .imePadding()
+            .padding(bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Column(
+        PageHeaderRow(
+            onBack = onBack,
+            title = stringResource(
+                if (form.id == null) R.string.trip_form_new_title else R.string.trip_form_edit_title,
+            ),
+        )
+        form.errorMessage?.let {
+            InlineBanner(kind = BannerKind.Error, text = it)
+        }
+        val nameError = form.errorField == TripFormField.NAME
+        OutlinedTextField(
+            value = form.name,
+            onValueChange = { onFormChange(form.copy(name = it)) },
+            label = { Text(text = stringResource(R.string.trip_field_name)) },
+            singleLine = true,
+            isError = nameError,
+            supportingText = if (nameError && form.errorRes != null) {
+                { Text(text = stringResource(form.errorRes)) }
+            } else null,
+            shape = MaterialTheme.shapes.small,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = doneKeyboardActions(),
             modifier = Modifier
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-                .navigationBarsPadding()
-                .imePadding()
-                .padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .scrollToWhen(nameError),
+        )
+        SegmentedControl(
+            options = TripType.entries,
+            selected = form.type,
+            label = { it.label() },
+            onSelect = { onFormChange(form.copy(type = it)) },
+        )
+        SegmentedControl(
+            options = TripStatus.entries,
+            selected = form.status,
+            label = { it.label() },
+            onSelect = { onFormChange(form.copy(status = it)) },
+        )
+        val startDateError = form.errorField == TripFormField.START_DATE
+        val endDateError = form.errorField == TripFormField.END_DATE
+        val accountError = form.errorField == TripFormField.ACCOUNT
+        val errorText = if (form.errorRes != null) stringResource(form.errorRes) else null
+        FormDatePicker(
+            label = stringResource(R.string.trip_field_start_date),
+            date = form.startDate,
+            onDateChange = { onFormChange(form.copy(startDate = it)) },
+            modifier = Modifier.scrollToWhen(startDateError),
+            isError = startDateError,
+            supportingText = if (startDateError) errorText else null,
+        )
+        FormDatePicker(
+            label = stringResource(R.string.trip_field_end_date),
+            date = form.endDate,
+            onDateChange = { onFormChange(form.copy(endDate = it)) },
+            modifier = Modifier.scrollToWhen(endDateError),
+            isError = endDateError,
+            supportingText = if (endDateError) errorText else null,
+        )
+        FormSelect(
+            label = stringResource(R.string.trip_field_default_account),
+            options = listOf(SelectOption(id = null, label = stringResource(R.string.trip_detail_no_default_account))) +
+                accounts.map { SelectOption(id = it.id, label = it.name) },
+            selectedId = form.defaultAccountId,
+            onSelect = { onFormChange(form.copy(defaultAccountId = it)) },
+            placeholder = stringResource(R.string.trip_detail_no_default_account),
+            modifier = Modifier.scrollToWhen(accountError),
+            isError = accountError,
+            supportingText = if (accountError) errorText else null,
+        )
+        ColorPickerRow(
+            label = stringResource(R.string.trip_field_color),
+            selectedHex = form.color.ifBlank { null },
+            onSelect = { onFormChange(form.copy(color = it)) },
+        )
+        IconPickerRow(
+            label = stringResource(R.string.trip_field_icon),
+            options = CategoryIconPalette,
+            selectedKey = form.icon.ifBlank { null },
+            onSelect = { onFormChange(form.copy(icon = it)) },
+        )
+        OutlinedTextField(
+            value = form.notes,
+            onValueChange = { onFormChange(form.copy(notes = it)) },
+            label = { Text(text = stringResource(R.string.trip_field_notes)) },
+            minLines = 2,
+            shape = MaterialTheme.shapes.small,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(
-                text = stringResource(
-                    if (form.id == null) R.string.trip_form_new_title else R.string.trip_form_edit_title,
-                ),
-                style = MaterialTheme.typography.titleLarge,
-            )
-            form.errorRes?.let {
-                InlineBanner(kind = BannerKind.Error, text = stringResource(it))
-            }
-            form.errorMessage?.let {
-                InlineBanner(kind = BannerKind.Error, text = it)
-            }
-            OutlinedTextField(
-                value = form.name,
-                onValueChange = { onFormChange(form.copy(name = it)) },
-                label = { Text(text = stringResource(R.string.trip_field_name)) },
-                singleLine = true,
+            OutlinedButton(
+                onClick = onBack,
+                modifier = Modifier.weight(1f),
                 shape = MaterialTheme.shapes.small,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            SegmentedControl(
-                options = TripType.entries,
-                selected = form.type,
-                label = { it.label() },
-                onSelect = { onFormChange(form.copy(type = it)) },
-            )
-            SegmentedControl(
-                options = TripStatus.entries,
-                selected = form.status,
-                label = { it.label() },
-                onSelect = { onFormChange(form.copy(status = it)) },
-            )
-            FormDatePicker(
-                label = stringResource(R.string.trip_field_start_date),
-                date = form.startDate,
-                onDateChange = { onFormChange(form.copy(startDate = it)) },
-            )
-            FormDatePicker(
-                label = stringResource(R.string.trip_field_end_date),
-                date = form.endDate,
-                onDateChange = { onFormChange(form.copy(endDate = it)) },
-            )
-            FormSelect(
-                label = stringResource(R.string.trip_field_default_account),
-                options = listOf(SelectOption(id = null, label = stringResource(R.string.trip_detail_no_default_account))) +
-                    accounts.map { SelectOption(id = it.id, label = it.name) },
-                selectedId = form.defaultAccountId,
-                onSelect = { onFormChange(form.copy(defaultAccountId = it)) },
-                placeholder = stringResource(R.string.trip_detail_no_default_account),
-            )
-            ColorPickerRow(
-                label = stringResource(R.string.trip_field_color),
-                selectedHex = form.color.ifBlank { null },
-                onSelect = { onFormChange(form.copy(color = it)) },
-            )
-            IconPickerRow(
-                label = stringResource(R.string.trip_field_icon),
-                options = CategoryIconPalette,
-                selectedKey = form.icon.ifBlank { null },
-                onSelect = { onFormChange(form.copy(icon = it)) },
-            )
-            OutlinedTextField(
-                value = form.notes,
-                onValueChange = { onFormChange(form.copy(notes = it)) },
-                label = { Text(text = stringResource(R.string.trip_field_notes)) },
-                minLines = 2,
-                shape = MaterialTheme.shapes.small,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                OutlinedButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.weight(1f),
-                    shape = MaterialTheme.shapes.small,
-                ) {
-                    Text(text = stringResource(R.string.common_cancel))
-                }
-                PrimaryButton(
-                    text = stringResource(
-                        if (form.id == null) R.string.trip_save_new else R.string.trip_save_changes,
-                    ),
-                    onClick = onSave,
-                    modifier = Modifier.weight(1f),
-                )
+                Text(text = stringResource(R.string.common_cancel))
             }
+            PrimaryButton(
+                text = stringResource(
+                    if (form.id == null) R.string.trip_save_new else R.string.trip_save_changes,
+                ),
+                onClick = onSave,
+                modifier = Modifier.weight(1f),
+            )
         }
     }
 }

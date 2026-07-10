@@ -50,10 +50,10 @@ import com.gestorfinances.app.ui.common.SectionHeader
 import com.gestorfinances.app.ui.common.categoryIcon
 import com.gestorfinances.app.ui.common.formatBasisPoints
 import com.gestorfinances.app.ui.common.formatMonthYear
+import com.gestorfinances.app.ui.common.formatPercentLabel
 import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.categoryColor
 import java.time.YearMonth
-import kotlin.math.roundToInt
 
 private const val SANKEY_LEAVES_PER_GROUP = 4
 
@@ -465,7 +465,7 @@ private fun GroupTotalBadge(cents: Long, totalExpenseCents: Long, color: android
             Text(
                 text = stringResource(
                     R.string.analysis_fixvar_group_pct_of_expenses,
-                    formatGroupPercent(cents.toFloat() / totalExpenseCents.toFloat()),
+                    formatPercentLabel(cents.toFloat() / totalExpenseCents.toFloat()),
                 ),
                 color = FinanceTheme.colors.mutedText,
                 style = MaterialTheme.typography.labelSmall,
@@ -531,7 +531,7 @@ private fun CategoryGroupRow(category: AnalysisCategoryTotal, groupTotalCents: L
             Column(horizontalAlignment = Alignment.End) {
                 MoneyText(cents = category.expenseCents, color = MaterialTheme.colorScheme.onSurface)
                 Text(
-                    text = formatGroupPercent(shareOfGroup),
+                    text = formatPercentLabel(shareOfGroup),
                     color = FinanceTheme.colors.mutedText,
                     style = MaterialTheme.typography.labelSmall,
                 )
@@ -547,9 +547,4 @@ private fun CategoryGroupRow(category: AnalysisCategoryTotal, groupTotalCents: L
             drawStopIndicator = {},
         )
     }
-}
-
-private fun formatGroupPercent(fraction: Float): String = when {
-    fraction < 0.005f -> "<1%"
-    else -> "${(fraction * 100).roundToInt()}%"
 }

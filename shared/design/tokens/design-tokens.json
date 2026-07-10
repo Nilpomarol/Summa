@@ -67,6 +67,11 @@
         "dark": "#E8736F",
         "use": "User owes, over budget, destructive"
       },
+      "shared": {
+        "light": "#6D5DD3",
+        "dark": "#A99BFF",
+        "use": "Movements split with other people (not a debt or a warning)"
+      },
       "alert": {
         "light": "#C98A14",
         "dark": "#E0A93C",

@@ -45,6 +45,21 @@ sealed interface AppOverlay {
     data class Tags(override val tripId: String?, val returnTo: AppOverlay? = null) : AppOverlay
 
     data class TripDetail(override val tripId: String) : AppOverlay
+
+    /**
+     * Movement create/edit, reachable from any screen (Dashboard FAB, Trip Detail's "new
+     * movement", a person's debt-payment action, Movements itself) — previously rendered by a
+     * global `MovementDialogHost` regardless of `section`; now a page like the others here.
+     */
+    data class MovementForm(
+        override val tripId: String? = null,
+        val debtPayerPersonId: String? = null,
+    ) : AppOverlay
+
+    /** Movement detail, reachable from the same range of screens as [MovementForm]. */
+    data class MovementDetail(val movementId: String) : AppOverlay {
+        override val tripId: String? = null
+    }
 }
 
 /**

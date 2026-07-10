@@ -77,6 +77,7 @@ Each role maps to one hue, with a lighter variant for dark mode. **Expense is th
 | Settlement | Debt payments | `#B9772A` | `#D9A152` |
 | Refund | Linked returns | `#128A93` | `#3FB6BE` |
 | Debt / Danger | You owe, over budget, destructive | `#CC4B4B` | `#E8736F` |
+| Shared | Movements split with other people (not a debt or a warning) | `#6D5DD3` | `#A99BFF` |
 | Alert | Near the limit, warnings | `#C98A14` | `#E0A93C` |
 
 ### 2.5 Category identity — muted palette
@@ -174,7 +175,7 @@ Core set: `space_dashboard` · `receipt_long` · `monitoring` · `account_balanc
 | Ghost | No fill/border, indigo text. |
 | Destructive | White surface, soft red border `#E7C4C4`, red text `#CC4B4B`. |
 | Disabled | `N100` fill, `N400` text. |
-| Icon button | 40×40, `N200` border. |
+| Icon button | 44×44 (mobile touch-target minimum, §10), `N200` border. |
 | Small | Height 32, `r` 9px. |
 
 ### Filters & segments
@@ -255,14 +256,15 @@ Full screens: `Sistema - Escriptori.dc.html`.
 
 ## 8. Modals
 
-Same content, two forms — actions always anchored at the bottom.
+On mobile, any editor/detail whose content scrolls is a **full page**, not a bottom sheet — a sheet that scrolls is too easy to dismiss by accident (a swipe near the top of the content reads as "close"). Bottom sheets on mobile are reserved for content that's short and doesn't scroll: filters, pick-one lists, and quick confirmations. Desktop is unaffected by this — the same content is always a dialog there, per the density it already had.
 
 - **Scrim:** 55% ink — `rgba(11,13,18,.55)`.
 - **Desktop · centered dialog:** white surface, `r4` (16px), `e4` shadow, width **344–480px** by density. Header (title + close) → scrollable body → footer (secondary left, primary right).
-- **Mobile · bottom sheet:** full-width, anchored bottom, `r4` top corners, 34×4 handle on top. Primary action anchored; no secondary button (dismiss via handle or ✕).
+- **Mobile · full page (forms, detail/drill-down views):** back arrow + title as the first list item, full-width scrollable content below, primary action anchored at the bottom. Reached in place of — not layered over — whatever screen opened it; a form/detail opened *from* another full page (e.g. Settle-up from Person detail, Refund from Movement detail, editing a trip from Trip detail) layers on top of that page the same way, revealing it again on cancel/back.
+- **Mobile · bottom sheet (short, non-scrolling content only):** full-width, anchored bottom, `r4` top corners, 34×4 handle on top. Primary action anchored; no secondary button (dismiss via handle, scrim tap, or ✕).
 - **Destructive confirmation — identical on both devices:** compact centered alert (~312px), **never a sheet**. Red circular icon, description of what's lost, destructive button in red (right on desktop / top when stacked on mobile).
 
-All non-destructive modals can be dismissed by tapping the scrim. Full screens: `Modals.dc.html`.
+All non-destructive modals/sheets can be dismissed by tapping the scrim. Full screens: `Modals.dc.html`.
 
 ---
 

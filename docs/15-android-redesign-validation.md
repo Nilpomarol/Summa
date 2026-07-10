@@ -120,6 +120,8 @@ Phase 5R should proceed in dependency order, not purely visual navigation order.
 8. **Settings, sync, and read-only states**
    Finish cross-cutting and secondary surfaces after the main product surfaces stabilize.
 
+   **Settings/sync/read-only — complete** (see `docs/06-roadmap.md` P5R-8 and §17 above for the manual checklist). Settings needed no redesign work (already design-system compliant per `P5R-6`). The deferred shell seam landed: `DeviceAccessState` (`Writer`/`ReadOnly`) exposed as a no-op `StateFlow` from `AppContainer` (always `Writer`), read by `LedgerShell` and rendered as an `InlineBanner` in the outer `Scaffold`'s `topBar` slot when `ReadOnly` — never visible today. Write-path gating and disabling edit affordances stay deferred to Phase 7, when the state can actually change.
+
 ### Advantages
 
 - Stabilizes dependencies before dependent screens.
@@ -389,6 +391,52 @@ Run these after building the app to confirm the manual unencrypted backup path i
 | 12 | Trigger/cancel import/restore while another backup operation is busy | Busy actions are ignored or disabled; no data changes until the active operation finishes |
 | 13 | Restore an older or same-version backup | A dismissible warning appears in the confirmation dialog; restore is still allowed if confirmed |
 | 14 | Put a `.gfsnap` file in the same folder | The unencrypted import list ignores it; `.gfsnap` is reserved for the future encrypted sync protocol |
+
+---
+
+## 17. P5R-8 Manual Checklist — Read-only shell seam
+
+`P5R-8` only adds a no-op seam (`DeviceAccessState` always resolves to `Writer`), so there is no way to trigger the read-only banner from the running app yet — these checks confirm the seam is inert and nothing regressed, not new visible behavior.
+
+| # | Step | Expected |
+|---|------|----------|
+| 1 | Cold-launch the app normally | No banner appears above any tab; layout, spacing, and bottom bar are unchanged from before this slice |
+| 2 | Navigate through Inici, Moviments, Anàlisi, and every Gestió child screen | Each screen's own top bar/title renders exactly as before; no extra blank space where the (empty) `topBar` slot sits |
+| 3 | Open and close the movement form, a `ModalBottomSheet`, and a full-page overlay (e.g. Trip Detail) | No layout shift or overlap introduced by the new `topBar` slot |
+
+---
+
+## 18. P5R-9 Manual Checklist — Component consolidation
+
+`P5R-9` is a no-behavior-change cleanup (dedup + dead-code removal); these checks confirm nothing regressed on the touched screens.
+
+| # | Step | Expected |
+|---|------|----------|
+| 1 | Open Inici, an Analysis tab with category rows (Resum/Categories/Fix-Var), Gestió → Comptes, and Gestió → Esdeveniments | Every "share of total" percent label still renders identically to before (whole-number, with a "<1%" floor for small-but-nonzero shares) |
+| 2 | Open a movement form's account picker, and a movement's detail row showing the account color | The colored account dot still renders at the same size/position in both places |
+| 3 | Reorder accounts (Gestió → Comptes → move up/down) and reorder is reflected correctly; open Gestió → Categories with several categories | Both lists still sort by display order, then alphabetically by name, exactly as before |
+| 4 | Open Gestió → Recurrents, view a template row and the frequency/status pickers | Movement-type labels ("Despesa", "Ingrés", etc.) still show correctly |
+| 5 | Open a shared expense's edit form and confirm its split still round-trips correctly | Split lines still load/save identically (repository mapping was deduped, not changed) |
+| 6 | Open Gestió → Categories → a category with movements, tap into its movement list | Amounts still show the correct sign (expense negative, income/refund positive) — the query now derives this from `v_account_flow` instead of a local `CASE` |
+
+---
+
+## 19. P5R-10 Manual Checklist — Accessibility and density pass
+
+| # | Step | Expected |
+|---|------|----------|
+| 1 | Open any screen's top bar (Settings, Dashboard, Moviments filter/year sheet, Analysis filter) | Back/action icon buttons feel comfortably tappable — no visibly cramped 40dp icon buttons |
+| 2 | Open the account or category color picker (add/edit form) | Swatches are visibly larger than before; the palette wraps onto a second row instead of squeezing to fit one row — this is expected |
+| 3 | Open a shared-expense split editor with a person whose name is long | The remove-person (×) button next to their row is easy to tap |
+| 4 | View a trip, tag, recurring template, or category row with a long name on the list screen | The name truncates with an ellipsis instead of wrapping or pushing other content off-row |
+| 5 | Open a movement's detail sheet (any type: expense, income, transfer, settlement, refund, debt) | Every grid label (Data, Compte, Categoria, Viatge, Etiqueta, Recurrent, Pagat per, etc.) still shows in Catalan exactly as before |
+| 6 | Open an expense's detail with existing refunds | "Reemborsaments" section header, "Afegeix reemborsament" button, and the Arxivar/Editar footer buttons all still read correctly |
+| 7 | Open Moviments → filter by month/year sheet | Prev/next year buttons still work; "Filtra per mes" title and the custom-range "Des de"/"Fins a" placeholders and "Aplica" button all still read correctly |
+| 8 | In the movement form, type a name then tap the on-screen keyboard's arrow/Next key | Focus jumps to the Import (amount) field; the keyboard's action key on Import now reads "Done" and dismisses the keyboard |
+| 9 | Repeat the Next-key check in: Account form (name→balance, low-balance-threshold done), Person form (name→notes), Settlement form (amount done / date→notes), Recurring template form (name done, amount→amountFlex, dateFlex→leadDays, payee→notes) | Each adjacent pair of text fields advances focus via the keyboard's Next action; the last field in each group shows Done and dismisses the keyboard |
+| 12 | Open Moviments and check the two filter-chip rows (Compte/Categoria, Viatge/Període) with exactly one chip active in a row | Both chips in the row have the same height/border regardless of which one shows the clear (×) button |
+| 10 | In a shared-expense split editor using Exact or Percentage entry with 3+ people | Next on one person's field advances into the next person's field |
+| 11 | Toggle system dark mode and revisit a few screens (Dashboard, Analysis, People) | No screen shows a color that fails to invert (this pass found none, but re-check after touching swatches) |
 
 ---
 

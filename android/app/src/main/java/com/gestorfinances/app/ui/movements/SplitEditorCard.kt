@@ -27,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -40,6 +41,7 @@ import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.SegmentedControl
 import com.gestorfinances.app.ui.common.formatBasisPoints
 import com.gestorfinances.app.ui.common.formatEuroCents
+import com.gestorfinances.app.ui.common.nextFieldKeyboardActions
 import com.gestorfinances.app.ui.common.parseEuroCents
 import com.gestorfinances.app.ui.theme.FinanceTheme
 
@@ -274,7 +276,8 @@ private fun SplitParticipantRow(
                 prefix = { Text(text = "€") },
                 singleLine = true,
                 shape = MaterialTheme.shapes.small,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
+                keyboardActions = nextFieldKeyboardActions(),
                 modifier = Modifier.width(120.dp),
             )
             SplitEntryMethod.PERCENTAGE -> OutlinedTextField(
@@ -283,16 +286,14 @@ private fun SplitParticipantRow(
                 suffix = { Text(text = "%") },
                 singleLine = true,
                 shape = MaterialTheme.shapes.small,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
+                keyboardActions = nextFieldKeyboardActions(),
                 modifier = Modifier.width(96.dp),
             )
             SplitEntryMethod.EQUAL -> Unit
         }
         if (!readOnly && participantId != USER_PARTICIPANT_ID) {
-            IconButton(
-                onClick = { onChange(splitEditor.withPersonToggled(participantId)) },
-                modifier = Modifier.size(32.dp),
-            ) {
+            IconButton(onClick = { onChange(splitEditor.withPersonToggled(participantId)) }) {
                 Icon(
                     imageVector = Icons.Outlined.Close,
                     contentDescription = stringResource(R.string.split_remove_person),

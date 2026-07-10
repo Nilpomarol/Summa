@@ -15,14 +15,18 @@ import com.gestorfinances.app.data.repository.MovementSplitDraft
 import com.gestorfinances.app.data.repository.MovementSplitWrite
 import com.gestorfinances.app.data.repository.MovementSummary
 import com.gestorfinances.app.data.repository.MovementType
+import com.gestorfinances.app.data.repository.PersonRepository
+import com.gestorfinances.app.data.repository.PersonSummary
 import com.gestorfinances.app.data.repository.SplitEntryMethod
 import com.gestorfinances.app.data.repository.SplitLineDraft
 import com.gestorfinances.app.data.repository.SplitParticipantKind
+import com.gestorfinances.app.data.repository.SplitRepository
 import com.gestorfinances.app.data.repository.TemplateDraft
 import com.gestorfinances.app.data.repository.TemplateRepository
 import com.gestorfinances.app.data.repository.TemplateSplitConfig
 import com.gestorfinances.app.data.repository.TemplateStatus
 import com.gestorfinances.app.data.repository.TemplateSummary
+import com.gestorfinances.app.data.repository.toTemplateSplitConfig
 import com.gestorfinances.app.domain.rules.CustomRecurrenceUnit
 import com.gestorfinances.app.domain.rules.DetectedRecurringCandidate
 import com.gestorfinances.app.domain.rules.DetectedTemplateAction
@@ -32,6 +36,7 @@ import com.gestorfinances.app.domain.rules.RecurrenceRule
 import com.gestorfinances.app.domain.rules.RecurringAdvancer
 import com.gestorfinances.app.domain.rules.RecurringCandidateMovement
 import com.gestorfinances.app.domain.rules.RecurringPatternDetector
+import com.gestorfinances.app.domain.rules.SplitCalculator
 import com.gestorfinances.app.domain.rules.toRecurrenceRule
 import com.gestorfinances.app.notifications.NotificationRefresher
 import com.gestorfinances.app.ui.common.formatEuroInput
@@ -54,6 +59,8 @@ class RecurringViewModel(
     private val accountRepository: AccountRepository,
     private val categoryRepository: CategoryRepository,
     private val movementRepository: MovementRepository,
+    private val splitRepository: SplitRepository,
+    private val personRepository: PersonRepository,
     private val notificationRefresher: NotificationRefresher = NotificationRefresher.NoOp,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val today: () -> LocalDate = { LocalDate.now() },
@@ -76,7 +83,9 @@ class RecurringViewModel(
     }
 
     fun onFormChanged(form: TemplateFormState) {
-        _state.value = _state.value.copy(form = form.copy(errorRes = null, errorMessage = null))
+        _state.value = _state.value.copy(
+            form = form.copy(errorRes = null, errorField = null, errorMessage = null),
+        )
     }
 
     fun onFormDismissed() {
@@ -110,13 +119,14 @@ class RecurringViewModel(
                 accountName = template.accountName,
                 amount = template.amountCents?.let(::formatEuroInput).orEmpty(),
                 date = prompt.dueDate,
+                splitConfig = template.splitConfig,
             ),
         )
     }
 
     fun onConfirmFormChanged(prompt: ConfirmPromptState) {
         _state.value = _state.value.copy(
-            confirmPrompt = prompt.copy(errorRes = null, errorMessage = null),
+            confirmPrompt = prompt.copy(errorRes = null, errorField = null, errorMessage = null),
         )
     }
 
@@ -129,15 +139,17 @@ class RecurringViewModel(
         val template = _state.value.templates.firstOrNull { it.id == prompt.templateId } ?: return
         val amountCents = parseEuroCents(prompt.amount, allowNegative = false)
         val date = parseDate(prompt.date)
-        val errorRes = when {
-            amountCents == null -> R.string.movement_validation_amount_required
-            amountCents <= 0L -> R.string.movement_validation_amount_positive
-            prompt.date.isBlank() -> R.string.movement_validation_date_required
-            date == null -> R.string.movement_validation_date_invalid
-            else -> null
+        val (errorRes, errorField) = when {
+            amountCents == null -> R.string.movement_validation_amount_required to ConfirmPromptField.AMOUNT
+            amountCents <= 0L -> R.string.movement_validation_amount_positive to ConfirmPromptField.AMOUNT
+            prompt.date.isBlank() -> R.string.movement_validation_date_required to ConfirmPromptField.DATE
+            date == null -> R.string.movement_validation_date_invalid to ConfirmPromptField.DATE
+            else -> null to null
         }
         if (errorRes != null) {
-            _state.value = _state.value.copy(confirmPrompt = prompt.copy(errorRes = errorRes))
+            _state.value = _state.value.copy(
+                confirmPrompt = prompt.copy(errorRes = errorRes, errorField = errorField),
+            )
             return
         }
         val amount = requireNotNull(amountCents)
@@ -261,30 +273,34 @@ class RecurringViewModel(
             .takeIf { it.isNotBlank() }
             ?.toLongOrNull()
 
-        val errorRes = when {
-            !form.amountIsVariable && form.amount.isBlank() -> R.string.template_validation_amount_required
-            !form.amountIsVariable && amountCents == null -> R.string.template_validation_amount_required
+        val (errorRes, errorField) = when {
+            !form.amountIsVariable && form.amount.isBlank() ->
+                R.string.template_validation_amount_required to TemplateFormField.AMOUNT
+            !form.amountIsVariable && amountCents == null ->
+                R.string.template_validation_amount_required to TemplateFormField.AMOUNT
             !form.amountIsVariable && amountCents != null && amountCents <= 0L ->
-                R.string.movement_validation_amount_positive
-            account == null -> R.string.movement_validation_account_required
-            isTransfer && form.destinationAccountId == null -> R.string.movement_validation_account_required
+                R.string.movement_validation_amount_positive to TemplateFormField.AMOUNT
+            account == null -> R.string.movement_validation_account_required to TemplateFormField.ACCOUNT
+            isTransfer && form.destinationAccountId == null ->
+                R.string.movement_validation_account_required to TemplateFormField.DESTINATION_ACCOUNT
             isTransfer && form.destinationAccountId == form.accountId ->
-                R.string.movement_validation_transfer_same_account
+                R.string.movement_validation_transfer_same_account to TemplateFormField.DESTINATION_ACCOUNT
             form.frequency.usesDayOfMonth() && (dayOfMonth == null || dayOfMonth !in 1L..31L) ->
-                R.string.template_validation_anchor_invalid
+                R.string.template_validation_anchor_invalid to TemplateFormField.SCHEDULE
             form.frequency == RecurrenceFrequency.CUSTOM && (intervalCount == null || intervalCount <= 0L) ->
-                R.string.template_validation_interval_required
-            form.nextDueDate.isBlank() -> R.string.movement_validation_date_required
-            nextDue == null -> R.string.movement_validation_date_invalid
-            form.amountFlex.isNotBlank() && amountFlexCents == null -> R.string.template_validation_amount_flex_invalid
+                R.string.template_validation_interval_required to TemplateFormField.SCHEDULE
+            form.nextDueDate.isBlank() -> R.string.movement_validation_date_required to TemplateFormField.NEXT_DUE_DATE
+            nextDue == null -> R.string.movement_validation_date_invalid to TemplateFormField.NEXT_DUE_DATE
+            form.amountFlex.isNotBlank() && amountFlexCents == null ->
+                R.string.template_validation_amount_flex_invalid to TemplateFormField.AMOUNT_FLEX
             form.dateFlex.isNotBlank() && (dateFlexDays == null || dateFlexDays < 0L) ->
-                R.string.template_validation_date_flex_invalid
+                R.string.template_validation_date_flex_invalid to TemplateFormField.DATE_FLEX
             form.leadDays.isNotBlank() && (leadNotificationDays == null || leadNotificationDays < 0L) ->
-                R.string.notification_validation_lead_days
-            else -> null
+                R.string.notification_validation_lead_days to TemplateFormField.LEAD_DAYS
+            else -> null to null
         }
         if (errorRes != null) {
-            _state.value = _state.value.copy(form = form.copy(errorRes = errorRes))
+            _state.value = _state.value.copy(form = form.copy(errorRes = errorRes, errorField = errorField))
             return
         }
 
@@ -374,6 +390,7 @@ class RecurringViewModel(
                         templates = templateRepository.listActive(),
                         accounts = accountRepository.listActive(),
                         categories = categoryRepository.listActive(),
+                        people = personRepository.listActive(),
                     )
                 }
             }
@@ -384,6 +401,7 @@ class RecurringViewModel(
                         templates = it.templates,
                         accounts = it.accounts,
                         categories = it.categories,
+                        people = it.people,
                         duePrompts = it.templates.toDuePrompts(today()),
                         monthlyExpenseCents = expense,
                         monthlyIncomeCents = income,
@@ -400,24 +418,39 @@ class RecurringViewModel(
         }
     }
 
-    /** User-triggered, one-shot scan (spec §3.10) — never automatic/background. */
+    /** User-triggered, one-shot scan (spec §3.10) — never automatic/background. The detector
+     * itself stays split-blind (correct layering — see [RecurringPatternDetector]); the split each
+     * candidate *would* carry is resolved here, separately, purely so the review sheet can show a
+     * "Compartit" badge and a user-share/total preview instead of a raw total that hides sharing
+     * entirely. */
     fun onDetectRecurringClicked() {
         _state.value = _state.value.copy(isDetecting = true, errorMessage = null)
         viewModelScope.launch {
             val result = withContext(ioDispatcher) {
                 runCatching {
                     val movements = movementRepository.listActive().mapNotNull { it.toRecurringCandidateMovementOrNull() }
-                    val existingSignatures = templateRepository.listActive().map { it.toExistingTemplateSignature() }
-                    RecurringPatternDetector.detect(movements, existingSignatures, today = today())
+                    val templates = templateRepository.listActive()
+                    val candidates = RecurringPatternDetector.detect(
+                        movements,
+                        templates.map { it.toExistingTemplateSignature() },
+                        today = today(),
+                    )
+                    candidates.map { candidate ->
+                        DetectionReviewItem(
+                            candidate = candidate,
+                            splitConfig = resolveSplitConfigForCandidate(
+                                candidate,
+                                matchedTemplate = templates.firstOrNull { it.id == candidate.matchedTemplateId },
+                            ),
+                        )
+                    }
                 }
             }
             _state.value = result.fold(
-                onSuccess = { candidates ->
+                onSuccess = { items ->
                     _state.value.copy(
                         isDetecting = false,
-                        detectionReview = DetectionReviewState(
-                            items = candidates.map { DetectionReviewItem(candidate = it) },
-                        ),
+                        detectionReview = DetectionReviewState(items = items),
                     )
                 },
                 onFailure = {
@@ -475,10 +508,13 @@ class RecurringViewModel(
     /** Each accepted item is applied independently: the create/update + movement-linking below is
      * one atomic transaction, but a failure on one item doesn't roll back another — re-running
      * detection matches an already-created template as an UPDATE rather than proposing a
-     * duplicate. */
+     * duplicate. Re-resolves the split itself (rather than trusting [DetectionReviewItem]'s
+     * preview value) so a stale review sheet never applies a split that no longer matches the
+     * template/movement it would have read at confirm time. */
     private fun applyDetectionItem(candidate: DetectedRecurringCandidate, now: String) {
         val existing = candidate.matchedTemplateId?.let { templateRepository.getActive(it) }
-        val draft = candidate.toTemplateDraft(existing)
+        val splitConfig = resolveSplitConfigForCandidate(candidate, matchedTemplate = existing)
+        val draft = candidate.toTemplateDraft(existing, splitConfig)
         movementRepository.runInTransaction {
             when (candidate.action) {
                 DetectedTemplateAction.NEW -> templateRepository.create(draft, createdAt = now)
@@ -488,6 +524,22 @@ class RecurringViewModel(
             // future scans and show as instances of the (now tracked) recurring template.
             movementRepository.linkToTemplate(candidate.sourceMovementIds, templateId = draft.id, updatedAt = now)
         }
+    }
+
+    /** UPDATE: carry the matched template's split forward unchanged (it's already authoritative
+     * for a template that's been shared/edited since). NEW: there's no existing template to carry
+     * from, so resolve it from the most recent occurrence that formed this pattern — otherwise a
+     * detected shared-recurring expense would silently become a plain personal template. Shared by
+     * the review-sheet preview ([onDetectRecurringClicked]) and the actual apply
+     * ([applyDetectionItem]) so both agree on what a candidate's split is. */
+    private fun resolveSplitConfigForCandidate(
+        candidate: DetectedRecurringCandidate,
+        matchedTemplate: TemplateSummary?,
+    ): TemplateSplitConfig? = when (candidate.action) {
+        DetectedTemplateAction.UPDATE -> matchedTemplate?.splitConfig
+        DetectedTemplateAction.NEW -> candidate.sourceMovementIds.lastOrNull()
+            ?.let { splitRepository.getForMovement(it) }
+            ?.let { MovementSplitWrite.Replace(it).toTemplateSplitConfig() }
     }
 
     private fun refreshNotifications() {
@@ -503,6 +555,8 @@ class RecurringViewModel(
         private val accountRepository: AccountRepository,
         private val categoryRepository: CategoryRepository,
         private val movementRepository: MovementRepository,
+        private val splitRepository: SplitRepository,
+        private val personRepository: PersonRepository,
         private val notificationRefresher: NotificationRefresher = NotificationRefresher.NoOp,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
@@ -513,6 +567,8 @@ class RecurringViewModel(
                     accountRepository = accountRepository,
                     categoryRepository = categoryRepository,
                     movementRepository = movementRepository,
+                    splitRepository = splitRepository,
+                    personRepository = personRepository,
                     notificationRefresher = notificationRefresher,
                 ) as T
             }
@@ -525,6 +581,7 @@ data class RecurringUiState(
     val templates: List<TemplateSummary> = emptyList(),
     val accounts: List<AccountSummary> = emptyList(),
     val categories: List<CategoryRecord> = emptyList(),
+    val people: List<PersonSummary> = emptyList(),
     val duePrompts: List<DuePrompt> = emptyList(),
     val monthlyExpenseCents: Long = 0L,
     val monthlyIncomeCents: Long = 0L,
@@ -557,6 +614,9 @@ data class DetectionReviewState(
 data class DetectionReviewItem(
     val candidate: DetectedRecurringCandidate,
     val accepted: Boolean = true,
+    /** Read-only: the split this candidate would carry into its template, resolved purely for the
+     * review-sheet preview — see [RecurringViewModel.resolveSplitConfigForCandidate]. */
+    val splitConfig: TemplateSplitConfig? = null,
 )
 
 /** A virtual occurrence due for an active template (not yet in the ledger). */
@@ -566,6 +626,13 @@ data class DuePrompt(
     val pendingCount: Int,
 )
 
+/** Identifies which field a due-payment confirm-prompt validation error belongs to (audit U8,
+ * `docs/17` WP2). */
+enum class ConfirmPromptField {
+    AMOUNT,
+    DATE,
+}
+
 data class ConfirmPromptState(
     val templateId: String,
     val templateName: String,
@@ -573,8 +640,24 @@ data class ConfirmPromptState(
     val amount: String = "",
     val date: String = "",
     val errorRes: Int? = null,
+    val errorField: ConfirmPromptField? = null,
     val errorMessage: String? = null,
+    /** Read-only: the template's carried-forward split, for a live share preview. Never edited
+     * here -- see [toSplitWrite] for how it's rescaled to the confirmed amount at save time. */
+    val splitConfig: TemplateSplitConfig? = null,
 )
+
+/** Identifies which field a template-form validation error belongs to (audit U8, `docs/17` WP2). */
+enum class TemplateFormField {
+    AMOUNT,
+    ACCOUNT,
+    DESTINATION_ACCOUNT,
+    SCHEDULE,
+    NEXT_DUE_DATE,
+    AMOUNT_FLEX,
+    DATE_FLEX,
+    LEAD_DAYS,
+}
 
 data class TemplateFormState(
     val id: String? = null,
@@ -598,6 +681,7 @@ data class TemplateFormState(
     val leadDays: String = "",
     val status: TemplateStatus = TemplateStatus.ACTIVE,
     val errorRes: Int? = null,
+    val errorField: TemplateFormField? = null,
     val errorMessage: String? = null,
 )
 
@@ -605,6 +689,7 @@ private data class LoadedRecurringData(
     val templates: List<TemplateSummary>,
     val accounts: List<AccountSummary>,
     val categories: List<CategoryRecord>,
+    val people: List<PersonSummary>,
 )
 
 private fun List<TemplateSummary>.toDuePrompts(today: LocalDate): List<DuePrompt> =
@@ -664,24 +749,81 @@ private fun TemplateSummary.advancedToToday(today: LocalDate): String {
     return RecurringAdvancer.advance(toRecurrenceRule(), cursor = cursor, today = today).newCursor.toString()
 }
 
-/** Carry the template's split forward, but only when it reconciles with the occurrence amount. */
+/**
+ * Carry the template's split forward, rescaling its line weights to [amountCents] when the
+ * confirmed occurrence amount differs from the config's own stored sum (variable-amount
+ * templates, an amount edited since the split was set, or a NEW-detected candidate whose split
+ * came from a single source movement while its amount is a group median) — see
+ * [SplitCalculator.rescale] / `shared/golden/template_split_rescale.json`. Falls back to
+ * [MovementSplitWrite.KeepExisting] (no split applied) only when the config itself is malformed.
+ */
 private fun TemplateSplitConfig?.toSplitWrite(
     type: MovementType,
     amountCents: Long,
 ): MovementSplitWrite {
     val config = this ?: return MovementSplitWrite.KeepExisting
     if (type != MovementType.EXPENSE) return MovementSplitWrite.KeepExisting
-    if (config.lines.sumOf { it.owedAmountCents } != amountCents) return MovementSplitWrite.KeepExisting
     val entryMethod = SplitEntryMethod.entries.firstOrNull { it.dbValue == config.entryMethod }
         ?: return MovementSplitWrite.KeepExisting
-    val lines = config.lines.map { line ->
+    val shares = config.rescaledShares(amountCents) ?: return MovementSplitWrite.KeepExisting
+    val lines = config.lines.zip(shares).map { (line, share) ->
         if (line.party == "user") {
-            SplitLineDraft(SplitParticipantKind.USER, personId = null, owedAmountCents = line.owedAmountCents)
+            SplitLineDraft(SplitParticipantKind.USER, personId = null, owedAmountCents = share)
         } else {
-            SplitLineDraft(SplitParticipantKind.PERSON, personId = line.party, owedAmountCents = line.owedAmountCents)
+            SplitLineDraft(SplitParticipantKind.PERSON, personId = line.party, owedAmountCents = share)
         }
     }
     return MovementSplitWrite.Replace(MovementSplitDraft(entryMethod = entryMethod, lines = lines))
+}
+
+/** Each line's [TemplateSplitConfigLine.owedAmountCents] rescaled to [amountCents], in the same
+ * order as [TemplateSplitConfig.lines] — see [SplitCalculator.rescale]. Null iff the config's
+ * `payer` doesn't match any line (malformed config). Shared by [toSplitWrite] (the actual write)
+ * and [previewShares] (the confirm-sheet preview), so what the user sees is exactly what gets
+ * saved. */
+private fun TemplateSplitConfig.rescaledShares(amountCents: Long): List<Long>? {
+    val payerIndex = lines.indexOfFirst { it.party == payer }
+    if (payerIndex < 0) return null
+    val rescaled = SplitCalculator.rescale(
+        weightsCents = lines.map { it.owedAmountCents },
+        totalCents = amountCents,
+        payerIndex = payerIndex,
+    )
+    return rescaled.sharesCents.takeIf { rescaled.valid }
+}
+
+/** The user's own share of [amountCents] under this split — the figure a template row/due-prompt
+ * card should show as the primary amount (with [amountCents] itself as the secondary "total"),
+ * matching how [com.gestorfinances.app.ui.common.MovementListItem] displays a shared movement.
+ * Null iff the config is malformed (falls back to showing the plain total). */
+fun TemplateSplitConfig.userShareCents(amountCents: Long): Long? {
+    val shares = rescaledShares(amountCents) ?: return null
+    val userIndex = lines.indexOfFirst { it.party == "user" }
+    return userIndex.takeIf { it >= 0 }?.let { shares[it] }
+}
+
+/** A single row of the confirm-sheet split preview: either the user's own share, or a named
+ * person's. [personName] is null for an unresolvable person id (e.g. an archived person) so the
+ * UI can fall back to a generic label rather than showing a raw id. */
+data class SplitPreviewLine(
+    val isUser: Boolean,
+    val personName: String?,
+    val amountCents: Long,
+)
+
+/** Live preview of how [amountCents] would be split if confirmed now, using the same rescale rule
+ * [toSplitWrite] applies at save time. Empty when there's nothing to preview (no split, or a
+ * malformed config that will fall back to [MovementSplitWrite.KeepExisting]). */
+fun TemplateSplitConfig?.previewShares(amountCents: Long, people: List<PersonSummary>): List<SplitPreviewLine> {
+    val config = this ?: return emptyList()
+    val shares = config.rescaledShares(amountCents) ?: return emptyList()
+    return config.lines.zip(shares).map { (line, share) ->
+        if (line.party == "user") {
+            SplitPreviewLine(isUser = true, personName = null, amountCents = share)
+        } else {
+            SplitPreviewLine(isUser = false, personName = people.firstOrNull { it.id == line.party }?.name, amountCents = share)
+        }
+    }
 }
 
 fun RecurrenceFrequency.usesDayOfMonth(): Boolean =
@@ -751,13 +893,18 @@ private fun TemplateSummary.toExistingTemplateSignature(): ExistingTemplateSigna
 /**
  * [existing] is the matched template being updated (null for a NEW candidate). The detector only
  * ever derives schedule/amount/status fields — [TemplateRepository.update] is a full-row overwrite
- * (see `updateTemplate` in Templates.sq), so anything it doesn't derive (notes, a shared split
- * config, date flexibility, the lead-notification override) must be carried forward from the
- * existing row or confirming an "Actualitza" candidate would silently wipe it. `intervalCount`/
- * `customUnit` are deliberately NOT carried forward: the detector never proposes CUSTOM frequency,
- * and the templates CHECK constraint requires both to be null whenever frequency isn't CUSTOM.
+ * (see `updateTemplate` in Templates.sq), so anything it doesn't derive (notes, date flexibility,
+ * the lead-notification override) must be carried forward from the existing row or confirming an
+ * "Actualitza" candidate would silently wipe it. `intervalCount`/`customUnit` are deliberately NOT
+ * carried forward: the detector never proposes CUSTOM frequency, and the templates CHECK constraint
+ * requires both to be null whenever frequency isn't CUSTOM.
+ *
+ * [splitConfig] is resolved by the caller rather than derived here: for UPDATE it's the existing
+ * template's own `split_config` (unchanged), and for NEW it's resolved from the most recent source
+ * movement's actual split, since there's no existing template to carry it from — see
+ * `applyDetectionItem`.
  */
-private fun DetectedRecurringCandidate.toTemplateDraft(existing: TemplateSummary?): TemplateDraft =
+private fun DetectedRecurringCandidate.toTemplateDraft(existing: TemplateSummary?, splitConfig: TemplateSplitConfig?): TemplateDraft =
     TemplateDraft(
         id = matchedTemplateId ?: UUID.randomUUID().toString(),
         type = type,
@@ -768,7 +915,7 @@ private fun DetectedRecurringCandidate.toTemplateDraft(existing: TemplateSummary
         name = name,
         payee = payee,
         notes = existing?.notes,
-        splitConfig = existing?.splitConfig,
+        splitConfig = splitConfig,
         frequency = frequency,
         intervalCount = null,
         customUnit = null,

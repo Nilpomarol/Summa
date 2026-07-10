@@ -59,6 +59,8 @@ internal object TokenColor {
     val RefundDark = Color(0xFF3FB6BE)
     val DebtLight = Color(0xFFCC4B4B)
     val DebtDark = Color(0xFFE8736F)
+    val SharedLight = Color(0xFF6D5DD3)
+    val SharedDark = Color(0xFFA99BFF)
     val AlertLight = Color(0xFFC98A14)
     val AlertDark = Color(0xFFE0A93C)
 

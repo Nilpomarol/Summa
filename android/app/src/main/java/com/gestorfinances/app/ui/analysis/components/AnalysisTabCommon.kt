@@ -26,15 +26,6 @@ internal fun LazyListScope.tabErrorItem(message: String?) {
 }
 
 @Composable
-internal fun NoDataText() {
-    Text(
-        text = stringResource(R.string.dashboard_no_data),
-        color = FinanceTheme.colors.mutedText,
-        style = MaterialTheme.typography.bodyMedium,
-    )
-}
-
-@Composable
 internal fun TabSection(title: String) {
     SectionHeader(title = title)
 }

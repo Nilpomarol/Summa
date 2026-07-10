@@ -175,20 +175,6 @@ class AnalysisRepository(
             mapper = ::mapCategoryTotal,
         ).executeAsList()
 
-    fun dailyIncomeVsExpense(
-        fromDate: String,
-        toDate: String,
-        oneTimeMode: AnalysisOneTimeMode = AnalysisOneTimeMode.INCLUDE,
-        categoryNature: AnalysisCategoryNature? = null,
-    ): List<AnalysisIncomeExpenseBucket> =
-        incomeVsExpense(
-            fromDate = fromDate,
-            toDate = toDate,
-            oneTimeMode = oneTimeMode,
-            categoryNature = categoryNature,
-            bucket = AnalysisBucket.DAY,
-        )
-
     fun incomeVsExpense(
         fromDate: String,
         toDate: String,

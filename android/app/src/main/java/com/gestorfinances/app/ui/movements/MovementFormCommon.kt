@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material3.DatePicker
@@ -27,6 +28,7 @@ import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -51,11 +53,13 @@ import com.gestorfinances.app.data.repository.CategoryKind
 import com.gestorfinances.app.data.repository.CategoryRecord
 import com.gestorfinances.app.data.repository.MovementType
 import com.gestorfinances.app.data.repository.TagSummary
+import com.gestorfinances.app.data.repository.TemplateStatus
 import com.gestorfinances.app.data.repository.TripSummary
 import com.gestorfinances.app.domain.rules.RecurrenceFrequency
 import com.gestorfinances.app.ui.common.IconChip
 import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.categoryIcon
+import com.gestorfinances.app.ui.common.scrollToWhen
 import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.amountColor
 import com.gestorfinances.app.ui.theme.categoryColor
@@ -148,6 +152,8 @@ internal fun AccountSelect(
     accounts: List<AccountSummary>,
     onSelect: (String) -> Unit,
     modifier: Modifier = Modifier,
+    isError: Boolean = false,
+    supportingText: String? = null,
 ) {
     FormSelect(
         label = label,
@@ -161,6 +167,8 @@ internal fun AccountSelect(
         selectedId = selectedId,
         onSelect = { id -> id?.let(onSelect) },
         modifier = modifier,
+        isError = isError,
+        supportingText = supportingText,
     )
 }
 
@@ -171,6 +179,8 @@ internal fun CategorySelect(
     selectedId: String?,
     onSelect: (String?) -> Unit,
     modifier: Modifier = Modifier,
+    isError: Boolean = false,
+    supportingText: String? = null,
 ) {
     val options = remember(categories, type) {
         categories.filter { cat ->
@@ -207,6 +217,8 @@ internal fun CategorySelect(
         onSelect = onSelect,
         placeholder = noCategory,
         modifier = modifier,
+        isError = isError,
+        supportingText = supportingText,
     )
 }
 
@@ -216,13 +228,22 @@ internal fun FormDatePicker(
     date: String,
     onDateChange: (String) -> Unit,
     modifier: Modifier = Modifier,
+    isError: Boolean = false,
+    supportingText: String? = null,
+    /** Non-null only for optional date fields (e.g. budget start date, `docs/17` WP5): shows a
+     * trailing clear icon while [date] is non-blank. Required date fields never pass this. */
+    onClear: (() -> Unit)? = null,
 ) {
     var showPicker by remember { mutableStateOf(false) }
 
     val displayText = remember(date) {
-        runCatching {
-            LocalDate.parse(date).format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
-        }.getOrDefault(date)
+        if (date.isBlank()) {
+            null
+        } else {
+            runCatching {
+                LocalDate.parse(date).format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+            }.getOrDefault(date)
+        }
     }
 
     FieldFrame(
@@ -234,13 +255,26 @@ internal fun FormDatePicker(
             interactionSource = remember { MutableInteractionSource() },
             onClick = { showPicker = true },
         ),
+        isError = isError,
+        supportingText = supportingText,
     ) {
         Text(
-            text = displayText,
+            text = displayText ?: stringResource(R.string.common_no_date),
             modifier = Modifier.weight(1f),
+            color = if (displayText == null) FinanceTheme.colors.mutedText else Color.Unspecified,
             style = MaterialTheme.typography.bodyLarge,
             maxLines = 1,
         )
+        if (onClear != null && displayText != null) {
+            IconButton(onClick = onClear, modifier = Modifier.size(24.dp)) {
+                Icon(
+                    imageVector = Icons.Outlined.Close,
+                    contentDescription = stringResource(R.string.common_clear),
+                    tint = FinanceTheme.colors.mutedText,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
         Icon(
             imageVector = Icons.Outlined.CalendarMonth,
             contentDescription = null,
@@ -284,6 +318,18 @@ internal fun FormRecurringSection(
     frequency: RecurrenceFrequency,
     onToggle: (Boolean) -> Unit,
     onFrequencyChange: (RecurrenceFrequency) -> Unit,
+    /** True when this movement is linked to an existing template (`form.templateId != null`,
+     * audit F12/`docs/17` WP3): the frequency is the template's truth, not this form's, so it's
+     * shown as a muted read-only line instead of an editable select -- editing it here would
+     * either silently do nothing or misrepresent what "changing" it actually means. No navigation
+     * to the template editor in this slice (decision recorded in `docs/17`); the label alone is
+     * honest and sufficient. */
+    linked: Boolean,
+    /** The linked template's real status (only meaningful when [linked]) -- ending a template
+     * doesn't unlink prior movements (`RecurringViewModel.onEndConfirmed`), so a linked movement
+     * can point at an ENDED template. Showing the same "gestionat a Recurrents" line in that case
+     * would misrepresent a dead series as an ongoing one -- exactly what F12 exists to prevent. */
+    templateStatus: TemplateStatus? = null,
 ) {
     FormToggleRow(
         label = stringResource(R.string.movement_field_recurring),
@@ -291,18 +337,32 @@ internal fun FormRecurringSection(
         onCheckedChange = onToggle,
     )
     if (isRecurring) {
-        val options = listOf(
-            RecurrenceFrequency.WEEKLY,
-            RecurrenceFrequency.FORTNIGHTLY,
-            RecurrenceFrequency.MONTHLY,
-            RecurrenceFrequency.YEARLY,
-        )
-        FormSelect(
-            label = stringResource(R.string.movement_recurring_frequency),
-            options = options.map { SelectOption(id = it.name, label = it.cadenceLabel()) },
-            selectedId = frequency.name,
-            onSelect = { id -> id?.let { onFrequencyChange(RecurrenceFrequency.valueOf(it)) } },
-        )
+        if (linked && templateStatus == TemplateStatus.ENDED) {
+            Text(
+                text = stringResource(R.string.movement_recurring_managed_ended),
+                style = MaterialTheme.typography.bodyMedium,
+                color = FinanceTheme.colors.mutedText,
+            )
+        } else if (linked) {
+            Text(
+                text = stringResource(R.string.movement_recurring_managed, frequency.cadenceLabel()),
+                style = MaterialTheme.typography.bodyMedium,
+                color = FinanceTheme.colors.mutedText,
+            )
+        } else {
+            val options = listOf(
+                RecurrenceFrequency.WEEKLY,
+                RecurrenceFrequency.FORTNIGHTLY,
+                RecurrenceFrequency.MONTHLY,
+                RecurrenceFrequency.YEARLY,
+            )
+            FormSelect(
+                label = stringResource(R.string.movement_recurring_frequency),
+                options = options.map { SelectOption(id = it.name, label = it.cadenceLabel()) },
+                selectedId = frequency.name,
+                onSelect = { id -> id?.let { onFrequencyChange(RecurrenceFrequency.valueOf(it)) } },
+            )
+        }
     }
 }
 
@@ -314,6 +374,8 @@ internal fun FormTripTagSection(
     tagId: String?,
     onTripSelected: (String?) -> Unit,
     onTagSelected: (String?) -> Unit,
+    isTagError: Boolean = false,
+    tagErrorText: String? = null,
 ) {
     val noTrip = stringResource(R.string.movement_no_trip)
     FormSelect(
@@ -340,6 +402,9 @@ internal fun FormTripTagSection(
                 selectedId = tagId,
                 onSelect = onTagSelected,
                 placeholder = noTag,
+                modifier = Modifier.scrollToWhen(isTagError),
+                isError = isTagError,
+                supportingText = tagErrorText,
             )
         }
     }

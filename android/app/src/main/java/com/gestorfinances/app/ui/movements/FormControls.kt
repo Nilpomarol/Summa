@@ -51,7 +51,11 @@ internal class SelectOption(
 /**
  * Label-above bordered field shell (design §Fields): hairline `cardBorder`, r2 corners, 44dp
  * min height. Turns to a 1.5dp indigo border when [focused]. The label slot is omitted when
- * [label] is blank so the frame can double as a bare action control.
+ * [label] is blank so the frame can double as a bare action control. When [isError] is set the
+ * border turns to the theme's error color (taking priority over [focused]) and, if
+ * [supportingText] is non-null, a caption line renders below the frame — mirroring
+ * `OutlinedTextField`'s `isError`/`supportingText` for the non-text-field form controls
+ * (`FormSelect`, `FormDatePicker`) that wrap this frame (audit U8, `docs/17` WP2).
  */
 @Composable
 internal fun FieldFrame(
@@ -59,6 +63,8 @@ internal fun FieldFrame(
     focused: Boolean,
     modifier: Modifier = Modifier,
     surfaceModifier: Modifier = Modifier,
+    isError: Boolean = false,
+    supportingText: String? = null,
     content: @Composable RowScope.() -> Unit,
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -74,8 +80,12 @@ internal fun FieldFrame(
             shape = MaterialTheme.shapes.small,
             color = MaterialTheme.colorScheme.surface,
             border = BorderStroke(
-                width = if (focused) 1.5.dp else 1.dp,
-                color = if (focused) MaterialTheme.colorScheme.primary else FinanceTheme.colors.cardBorder,
+                width = if (isError || focused) 1.5.dp else 1.dp,
+                color = when {
+                    isError -> MaterialTheme.colorScheme.error
+                    focused -> MaterialTheme.colorScheme.primary
+                    else -> FinanceTheme.colors.cardBorder
+                },
             ),
         ) {
             Row(
@@ -85,6 +95,13 @@ internal fun FieldFrame(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 content = content,
+            )
+        }
+        if (isError && !supportingText.isNullOrEmpty()) {
+            Text(
+                text = supportingText,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.error,
             )
         }
     }
@@ -103,6 +120,8 @@ internal fun FormSelect(
     onSelect: (String?) -> Unit,
     modifier: Modifier = Modifier,
     placeholder: String = "—",
+    isError: Boolean = false,
+    supportingText: String? = null,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val selected = options.firstOrNull { it.id == selectedId }
@@ -116,6 +135,8 @@ internal fun FormSelect(
             focused = expanded,
             modifier = Modifier.fillMaxWidth(),
             surfaceModifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable),
+            isError = isError,
+            supportingText = supportingText,
         ) {
             selected?.leading?.invoke()
             Text(

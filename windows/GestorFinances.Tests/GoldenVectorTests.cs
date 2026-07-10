@@ -22,7 +22,8 @@ public sealed class GoldenVectorTests
             "duplicate_detection.json",
             "recurring_advance.json",
             "refund_actual.json",
-            "split_rounding.json"
+            "split_rounding.json",
+            "template_split_rescale.json"
         };
         var actual = Directory.GetFiles(GoldenRoot, "*.json")
             .Select(Path.GetFileName)
@@ -69,6 +70,25 @@ public sealed class GoldenVectorTests
             {
                 Assert.AreEqual(reason, result.Reason, testCase.Name());
             }
+        }
+    }
+
+    [TestMethod]
+    public void TemplateSplitRescaleMatchesGoldenVectors()
+    {
+        foreach (var testCase in Golden("template_split_rescale.json").Cases())
+        {
+            var input = testCase.Obj("input");
+            var result = SplitCalculator.Rescale(
+                weightsCents: input.LongArray("weights_cents"),
+                totalCents: input.Long("total_cents"),
+                payerIndex: input.Int("payer_index"));
+
+            var expected = testCase.Obj("expected");
+            CollectionAssert.AreEqual(
+                expected.LongArray("shares_cents").ToArray(),
+                result.SharesCents.ToArray(),
+                testCase.Name());
         }
     }
 

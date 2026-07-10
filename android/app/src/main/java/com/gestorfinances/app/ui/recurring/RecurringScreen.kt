@@ -1,5 +1,6 @@
 package com.gestorfinances.app.ui.recurring
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -20,8 +22,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Autorenew
+import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.AlertDialog
@@ -37,7 +41,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -49,28 +52,43 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountSummary
 import com.gestorfinances.app.data.repository.CategoryRecord
 import com.gestorfinances.app.data.repository.MovementType
+import com.gestorfinances.app.data.repository.PersonSummary
+import com.gestorfinances.app.data.repository.TemplateSplitConfig
 import com.gestorfinances.app.data.repository.TemplateStatus
 import com.gestorfinances.app.data.repository.TemplateSummary
 import com.gestorfinances.app.domain.rules.CustomRecurrenceUnit
+import com.gestorfinances.app.domain.rules.DetectedRecurringCandidate
 import com.gestorfinances.app.domain.rules.DetectedTemplateAction
 import com.gestorfinances.app.domain.rules.RecurrenceFrequency
 import com.gestorfinances.app.ui.common.BannerKind
 import com.gestorfinances.app.ui.common.DestructiveTextButton
 import com.gestorfinances.app.ui.common.FinanceCard
+import com.gestorfinances.app.ui.common.doneKeyboardActions
+import com.gestorfinances.app.ui.common.nextFieldKeyboardActions
+import com.gestorfinances.app.ui.common.formatEuroCents
 import com.gestorfinances.app.ui.common.IconChip
 import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.LabeledSegmentedControl
+import com.gestorfinances.app.ui.common.label
 import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.NeutralPill
+import com.gestorfinances.app.ui.common.PageHeaderRow
 import com.gestorfinances.app.ui.common.PrimaryButton
 import com.gestorfinances.app.ui.common.SectionHeader
 import com.gestorfinances.app.ui.common.TopBarIconButton
+import androidx.compose.material3.rememberModalBottomSheetState
+import com.gestorfinances.app.ui.common.parseEuroCents
+import com.gestorfinances.app.ui.common.scrollToWhen
 import com.gestorfinances.app.ui.movements.AccountSelect
 import com.gestorfinances.app.ui.movements.CategorySelect
 import com.gestorfinances.app.ui.movements.FormDatePicker
@@ -92,28 +110,45 @@ fun RecurringScreen(
         viewModel.onScreenShown()
     }
 
-    RecurringContent(
-        state = state,
-        modifier = modifier,
-        onAdd = viewModel::onAddClicked,
-        onEdit = viewModel::onEditClicked,
-        onPause = viewModel::onPauseClicked,
-        onResume = viewModel::onResumeClicked,
-        onEnd = viewModel::onEndClicked,
-        onDelete = viewModel::onDeleteClicked,
-        onConfirm = viewModel::onConfirmClicked,
-        onSkip = viewModel::onSkipClicked,
-        onSkipAll = viewModel::onSkipAllClicked,
-        onDetectRecurring = viewModel::onDetectRecurringClicked,
-    )
+    val form = state.form
+    if (form != null) {
+        BackHandler(onBack = viewModel::onFormDismissed)
+        TemplateFormScreen(
+            form = form,
+            accounts = state.accounts,
+            categories = state.categories,
+            onFormChange = viewModel::onFormChanged,
+            onBack = viewModel::onFormDismissed,
+            onSave = viewModel::onSaveClicked,
+            modifier = modifier,
+        )
+    } else {
+        RecurringContent(
+            state = state,
+            modifier = modifier,
+            onAdd = viewModel::onAddClicked,
+            onEdit = viewModel::onEditClicked,
+            onPause = viewModel::onPauseClicked,
+            onResume = viewModel::onResumeClicked,
+            onEnd = viewModel::onEndClicked,
+            onDelete = viewModel::onDeleteClicked,
+            onConfirm = viewModel::onConfirmClicked,
+            onSkip = viewModel::onSkipClicked,
+            onSkipAll = viewModel::onSkipAllClicked,
+            onDetectRecurring = viewModel::onDetectRecurringClicked,
+        )
+    }
 }
 
-/** Every modal/dialog driven by [RecurringViewModel]'s state, independent of which screen is
- * currently showing -- [viewModel] is an app-level singleton (instantiated once in
+/** The remaining modals/dialogs driven by [RecurringViewModel]'s state that can be triggered
+ * independent of which screen is currently showing (due-prompt confirm, detection review, end/
+ * delete confirmations) -- [viewModel] is an app-level singleton (instantiated once in
  * `MainActivity`), so these need to render regardless of navigation, not just when the user is
  * on [RecurringScreen] itself. Rendered once, unconditionally, from `MainActivity` -- NOT called
  * from [RecurringScreen] itself, to avoid rendering every dialog twice when the user is actually
- * on that screen. */
+ * on that screen. The template create/edit form is the one piece of this ViewModel's state that's
+ * only ever opened from [RecurringScreen] itself, so it renders as a local full-page swap there
+ * instead (see [RecurringScreen]), not here. */
 @Composable
 internal fun RecurringOverlays(viewModel: RecurringViewModel) {
     val state by viewModel.state.collectAsState()
@@ -121,20 +156,10 @@ internal fun RecurringOverlays(viewModel: RecurringViewModel) {
     state.confirmPrompt?.let { prompt ->
         ConfirmPromptDialog(
             prompt = prompt,
+            people = state.people,
             onFormChange = viewModel::onConfirmFormChanged,
             onDismiss = viewModel::onConfirmDismissed,
             onSave = viewModel::onConfirmSaveClicked,
-        )
-    }
-
-    state.form?.let { form ->
-        TemplateFormDialog(
-            form = form,
-            accounts = state.accounts,
-            categories = state.categories,
-            onFormChange = viewModel::onFormChanged,
-            onDismiss = viewModel::onFormDismissed,
-            onSave = viewModel::onSaveClicked,
         )
     }
 
@@ -331,6 +356,43 @@ private fun androidx.compose.foundation.lazy.LazyListScope.templateSection(
     }
 }
 
+/** Amount figure shown for a template row / due-prompt card: variable amounts show a pill, a
+ * shared template shows the user's own share as primary with the total as a secondary line
+ * (matching how [com.gestorfinances.app.ui.common.MovementListItem] displays a shared movement),
+ * and a plain template just shows the total. */
+@Composable
+private fun TemplateAmountDisplay(template: TemplateSummary, style: TextStyle = MaterialTheme.typography.titleSmall) {
+    val amount = template.amountCents
+    if (template.amountIsVariable || amount == null) {
+        NeutralPill(text = stringResource(R.string.recurring_amount_variable))
+        return
+    }
+    val userShare = template.signedUserShareCents()
+    if (template.splitConfig != null && userShare != null) {
+        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            MoneyText(
+                cents = userShare,
+                color = FinanceTheme.colors.amountColor(template.type),
+                style = style,
+                signed = template.type != MovementType.EXPENSE,
+            )
+            Text(
+                text = stringResource(R.string.movement_total_short, formatEuroCents(amount)),
+                color = FinanceTheme.colors.mutedText,
+                style = MaterialTheme.typography.labelSmall,
+                textAlign = TextAlign.End,
+            )
+        }
+    } else {
+        MoneyText(
+            cents = template.signedAmountCents(),
+            color = FinanceTheme.colors.amountColor(template.type),
+            style = style,
+            signed = template.type != MovementType.EXPENSE,
+        )
+    }
+}
+
 @Composable
 private fun TemplateRow(
     template: TemplateSummary,
@@ -357,6 +419,8 @@ private fun TemplateRow(
             Text(
                 text = template.name ?: template.type.label(),
                 style = MaterialTheme.typography.titleSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = listOfNotNull(template.cadenceLabel(), template.accountName)
@@ -369,18 +433,16 @@ private fun TemplateRow(
                 color = FinanceTheme.colors.mutedText,
                 style = MaterialTheme.typography.labelSmall,
             )
+            if (template.splitConfig != null) {
+                Spacer(modifier = Modifier.height(4.dp))
+                NeutralPill(
+                    text = stringResource(R.string.recurring_shared_badge),
+                    leadingIcon = Icons.Outlined.Group,
+                )
+            }
         }
         Spacer(modifier = Modifier.width(8.dp))
-        if (template.amountIsVariable || template.amountCents == null) {
-            NeutralPill(text = stringResource(R.string.recurring_amount_variable))
-        } else {
-            MoneyText(
-                cents = template.signedAmountCents(),
-                color = FinanceTheme.colors.amountColor(template.type),
-                style = MaterialTheme.typography.titleSmall,
-                signed = template.type != MovementType.EXPENSE,
-            )
-        }
+        TemplateAmountDisplay(template = template)
         TemplateRowMenu(
             status = template.status,
             onEdit = onEdit,
@@ -513,15 +575,25 @@ private fun DuePromptCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            NeutralPill(
-                text = stringResource(R.string.recurring_due_badge),
-                leadingIcon = Icons.Outlined.Warning,
-            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                NeutralPill(
+                    text = stringResource(R.string.recurring_due_badge),
+                    leadingIcon = Icons.Outlined.Warning,
+                )
+                if (template.splitConfig != null) {
+                    NeutralPill(
+                        text = stringResource(R.string.recurring_shared_badge),
+                        leadingIcon = Icons.Outlined.Group,
+                    )
+                }
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = template.name ?: template.type.label(),
                         style = MaterialTheme.typography.titleSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                     Text(
                         text = stringResource(R.string.recurring_next_due, prompt.dueDate),
@@ -529,16 +601,7 @@ private fun DuePromptCard(
                         style = MaterialTheme.typography.labelSmall,
                     )
                 }
-                if (template.amountIsVariable || template.amountCents == null) {
-                    NeutralPill(text = stringResource(R.string.recurring_amount_variable))
-                } else {
-                    MoneyText(
-                        cents = template.signedAmountCents(),
-                        color = FinanceTheme.colors.amountColor(template.type),
-                        style = MaterialTheme.typography.titleSmall,
-                        signed = template.type != MovementType.EXPENSE,
-                    )
-                }
+                TemplateAmountDisplay(template = template)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 PrimaryButton(
@@ -616,6 +679,7 @@ internal fun DueRemindersSheet(
 @Composable
 private fun ConfirmPromptDialog(
     prompt: ConfirmPromptState,
+    people: List<PersonSummary>,
     onFormChange: (ConfirmPromptState) -> Unit,
     onDismiss: () -> Unit,
     onSave: () -> Unit,
@@ -648,30 +712,42 @@ private fun ConfirmPromptDialog(
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
-            prompt.errorRes?.let {
-                InlineBanner(kind = BannerKind.Error, text = stringResource(it))
-            }
             prompt.errorMessage?.let {
                 InlineBanner(kind = BannerKind.Error, text = it)
             }
+            val amountError = prompt.errorField == ConfirmPromptField.AMOUNT
             OutlinedTextField(
                 value = prompt.amount,
                 onValueChange = { onFormChange(prompt.copy(amount = it)) },
                 label = { Text(text = stringResource(R.string.template_field_amount)) },
                 prefix = { Text(text = "€") },
                 singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                isError = amountError,
+                supportingText = if (amountError && prompt.errorRes != null) {
+                    { Text(text = stringResource(prompt.errorRes)) }
+                } else null,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
+                keyboardActions = nextFieldKeyboardActions(),
                 shape = MaterialTheme.shapes.small,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .scrollToWhen(amountError),
             )
-            OutlinedTextField(
-                value = prompt.date,
-                onValueChange = { onFormChange(prompt.copy(date = it)) },
-                label = { Text(text = stringResource(R.string.template_field_next_due)) },
-                supportingText = { Text(text = stringResource(R.string.movement_date_format_hint)) },
-                singleLine = true,
-                shape = MaterialTheme.shapes.small,
-                modifier = Modifier.fillMaxWidth(),
+            if (prompt.splitConfig != null) {
+                SplitPreviewCard(splitConfig = prompt.splitConfig, amountText = prompt.amount, people = people)
+            }
+            val dateError = prompt.errorField == ConfirmPromptField.DATE
+            FormDatePicker(
+                label = stringResource(R.string.template_field_next_due),
+                date = prompt.date,
+                onDateChange = { onFormChange(prompt.copy(date = it)) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .scrollToWhen(dateError),
+                isError = dateError,
+                supportingText = if (dateError && prompt.errorRes != null) {
+                    stringResource(prompt.errorRes)
+                } else null,
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -689,6 +765,55 @@ private fun ConfirmPromptDialog(
                     onClick = onSave,
                     modifier = Modifier.weight(1f),
                 )
+            }
+        }
+    }
+}
+
+/** Live preview of how the confirmed amount would be split, so a shared template's confirm sheet
+ * never books a rescaled or dropped split without the user seeing it first (docs/13 §84). Uses the
+ * exact same rule [RecurringViewModel] applies at save time ([TemplateSplitConfig.previewShares]). */
+@Composable
+private fun SplitPreviewCard(
+    splitConfig: TemplateSplitConfig,
+    amountText: String,
+    people: List<PersonSummary>,
+) {
+    val amountCents = parseEuroCents(amountText, allowNegative = false)
+    val shares = amountCents?.takeIf { it > 0L }?.let { splitConfig.previewShares(it, people) }.orEmpty()
+    FinanceCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.recurring_split_preview_title),
+                color = FinanceTheme.colors.mutedText,
+                style = MaterialTheme.typography.labelMedium,
+            )
+            if (shares.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.recurring_split_preview_enter_amount),
+                    color = FinanceTheme.colors.mutedText,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            } else {
+                shares.forEach { line ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(
+                            text = if (line.isUser) {
+                                stringResource(R.string.split_payer_user)
+                            } else {
+                                line.personName ?: stringResource(R.string.recurring_split_preview_person_unknown)
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        MoneyText(cents = line.amountCents, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
             }
         }
     }
@@ -718,214 +843,264 @@ private fun EmptyRecurringCard(onAdd: () -> Unit) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun TemplateFormDialog(
+private fun TemplateFormScreen(
     form: TemplateFormState,
     accounts: List<AccountSummary>,
     categories: List<CategoryRecord>,
     onFormChange: (TemplateFormState) -> Unit,
-    onDismiss: () -> Unit,
+    onBack: () -> Unit,
     onSave: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface,
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp)
+            .navigationBarsPadding()
+            .imePadding()
+            .padding(bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-                .navigationBarsPadding()
-                .imePadding()
-                .padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Text(
-                text = stringResource(
-                    if (form.id == null) R.string.template_new_title else R.string.template_edit_title,
-                ),
-                style = MaterialTheme.typography.titleLarge,
-            )
-            form.errorRes?.let {
-                InlineBanner(kind = BannerKind.Error, text = stringResource(it))
-            }
-            form.errorMessage?.let {
-                InlineBanner(kind = BannerKind.Error, text = it)
-            }
+        PageHeaderRow(
+            onBack = onBack,
+            title = stringResource(
+                if (form.id == null) R.string.template_new_title else R.string.template_edit_title,
+            ),
+        )
+        form.errorMessage?.let {
+            InlineBanner(kind = BannerKind.Error, text = it)
+        }
 
-            MovementTypeSelector(
-                selected = form.type,
-                onSelect = { onFormChange(form.copy(type = it)) },
-            )
+        MovementTypeSelector(
+            selected = form.type,
+            onSelect = { onFormChange(form.copy(type = it)) },
+        )
 
-            // Concepte
+        // Concepte
+        OutlinedTextField(
+            value = form.name,
+            onValueChange = { onFormChange(form.copy(name = it)) },
+            label = { Text(text = stringResource(R.string.template_field_name)) },
+            singleLine = true,
+            shape = MaterialTheme.shapes.small,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = doneKeyboardActions(),
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        FormToggleRow(
+            label = stringResource(R.string.template_field_amount_variable),
+            checked = form.amountIsVariable,
+            onCheckedChange = { onFormChange(form.copy(amountIsVariable = it)) },
+        )
+        if (!form.amountIsVariable) {
+            val amountError = form.errorField == TemplateFormField.AMOUNT
             OutlinedTextField(
-                value = form.name,
-                onValueChange = { onFormChange(form.copy(name = it)) },
-                label = { Text(text = stringResource(R.string.template_field_name)) },
+                value = form.amount,
+                onValueChange = { onFormChange(form.copy(amount = it)) },
+                label = { Text(text = stringResource(R.string.template_field_amount)) },
+                prefix = { Text(text = "€") },
                 singleLine = true,
+                isError = amountError,
+                supportingText = if (amountError && form.errorRes != null) {
+                    { Text(text = stringResource(form.errorRes)) }
+                } else null,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
+                keyboardActions = nextFieldKeyboardActions(),
                 shape = MaterialTheme.shapes.small,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .scrollToWhen(amountError),
+            )
+            val amountFlexError = form.errorField == TemplateFormField.AMOUNT_FLEX
+            OutlinedTextField(
+                value = form.amountFlex,
+                onValueChange = { onFormChange(form.copy(amountFlex = it)) },
+                label = { Text(text = stringResource(R.string.template_field_amount_flex)) },
+                prefix = { Text(text = "€") },
+                singleLine = true,
+                isError = amountFlexError,
+                supportingText = if (amountFlexError && form.errorRes != null) {
+                    { Text(text = stringResource(form.errorRes)) }
+                } else null,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
+                keyboardActions = doneKeyboardActions(),
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .scrollToWhen(amountFlexError),
+            )
+        }
+
+        // Row: next due date & category (transfers have no category — date spans full width)
+        val nextDueError = form.errorField == TemplateFormField.NEXT_DUE_DATE
+        val nextDueErrorText = if (nextDueError && form.errorRes != null) stringResource(form.errorRes) else null
+        if (form.type == MovementType.TRANSFER) {
+            FormDatePicker(
+                label = stringResource(R.string.template_field_next_due),
+                date = form.nextDueDate,
+                onDateChange = { onFormChange(form.copy(nextDueDate = it)) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .scrollToWhen(nextDueError),
+                isError = nextDueError,
+                supportingText = nextDueErrorText,
+            )
+        } else {
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-            )
-
-            FormToggleRow(
-                label = stringResource(R.string.template_field_amount_variable),
-                checked = form.amountIsVariable,
-                onCheckedChange = { onFormChange(form.copy(amountIsVariable = it)) },
-            )
-            if (!form.amountIsVariable) {
-                OutlinedTextField(
-                    value = form.amount,
-                    onValueChange = { onFormChange(form.copy(amount = it)) },
-                    label = { Text(text = stringResource(R.string.template_field_amount)) },
-                    prefix = { Text(text = "€") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = form.amountFlex,
-                    onValueChange = { onFormChange(form.copy(amountFlex = it)) },
-                    label = { Text(text = stringResource(R.string.template_field_amount_flex)) },
-                    prefix = { Text(text = "€") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-
-            // Row: next due date & category (transfers have no category — date spans full width)
-            if (form.type == MovementType.TRANSFER) {
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.Top,
+            ) {
                 FormDatePicker(
                     label = stringResource(R.string.template_field_next_due),
                     date = form.nextDueDate,
                     onDateChange = { onFormChange(form.copy(nextDueDate = it)) },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .weight(1f)
+                        .scrollToWhen(nextDueError),
+                    isError = nextDueError,
+                    supportingText = nextDueErrorText,
                 )
-            } else {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.Top,
-                ) {
-                    FormDatePicker(
-                        label = stringResource(R.string.template_field_next_due),
-                        date = form.nextDueDate,
-                        onDateChange = { onFormChange(form.copy(nextDueDate = it)) },
-                        modifier = Modifier.weight(1f),
-                    )
-                    CategorySelect(
-                        categories = categories,
-                        type = form.type,
-                        selectedId = form.categoryId,
-                        onSelect = { onFormChange(form.copy(categoryId = it)) },
-                        modifier = Modifier.weight(1.5f),
-                    )
-                }
+                CategorySelect(
+                    categories = categories,
+                    type = form.type,
+                    selectedId = form.categoryId,
+                    onSelect = { onFormChange(form.copy(categoryId = it)) },
+                    modifier = Modifier.weight(1.5f),
+                )
             }
+        }
 
-            // Account(s)
-            if (form.type == MovementType.TRANSFER) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    AccountSelect(
-                        label = stringResource(R.string.template_field_account),
-                        selectedId = form.accountId,
-                        accounts = accounts,
-                        onSelect = { onFormChange(form.copy(accountId = it)) },
-                        modifier = Modifier.weight(1f),
-                    )
-                    AccountSelect(
-                        label = stringResource(R.string.template_field_dest_account),
-                        selectedId = form.destinationAccountId,
-                        accounts = accounts,
-                        onSelect = { onFormChange(form.copy(destinationAccountId = it)) },
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            } else {
+        // Account(s)
+        val accountError = form.errorField == TemplateFormField.ACCOUNT
+        val destinationError = form.errorField == TemplateFormField.DESTINATION_ACCOUNT
+        val accountErrorText = if (form.errorRes != null) stringResource(form.errorRes) else null
+        if (form.type == MovementType.TRANSFER) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
                 AccountSelect(
                     label = stringResource(R.string.template_field_account),
                     selectedId = form.accountId,
                     accounts = accounts,
                     onSelect = { onFormChange(form.copy(accountId = it)) },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .weight(1f)
+                        .scrollToWhen(accountError),
+                    isError = accountError,
+                    supportingText = if (accountError) accountErrorText else null,
+                )
+                AccountSelect(
+                    label = stringResource(R.string.template_field_dest_account),
+                    selectedId = form.destinationAccountId,
+                    accounts = accounts,
+                    onSelect = { onFormChange(form.copy(destinationAccountId = it)) },
+                    modifier = Modifier
+                        .weight(1f)
+                        .scrollToWhen(destinationError),
+                    isError = destinationError,
+                    supportingText = if (destinationError) accountErrorText else null,
                 )
             }
+        } else {
+            AccountSelect(
+                label = stringResource(R.string.template_field_account),
+                selectedId = form.accountId,
+                accounts = accounts,
+                onSelect = { onFormChange(form.copy(accountId = it)) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .scrollToWhen(accountError),
+                isError = accountError,
+                supportingText = if (accountError) accountErrorText else null,
+            )
+        }
 
-            ScheduleFields(form = form, onFormChange = onFormChange)
+        ScheduleFields(form = form, onFormChange = onFormChange)
 
-            OutlinedTextField(
-                value = form.dateFlex,
-                onValueChange = { onFormChange(form.copy(dateFlex = it)) },
-                label = { Text(text = stringResource(R.string.template_field_date_flex)) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                shape = MaterialTheme.shapes.small,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedTextField(
-                value = form.leadDays,
-                onValueChange = { onFormChange(form.copy(leadDays = it)) },
-                label = { Text(text = stringResource(R.string.template_field_lead_days)) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                shape = MaterialTheme.shapes.small,
-                modifier = Modifier.fillMaxWidth(),
-            )
+        val dateFlexError = form.errorField == TemplateFormField.DATE_FLEX
+        OutlinedTextField(
+            value = form.dateFlex,
+            onValueChange = { onFormChange(form.copy(dateFlex = it)) },
+            label = { Text(text = stringResource(R.string.template_field_date_flex)) },
+            singleLine = true,
+            isError = dateFlexError,
+            supportingText = if (dateFlexError && form.errorRes != null) {
+                { Text(text = stringResource(form.errorRes)) }
+            } else null,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+            keyboardActions = nextFieldKeyboardActions(),
+            shape = MaterialTheme.shapes.small,
+            modifier = Modifier
+                .fillMaxWidth()
+                .scrollToWhen(dateFlexError),
+        )
+        val leadDaysError = form.errorField == TemplateFormField.LEAD_DAYS
+        OutlinedTextField(
+            value = form.leadDays,
+            onValueChange = { onFormChange(form.copy(leadDays = it)) },
+            label = { Text(text = stringResource(R.string.template_field_lead_days)) },
+            singleLine = true,
+            isError = leadDaysError,
+            supportingText = if (leadDaysError && form.errorRes != null) {
+                { Text(text = stringResource(form.errorRes)) }
+            } else null,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+            keyboardActions = doneKeyboardActions(),
+            shape = MaterialTheme.shapes.small,
+            modifier = Modifier
+                .fillMaxWidth()
+                .scrollToWhen(leadDaysError),
+        )
 
-            LabeledSegmentedControl(
-                label = stringResource(R.string.template_field_status),
-                options = TemplateStatus.entries,
-                selected = form.status,
-                optionLabel = { it.label() },
-                onSelect = { onFormChange(form.copy(status = it)) },
-            )
+        LabeledSegmentedControl(
+            label = stringResource(R.string.template_field_status),
+            options = TemplateStatus.entries,
+            selected = form.status,
+            optionLabel = { it.label() },
+            onSelect = { onFormChange(form.copy(status = it)) },
+        )
 
-            OutlinedTextField(
-                value = form.payee,
-                onValueChange = { onFormChange(form.copy(payee = it)) },
-                label = { Text(text = stringResource(R.string.template_field_payee)) },
-                singleLine = true,
+        OutlinedTextField(
+            value = form.payee,
+            onValueChange = { onFormChange(form.copy(payee = it)) },
+            label = { Text(text = stringResource(R.string.template_field_payee)) },
+            singleLine = true,
+            shape = MaterialTheme.shapes.small,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+            keyboardActions = nextFieldKeyboardActions(),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            value = form.notes,
+            onValueChange = { onFormChange(form.copy(notes = it)) },
+            label = { Text(text = stringResource(R.string.template_field_notes)) },
+            minLines = 2,
+            shape = MaterialTheme.shapes.small,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            OutlinedButton(
+                onClick = onBack,
+                modifier = Modifier.weight(1f),
                 shape = MaterialTheme.shapes.small,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedTextField(
-                value = form.notes,
-                onValueChange = { onFormChange(form.copy(notes = it)) },
-                label = { Text(text = stringResource(R.string.template_field_notes)) },
-                minLines = 2,
-                shape = MaterialTheme.shapes.small,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                OutlinedButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.weight(1f),
-                    shape = MaterialTheme.shapes.small,
-                ) {
-                    Text(text = stringResource(R.string.common_cancel))
-                }
-                PrimaryButton(
-                    text = stringResource(
-                        if (form.id == null) R.string.template_save_new else R.string.template_save_changes,
-                    ),
-                    onClick = onSave,
-                    modifier = Modifier.weight(1f),
-                )
+                Text(text = stringResource(R.string.common_cancel))
             }
+            PrimaryButton(
+                text = stringResource(
+                    if (form.id == null) R.string.template_save_new else R.string.template_save_changes,
+                ),
+                onClick = onSave,
+                modifier = Modifier.weight(1f),
+            )
         }
     }
 }
@@ -1018,7 +1193,15 @@ private fun DetectionCandidateRow(
                         text = candidate.name?.takeIf { it.isNotBlank() } ?: candidate.payee.orEmpty(),
                         style = MaterialTheme.typography.titleSmall,
                         modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
+                    if (item.splitConfig != null) {
+                        NeutralPill(
+                            text = stringResource(R.string.recurring_shared_badge),
+                            leadingIcon = Icons.Outlined.Group,
+                        )
+                    }
                     NeutralPill(
                         text = stringResource(
                             if (candidate.action == DetectedTemplateAction.NEW) {
@@ -1038,16 +1221,34 @@ private fun DetectionCandidateRow(
                     color = FinanceTheme.colors.mutedText,
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                if (candidate.amountIsVariable) {
-                    NeutralPill(text = stringResource(R.string.template_field_amount_variable))
-                } else {
-                    MoneyText(
-                        cents = candidate.amountCents ?: 0L,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
+                DetectionCandidateAmount(candidate = candidate, splitConfig = item.splitConfig)
             }
         }
+    }
+}
+
+/** Mirrors [TemplateAmountDisplay]'s primary-share/secondary-total pattern for a not-yet-created
+ * candidate: a shared candidate shows the user's own share with the total alongside, instead of
+ * the group's raw total (which used to be the only figure shown, hiding sharing entirely). */
+@Composable
+private fun DetectionCandidateAmount(candidate: DetectedRecurringCandidate, splitConfig: TemplateSplitConfig?) {
+    val amount = candidate.amountCents
+    if (candidate.amountIsVariable || amount == null) {
+        NeutralPill(text = stringResource(R.string.template_field_amount_variable))
+        return
+    }
+    val userShare = splitConfig?.userShareCents(amount)
+    if (splitConfig != null && userShare != null) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            MoneyText(cents = userShare, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                text = stringResource(R.string.movement_total_short, formatEuroCents(amount)),
+                color = FinanceTheme.colors.mutedText,
+                style = MaterialTheme.typography.labelSmall,
+            )
+        }
+    } else {
+        MoneyText(cents = amount, style = MaterialTheme.typography.bodyMedium)
     }
 }
 
@@ -1067,15 +1268,22 @@ private fun ScheduleFields(
         },
         modifier = Modifier.fillMaxWidth(),
     )
+    val scheduleError = form.errorField == TemplateFormField.SCHEDULE
+    val scheduleErrorText = if (scheduleError && form.errorRes != null) stringResource(form.errorRes) else null
     when {
         form.frequency.usesDayOfMonth() -> OutlinedTextField(
             value = form.dayOfMonth,
             onValueChange = { onFormChange(form.copy(dayOfMonth = it)) },
             label = { Text(text = stringResource(R.string.template_field_anchor_day)) },
             singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            isError = scheduleError,
+            supportingText = scheduleErrorText?.let { { Text(text = it) } },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+            keyboardActions = doneKeyboardActions(),
             shape = MaterialTheme.shapes.small,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .scrollToWhen(scheduleError),
         )
         form.frequency.usesWeekday() -> {
             val labels = stringArrayResource(R.array.template_weekday_short)
@@ -1093,9 +1301,14 @@ private fun ScheduleFields(
                 onValueChange = { onFormChange(form.copy(intervalCount = it)) },
                 label = { Text(text = stringResource(R.string.template_field_interval)) },
                 singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                isError = scheduleError,
+                supportingText = scheduleErrorText?.let { { Text(text = it) } },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                keyboardActions = doneKeyboardActions(),
                 shape = MaterialTheme.shapes.small,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .scrollToWhen(scheduleError),
             )
             FormSelect(
                 label = stringResource(R.string.template_field_custom_unit),
@@ -1111,17 +1324,6 @@ private fun ScheduleFields(
         }
     }
 }
-
-@Composable
-private fun MovementType.label(): String =
-    when (this) {
-        MovementType.EXPENSE -> stringResource(R.string.movement_type_expense)
-        MovementType.INCOME -> stringResource(R.string.movement_type_income)
-        MovementType.TRANSFER -> stringResource(R.string.movement_type_transfer)
-        MovementType.SETTLEMENT -> stringResource(R.string.movement_type_settlement)
-        MovementType.REFUND -> stringResource(R.string.movement_type_refund)
-        MovementType.EXTERNAL_EXPENSE -> stringResource(R.string.movement_type_external)
-    }
 
 @Composable
 private fun RecurrenceFrequency.label(): String =
@@ -1165,5 +1367,13 @@ private fun TemplateSummary.cadenceLabel(): String =
 private fun TemplateSummary.signedAmountCents(): Long {
     val amount = amountCents ?: 0L
     return if (type == MovementType.EXPENSE || type == MovementType.EXTERNAL_EXPENSE) -amount else amount
+}
+
+/** The user's own share, signed the same way as [signedAmountCents] — null when there's no split
+ * to derive it from, or the amount is unset (variable-amount template). */
+private fun TemplateSummary.signedUserShareCents(): Long? {
+    val amount = amountCents ?: return null
+    val share = splitConfig?.userShareCents(amount) ?: return null
+    return if (type == MovementType.EXPENSE || type == MovementType.EXTERNAL_EXPENSE) -share else share
 }
 

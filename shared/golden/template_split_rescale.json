@@ -1,0 +1,41 @@
+{
+  "rule": "template_split_rescale",
+  "description": "Materialize a template's carried-forward split_config (docs/04 §templates.split_config) against a confirmed occurrence amount that may differ from the config's own line sum (variable amount, edited amount, or a NEW-detected candidate whose amount is a group median while its split weights came from one source movement). Each line's owed_amount_cents is treated as a weight; shares are the weight's proportion of total_cents, floored, with the leftover remainder cents added to the payer's line (same convention as split_rounding's percentage method, spec §3.7). Identity when the config already reconciles with total_cents. A zero-weight line stays zero unless it is the payer.",
+  "cases": [
+    {
+      "name": "already reconciles -> identity",
+      "input": { "weights_cents": [500, 500], "total_cents": 1000, "payer_index": 0 },
+      "expected": { "shares_cents": [500, 500] }
+    },
+    {
+      "name": "scaled up, divides evenly",
+      "input": { "weights_cents": [500, 500], "total_cents": 1200, "payer_index": 0 },
+      "expected": { "shares_cents": [600, 600] }
+    },
+    {
+      "name": "scaled down, remainder to payer (first)",
+      "input": { "weights_cents": [3334, 3333, 3333], "total_cents": 100, "payer_index": 0 },
+      "expected": { "shares_cents": [34, 33, 33] }
+    },
+    {
+      "name": "scaled down, remainder to payer (last)",
+      "input": { "weights_cents": [500, 500, 500], "total_cents": 100, "payer_index": 2 },
+      "expected": { "shares_cents": [33, 33, 34] }
+    },
+    {
+      "name": "zero-weight line stays zero when not payer",
+      "input": { "weights_cents": [1000, 0], "total_cents": 500, "payer_index": 0 },
+      "expected": { "shares_cents": [500, 0] }
+    },
+    {
+      "name": "single line",
+      "input": { "weights_cents": [1000], "total_cents": 750, "payer_index": 0 },
+      "expected": { "shares_cents": [750] }
+    },
+    {
+      "name": "all-zero weights -> total to payer",
+      "input": { "weights_cents": [0, 0], "total_cents": 900, "payer_index": 1 },
+      "expected": { "shares_cents": [0, 900] }
+    }
+  ]
+}

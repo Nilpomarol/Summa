@@ -17,7 +17,7 @@ FROM accounts
 JOIN v_account_balance
     ON v_account_balance.account_id = accounts.id
 WHERE accounts.archived_at IS NULL
-ORDER BY accounts.display_order ASC, lower(accounts.name) ASC;
+ORDER BY accounts.is_default DESC, accounts.display_order ASC, lower(accounts.name) ASC;
 
 accountById:
 SELECT
