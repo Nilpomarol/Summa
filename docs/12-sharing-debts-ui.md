@@ -265,7 +265,7 @@ Use `docs/08-design-system.md` without new tokens:
 - Settle-up and split editor use mobile bottom sheets when launched from an existing screen; larger edit flows may use full-screen forms if the current Compose structure needs it.
 - Warnings are inline banners, not blocking modals.
 - Destructive person delete confirmation remains the compact centered destructive alert.
-- Amounts use Geist Mono/tabular figures and are formatted as euros only at the UI edge.
+- Amounts use IBM Plex Mono/tabular figures and are formatted as euros only at the UI edge.
 
 ---
 

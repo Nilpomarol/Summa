@@ -9,7 +9,7 @@ Source tokens live in `shared/design/tokens/design-tokens.json`. The design pros
 | `colors.neutral`, `colors.brand`, `colors.functional` | `Color` constants in a small design-token object, then app `ColorScheme`/semantic finance colors |
 | `colors.category` | category/icon-chip defaults and seeded category presentation |
 | `colors.banner` | inline banner and read-only banner colors |
-| `typography.families` | app font-family setup; use `Geist` for interface and `Geist Mono` for ledger figures |
+| `typography.families` | app font-family setup; use `Geist` for interface and `IBM Plex Mono` for ledger figures |
 | `typography.scale` | `Typography` text styles |
 | `typography.features.figures` | tabular-number font feature for amount text |
 | `spacingPx` | `Dp` spacing constants |
@@ -27,7 +27,7 @@ Compose implementation should keep tokens in one package, for example `ui/theme/
 | `colors.neutral`, `colors.brand`, `colors.functional` | `Color`/`SolidColorBrush` resources in a merged resource dictionary |
 | `colors.category` | category/icon-chip brush resources and seeded category presentation |
 | `colors.banner` | banner and read-only banner brushes |
-| `typography.families` | `FontFamily` resources; use Geist for UI and Geist Mono for ledger figures |
+| `typography.families` | `FontFamily` resources; use Geist for UI and IBM Plex Mono for ledger figures |
 | `typography.scale` | `FontSize` and `FontWeight` resources/styles |
 | `typography.features.figures` | tabular amount style where the selected text stack supports it |
 | `spacingPx` | spacing thickness resources |

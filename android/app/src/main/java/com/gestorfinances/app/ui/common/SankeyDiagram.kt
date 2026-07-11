@@ -39,7 +39,7 @@ data class SankeyLink(
 
 /**
  * A compact Sankey: columns of proportional, rounded nodes joined by translucent flow bands whose
- * width encodes value. Each node shows its name and its amount ([formatEuroCompact], Geist Mono
+ * width encodes value. Each node shows its name and its amount ([formatEuroCompact], IBM Plex Mono
  * tabular figures) so the flow is self-explanatory without tapping — a closest-safe rendering (no
  * native Sankey in the chart lib), not a publication-grade diagram.
  */

@@ -58,7 +58,7 @@ Data rules:
 
 - the visible monthly total is **derived** from active templates and their schedule; it is informational and never a ledger value;
 - pending occurrences are **virtual** — not movements — and do not affect balances, flow, or analysis until confirmed (§3.10, §4.3);
-- amounts use Geist Mono/tabular figures, euros only at the UI edge.
+- amounts use IBM Plex Mono/tabular figures, euros only at the UI edge.
 
 Visual identity:
 
@@ -235,7 +235,7 @@ Use `docs/08-design-system.md` without new tokens:
 - Budget progress bars use the existing green/amber/red semantic roles; the same component is reused in category breakdowns.
 - Forms (template, refund, budget) use the established Add/Edit dialog pattern with `OutlinedTextField`, `MovementTypeSelector`, `FormSelect` dropdowns, and `LabeledSegmentedControl` for small fixed choices — the same shared form primitives as the movement form; date fields use `FormDatePicker` (native date picker, `AAAA-MM-DD` format hint on remaining text fields).
 - Over-refund and other warnings are inline banners, never blocking modals.
-- Amounts use Geist Mono/tabular figures and are formatted as euros only at the UI edge.
+- Amounts use IBM Plex Mono/tabular figures and are formatted as euros only at the UI edge.
 
 ---
 
