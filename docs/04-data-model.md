@@ -357,7 +357,7 @@ CREATE TABLE meta (                                    -- key/value; no mixin
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
--- seed: ('schema_version','4'), ('snapshot_version','0'); also app settings (theme, default lead days, ...).
+-- seed: ('schema_version','5'), ('snapshot_version','0'); also app settings (theme, default lead days, ...).
 -- schema_version=2: migration 002_add_splits_tag_id.sql adds tag_id to splits (C1).
 -- schema_version=3: migration 003_add_tag_category_and_type.sql adds category_id/trip_type to tags.
 -- schema_version=4: migration 004_add_v_trip_actual_total_view.sql creates v_trip_actual_total for
@@ -365,6 +365,10 @@ CREATE TABLE meta (                                    -- key/value; no mixin
 --   recreates v_actual_expense with its current tag_id-per-branch shape — that view has existed
 --   since before schema_version existed (never embedded in any earlier migration), so any
 --   database ever fresh-created before the tag_id fix needs it recreated on upgrade too.
+-- schema_version=5: migration 005_fix_v_movement_summary_external_amount.sql recreates
+--   v_movement_summary so the external_expense branch's amount_cents sources from
+--   splits.total_amount_cents (the split's total cost) instead of the user's owed share,
+--   matching every other row type in the view (§7.7).
 ```
 
 ---
@@ -524,7 +528,9 @@ GROUP BY trip_id;
 
 ### 7.7 Movement summary (list/detail display rollup)
 
-`v_movement_summary` is the single query every movement list/detail/filter surface joins against (P5R-3 `O1`, replacing four call sites that each re-derived the same display columns). It resolves account/category/trip/tag names, the linked-expense name and archived flag for a refund (§ orphan-refund banner), the "someone else paid" payer name for a shared expense, `is_shared`/`user_share_cents` for display, and — via a second `UNION ALL` branch — synthesizes an `'external_expense'` row for §2.6 external splits, which have no `movements` row of their own:
+`v_movement_summary` is the single query every movement list/detail/filter surface joins against (P5R-3 `O1`, replacing four call sites that each re-derived the same display columns). It resolves account/category/trip/tag names, the linked-expense name and archived flag for a refund (§ orphan-refund banner), the "someone else paid" payer name for a shared expense, `is_shared`/`user_share_cents` for display, and — via a second `UNION ALL` branch — synthesizes an `'external_expense'` row for §2.6 external splits, which have no `movements` row of their own.
+
+`amount_cents` means "the total cost of the expense" for **every** row type, including `external_expense` (sourced from `splits.total_amount_cents`, not the user's owed share); `user_share_cents` means "the user's own portion" for every row type (`-1` where not applicable). Before schema v5 the `external_expense` branch incorrectly sourced `amount_cents` from `split_lines.owed_amount_cents` (the user's own share), making the same column mean two different things depending on row type; fixed in `shared/migrations/005_fix_v_movement_summary_external_amount.sql`. This was numerically silent today only because the write path (`SplitRepository.createExternalPaidByPerson`/`replaceExternalSplit`) currently enforces a single debtor whose share equals the total (§2.6 v1 simplification, `docs/16-android-audit-findings.md` finding `O5`):
 
 ```sql
 CREATE VIEW v_movement_summary AS
@@ -546,14 +552,14 @@ LEFT JOIN movements AS refunded_expense ON refunded_expense.id = m.refunds_expen
 WHERE m.archived_at IS NULL
 UNION ALL
 -- §2.6 external split rows (no movements row): synthesizes type = 'external_expense'
-SELECT s.id, 'external_expense', sl.owed_amount_cents, s.date, ...
+SELECT s.id, 'external_expense', s.total_amount_cents, s.date, ...
 FROM splits s
 JOIN split_lines sl ON sl.split_id = s.id AND sl.participant_kind = 'user' AND sl.archived_at IS NULL
 JOIN people p ON p.id = s.payer_person_id
 WHERE s.movement_id IS NULL AND s.payer_person_id IS NOT NULL AND s.archived_at IS NULL;
 ```
 
-Full column list and subquery detail live in `shared/queries/v_movement_summary.sql`. Unlike the other six views above — each touched exactly once, at `P0A-3` — `v_movement_summary` has been edited multiple times since (adding `tag_id`, then the refund-linked-expense columns): any future edit must also update its embedded copy in `shared/migrations/002_add_splits_tag_id.sql` (the v1→v2 upgrader path), or an existing install can drift out of sync with a fresh install's schema — the exact bug class documented in `docs/06-roadmap.md` P5R-6's and P5R-7's post-close fixes.
+Full column list and subquery detail live in `shared/queries/v_movement_summary.sql`. Unlike the other six views above — each touched exactly once, at `P0A-3` — `v_movement_summary` has been edited multiple times since (adding `tag_id`, then the refund-linked-expense columns, then the schema-v5 `external_expense.amount_cents` fix): any future edit must also update its embedded copy in `shared/migrations/002_add_splits_tag_id.sql` (the v1→v2 upgrader path) — an existing v1 install that only upgrades that far would otherwise drift out of sync with a fresh install's schema, the exact bug class documented in `docs/06-roadmap.md` P5R-6's and P5R-7's post-close fixes — though a later migration that also `DROP`/`CREATE`s the view (like `005_fix_v_movement_summary_external_amount.sql`) recreates the current definition for anyone who upgrades all the way, so only a partial-upgrade install stuck at v2 would ever observe the 002 copy.
 
 ---
 

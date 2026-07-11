@@ -164,9 +164,16 @@ class MovementsViewModel(
     }
 
     fun onDetailClicked(movement: MovementSummary) {
-        _state.value = _state.value.copy(detailMovement = movement, detailRefunds = emptyList())
+        _state.value = _state.value.copy(
+            detailMovement = movement,
+            detailRefunds = emptyList(),
+            detailSplit = null,
+        )
         if (movement.type == MovementType.EXPENSE) {
             loadDetailRefunds(movement.id)
+        }
+        if (movement.isShared || movement.type == MovementType.EXTERNAL_EXPENSE) {
+            loadDetailSplit(movement)
         }
     }
 
@@ -181,7 +188,7 @@ class MovementsViewModel(
     }
 
     fun onDetailDismissed() {
-        _state.value = _state.value.copy(detailMovement = null, detailRefunds = emptyList())
+        _state.value = _state.value.copy(detailMovement = null, detailRefunds = emptyList(), detailSplit = null)
     }
 
     private fun loadDetailRefunds(expenseId: String) {
@@ -191,6 +198,23 @@ class MovementsViewModel(
             }
             if (_state.value.detailMovement?.id == expenseId) {
                 _state.value = _state.value.copy(detailRefunds = refunds)
+            }
+        }
+    }
+
+    private fun loadDetailSplit(movement: MovementSummary) {
+        viewModelScope.launch {
+            val split = withContext(ioDispatcher) {
+                runCatching {
+                    if (movement.type == MovementType.EXTERNAL_EXPENSE) {
+                        splitRepository?.getForMovementById(movement.id)
+                    } else {
+                        splitRepository?.getForMovement(movement.id)
+                    }
+                }.getOrNull()
+            }
+            if (_state.value.detailMovement?.id == movement.id) {
+                _state.value = _state.value.copy(detailSplit = split)
             }
         }
     }
@@ -1107,6 +1131,7 @@ data class MovementsUiState(
     val form: MovementFormState? = null,
     val detailMovement: MovementSummary? = null,
     val detailRefunds: List<RefundSummary> = emptyList(),
+    val detailSplit: MovementSplitDraft? = null,
     val refundForm: RefundFormState? = null,
     val archiveCandidate: ArchiveCandidate? = null,
     val dataVersion: Long = 0L,
