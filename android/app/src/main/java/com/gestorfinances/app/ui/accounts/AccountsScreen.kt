@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountSummary
 import com.gestorfinances.app.data.repository.AccountType
+import com.gestorfinances.app.data.repository.MovementSummary
 import com.gestorfinances.app.data.repository.MovementType
 import com.gestorfinances.app.ui.common.AccountIconPalette
 import com.gestorfinances.app.ui.common.ChipFlowSection
@@ -94,6 +95,7 @@ import com.gestorfinances.app.ui.theme.categoryColor
 fun AccountsScreen(
     viewModel: AccountsViewModel,
     onViewAnalysis: (accountId: String, accountName: String) -> Unit = { _, _ -> },
+    onMovementDetail: (MovementSummary) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsState()
@@ -124,6 +126,7 @@ fun AccountsScreen(
                     viewModel.onFlowDismissed()
                     onViewAnalysis(flowDetail.account.id, flowDetail.account.name)
                 },
+                onMovementDetail = onMovementDetail,
                 modifier = modifier,
             )
         }
@@ -812,6 +815,7 @@ private fun AccountFlowScreen(
     detail: AccountFlowDetailState,
     onBack: () -> Unit,
     onViewAnalysis: () -> Unit,
+    onMovementDetail: (MovementSummary) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val account = detail.account
@@ -916,7 +920,10 @@ private fun AccountFlowScreen(
                     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
                 ) {
                     items(detail.entries) { movement ->
-                        MovementListItem(movement = movement)
+                        MovementListItem(
+                            movement = movement,
+                            onClick = { onMovementDetail(movement) },
+                        )
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                     }
                 }

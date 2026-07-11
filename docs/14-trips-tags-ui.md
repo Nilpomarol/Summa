@@ -32,7 +32,7 @@ Trip detail is a **full page**, not a dialog: `AppOverlay.TripDetail(tripId)` (`
 
 Analysis rows and chart elements stay display-only per the Aggregate Interaction Contract (`docs/11` §6, unchanged) — tapping a trip block in Dashboard/Analysis never opens trip detail. That earlier §8 line describing a drill-through from an Analysis trip block was already inaccurate before this slice and has been dropped.
 
-Tags are managed on their own page (`AppOverlay.Tags(tripId)`), reachable from the Trips list header ("manage tags" with no trip context) and from trip detail's "Gestiona etiquetes" action (with that trip pre-selected as the default scope for new tags). Tags are not a separate top-level Gestió tile.
+Tags are managed on their own page (`AppOverlay.Tags(tripId)`), reachable from the Trips list header ("manage tags" with no trip context) and from trip detail's "Etiquetes" action (with that trip pre-selected as the default scope for new tags). Tags are not a separate top-level Gestió tile.
 
 ---
 
@@ -44,7 +44,7 @@ Content (`TripsContent`/`TripRow`, `ui/trips/TripsScreen.kt`):
 
 - title: Esdeveniments (`SectionHeader`), with a "Nou viatge" action;
 - filter chips for all / planned / active / finished (`FinanceFilterChip`);
-- each trip row is a `FinanceCard` with an `IconChip` (trip-type icon, trip color), name, a summary line (type/status/date range), status/type `NeutralPill`s, **total actual spend** (`MoneyText`) and **average spend per day** (`trip_row_avg_day`, derived from `TripSummary.totalActualCents` and `TripSummary.dayCount()`), plus a row overflow menu (edit/archive);
+- each trip row is a `FinanceCard` with an `IconChip` (trip-type icon, trip color), name, a muted date-range line (falling back to the type label when the trip has no dates), a status `NeutralPill`, **total actual spend** (`MoneyText`) and **average spend per day** (`trip_row_avg_day`, derived from `TripSummary.totalActualCents` and `TripSummary.dayCount()`), plus a row overflow menu (edit/archive). The type is carried by the icon alone — no type pill or type text, keeping one glanceable metadata line per row;
 - empty state with a New trip action and a short explanation.
 
 Actions:
@@ -66,34 +66,33 @@ Data rules:
 
 Purpose: answer what the trip cost, how spending evolved over trip days, and what it cost by category/tag, from a full page reached via the Trips list or the Dashboard active-trip card (`TripDetailScreen`/`TripDetailContent`, `ui/trips/TripsScreen.kt`).
 
-Header (`TripDetailHeader`, a `FinanceCard` + `IconChip`, unchanged shape from P5):
+Header (inline title row, no separate header card — the trip itself is the page title):
 
-- back arrow + page title + overflow menu (Edit, Archive);
-- trip name, date range (`dateRange()`), type/status `NeutralPill`s;
-- default account line, and notes when present.
+- back arrow + `IconChip` (trip-type icon, trip color) + trip name as the page title + overflow menu (Edit, Archive);
+- one muted meta line under the name: date range (`dateRange()`) · day count (`trip_detail_days_count`, from `TripSummary.dayCount()` falling back to the daily-actual date range when the trip has no explicit start/end) · status label. No type/status pills;
+- default account and notes are **not** shown on the detail page — they are edit-form facts (the default account still surfaces implicitly when adding a movement from the trip).
 
-KPI row (`TripKpiSection`):
+Hero card (`TripHeroSection`, replaces the former 2×2 KPI grid):
 
-- actual trip spend (the user's own actual expense, net of refunds);
-- total account outlay/flow for trip movements;
-- number of trip days (`TripSummary.dayCount()`, falling back to the daily-actual date range when the trip has no explicit start/end);
-- average actual spend per day;
-- an **"exclou despeses extraordinàries" toggle** (`trip_detail_exclude_one_time`) that reuses the existing `is_one_time` flag already used elsewhere in the app (Analysis, budgets) — **this is not a new flag**. When enabled, every KPI, the daily chart, and both breakdowns are recomputed with `exclude_one_time = 1` threaded through `TripAnalysisRepository`'s queries, and an extra "avg/day sense extraordinàries" cell appears.
+- actual trip spend (the user's own actual expense, net of refunds) as the single headline number;
+- one muted secondary line combining average actual spend per day (`trip_row_avg_day`, or `trip_detail_avg_day_excluding` when the toggle is on; omitted entirely when the trip has no day count, since the average is undefined) and total account outlay/flow (`trip_detail_outflow`);
+- an **"exclou despeses extraordinàries" toggle** (`trip_detail_exclude_one_time`) that reuses the existing `is_one_time` flag already used elsewhere in the app (Analysis, budgets) — **this is not a new flag**. When enabled, the hero numbers, the daily chart, and the breakdown are recomputed with `exclude_one_time = 1` threaded through `TripAnalysisRepository`'s queries, and the secondary line labels the avg/day as "sense extraordinàries".
+
+Action row (directly under the hero, not at the bottom of the page): "Nou moviment" (`PrimaryButton`) plus "Etiquetes" and "Pressupost" (`OutlinedButton`s).
 
 Budget: when an active TRIP-scope budget exists for the trip, `TripBudgetSection` renders a `BudgetProgressBar` inline, in addition to the existing "Pressupost del viatge" action that opens the full Budgets surface for editing.
 
 Analysis blocks:
 
 - daily chart (`TripDailySection`): a cumulative `IncomeExpenseChart` fed the trip's daily-actual series (income left at 0) — the old per-day/cumulative `SegmentedControl` toggle was **dropped**; the chart is always cumulative, matching how Analysis's own equivalent chart behaves;
-- category breakdown (`TripCategorySection`): percent-bar rows with a Totals/Mitjana-per-dia toggle; the "no category" bucket gets the same muted treatment as everywhere else;
-- tag breakdown (`TripTagSection`): the same percent-bar row shape, using `TagSummary.effectiveIcon()`/`effectiveColor()` (falling back to an associated category's icon/color when the tag has none of its own, §6) for each tag's identity; the untagged bucket (`trip_analysis_untagged`) gets the same muted treatment;
-- scoped movement list (`MovementListItem` rows, one per active movement with `trip_id` = this trip); tapping a row opens the same movement detail sheet used everywhere else (`MovementDialogHost`, rendered globally regardless of screen — trip detail wires `onMovementDetail` to the shared `movementsViewModel::onDetailClicked` path, no separate detail surface).
+- **one** breakdown section (`TripBreakdownSection`, replacing the former separate category and tag sections): a category/tag dimension `SegmentedControl` plus the Totals/Mitjana-per-dia mode toggle over the same percent-bar rows, so only one row list is on screen at a time. The category dimension gives the "no category" bucket the usual muted treatment; the tag dimension uses `TagSummary.effectiveIcon()`/`effectiveColor()` (falling back to an associated category's icon/color when the tag has none of its own, §6) for each tag's identity, with the untagged bucket (`trip_analysis_untagged`) muted the same way;
+- scoped movement list capped at the **5 most recent** movements (`MovementListItem` rows, active movements with `trip_id` = this trip); tapping a row opens the same movement detail sheet used everywhere else (`MovementDialogHost` — trip detail wires `onMovementDetail` to the shared `movementsViewModel::onDetailClicked` path, no separate detail surface). When more exist, a "Veure tots (N)" action leaves trip detail and opens Moviments with the trip filter pre-applied (the same `MovementFilters(tripId)` drill-down the Dashboard uses).
 
-Actions:
+Actions (the row under the hero, §above):
 
-- "Nou moviment del viatge" preselects the trip and uses the trip's default account when present (unchanged from P5);
-- "Gestiona etiquetes" opens the Tags page pre-scoped to this trip;
-- "Pressupost del viatge" opens the Budgets surface pre-scoped to this trip.
+- "Nou moviment" preselects the trip and uses the trip's default account when present (unchanged from P5);
+- "Etiquetes" opens the Tags page pre-scoped to this trip;
+- "Pressupost" opens the Budgets surface pre-scoped to this trip.
 
 Data rules:
 
@@ -242,12 +241,12 @@ Content (`ActiveTripCard`, `ui/dashboard/DashboardScreen.kt`):
 
 Use `docs/08-design-system.md` without new tokens:
 
-- Trips and trip detail use the standard `FinanceCard`/`IconChip`/`NeutralPill` shapes, the shared KPI-cell pattern (`AnalysisWidgets.kt`'s `SummaryKPIsCard`/`KpiCell` shape), `IncomeExpenseChart`, and `MovementListItem` — no bespoke bar-chart or KPI-grid composables remain.
+- Trips and trip detail use the standard `FinanceCard`/`IconChip`/`NeutralPill` shapes, `IncomeExpenseChart`, and `MovementListItem` — no bespoke bar-chart or KPI-grid composables remain (trip detail's hero card is a plain `FinanceCard` with one headline `MoneyText`, not a KPI grid).
 - Tag chips use category-style muted color identity, but their color is identity only, not finance meaning.
 - Forms (trip add/edit, tag add/edit) are `ModalBottomSheet`s with `IconPickerRow`/`ColorPickerRow`/`FormDatePicker`/`SegmentedControl`/`FormSelect` — no raw hex/icon text fields, and no chip-picker fields for a growing list of items (accounts, categories, trips): `FormSelect` (the same `ExposedDropdownMenuBox`-based dropdown the movement form uses, `ui/movements/FormControls.kt`) is used instead, since pills wrap poorly once there are many options. `SegmentedControl`/`FinanceFilterChip` stay for genuinely small, fixed-cardinality choices (type, status, the 3-way tag scope) and for filters (the Trips list status filter row) — not form fields with an open-ended item count. Destructive confirmations (archive) remain `AlertDialog`, per the design system's exemption.
 - Empty states stay compact and action-oriented.
 - Warnings are inline banners, never blocking modals.
-- Amounts use Geist Mono/tabular figures and are formatted as euros only at the UI edge.
+- Amounts use IBM Plex Mono/tabular figures and are formatted as euros only at the UI edge.
 
 ---
 
@@ -255,7 +254,7 @@ Use `docs/08-design-system.md` without new tokens:
 
 Android resource names for:
 
-- `trip_*` for trip list, detail, form, status/type labels, KPIs (including the exclude-one-time toggle and its avg/day-excluding cell), and validation;
+- `trip_*` for trip list, detail, form, status/type labels, the hero numbers (including the exclude-one-time toggle and its avg/day-excluding secondary line), and validation;
 - `tag_*` for tag list, form, the 3-way scope labels, category-association picker, section headers, and validation (including the scope-exclusivity error);
 - `dashboard_active_trip_*` for the Dashboard active-trip card;
 - movement additions for trip and tag fields;
@@ -268,8 +267,8 @@ All values are Catalan. Keep adding strings beside the slice that needs them; do
 
 ## 13. Acceptance Checklist
 
-- Trips list shows statuses, date ranges, default account context, total spend, average/day, empty state, and New trip action.
-- Trip detail is a full page (`AppOverlay.TripDetail`, not a dialog) with KPIs (incl. the exclude-one-time toggle), a cumulative daily chart, category/tag breakdowns (tags using effective icon/color inheritance), an inline budget bar when a trip-scope budget exists, and a scoped movement list.
+- Trips list shows statuses, date ranges, total spend, average/day, empty state, and New trip action.
+- Trip detail is a full page (`AppOverlay.TripDetail`, not a dialog) with the trip as its own header, a hero spend card (incl. the exclude-one-time toggle), an action row under the hero, a cumulative daily chart, a single category/tag breakdown with a dimension switch (tags using effective icon/color inheritance), an inline budget bar when a trip-scope budget exists, and a scoped movement list capped at 5 with a "Veure tots" drill-down into Moviments.
 - Add/Edit trip and tag forms are `ModalBottomSheet`s using `IconPickerRow`/`ColorPickerRow`/`FormDatePicker`/`SegmentedControl`/`FormSelect`; every "pick one of many" field (default account, category association, specific-trip picker) is a `FormSelect` dropdown, not a chip picker; archive stays a destructive `AlertDialog`.
 - Tapping a movement row in trip detail's scoped movement list opens the shared movement detail sheet (`MovementDialogHost`), the same as everywhere else in the app.
 - Tag management supports three scopes (global / event-type / specific-trip, schema-enforced exclusivity between the last two) plus an optional category association, grouped into collapsible sections.

@@ -573,6 +573,10 @@ private fun LedgerShell(
                         nav = nav.copy(overlay = AppOverlay.Budgets(tripId = tripId, returnTo = overlay))
                     },
                     onMovementDetail = openMovementDetail,
+                    onViewAllMovements = { trip ->
+                        tripsViewModel.onDetailDismissed()
+                        openMovements(MovementFilters(tripId = trip.id))
+                    },
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),
@@ -691,6 +695,7 @@ private fun LedgerShell(
                         analysisViewModel.setAccountFilter(accountId, accountName)
                         showTopLevel(TopLevelSection.ANALYSIS)
                     },
+                    onMovementDetail = openMovementDetail,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),
@@ -705,6 +710,7 @@ private fun LedgerShell(
                         budgetsViewModel.onAddClicked(categoryId)
                         showManagement(ManagementDestination.BUDGETS)
                     },
+                    onMovementDetail = openMovementDetail,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),
