@@ -40,7 +40,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -48,13 +47,17 @@ import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountSummary
 import com.gestorfinances.app.data.repository.CategoryKind
 import com.gestorfinances.app.data.repository.CategoryRecord
+import com.gestorfinances.app.data.repository.MovementSplitDraft
 import com.gestorfinances.app.data.repository.MovementSummary
 import com.gestorfinances.app.data.repository.MovementType
+import com.gestorfinances.app.data.repository.PersonSummary
 import com.gestorfinances.app.data.repository.RefundSummary
 import com.gestorfinances.app.data.repository.SettlementDirection
+import com.gestorfinances.app.data.repository.SplitParticipantKind
 import com.gestorfinances.app.ui.common.BannerKind
 import com.gestorfinances.app.ui.common.ChipFlowSection
 import com.gestorfinances.app.ui.common.DestructiveTextButton
+import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.FinanceFilterChip
 import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.MoneyText
@@ -70,14 +73,8 @@ import com.gestorfinances.app.ui.common.parseEuroCents
 import com.gestorfinances.app.ui.common.scrollToWhen
 import com.gestorfinances.app.ui.common.signedAmountCents
 import com.gestorfinances.app.ui.theme.FinanceTheme
+import com.gestorfinances.app.ui.theme.amountColor
 import com.gestorfinances.app.ui.theme.categoryColor
-
-private data class GridItemData(
-    val icon: ImageVector,
-    val iconColor: androidx.compose.ui.graphics.Color,
-    val label: String,
-    val value: String,
-)
 
 /**
  * Movement detail page (formerly a bottom sheet). Reached via `AppOverlay.MovementDetail`
@@ -120,6 +117,8 @@ fun MovementDetailScreen(
                 movement = movement,
                 refunds = state.detailRefunds,
                 accounts = state.accounts,
+                split = state.detailSplit,
+                people = state.people,
                 onBack = onBack,
                 onEdit = { onEdit(movement) },
                 onArchive = { viewModel.onArchiveClicked(movement) },
@@ -174,12 +173,19 @@ private fun MovementDetailContent(
     movement: MovementSummary,
     refunds: List<RefundSummary>,
     accounts: List<AccountSummary>,
+    split: MovementSplitDraft?,
+    people: List<PersonSummary>,
     onBack: () -> Unit,
     onEdit: () -> Unit,
     onArchive: () -> Unit,
     onAddRefund: () -> Unit,
 ) {
     val visual = movement.chipVisual()
+    // Shared/external expenses: the header amount is the user's own share -- the total (what the
+    // expense actually cost) is a separate number and gets called out as a caption, mirroring the
+    // list-row convention in MovementListItem.kt.
+    val isSharedExpense = movement.isShared && movement.type == MovementType.EXPENSE
+    val isExternal = movement.type == MovementType.EXTERNAL_EXPENSE
 
     Column(
         modifier = Modifier
@@ -195,10 +201,16 @@ private fun MovementDetailContent(
         // Header: Icon chip, Title, Large amount
         MovementSheetHeader(
             title = movement.movementTitle(),
-            amountCents = movement.signedAmountCents(),
+            amountCents = if (isSharedExpense) -movement.userShareCents else movement.signedAmountCents(),
             type = movement.type,
             icon = visual.first,
             iconColor = visual.second,
+            amountColor = if (isSharedExpense) FinanceTheme.colors.shared else FinanceTheme.colors.amountColor(movement.type),
+            totalCaption = if (isSharedExpense || isExternal) {
+                stringResource(R.string.movement_total_short, formatEuroCents(movement.amountCents))
+            } else {
+                null
+            },
         )
 
         HorizontalDivider(color = FinanceTheme.colors.cardBorder)
@@ -210,9 +222,10 @@ private fun MovementDetailContent(
             )
         }
 
-        // Grid items data builder. buildList{} is an inline function, so stringResource()
-        // calls work directly inside it — no remember{} needed for this cheap, non-lazy list.
-        val gridItems = buildList {
+        // Core group: structural fields (when/where/category-or-counterparty), essentially
+        // always present. buildList{} is inline, so stringResource() calls work directly
+        // inside it -- no remember{} needed for this cheap, non-lazy list.
+        val coreItems = buildList {
             // Date
             add(
                 GridItemData(
@@ -275,7 +288,10 @@ private fun MovementDetailContent(
                     )
                 )
             }
+        }
 
+        // Extra group: optional/contextual fields, only rendered when present.
+        val extraItems = buildList {
             // Trip info
             if (movement.tripId != null) {
                 add(
@@ -347,49 +363,37 @@ private fun MovementDetailContent(
                     )
                 )
             }
-        }
 
-        // Grid items layout (2 columns)
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            val chunked = gridItems.chunked(2)
-            chunked.forEach { rowItems ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    rowItems.forEach { item ->
-                        DetailGridItem(
-                            icon = item.icon,
-                            iconColor = item.iconColor,
-                            label = item.label,
-                            value = item.value,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                    if (rowItems.size == 1) {
-                        Spacer(modifier = Modifier.weight(1f))
-                    }
-                }
+            // Payee
+            movement.payee?.takeIf { it.isNotBlank() }?.let { payee ->
+                add(
+                    GridItemData(
+                        icon = Icons.Outlined.Storefront,
+                        iconColor = visual.second,
+                        label = stringResource(R.string.movement_field_payee),
+                        value = payee,
+                    )
+                )
+            }
+
+            // Notes
+            movement.notes?.takeIf { notes -> notes.isNotBlank() }?.let { notes ->
+                add(
+                    GridItemData(
+                        icon = Icons.AutoMirrored.Outlined.Notes,
+                        iconColor = visual.second,
+                        label = stringResource(R.string.movement_field_notes),
+                        value = notes,
+                    )
+                )
             }
         }
 
-        // Full width items for Payee and Notes
-        movement.payee?.takeIf { it.isNotBlank() }?.let { payee ->
-            FullWidthDetailItem(
-                icon = Icons.Outlined.Storefront,
-                iconColor = visual.second,
-                label = stringResource(R.string.movement_field_payee),
-                value = payee,
-            )
-        }
+        DetailGroupCard(rows = coreItems)
+        DetailGroupCard(rows = extraItems, title = stringResource(R.string.movement_detail_section_extra))
 
-        movement.notes?.takeIf { notes -> notes.isNotBlank() }?.let { notes ->
-            FullWidthDetailItem(
-                icon = Icons.AutoMirrored.Outlined.Notes,
-                iconColor = visual.second,
-                label = stringResource(R.string.movement_field_notes),
-                value = notes,
-            )
+        if (split != null) {
+            SplitBreakdownCard(split = split, people = people)
         }
 
         // Refunds list for Expense
@@ -642,6 +646,58 @@ private fun DetailLine(
             text = value,
             style = MaterialTheme.typography.bodyMedium,
         )
+    }
+}
+
+/** Who-owes-what breakdown for a shared or externally-paid expense: one row per split line
+ * (the user's own line labeled "Jo", each person line with their monogram/name), amount
+ * right-aligned. */
+@Composable
+private fun SplitBreakdownCard(
+    split: MovementSplitDraft,
+    people: List<PersonSummary>,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = stringResource(R.string.split_editor_title),
+            color = FinanceTheme.colors.mutedText,
+            style = MaterialTheme.typography.labelMedium,
+        )
+        FinanceCard {
+            split.lines.forEachIndexed { index, line ->
+                val person = line.personId?.let { id -> people.firstOrNull { it.id == id } }
+                val name = when (line.participantKind) {
+                    SplitParticipantKind.USER -> stringResource(R.string.split_payer_user)
+                    SplitParticipantKind.PERSON -> person?.name ?: "—"
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    PersonMonogram(
+                        label = personInitial(name),
+                        colorHex = person?.color,
+                        size = 32.dp,
+                    )
+                    Text(
+                        text = name,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f),
+                    )
+                    MoneyText(
+                        cents = line.owedAmountCents,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                if (index != split.lines.lastIndex) {
+                    HorizontalDivider(color = FinanceTheme.colors.cardBorder)
+                }
+            }
+        }
     }
 }
 

@@ -56,6 +56,7 @@ import com.gestorfinances.app.data.repository.TagSummary
 import com.gestorfinances.app.data.repository.TemplateStatus
 import com.gestorfinances.app.data.repository.TripSummary
 import com.gestorfinances.app.domain.rules.RecurrenceFrequency
+import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.IconChip
 import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.categoryIcon
@@ -508,6 +509,11 @@ internal fun MovementSheetHeader(
     icon: ImageVector,
     iconColor: Color,
     modifier: Modifier = Modifier,
+    amountColor: Color = FinanceTheme.colors.amountColor(type),
+    /** Total cost caption shown under the amount -- shared/external expenses only (§movement
+     * detail redesign): the header amount is the user's own share, so the total needs calling
+     * out separately or it reads as the full cost. */
+    totalCaption: String? = null,
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -530,111 +536,103 @@ internal fun MovementSheetHeader(
             )
             MoneyText(
                 cents = amountCents,
-                color = FinanceTheme.colors.amountColor(type),
+                color = amountColor,
                 style = MaterialTheme.typography.headlineMedium,
                 signed = type == MovementType.INCOME || type == MovementType.SETTLEMENT
+            )
+            totalCaption?.let {
+                Text(
+                    text = it,
+                    color = FinanceTheme.colors.mutedText,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
+        }
+    }
+}
+
+internal data class GridItemData(
+    val icon: ImageVector,
+    val iconColor: Color,
+    val label: String,
+    val value: String,
+)
+
+/**
+ * One row inside a [DetailGroupCard]: icon chip + label/value pair. Replaces the former
+ * per-field bordered tiles (P5R-18) -- rows now share one card per group instead of each
+ * field getting its own border, so related fields read as a set.
+ */
+@Composable
+internal fun DetailRow(
+    icon: ImageVector,
+    iconColor: Color,
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(12.dp),
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .background(iconColor.copy(alpha = 0.12f), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = iconColor,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = FinanceTheme.colors.mutedText
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
             )
         }
     }
 }
 
+/** A titled (or untitled) card grouping several [DetailRow]s, hairline-divided. */
 @Composable
-internal fun DetailGridItem(
-    icon: ImageVector,
-    iconColor: Color,
-    label: String,
-    value: String,
+internal fun DetailGroupCard(
+    rows: List<GridItemData>,
     modifier: Modifier = Modifier,
+    title: String? = null,
 ) {
-    Surface(
-        modifier = modifier,
-        shape = MaterialTheme.shapes.small,
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
-        border = BorderStroke(1.dp, FinanceTheme.colors.cardBorder)
-    ) {
-        Row(
-            modifier = Modifier
-                .padding(12.dp)
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .background(iconColor.copy(alpha = 0.12f), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = iconColor,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-            Column {
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = FinanceTheme.colors.mutedText,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = value,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
+    if (rows.isEmpty()) return
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        title?.let {
+            Text(
+                text = it,
+                color = FinanceTheme.colors.mutedText,
+                style = MaterialTheme.typography.labelMedium,
+            )
         }
-    }
-}
-
-@Composable
-internal fun FullWidthDetailItem(
-    icon: ImageVector,
-    iconColor: Color,
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.small,
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
-        border = BorderStroke(1.dp, FinanceTheme.colors.cardBorder)
-    ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.Top,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .background(iconColor.copy(alpha = 0.12f), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = iconColor,
-                    modifier = Modifier.size(18.dp)
+        FinanceCard {
+            rows.forEachIndexed { index, item ->
+                DetailRow(
+                    icon = item.icon,
+                    iconColor = item.iconColor,
+                    label = item.label,
+                    value = item.value,
                 )
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = FinanceTheme.colors.mutedText
-                )
-                Text(
-                    text = value,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                if (index != rows.lastIndex) {
+                    HorizontalDivider(color = FinanceTheme.colors.cardBorder)
+                }
             }
         }
     }

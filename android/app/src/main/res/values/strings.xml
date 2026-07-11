@@ -311,11 +311,12 @@
     <string name="movement_detail_settlement_paid_to">Pagat a</string>
     <string name="movement_detail_one_time_short">Extraordinari</string>
     <string name="movement_detail_paid_by">Pagat per</string>
+    <string name="movement_detail_section_extra">Detalls addicionals</string>
     <string name="movement_detail_refunds_title">Reemborsaments</string>
     <string name="movement_detail_add_refund_action">Afegeix reemborsament</string>
-    <string name="movement_detail_action_archive">Arxivar</string>
+    <string name="movement_detail_action_archive">Eliminar</string>
     <string name="movement_detail_action_edit">Editar</string>
-    <string name="movement_detail_no_edit_hint">Les liquidacions i devolucions no es poden editar. Arxiva-la i registra\'n una de nova.</string>
+    <string name="movement_detail_no_edit_hint">Les liquidacions i devolucions no es poden editar. Elimina-la i registra\'n una de nova.</string>
     <string name="movement_filter_month_sheet_title">Filtra per mes</string>
     <string name="movement_filter_custom_range_title">Rang personalitzat</string>
 
@@ -369,7 +370,7 @@
     <string name="movement_duplicate_warning">Possible duplicat: ja hi ha un moviment semblant.</string>
     <string name="movement_duplicate_override">Desa igualment</string>
     <string name="movement_warning_split_removed">En desar s\'eliminarà el repartiment d\'aquest moviment.</string>
-    <string name="movement_warning_payer_switch_drops_fields">En desar s\'arxivarà aquest moviment i se\'n crearà un de nou; es perdran el proveïdor, les notes i la recurrència vinculada.</string>
+    <string name="movement_warning_payer_switch_drops_fields">En desar s\'eliminarà aquest moviment i se\'n crearà un de nou; es perdran el proveïdor, les notes i la recurrència vinculada.</string>
     <string name="movement_validation_amount_required">Introdueix un import.</string>
     <string name="movement_validation_amount_positive">L\'import ha de ser superior a zero.</string>
     <string name="movement_validation_date_required">Tria una data.</string>
@@ -662,7 +663,7 @@
     <string name="refund_warning_over">L\'import supera el que queda per retornar. Pots continuar si és correcte.</string>
     <string name="refund_save">Desa la devolució</string>
     <string name="refund_list_title">Devolucions</string>
-    <string name="refund_orphaned_warning">La despesa vinculada s\'ha arxivat. Revisa o elimina aquesta devolució.</string>
+    <string name="refund_orphaned_warning">La despesa vinculada s\'ha eliminat. Revisa o elimina aquesta devolució.</string>
     <string name="refund_validation_amount_required">Introdueix un import.</string>
     <string name="refund_validation_actual_over">L\'ajust real no pot superar l\'import retornat.</string>
     <string name="movement_refund_of">Devolució de %1$s</string>

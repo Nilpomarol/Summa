@@ -1,3 +1,17 @@
+-- Gestor finances v4 → v5 migration.
+-- Fixes v_movement_summary's external_expense branch: amount_cents was sourced from
+-- sl.owed_amount_cents (the user's own owed share), while every other row type in this view
+-- sources amount_cents from the movement's TOTAL amount. This made the same column name mean
+-- two different things depending on row type. splits.total_amount_cents already exists for
+-- exactly this case (NOT NULL when payer_person_id IS NOT NULL) and is now used instead.
+-- user_share_cents (still sl.owed_amount_cents) is unchanged and keeps representing the user's
+-- own portion for every row type. Today userShareCents == totalAmountCents is enforced by the
+-- write path (SplitRepository.createExternalPaidByPerson/replaceExternalSplit, v1 single-debtor
+-- simplification — see docs/16-android-audit-findings.md finding O5), so this is a semantic fix
+-- with no observable value change yet, but it stops amount_cents from silently breaking if
+-- multi-participant debt splitting is ever added.
+
+DROP VIEW IF EXISTS v_movement_summary;
 CREATE VIEW v_movement_summary AS
 SELECT
     movements.id,
@@ -144,3 +158,5 @@ LEFT JOIN tags tg ON tg.id = s.tag_id
 WHERE s.movement_id IS NULL
   AND s.payer_person_id IS NOT NULL
   AND s.archived_at IS NULL;
+
+UPDATE meta SET value = '5' WHERE key = 'schema_version';

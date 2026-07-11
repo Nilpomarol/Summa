@@ -322,5 +322,5 @@ CREATE UNIQUE INDEX idx_split_lines_one_person
     WHERE participant_kind = 'person' AND archived_at IS NULL;
 
 INSERT INTO meta (key, value) VALUES
-    ('schema_version', '4'),
+    ('schema_version', '5'),
     ('snapshot_version', '0');
