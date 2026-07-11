@@ -11,7 +11,7 @@ import com.gestorfinances.app.ui.theme.asFigures
 import kotlin.math.roundToInt
 
 /**
- * Renders a money amount as a ledger figure (Geist Mono + tabular numerals, design §3).
+ * Renders a money amount as a ledger figure (IBM Plex Mono + tabular numerals, design §3).
  *
  * @param cents already-signed amount; negatives format with a leading minus.
  * @param signed when true, positive values are prefixed with `+` (income, positive deltas).

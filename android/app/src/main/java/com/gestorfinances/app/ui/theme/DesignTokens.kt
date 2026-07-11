@@ -89,9 +89,9 @@ private fun interfaceTextStyle(
     letterSpacing = 0.sp,
 )
 
-/** Render any style as a ledger figure: Geist Mono + tabular numerals (design §3). */
+/** Render any style as a ledger figure: IBM Plex Mono + tabular numerals (design §3). */
 internal fun TextStyle.asFigures(): TextStyle =
-    copy(fontFamily = GeistMonoFontFamily, fontFeatureSettings = "tnum")
+    copy(fontFamily = LedgerMonoFontFamily, fontFeatureSettings = "tnum")
 
 private val DisplayText = interfaceTextStyle(sizeSp = 28, weight = FontWeight.SemiBold)
 private val TitleText = interfaceTextStyle(sizeSp = 21, weight = FontWeight.SemiBold)

@@ -108,7 +108,7 @@
   "typography": {
     "families": {
       "interface": "Geist, sans-serif",
-      "figures": "Geist Mono, monospace"
+      "figures": "IBM Plex Mono, monospace"
     },
     "features": {
       "figures": ["tnum"]

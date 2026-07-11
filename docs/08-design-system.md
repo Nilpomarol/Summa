@@ -98,11 +98,11 @@ Categories get a muted color + soft tint background for their icon chip. Distinc
 
 ## 3. Typography
 
-**Geist** for the entire interface. **Geist Mono** for all ledger figures, with **tabular numerals always on** (`font-feature-settings: 'tnum'`) so amount columns align. Locale formatting: **decimal comma, thousands dot** (e.g. `18.420,15 €`).
+**Geist** for the entire interface. **IBM Plex Mono** for all ledger figures, with **tabular numerals always on** (`font-feature-settings: 'tnum'`) so amount columns align. Locale formatting: **decimal comma, thousands dot** (e.g. `18.420,15 €`).
 
 ```
-font-family: Geist, sans-serif;          /* interface */
-font-family: 'Geist Mono', monospace;    /* figures — tnum on */
+font-family: Geist, sans-serif;              /* interface */
+font-family: 'IBM Plex Mono', monospace;     /* figures — tnum on */
 ```
 
 ### Type scale
@@ -188,12 +188,12 @@ Core set: `space_dashboard` · `receipt_long` · `monitoring` · `account_balanc
 ### Fields
 
 - Default: height 44, `N200` border, `r2` (11px), 13px text.
-- **Focused / amount:** 1.5px indigo border + `0 0 0 3px rgba(51,68,224,.1)` focus ring. Amount fields show a muted `€` prefix and large Geist Mono figure.
+- **Focused / amount:** 1.5px indigo border + `0 0 0 3px rgba(51,68,224,.1)` focus ring. Amount fields show a muted `€` prefix and large IBM Plex Mono figure.
 - Select: trailing `expand_more` in `N` muted.
 
 ### Cards
 
-- **KPI hero:** dark ink `#0B0D12` surface, white text, `r3`; trailing % delta badge in green tint. Net-worth figure in Geist Mono. Hero surfaces are always this dark ink regardless of the app's overall light/dark theme, so income/debt content placed on them must always use the **Dark** column functional colors (§2.4) for contrast, never the Light column — Android exposes these as `heroIncome`/`heroDebt` theme tokens, bound to the same dark-mode hex in both themes.
+- **KPI hero:** dark ink `#0B0D12` surface, white text, `r3`; trailing % delta badge in green tint. Net-worth figure in IBM Plex Mono. Hero surfaces are always this dark ink regardless of the app's overall light/dark theme, so income/debt content placed on them must always use the **Dark** column functional colors (§2.4) for contrast, never the Light column — Android exposes these as `heroIncome`/`heroDebt` theme tokens, bound to the same dark-mode hex in both themes.
 - **Account / list card:** white, `N150` border, `r3` (13px), icon chip + title + sub + right-aligned mono amount.
 
 ### Transaction row
