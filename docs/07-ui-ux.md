@@ -129,8 +129,8 @@ Each entry: **purpose · content blocks · primary actions · platform note.**
 - Actions: New event/trip; open event.
 
 **Event / Esdeveniment detail** — spec §3.11
-- Blocks: KPIs (total spent, days, avg/day); stacked daily chart (per-day ↔ cumulative); breakdown by category & by tag (total ↔ avg/day); scoped movement list (new movements default within trip dates + pre-attach).
-- Actions: Edit event; New movement (scoped); set default account; event budget.
+- Blocks: hero spend card (total spent headline, avg/day + account outflow secondary line); cumulative daily chart; one breakdown with a category ↔ tag dimension switch (total ↔ avg/day); scoped movement list capped at the most recent rows with a "view all" drill-down into Moviments (new movements default within trip dates + pre-attach).
+- Actions: Edit event; New movement (scoped); event tags; event budget (default account is set in the edit form).
 
 **Add / Edit event**
 - Blocks: name; type (trip/celebration/other); start/end (end optional); default account; budget; notes; status.

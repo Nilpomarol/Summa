@@ -55,7 +55,6 @@ import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountSummary
 import com.gestorfinances.app.data.repository.BudgetEvaluation
 import com.gestorfinances.app.data.repository.MovementSummary
-import com.gestorfinances.app.data.repository.TagSummary
 import com.gestorfinances.app.data.repository.TripCategoryActual
 import com.gestorfinances.app.data.repository.TripDailyActual
 import com.gestorfinances.app.data.repository.TripStatus
@@ -291,7 +290,7 @@ private fun TripRow(
             ) {
                 IconChip(
                     icon = trip.type.icon(),
-                    contentDescription = null,
+                    contentDescription = trip.type.label(),
                     color = identityColor,
                     size = 42.dp,
                 )
@@ -306,14 +305,11 @@ private fun TripRow(
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        text = trip.summaryLine(),
+                        text = trip.dateRange() ?: trip.type.label(),
                         color = FinanceTheme.colors.mutedText,
                         style = MaterialTheme.typography.bodyMedium,
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        NeutralPill(text = trip.type.label())
-                        NeutralPill(text = trip.status.label())
-                    }
+                    NeutralPill(text = trip.status.label())
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     MoneyText(
@@ -384,6 +380,7 @@ fun TripDetailScreen(
     onManageTags: (String) -> Unit,
     onManageBudget: (String) -> Unit,
     onMovementDetail: (MovementSummary) -> Unit,
+    onViewAllMovements: (TripSummary) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsState()
@@ -421,6 +418,7 @@ fun TripDetailScreen(
                     onManageBudget = { onManageBudget(detail.trip.id) },
                     onExcludeOneTimeToggled = viewModel::onExcludeOneTimeToggled,
                     onMovementDetail = onMovementDetail,
+                    onViewAllMovements = { onViewAllMovements(detail.trip) },
                 )
             }
         }
@@ -463,14 +461,15 @@ private fun TripDetailContent(
     onManageBudget: () -> Unit,
     onExcludeOneTimeToggled: (Boolean) -> Unit,
     onMovementDetail: (MovementSummary) -> Unit,
+    onViewAllMovements: () -> Unit,
 ) {
     val trip = detail.trip
     val days = trip.dayCount(
         fallbackStart = detail.dailyActual.firstOrNull()?.date,
         fallbackEnd = detail.dailyActual.lastOrNull()?.date,
     )
-    var categoryMode by remember(trip.id) { mutableStateOf(TripBreakdownMode.TOTAL) }
-    var tagMode by remember(trip.id) { mutableStateOf(TripBreakdownMode.TOTAL) }
+    var breakdownDimension by remember(trip.id) { mutableStateOf(TripBreakdownDimension.CATEGORY) }
+    var breakdownMode by remember(trip.id) { mutableStateOf(TripBreakdownMode.TOTAL) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -485,27 +484,27 @@ private fun TripDetailContent(
                         contentDescription = stringResource(R.string.common_back),
                     )
                 }
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = stringResource(R.string.trip_detail_title),
-                    style = MaterialTheme.typography.headlineMedium,
-                    modifier = Modifier.weight(1f),
+                IconChip(
+                    icon = trip.type.icon(),
+                    contentDescription = trip.type.label(),
+                    color = categoryColor(trip.color),
                 )
+                Spacer(modifier = Modifier.width(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = trip.name,
+                        style = MaterialTheme.typography.headlineSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = trip.detailMetaLine(days),
+                        color = FinanceTheme.colors.mutedText,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
                 TripDetailMenu(onEdit = onEdit, onArchive = onArchive)
             }
-        }
-
-        item { TripDetailHeader(trip = trip) }
-
-        item {
-            DetailLine(
-                label = stringResource(R.string.trip_field_default_account),
-                value = trip.defaultAccountName ?: stringResource(R.string.trip_detail_no_default_account),
-            )
-        }
-
-        trip.notes?.takeIf { it.isNotBlank() }?.let { notes ->
-            item { DetailLine(label = stringResource(R.string.trip_field_notes), value = notes) }
         }
 
         detail.errorMessage?.let { message ->
@@ -523,13 +522,39 @@ private fun TripDetailContent(
         }
 
         item {
-            TripKpiSection(
+            TripHeroSection(
                 actualCents = detail.summary.actualCents,
                 flowCents = detail.summary.accountOutflowCents,
                 days = days,
                 excludeOneTime = detail.excludeOneTime,
                 onExcludeOneTimeToggled = onExcludeOneTimeToggled,
             )
+        }
+
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                PrimaryButton(
+                    text = stringResource(R.string.trip_action_new_movement),
+                    onClick = onNewMovement,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = onManageTags,
+                        modifier = Modifier.weight(1f),
+                        shape = MaterialTheme.shapes.small,
+                    ) {
+                        Text(text = stringResource(R.string.trip_action_tags))
+                    }
+                    OutlinedButton(
+                        onClick = onManageBudget,
+                        modifier = Modifier.weight(1f),
+                        shape = MaterialTheme.shapes.small,
+                    ) {
+                        Text(text = stringResource(R.string.trip_action_budget))
+                    }
+                }
+            }
         }
 
         detail.budgetEvaluation?.let { evaluation ->
@@ -539,21 +564,13 @@ private fun TripDetailContent(
         item { TripDailySection(items = detail.dailyActual) }
 
         item {
-            TripCategorySection(
-                items = detail.categoryActual,
+            TripBreakdownSection(
+                detail = detail,
                 days = days,
-                mode = categoryMode,
-                onModeChange = { categoryMode = it },
-            )
-        }
-
-        item {
-            TripTagSection(
-                items = detail.tagActual,
-                tagsById = detail.tagsById,
-                days = days,
-                mode = tagMode,
-                onModeChange = { tagMode = it },
+                dimension = breakdownDimension,
+                mode = breakdownMode,
+                onDimensionChange = { breakdownDimension = it },
+                onModeChange = { breakdownMode = it },
             )
         }
 
@@ -562,35 +579,28 @@ private fun TripDetailContent(
                 title = stringResource(R.string.trip_detail_movements),
                 isEmpty = detail.movements.isEmpty(),
             ) {
-                detail.movements.forEach { movement ->
+                detail.movements.take(RECENT_MOVEMENTS_LIMIT).forEach { movement ->
                     MovementListItem(
                         movement = movement,
                         onClick = { onMovementDetail(movement) },
                     )
                 }
-            }
-        }
-
-        item {
-            PrimaryButton(
-                text = stringResource(R.string.trip_action_new_movement),
-                onClick = onNewMovement,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = onManageTags) {
-                    Text(text = stringResource(R.string.trip_action_manage_tags))
-                }
-                TextButton(onClick = onManageBudget) {
-                    Text(text = stringResource(R.string.trip_action_budget))
+                if (detail.movements.size > RECENT_MOVEMENTS_LIMIT) {
+                    TextButton(onClick = onViewAllMovements) {
+                        Text(
+                            text = stringResource(
+                                R.string.trip_detail_view_all_movements,
+                                detail.movements.size,
+                            ),
+                        )
+                    }
                 }
             }
         }
     }
 }
+
+private const val RECENT_MOVEMENTS_LIMIT = 5
 
 @Composable
 private fun TripDetailMenu(
@@ -624,54 +634,22 @@ private fun TripDetailMenu(
     }
 }
 
-@Composable
-private fun TripDetailHeader(trip: TripSummary) {
-    FinanceCard(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            IconChip(
-                icon = trip.type.icon(),
-                contentDescription = null,
-                color = categoryColor(trip.color),
-                size = 44.dp,
-            )
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Text(
-                    text = trip.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                trip.dateRange()?.let {
-                    Text(
-                        text = it,
-                        color = FinanceTheme.colors.mutedText,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    NeutralPill(text = trip.type.label())
-                    NeutralPill(text = trip.status.label())
-                }
-            }
-        }
-    }
-}
-
 private enum class TripBreakdownMode {
     TOTAL,
     AVG_DAY,
 }
 
-/** KPI row (total spend, account outflow, days, avg/day) with the exclude-one-time toggle (point 13). */
+private enum class TripBreakdownDimension {
+    CATEGORY,
+    TAG,
+}
+
+/**
+ * Hero card: total actual spend as the single headline number, with avg/day and account outflow
+ * folded into one muted secondary line, plus the exclude-one-time toggle (docs/14 §4).
+ */
 @Composable
-private fun TripKpiSection(
+private fun TripHeroSection(
     actualCents: Long,
     flowCents: Long,
     days: Long,
@@ -681,58 +659,36 @@ private fun TripKpiSection(
     FinanceCard(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                TripKpiCell(
-                    label = stringResource(R.string.trip_detail_total_actual),
-                    modifier = Modifier.weight(1f),
-                ) {
-                    MoneyText(
-                        cents = actualCents,
-                        color = FinanceTheme.colors.expense,
-                        style = MaterialTheme.typography.titleLarge,
-                    )
-                }
-                TripKpiCell(
-                    label = stringResource(R.string.trip_detail_total_flow),
-                    modifier = Modifier.weight(1f),
-                ) {
-                    MoneyText(
-                        cents = flowCents,
-                        color = FinanceTheme.colors.expense,
-                        style = MaterialTheme.typography.titleLarge,
-                    )
-                }
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                TripKpiCell(
-                    label = stringResource(R.string.trip_detail_days),
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text(text = days.toString(), style = MaterialTheme.typography.titleMedium)
-                }
-                TripKpiCell(
-                    label = if (excludeOneTime) {
-                        stringResource(R.string.trip_detail_avg_day_excluding_one_time)
-                    } else {
-                        stringResource(R.string.trip_detail_avg_day)
+            Text(
+                text = stringResource(R.string.trip_detail_total_actual),
+                color = FinanceTheme.colors.mutedText,
+                style = MaterialTheme.typography.labelMedium,
+            )
+            MoneyText(
+                cents = actualCents,
+                color = FinanceTheme.colors.expense,
+                style = MaterialTheme.typography.headlineMedium,
+            )
+            Text(
+                text = listOfNotNull(
+                    // Avg/day is undefined without a day count (no dates, no daily actuals).
+                    days.takeIf { it > 0L }?.let {
+                        stringResource(
+                            if (excludeOneTime) {
+                                R.string.trip_detail_avg_day_excluding
+                            } else {
+                                R.string.trip_row_avg_day
+                            },
+                            formatEuroCents(averageCents(actualCents, days)),
+                        )
                     },
-                    modifier = Modifier.weight(1f),
-                ) {
-                    MoneyText(
-                        cents = averageCents(actualCents, days),
-                        color = FinanceTheme.colors.expense,
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                }
-            }
+                    stringResource(R.string.trip_detail_outflow, formatEuroCents(flowCents)),
+                ).joinToString(" · "),
+                color = FinanceTheme.colors.mutedText,
+                style = MaterialTheme.typography.bodyMedium,
+            )
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -746,27 +702,6 @@ private fun TripKpiSection(
                 Switch(checked = excludeOneTime, onCheckedChange = onExcludeOneTimeToggled)
             }
         }
-    }
-}
-
-@Composable
-private fun TripKpiCell(
-    label: String,
-    modifier: Modifier = Modifier,
-    value: @Composable () -> Unit,
-) {
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Text(
-            text = label,
-            color = FinanceTheme.colors.mutedText,
-            style = MaterialTheme.typography.labelMedium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        value()
     }
 }
 
@@ -827,67 +762,89 @@ private fun TripDailySection(items: List<TripDailyActual>) {
     )
 }
 
+/**
+ * Single breakdown section with a category/tag dimension switch (docs/14 §4) — replaces the former
+ * separate category and tag sections so only one row list is on screen at a time.
+ */
 @Composable
-private fun TripCategorySection(
-    items: List<TripCategoryActual>,
+private fun TripBreakdownSection(
+    detail: TripDetailState,
     days: Long,
+    dimension: TripBreakdownDimension,
     mode: TripBreakdownMode,
+    onDimensionChange: (TripBreakdownDimension) -> Unit,
     onModeChange: (TripBreakdownMode) -> Unit,
 ) {
-    AnalysisSection(title = stringResource(R.string.trip_detail_breakdown_category), isEmpty = items.isEmpty()) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = stringResource(R.string.trip_detail_breakdown),
+            style = MaterialTheme.typography.titleSmall,
+        )
+        SegmentedControl(
+            options = TripBreakdownDimension.entries,
+            selected = dimension,
+            label = { it.label() },
+            onSelect = onDimensionChange,
+        )
         SegmentedControl(
             options = TripBreakdownMode.entries,
             selected = mode,
             label = { it.label() },
             onSelect = onModeChange,
         )
-        val maxCents = items.maxOf { abs(it.displayCents(mode, days)) }.coerceAtLeast(1L)
-        val totalCents = items.sumOf { abs(it.actualCents) }.coerceAtLeast(1L)
-        items.forEach { item ->
-            TripBreakdownRow(
-                icon = categoryIcon(item.categoryIcon),
-                color = categoryColor(item.categoryColor),
-                label = item.categoryName ?: stringResource(R.string.common_no_category),
-                cents = item.displayCents(mode, days),
-                maxCents = maxCents,
-                percentOfCents = abs(item.actualCents),
-                totalCents = totalCents,
+        val entries = when (dimension) {
+            TripBreakdownDimension.CATEGORY -> detail.categoryActual.map { item ->
+                BreakdownEntry(
+                    icon = categoryIcon(item.categoryIcon),
+                    color = categoryColor(item.categoryColor),
+                    label = item.categoryName ?: stringResource(R.string.common_no_category),
+                    actualCents = item.actualCents,
+                    displayCents = item.displayCents(mode, days),
+                )
+            }
+            TripBreakdownDimension.TAG -> detail.tagActual.map { item ->
+                val tag = item.tagId?.let { detail.tagsById[it] }
+                BreakdownEntry(
+                    icon = categoryIcon(tag?.effectiveIcon()),
+                    color = categoryColor(tag?.effectiveColor() ?: item.tagColor),
+                    label = item.tagName ?: stringResource(R.string.trip_analysis_untagged),
+                    actualCents = item.actualCents,
+                    displayCents = item.displayCents(mode, days),
+                )
+            }
+        }
+        if (entries.isEmpty()) {
+            Text(
+                text = stringResource(R.string.trip_analysis_empty_body),
+                color = FinanceTheme.colors.mutedText,
+                style = MaterialTheme.typography.bodyMedium,
             )
+        } else {
+            val maxCents = entries.maxOf { abs(it.displayCents) }.coerceAtLeast(1L)
+            val totalCents = entries.sumOf { abs(it.actualCents) }.coerceAtLeast(1L)
+            entries.forEach { entry ->
+                TripBreakdownRow(
+                    icon = entry.icon,
+                    color = entry.color,
+                    label = entry.label,
+                    cents = entry.displayCents,
+                    maxCents = maxCents,
+                    percentOfCents = abs(entry.actualCents),
+                    totalCents = totalCents,
+                )
+            }
         }
     }
 }
 
-@Composable
-private fun TripTagSection(
-    items: List<TripTagActual>,
-    tagsById: Map<String, TagSummary>,
-    days: Long,
-    mode: TripBreakdownMode,
-    onModeChange: (TripBreakdownMode) -> Unit,
-) {
-    AnalysisSection(title = stringResource(R.string.trip_detail_breakdown_tag), isEmpty = items.isEmpty()) {
-        SegmentedControl(
-            options = TripBreakdownMode.entries,
-            selected = mode,
-            label = { it.label() },
-            onSelect = onModeChange,
-        )
-        val maxCents = items.maxOf { abs(it.displayCents(mode, days)) }.coerceAtLeast(1L)
-        val totalCents = items.sumOf { abs(it.actualCents) }.coerceAtLeast(1L)
-        items.forEach { item ->
-            val tag = item.tagId?.let { tagsById[it] }
-            TripBreakdownRow(
-                icon = categoryIcon(tag?.effectiveIcon()),
-                color = categoryColor(tag?.effectiveColor() ?: item.tagColor),
-                label = item.tagName ?: stringResource(R.string.trip_analysis_untagged),
-                cents = item.displayCents(mode, days),
-                maxCents = maxCents,
-                percentOfCents = abs(item.actualCents),
-                totalCents = totalCents,
-            )
-        }
-    }
-}
+/** One category/tag breakdown row's identity and amounts, normalized across the two dimensions. */
+private data class BreakdownEntry(
+    val icon: ImageVector,
+    val color: Color,
+    val label: String,
+    val actualCents: Long,
+    val displayCents: Long,
+)
 
 /** A category/tag breakdown row: icon + name + amount + percent bar (mirrors Analysis's own rows). */
 @Composable
@@ -965,24 +922,6 @@ private fun AnalysisSection(
         } else {
             content()
         }
-    }
-}
-
-@Composable
-private fun DetailLine(
-    label: String,
-    value: String,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(
-            text = label,
-            color = FinanceTheme.colors.mutedText,
-            style = MaterialTheme.typography.labelMedium,
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyMedium,
-        )
     }
 }
 
@@ -1115,13 +1054,14 @@ private fun TripFormScreen(
     }
 }
 
+/** Muted meta line under the detail page title: date range · day count · status. */
 @Composable
-private fun TripSummary.summaryLine(): String =
+private fun TripSummary.detailMetaLine(days: Long): String =
     listOfNotNull(
-        type.label(),
         dateRange(),
-        defaultAccountName?.let { stringResource(R.string.trip_detail_default_account, it) },
-    ).joinToString(" / ")
+        days.takeIf { it > 0L }?.let { stringResource(R.string.trip_detail_days_count, it) },
+        status.label(),
+    ).joinToString(" · ")
 
 @Composable
 private fun TripSummary.dateRange(): String? =
@@ -1197,5 +1137,14 @@ private fun TripBreakdownMode.label(): String =
         when (this) {
             TripBreakdownMode.TOTAL -> R.string.trip_analysis_mode_total
             TripBreakdownMode.AVG_DAY -> R.string.trip_analysis_mode_avg_day
+        },
+    )
+
+@Composable
+private fun TripBreakdownDimension.label(): String =
+    stringResource(
+        when (this) {
+            TripBreakdownDimension.CATEGORY -> R.string.trip_detail_breakdown_category
+            TripBreakdownDimension.TAG -> R.string.trip_detail_breakdown_tag
         },
     )

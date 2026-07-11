@@ -68,6 +68,7 @@ import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.CategoryKind
 import com.gestorfinances.app.data.repository.CategoryNature
 import com.gestorfinances.app.data.repository.CategoryRecord
+import com.gestorfinances.app.data.repository.MovementSummary
 import com.gestorfinances.app.ui.common.BudgetProgressBar
 import com.gestorfinances.app.ui.common.CategoryIconPalette
 import com.gestorfinances.app.ui.common.CollapsibleSectionHeader
@@ -97,6 +98,7 @@ fun CategoriesScreen(
     viewModel: CategoriesViewModel,
     onViewAnalysis: (categoryId: String, categoryName: String) -> Unit = { _, _ -> },
     onDefineBudget: (categoryId: String) -> Unit = {},
+    onMovementDetail: (MovementSummary) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsState()
@@ -132,6 +134,7 @@ fun CategoriesScreen(
                     viewModel.onFlowDismissed()
                     onDefineBudget(flowDetail.category.id)
                 },
+                onMovementDetail = onMovementDetail,
                 modifier = modifier,
             )
         }
@@ -1022,6 +1025,7 @@ private fun CategoryFlowScreen(
     onBack: () -> Unit,
     onViewAnalysis: () -> Unit,
     onDefineBudget: () -> Unit,
+    onMovementDetail: (MovementSummary) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val category = detail.category
@@ -1172,7 +1176,10 @@ private fun CategoryFlowScreen(
                     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
                 ) {
                     items(detail.entries) { movement ->
-                        MovementListItem(movement = movement)
+                        MovementListItem(
+                            movement = movement,
+                            onClick = { onMovementDetail(movement) },
+                        )
                         HorizontalDivider(
                             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
                         )
