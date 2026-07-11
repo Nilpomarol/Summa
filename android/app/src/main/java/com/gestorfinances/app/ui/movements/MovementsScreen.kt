@@ -13,12 +13,14 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -28,9 +30,12 @@ import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.ChevronLeft
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -38,6 +43,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Surface
@@ -129,12 +135,6 @@ private fun MovementsContent(
     var filtersExpanded by remember { mutableStateOf(false) }
     val visibleMovements = state.visibleMovements
 
-    LaunchedEffect(state.filters.hasAdvancedFilters) {
-        if (state.filters.hasAdvancedFilters) {
-            filtersExpanded = true
-        }
-    }
-
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 24.dp),
@@ -145,11 +145,22 @@ private fun MovementsContent(
                 title = stringResource(R.string.movement_list_title),
                 trailing = {
                     if (state.accounts.isNotEmpty()) {
-                        TopBarIconButton(
-                            icon = Icons.Outlined.Tune,
-                            contentDescription = stringResource(R.string.movement_filter_title),
-                            onClick = { filtersExpanded = !filtersExpanded },
-                        )
+                        Box {
+                            TopBarIconButton(
+                                icon = Icons.Outlined.Tune,
+                                contentDescription = stringResource(R.string.movement_filter_title),
+                                onClick = { filtersExpanded = !filtersExpanded },
+                            )
+                            if (state.filters.hasAdvancedFilters) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .offset(x = (-4).dp, y = 4.dp)
+                                        .size(8.dp)
+                                        .background(MaterialTheme.colorScheme.primary, CircleShape),
+                                )
+                            }
+                        }
                     }
                 },
             )
@@ -180,19 +191,6 @@ private fun MovementsContent(
                     selected = state.filters.type,
                     onSelected = { onFiltersChange(state.filters.copy(type = it)) },
                 )
-            }
-            if (filtersExpanded) {
-                item {
-                    MovementFiltersCard(
-                        filters = state.filters,
-                        accounts = state.accounts,
-                        categories = state.categories,
-                        trips = state.trips,
-                        tags = state.tags,
-                        onFiltersChange = onFiltersChange,
-                        onClearFilters = onClearFilters,
-                    )
-                }
             }
         }
 
@@ -227,6 +225,19 @@ private fun MovementsContent(
             }
         }
     }
+
+    if (filtersExpanded) {
+        MovementFiltersSheet(
+            filters = state.filters,
+            accounts = state.accounts,
+            categories = state.categories,
+            trips = state.trips,
+            tags = state.tags,
+            onFiltersChange = onFiltersChange,
+            onClearFilters = onClearFilters,
+            onDismiss = { filtersExpanded = false },
+        )
+    }
 }
 
 @Composable
@@ -259,7 +270,7 @@ private fun MovementTypeFilterRow(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun MovementFiltersCard(
+private fun MovementFiltersSheet(
     filters: MovementFilters,
     accounts: List<AccountSummary>,
     categories: List<CategoryRecord>,
@@ -267,7 +278,9 @@ private fun MovementFiltersCard(
     tags: List<TagSummary>,
     onFiltersChange: (MovementFilters) -> Unit,
     onClearFilters: () -> Unit,
+    onDismiss: () -> Unit,
 ) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var activeSheet by remember { mutableStateOf<FilterSheetType?>(null) }
 
     val allAccountsLabel = stringResource(R.string.movement_filter_all_accounts)
@@ -306,27 +319,39 @@ private fun MovementFiltersCard(
 
     val selectedPeriodValue = filters.formattedPeriod()
 
-    FinanceCard(modifier = Modifier.fillMaxWidth()) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface,
+    ) {
         Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .navigationBarsPadding()
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconChip(
+                    icon = Icons.Outlined.Tune,
+                    contentDescription = null,
+                    color = MaterialTheme.colorScheme.primary,
+                    size = 48.dp
+                )
+                Spacer(modifier = Modifier.width(16.dp))
                 Text(
                     text = stringResource(R.string.movement_filter_title),
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f),
                 )
-                TextButton(
-                    onClick = onClearFilters,
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                    modifier = Modifier.height(32.dp)
-                ) {
-                    Text(
-                        text = stringResource(R.string.common_clear_filters),
-                        style = MaterialTheme.typography.labelMedium
-                    )
-                }
             }
             filters.errorRes?.let {
                 Text(
@@ -381,6 +406,24 @@ private fun MovementFiltersCard(
                     onClear = { onFiltersChange(filters.copy(dateFrom = "", dateTo = "")) },
                     modifier = Modifier.weight(1f).fillMaxHeight()
                 )
+            }
+
+            OutlinedButton(
+                onClick = onClearFilters,
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.small,
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.primary
+                ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.RestartAlt,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(text = stringResource(R.string.common_clear_filters))
             }
         }
     }
