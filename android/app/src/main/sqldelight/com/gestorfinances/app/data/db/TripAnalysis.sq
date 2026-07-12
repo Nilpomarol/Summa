@@ -51,6 +51,27 @@ GROUP BY
 HAVING SUM(e.amount_cents) <> 0
 ORDER BY ABS(SUM(e.amount_cents)) DESC, lower(COALESCE(category_name, '')) ASC;
 
+tripActualByDayByCategory:
+SELECT
+    e.date,
+    CAST(CASE WHEN c.id IS NULL THEN NULL ELSE e.category_id END AS TEXT) AS category_id,
+    c.name AS category_name,
+    c.color AS category_color,
+    SUM(e.amount_cents) AS actual_cents
+FROM v_actual_expense e
+LEFT JOIN categories c
+    ON c.id = e.category_id
+   AND c.archived_at IS NULL
+WHERE e.trip_id = :trip_id
+  AND (:exclude_one_time = 0 OR e.is_one_time = 0)
+GROUP BY
+    e.date,
+    category_id,
+    category_name,
+    category_color
+HAVING SUM(e.amount_cents) <> 0
+ORDER BY e.date ASC, ABS(SUM(e.amount_cents)) DESC, lower(COALESCE(category_name, '')) ASC;
+
 tripActualByTag:
 SELECT
     CAST(CASE WHEN t.id IS NULL THEN NULL ELSE e.tag_id END AS TEXT) AS tag_id,

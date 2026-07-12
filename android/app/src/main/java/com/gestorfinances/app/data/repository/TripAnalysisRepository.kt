@@ -27,6 +27,15 @@ data class TripTagActual(
     val actualCents: Long,
 )
 
+/** One day's actual spend in one category — feeds the trip detail "Dia a dia" day cards. */
+data class TripDayCategoryActual(
+    val date: String,
+    val categoryId: String?,
+    val categoryName: String?,
+    val categoryColor: String?,
+    val actualCents: Long,
+)
+
 class TripAnalysisRepository(
     private val queries: TripAnalysisQueries,
 ) {
@@ -68,6 +77,16 @@ class TripAnalysisRepository(
             trip_id = tripId,
             exclude_one_time = if (excludeOneTime) 1L else 0L,
             mapper = ::mapTagActual,
+        ).executeAsList()
+
+    fun actualByDayByCategory(
+        tripId: String,
+        excludeOneTime: Boolean = false,
+    ): List<TripDayCategoryActual> =
+        queries.tripActualByDayByCategory(
+            trip_id = tripId,
+            exclude_one_time = if (excludeOneTime) 1L else 0L,
+            mapper = ::mapDayCategoryActual,
         ).executeAsList()
 }
 
@@ -114,5 +133,20 @@ private fun mapTagActual(
         tagId = tagId,
         tagName = tagName,
         tagColor = tagColor,
+        actualCents = actualCents ?: 0L,
+    )
+
+private fun mapDayCategoryActual(
+    date: String?,
+    categoryId: String?,
+    categoryName: String?,
+    categoryColor: String?,
+    actualCents: Long?,
+): TripDayCategoryActual =
+    TripDayCategoryActual(
+        date = date.orEmpty(),
+        categoryId = categoryId,
+        categoryName = categoryName,
+        categoryColor = categoryColor,
         actualCents = actualCents ?: 0L,
     )

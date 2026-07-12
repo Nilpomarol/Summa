@@ -17,6 +17,7 @@ import com.gestorfinances.app.data.repository.TripAnalysisRepository
 import com.gestorfinances.app.data.repository.TripAnalysisSummary
 import com.gestorfinances.app.data.repository.TripCategoryActual
 import com.gestorfinances.app.data.repository.TripDailyActual
+import com.gestorfinances.app.data.repository.TripDayCategoryActual
 import com.gestorfinances.app.data.repository.TripDraft
 import com.gestorfinances.app.data.repository.TripRepository
 import com.gestorfinances.app.data.repository.TripStatus
@@ -117,6 +118,7 @@ class TripsViewModel(
                         dailyActual = tripAnalysisRepository.actualByDay(trip.id, excludeOneTime = excludeOneTime),
                         categoryActual = tripAnalysisRepository.actualByCategory(trip.id, excludeOneTime = excludeOneTime),
                         tagActual = tripAnalysisRepository.actualByTag(trip.id, excludeOneTime = excludeOneTime),
+                        dayCategoryActual = tripAnalysisRepository.actualByDayByCategory(trip.id, excludeOneTime = excludeOneTime),
                         movements = movementRepository.listActive().filter { it.tripId == trip.id },
                         budgetEvaluation = tripBudgetEvaluation(trip.id),
                         tagsById = tagRepository.listActive().associateBy { it.id },
@@ -384,6 +386,7 @@ data class TripDetailState(
     val dailyActual: List<TripDailyActual> = emptyList(),
     val categoryActual: List<TripCategoryActual> = emptyList(),
     val tagActual: List<TripTagActual> = emptyList(),
+    val dayCategoryActual: List<TripDayCategoryActual> = emptyList(),
     val movements: List<MovementSummary> = emptyList(),
     val budgetEvaluation: BudgetEvaluation? = null,
     val tagsById: Map<String, TagSummary> = emptyMap(),
