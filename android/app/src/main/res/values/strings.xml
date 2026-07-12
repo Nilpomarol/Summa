@@ -780,12 +780,13 @@
     <string name="trip_detail_breakdown">Desglossament</string>
     <string name="trip_detail_breakdown_category">Per categoria</string>
     <string name="trip_detail_breakdown_tag">Per etiqueta</string>
-    <string name="trip_detail_movements">Moviments del viatge</string>
-    <string name="trip_detail_view_all_movements">Veure tots (%1$d)</string>
     <string name="trip_detail_no_default_account">Sense compte per defecte</string>
-    <string name="trip_action_new_movement">Nou moviment</string>
+    <string name="trip_tab_resum">Resum</string>
+    <string name="trip_tab_day_by_day">Dia a dia</string>
+    <string name="trip_tab_movements">Moviments</string>
+    <string name="trip_timeline_day">Dia %1$d · %2$s</string>
+    <string name="trip_budget_define">Defineix pressupost</string>
     <string name="trip_action_manage_tags">Gestiona etiquetes</string>
-    <string name="trip_action_tags">Etiquetes</string>
     <string name="trip_action_budget">Pressupost</string>
     <string name="trip_action_edit">Edita el viatge</string>
     <string name="trip_action_archive">Elimina el viatge</string>

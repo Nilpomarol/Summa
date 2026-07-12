@@ -53,6 +53,14 @@ fun formatMonthYear(month: YearMonth): String = "${formatMonth(month)} ${month.y
 private fun shortMonth(date: LocalDate): String =
     date.month.getDisplayName(TextStyle.SHORT_STANDALONE, catalanLocale)
 
+/** Catalan weekday + compact date, capitalized, e.g. `Dissabte 13 jul`. */
+fun formatWeekdayDate(iso: String): String {
+    val date = parseIsoDateOrNull(iso) ?: return iso
+    val weekday = date.dayOfWeek.getDisplayName(TextStyle.FULL_STANDALONE, catalanLocale)
+        .replaceFirstChar { it.uppercase() }
+    return "$weekday ${date.dayOfMonth} ${shortMonth(date)}"
+}
+
 /**
  * Compact custom-range label, e.g. `12 jun - 18 jun 2026` (same year, shown once) or
  * `28 des 2025 - 3 gen 2026` (crosses a year, shown on both ends). Used where space is tight

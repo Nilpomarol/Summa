@@ -170,6 +170,102 @@ class TripAnalysisRepositoryTest {
         }
     }
 
+    @Test
+    fun actualByDayByCategoryGroupsPerDayAndThreadsExcludeOneTime() {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking", displayOrder = 0), createdAt = NOW)
+            store.trips.create(tripDraft("mallorca"), createdAt = NOW)
+            store.categories.create(
+                CategoryDraft(
+                    id = "food",
+                    name = "Menjar",
+                    kind = CategoryKind.EXPENSE,
+                    nature = CategoryNature.VARIABLE,
+                    parentId = null,
+                    icon = null,
+                    color = null,
+                    displayOrder = 0,
+                ),
+                createdAt = NOW,
+            )
+
+            store.movements.create(
+                MovementDraft(
+                    id = "dinner-day1",
+                    type = MovementType.EXPENSE,
+                    amountCents = 1_000,
+                    date = "2026-08-01",
+                    accountId = "checking",
+                    destinationAccountId = null,
+                    categoryId = "food",
+                    tripId = "mallorca",
+                    tagId = null,
+                    name = "Sopar",
+                    payee = null,
+                    notes = null,
+                    isOneTime = false,
+                ),
+                createdAt = NOW,
+            )
+            store.movements.create(
+                MovementDraft(
+                    id = "taxi-day1",
+                    type = MovementType.EXPENSE,
+                    amountCents = 500,
+                    date = "2026-08-01",
+                    accountId = "checking",
+                    destinationAccountId = null,
+                    categoryId = null,
+                    tripId = "mallorca",
+                    tagId = null,
+                    name = "Taxi",
+                    payee = null,
+                    notes = null,
+                    isOneTime = false,
+                ),
+                createdAt = NOW,
+            )
+            store.movements.create(
+                MovementDraft(
+                    id = "dinner-day2",
+                    type = MovementType.EXPENSE,
+                    amountCents = 2_000,
+                    date = "2026-08-02",
+                    accountId = "checking",
+                    destinationAccountId = null,
+                    categoryId = "food",
+                    tripId = "mallorca",
+                    tagId = null,
+                    name = "Sopar estrella",
+                    payee = null,
+                    notes = null,
+                    isOneTime = true,
+                ),
+                createdAt = NOW,
+            )
+
+            val all = store.tripAnalysis.actualByDayByCategory("mallorca")
+            val excludingOneTime = store.tripAnalysis.actualByDayByCategory("mallorca", excludeOneTime = true)
+
+            // Days ascending; within a day, largest absolute amount first; null = "no category".
+            assertEquals(
+                listOf(
+                    Triple("2026-08-01", "food", 1_000L),
+                    Triple("2026-08-01", null, 500L),
+                    Triple("2026-08-02", "food", 2_000L),
+                ),
+                all.map { Triple(it.date, it.categoryId, it.actualCents) },
+            )
+            assertEquals(
+                listOf(
+                    Triple("2026-08-01", "food", 1_000L),
+                    Triple("2026-08-01", null, 500L),
+                ),
+                excludingOneTime.map { Triple(it.date, it.categoryId, it.actualCents) },
+            )
+        }
+    }
+
     private fun freshStore(): TestStore {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         driver.execute(null, "PRAGMA foreign_keys = ON", 0)

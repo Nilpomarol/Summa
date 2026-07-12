@@ -68,35 +68,43 @@ Purpose: answer what the trip cost, how spending evolved over trip days, and wha
 
 Header (inline title row, no separate header card — the trip itself is the page title):
 
-- back arrow + `IconChip` (trip-type icon, trip color) + trip name as the page title + overflow menu (Edit, Archive);
+- back arrow + `IconChip` (trip-type icon, trip color as a soft-tint accent — never a solid color band) + trip name as the page title + overflow menu (**Edit and Archive only** — tag and budget management live contextually in the tabs below);
 - one muted meta line under the name: date range (`dateRange()`) · day count (`trip_detail_days_count`, from `TripSummary.dayCount()` falling back to the daily-actual date range when the trip has no explicit start/end) · status label. No type/status pills;
 - default account and notes are **not** shown on the detail page — they are edit-form facts (the default account still surfaces implicitly when adding a movement from the trip).
 
-Hero card (`TripHeroSection`, replaces the former 2×2 KPI grid):
+Content is **four tabs** under the header, reusing Anàlisi's exact `TabRow` styling so the page reads as "Analysis scoped to one event": **Resum · Desglossament · Dia a dia · Moviments**. Each tab answers one question — how much / on what / which days / the receipts.
+
+### Resum tab
+
+Hero card (`TripHeroSection`):
 
 - actual trip spend (the user's own actual expense, net of refunds) as the single headline number;
 - one muted secondary line combining average actual spend per day (`trip_row_avg_day`, or `trip_detail_avg_day_excluding` when the toggle is on; omitted entirely when the trip has no day count, since the average is undefined) and total account outlay/flow (`trip_detail_outflow`);
-- an **"exclou despeses extraordinàries" toggle** (`trip_detail_exclude_one_time`) that reuses the existing `is_one_time` flag already used elsewhere in the app (Analysis, budgets) — **this is not a new flag**. When enabled, the hero numbers, the daily chart, and the breakdown are recomputed with `exclude_one_time = 1` threaded through `TripAnalysisRepository`'s queries, and the secondary line labels the avg/day as "sense extraordinàries".
+- an **"exclou despeses extraordinàries" toggle** (`trip_detail_exclude_one_time`) that reuses the existing `is_one_time` flag already used elsewhere in the app (Analysis, budgets) — **this is not a new flag**. When enabled, **every actual figure on the page** — the hero numbers, the daily chart, the Desglossament rows, the Dia a dia cards, and the Moviments day-header totals — is recomputed with `exclude_one_time = 1` threaded through `TripAnalysisRepository`'s queries, and the secondary line labels the avg/day as "sense extraordinàries". Movement *rows* are receipts and always all render regardless of the toggle (same as transfers, which never count in actual figures), so an excluded one-time row can legitimately sit under a day header that doesn't include it.
 
-Action row (directly under the hero, not at the bottom of the page): "Nou moviment" (`PrimaryButton`) plus "Etiquetes" and "Pressupost" (`OutlinedButton`s).
+Budget (`TripBudgetSection`, under the hero): when an active TRIP-scope budget exists, a `BudgetProgressBar` card, **tappable** to open the Budgets surface pre-scoped to this trip; when none exists, a "Defineix pressupost" secondary button opening that same surface. (Budget-vs-toggle rule in §7 unchanged: the bar always reflects total actual spend.)
 
-Budget: when an active TRIP-scope budget exists for the trip, `TripBudgetSection` renders a `BudgetProgressBar` inline, in addition to the existing "Pressupost del viatge" action that opens the full Budgets surface for editing.
+Daily chart (`TripDailySection`): a cumulative `IncomeExpenseChart` fed the trip's daily-actual series (income left at 0); always cumulative, matching Analysis's own equivalent chart.
 
-Analysis blocks:
+### Desglossament tab
 
-- daily chart (`TripDailySection`): a cumulative `IncomeExpenseChart` fed the trip's daily-actual series (income left at 0) — the old per-day/cumulative `SegmentedControl` toggle was **dropped**; the chart is always cumulative, matching how Analysis's own equivalent chart behaves;
-- **one** breakdown section (`TripBreakdownSection`, replacing the former separate category and tag sections): a category/tag dimension `SegmentedControl` plus the Totals/Mitjana-per-dia mode toggle over the same percent-bar rows, so only one row list is on screen at a time. The category dimension gives the "no category" bucket the usual muted treatment; the tag dimension uses `TagSummary.effectiveIcon()`/`effectiveColor()` (falling back to an associated category's icon/color when the tag has none of its own, §6) for each tag's identity, with the untagged bucket (`trip_analysis_untagged`) muted the same way;
-- scoped movement list capped at the **5 most recent** movements (`MovementListItem` rows, active movements with `trip_id` = this trip); tapping a row opens the same movement detail sheet used everywhere else (`MovementDialogHost` — trip detail wires `onMovementDetail` to the shared `movementsViewModel::onDetailClicked` path, no separate detail surface). When more exist, a "Veure tots (N)" action leaves trip detail and opens Moviments with the trip filter pre-applied (the same `MovementFilters(tripId)` drill-down the Dashboard uses).
+One composition list (`TripBreakdownTab`): a category/tag dimension `SegmentedControl` plus the Totals/Mitjana-per-dia mode toggle over the same percent-bar rows, so only one row list is on screen at a time. The category dimension gives the "no category" bucket the usual muted treatment; the tag dimension uses `TagSummary.effectiveIcon()`/`effectiveColor()` (falling back to an associated category's icon/color when the tag has none of its own, §6) for each tag's identity, with the untagged bucket (`trip_analysis_untagged`) muted the same way. On the tag dimension, a trailing **"Gestiona etiquetes"** action opens the Tags page pre-scoped to this trip — tag management lives where the tags are, not in the header overflow.
 
-Actions (the row under the hero, §above):
+### Dia a dia tab
 
-- "Nou moviment" preselects the trip and uses the trip's default account when present (unchanged from P5);
-- "Etiquetes" opens the Tags page pre-scoped to this trip;
-- "Pressupost" opens the Budgets surface pre-scoped to this trip.
+Display-only per-day rollup cards (`TripDaysTab`), ascending by date: each card shows the day label, the day's **canonical actual total** (`tripActualByDay`), and one line per category (colored dot + name + amount) from the `tripActualByDayByCategory` query. Day cards are aggregates and **never navigate** (Aggregate Interaction Contract, `docs/11` §6) — the receipts live one tab over. Days with no per-category lines simply don't get a card; a day whose categories offset to a zero net (e.g. an expense fully refunded in another category) keeps its lines and shows a 0 € total.
 
-Data rules:
+### Moviments tab
 
-- the KPIs and breakdowns read derived actual/flow data filtered by `trip_id` via `TripAnalysisRepository`, which calls the canonical `tripAnalysisSummary`/`tripActualByDay`/`tripActualByCategory`/`tripActualByTag` queries — never recomputed ad hoc;
+The **full** scoped ledger (`TripMovementsTab`) — active movements with `trip_id` = this trip, no cap and no "Veure tots" drill-away — as a day-grouped timeline ascending by date. Each day gets a header: **"Dia N · [weekday] [date]"** for dates inside the trip's own start/end range (1-based ordinal), or the plain weekday+date for out-of-range spend (advance bookings before the start, trailing spend after the end), plus the day's canonical actual total from `tripActualByDay` (0 when the day nets to zero — e.g. transfer-only days, since transfers appear in the list but not in actual spend). Rows are standard `MovementListItem`s (date hidden — it's in the header); tapping one opens the same movement detail page used everywhere else (`MovementDialogHost` — trip detail wires `onMovementDetail` to the shared `movementsViewModel::onDetailClicked` path, no separate detail surface).
+
+### Adding a movement
+
+There is **no in-page "Nou moviment" button**: the global bottom-bar FAB is context-aware — while Trip Detail is open it opens the movement form pre-filled with this trip (and, downstream, the trip's default account, unchanged from P5); everywhere else it keeps its plain unscoped meaning (`MainActivity`, `openMovementForm((nav.overlay as? AppOverlay.TripDetail)?.tripId)`).
+
+### Data rules
+
+- the KPIs, breakdowns, and day rollups read derived actual/flow data filtered by `trip_id` via `TripAnalysisRepository`, which calls the canonical `tripAnalysisSummary`/`tripActualByDay`/`tripActualByCategory`/`tripActualByTag`/`tripActualByDayByCategory` queries (all over `v_actual_expense`) — never recomputed ad hoc; the timeline/day-card **day totals also come from `tripActualByDay`**, so the Moviments, Dia a dia, and Resum figures can never disagree;
 - external friend-paid splits with `trip_id` count in actual spend and now also carry their own `tag_id` correctly into the tag breakdown (see §6, and `docs/16` F7 for the bug this fixes);
 - transfers may appear in the movement list, but not in actual expense KPIs;
 - refunds retain their normal actual behavior and are scoped by the refund's own `trip_id`.
@@ -211,7 +219,7 @@ Scope: trip budget (`budgets.scope='trip'`, `period='one_off'`).
 
 Content:
 
-- trip detail shows an inline `BudgetProgressBar` when an active trip-scope budget exists for that trip (§4), in addition to the "Pressupost del viatge" action that opens the full Budgets surface for editing;
+- trip detail's Resum tab shows an inline `BudgetProgressBar` card when an active trip-scope budget exists for that trip (§4), tappable to open the full Budgets surface for editing — or a "Defineix pressupost" button opening that surface when none exists;
 - trip budget form uses the existing budget component shape: limit, optional threshold, start date defaulting to trip start;
 - progress compares the trip budget limit against the trip's whole-life derived actual spend (all expense movements tagged with that `trip_id`, unbounded by date — a TRIP-scope budget is one-off, not a calendar period, so advance-booking spend recorded before the trip's own `start_date` counts too); unlike the trip detail KPIs, the budget bar does **not** respect the `is_one_time` toggle — it always reflects total actual spend.
 
@@ -233,7 +241,7 @@ Content (`ActiveTripCard`, `ui/dashboard/DashboardScreen.kt`):
 - positioned after the hero KPI block, before the account grid;
 - shows the trip's name/icon and a compact spend-so-far figure (`TripSummary.totalActualCents`);
 - a "Veure viatge" link opens `AppOverlay.TripDetail(tripId)`;
-- a quick "Afegeix moviment" action opens the movement form pre-filled with the trip's id and default account, the same `openMovementForm(tripId)` path used from the Trips list and from trip detail itself.
+- a quick "Afegeix moviment" action opens the movement form pre-filled with the trip's id and default account, the same `openMovementForm(tripId)` path the context-aware FAB uses while trip detail is open (§4).
 
 ---
 
@@ -268,7 +276,7 @@ All values are Catalan. Keep adding strings beside the slice that needs them; do
 ## 13. Acceptance Checklist
 
 - Trips list shows statuses, date ranges, total spend, average/day, empty state, and New trip action.
-- Trip detail is a full page (`AppOverlay.TripDetail`, not a dialog) with the trip as its own header, a hero spend card (incl. the exclude-one-time toggle), an action row under the hero, a cumulative daily chart, a single category/tag breakdown with a dimension switch (tags using effective icon/color inheritance), an inline budget bar when a trip-scope budget exists, and a scoped movement list capped at 5 with a "Veure tots" drill-down into Moviments.
+- Trip detail is a full page (`AppOverlay.TripDetail`, not a dialog) with the trip as its own header (overflow = Edit/Archive only) and four Anàlisi-style tabs: Resum (hero spend card incl. the exclude-one-time toggle, tappable budget bar / "Defineix pressupost", cumulative daily chart), Desglossament (category/tag dimension switch + Totals/Mitjana-per-dia mode, tags using effective icon/color inheritance, trailing "Gestiona etiquetes" on the tag dimension), Dia a dia (display-only per-day category-rollup cards), and Moviments (the full uncapped scoped ledger, day-grouped with "Dia N" ordinals and canonical day totals). Adding a movement is the context-aware global FAB's job — no in-page button.
 - Add/Edit trip and tag forms are `ModalBottomSheet`s using `IconPickerRow`/`ColorPickerRow`/`FormDatePicker`/`SegmentedControl`/`FormSelect`; every "pick one of many" field (default account, category association, specific-trip picker) is a `FormSelect` dropdown, not a chip picker; archive stays a destructive `AlertDialog`.
 - Tapping a movement row in trip detail's scoped movement list opens the shared movement detail sheet (`MovementDialogHost`), the same as everywhere else in the app.
 - Tag management supports three scopes (global / event-type / specific-trip, schema-enforced exclusivity between the last two) plus an optional category association, grouped into collapsible sections.

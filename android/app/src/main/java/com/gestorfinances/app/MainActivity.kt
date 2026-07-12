@@ -528,7 +528,10 @@ private fun LedgerShell(
             FinanceBottomBar(
                 selectedSection = nav.section,
                 onSelected = ::showTopLevel,
-                onAddMovement = { openMovementForm() },
+                // Context-aware FAB (docs/14 §4): while Trip Detail is open, the global add
+                // action pre-fills that trip (and, downstream, its default account); everywhere
+                // else it opens the plain unscoped movement form.
+                onAddMovement = { openMovementForm((nav.overlay as? AppOverlay.TripDetail)?.tripId) },
             )
         },
     ) { innerPadding ->
@@ -565,7 +568,6 @@ private fun LedgerShell(
                         tripsViewModel.onDetailDismissed()
                         nav = nav.back()
                     },
-                    onNewMovement = { trip -> openMovementForm(trip.id) },
                     onManageTags = { tripId ->
                         nav = nav.copy(overlay = AppOverlay.Tags(tripId = tripId, returnTo = overlay))
                     },
@@ -573,10 +575,6 @@ private fun LedgerShell(
                         nav = nav.copy(overlay = AppOverlay.Budgets(tripId = tripId, returnTo = overlay))
                     },
                     onMovementDetail = openMovementDetail,
-                    onViewAllMovements = { trip ->
-                        tripsViewModel.onDetailDismissed()
-                        openMovements(MovementFilters(tripId = trip.id))
-                    },
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),

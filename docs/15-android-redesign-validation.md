@@ -327,15 +327,16 @@ Run these after building the app to confirm the P5R-7 redesign and logic fixes a
 | 1 | Open Gestió → Esdeveniments with ≥ 2 trips | Each `TripRow` shows status/type pills, a date-range summary, total actual spend, and average spend per day |
 | 2 | Tap a trip row | Navigates to a full page (`TripDetailScreen`), not a dialog — no scrim, has its own back arrow + overflow menu (Edit, Archive) in the header |
 | 3 | Press system Back on trip detail opened from the Trips list | Returns to the Trips list (not the Gestió hub directly) |
-| 4 | Trip detail with movements on several days | KPI row shows total actual spend, account outflow, day count, and avg/day; a cumulative `IncomeExpenseChart` renders the daily spend trend |
-| 5 | Toggle "Exclou despeses extraordinàries" | KPIs, the chart, and both breakdowns recompute excluding `is_one_time` movements; an "avg/day sense extraordinàries" figure appears |
-| 6 | Trip has an active TRIP-scope budget | A `BudgetProgressBar` (green/amber/red) renders inline in trip detail, in addition to the "Pressupost del viatge" action |
-| 7 | Trip has no active budget | No budget bar shown — trip detail otherwise unchanged |
-| 8 | Trip detail's category and tag breakdowns | Percent-bar rows with icon/color identity; a tag with no icon/color of its own but an associated category shows that category's icon/color; the untagged/no-category bucket is visually muted |
+| 4 | Trip detail (Resum tab) with movements on several days | Four tabs render (Resum · Desglossament · Dia a dia · Moviments); Resum's hero card shows total actual spend as the headline plus a muted avg/day + account-outflow line; a cumulative `IncomeExpenseChart` renders the daily spend trend |
+| 5 | Toggle "Exclou despeses extraordinàries" (Resum tab) | The hero numbers, the chart, the Desglossament rows, the Dia a dia cards, and the Moviments day-header totals recompute excluding `is_one_time` movements (the excluded rows themselves stay listed, like transfers); an "avg/day sense extraordinàries" figure appears |
+| 6 | Trip has an active TRIP-scope budget | A `BudgetProgressBar` card (green/amber/red) renders on the Resum tab; tapping it opens the Budgets surface pre-scoped to this trip |
+| 7 | Trip has no active budget | A "Defineix pressupost" button renders instead of the bar, opening the same Budgets surface |
+| 8 | Desglossament tab | Percent-bar rows with icon/color identity behind a category/tag dimension switch + Totals/Mitjana-per-dia mode toggle; a tag with no icon/color of its own but an associated category shows that category's icon/color; the untagged/no-category bucket is visually muted; the tag dimension shows a trailing "Gestiona etiquetes" action |
 | 9 | Record an expense via an external split (§2.6, "Una altra persona") with `trip_id` and its own tag set | The tag now correctly appears in the trip's "Per etiqueta" breakdown instead of falling into "Sense etiqueta" (regression check for `docs/16` F7) |
-| 10 | Trip detail's movement list | Rows render as standard `MovementListItem`s, same visual density as Moviments |
-| 10a | Tap a movement row in trip detail | Opens the shared movement detail sheet (`MovementDialogHost`), the same as tapping a movement anywhere else in the app |
-| 11 | Tap "Nou moviment del viatge" from trip detail | Movement form opens pre-filled with this trip and its default account (unchanged from before this slice) |
+| 9a | Dia a dia tab | One display-only card per day with spend, ascending: "Dia N · [weekday] [date]" (plain date for pre/post-trip spend), the day's total, and one colored-dot line per category; tapping a card does nothing (Aggregate Interaction Contract) |
+| 10 | Moviments tab | The full scoped ledger (no 5-row cap, no "Veure tots"), grouped under day headers with "Dia N" ordinals and day totals matching Dia a dia; rows render as standard `MovementListItem`s without their own date |
+| 10a | Tap a movement row in the Moviments tab | Opens the shared movement detail page (`MovementDialogHost`), the same as tapping a movement anywhere else in the app |
+| 11 | Tap the global FAB while trip detail is open | Movement form opens pre-filled with this trip and its default account; the FAB stays unscoped everywhere else |
 | 12 | Open the trip add/edit form | Opens as a `ModalBottomSheet`; icon/color use `IconPickerRow`/`ColorPickerRow`; start/end dates use the same date picker the movement form uses (no free-text date fields); default account is a `FormSelect` dropdown (not a chip row) |
 | 13 | Open Gestió → Esdeveniments → "manage tags" (no trip context) | Tags page shows collapsible sections: Globals, one per event type with type-scoped tags, one per trip with trip-local tags — each with a count badge |
 | 14 | Tap a tag row | Icon/color shown are the tag's own if set, else its associated category's (`effectiveIcon()`/`effectiveColor()`) — never a hardcoded generic icon or a raw icon-string pill |
@@ -365,8 +366,8 @@ Run these after building the app to confirm the audit's blocker and should-fix r
 | 7 | Open Anàlisi → Fix/Var with some uncategorized expense in the period | The Sankey's "Estalvi" figure matches the savings shown elsewhere on the tab (no longer inflated by uncategorized spend); a "Sense categoria" node appears in the diagram when applicable |
 | 8 | On the Moviments income form, toggle "Liquidació" and enter an amount exceeding the selected person's outstanding balance | A dismissible over-payment warning appears (same as the People settlement sheet); save still succeeds |
 | 9 | In a movement form, select a trip, then check the tag picker | Only global tags, tags scoped to that trip's actual event type, and tags local to that specific trip appear — no tags scoped to a different event type |
-| 10 | Open Trip Detail (from the Trips list), tap "Gestiona etiquetes" or "Pressupost del viatge", then press Back | Returns to Trip Detail (not the Trips list); pressing Back again returns to the Trips list |
-| 11 | Open Trip Detail from the Dashboard active-trip card, tap "Gestiona etiquetes" or "Pressupost del viatge", then press Back twice | First Back returns to Trip Detail, second Back returns to Dashboard |
+| 10 | Open Trip Detail (from the Trips list), tap "Gestiona etiquetes" (Desglossament tab, tag dimension) or the budget card / "Defineix pressupost" (Resum tab), then press Back | Returns to Trip Detail (not the Trips list); pressing Back again returns to the Trips list |
+| 11 | Open Trip Detail from the Dashboard active-trip card, tap "Gestiona etiquetes" or the budget card, then press Back twice | First Back returns to Trip Detail, second Back returns to Dashboard |
 | 12 | From Trip Detail, archive the trip when the archive is expected to fail (e.g. simulate a repository error, or check via the regression test) | The error appears inline on Trip Detail itself, not silently lost; navigation does not occur until the result is known |
 
 ---
