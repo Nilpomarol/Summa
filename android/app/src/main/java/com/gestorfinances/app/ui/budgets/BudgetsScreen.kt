@@ -65,6 +65,7 @@ import com.gestorfinances.app.ui.common.PrimaryButton
 import com.gestorfinances.app.ui.common.SegmentedControl
 import com.gestorfinances.app.ui.common.categoryIcon
 import com.gestorfinances.app.ui.common.formatEuroCents
+import com.gestorfinances.app.ui.common.inPickerHierarchyOrder
 import com.gestorfinances.app.ui.common.scrollToWhen
 import com.gestorfinances.app.ui.movements.FormDatePicker
 import com.gestorfinances.app.ui.movements.FormSelect
@@ -338,7 +339,9 @@ private fun BudgetFormScreen(
         if (form.scope == BudgetScope.CATEGORY) {
             FormSelect(
                 label = stringResource(R.string.budget_field_category),
-                options = categories.map { category ->
+                // A container (parent with children) stays selectable here — budgeting it rolls up
+                // all its children — but children are shown indented beneath it for clarity.
+                options = categories.inPickerHierarchyOrder().map { (category, indented) ->
                     SelectOption(
                         id = category.id,
                         label = category.name,
@@ -350,6 +353,7 @@ private fun BudgetFormScreen(
                                 size = 24.dp,
                             )
                         },
+                        indented = indented,
                     )
                 },
                 selectedId = form.categoryId,

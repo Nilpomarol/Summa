@@ -300,6 +300,46 @@ public sealed class AnalysisQueryTests
         Assert.AreEqual((1_500L, 0L, -1_500L), groceriesOnly["groceries"]);
     }
 
+    [TestMethod]
+    public void ActualByCategoryFilterRollsUpChildrenOfAParent()
+    {
+        using var connection = new SqliteConnection("Data Source=:memory:");
+        connection.Open();
+        SharedSql.ApplyBaseline(connection);
+        connection.Execute(
+            """
+            INSERT INTO accounts
+                (id, name, starting_balance_cents, type, display_order, created_at, updated_at)
+            VALUES
+                ('checking', 'Checking', 0, 'bank', 0, @Now, @Now);
+
+            INSERT INTO categories
+                (id, name, kind, nature, parent_id, display_order, created_at, updated_at)
+            VALUES
+                ('food', 'Food', 'expense', 'variable', NULL, 0, @Now, @Now),
+                ('restaurants', 'Restaurants', 'expense', 'variable', 'food', 1, @Now, @Now);
+
+            INSERT INTO movements
+                (id, type, amount_cents, date, account_id, name, is_one_time, category_id, created_at, updated_at)
+            VALUES
+                ('food-own', 'expense', 1000, '2026-06-03', 'checking', 'Food own', 0, 'food', @Now, @Now),
+                ('rest-1', 'expense', 3000, '2026-06-04', 'checking', 'Dinner', 0, 'restaurants', @Now, @Now);
+            """,
+            new { Now });
+
+        // Filtering by the parent 'food' (a container) includes its child 'restaurants' rows.
+        // The query still returns one row per category_id; rolling them into a single parent
+        // total is a presentation concern handled in app code.
+        var byParent = ByCategory(connection, "include", null, accountId: null, categoryId: "food");
+        CollectionAssert.AreEquivalent(new[] { "food", "restaurants" }, byParent.Keys.ToArray());
+        Assert.AreEqual((1_000L, 0L, -1_000L), byParent["food"]);
+        Assert.AreEqual((3_000L, 0L, -3_000L), byParent["restaurants"]);
+
+        // Filtering by the leaf child stays scoped to itself.
+        var byChild = ByCategory(connection, "include", null, accountId: null, categoryId: "restaurants");
+        CollectionAssert.AreEquivalent(new[] { "restaurants" }, byChild.Keys.ToArray());
+    }
+
     private static Dictionary<string, (long Expense, long Income, long Net)> ByCategory(
         SqliteConnection connection,
         string oneTimeMode,

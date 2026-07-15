@@ -11,7 +11,10 @@ WITH actual_rows AS (
     WHERE e.date >= :from_date
       AND e.date < :to_date
       AND (:account_id IS NULL OR m.account_id = :account_id)
-      AND (:category_id IS NULL OR e.category_id = :category_id)
+      AND (:category_id IS NULL
+           OR e.category_id = :category_id
+           OR e.category_id IN (SELECT id FROM categories
+                                WHERE parent_id = :category_id AND archived_at IS NULL))
 
     UNION ALL
 
@@ -27,7 +30,10 @@ WITH actual_rows AS (
     WHERE i.date >= :from_date
       AND i.date < :to_date
       AND (:account_id IS NULL OR m.account_id = :account_id)
-      AND (:category_id IS NULL OR i.category_id = :category_id)
+      AND (:category_id IS NULL
+           OR i.category_id = :category_id
+           OR i.category_id IN (SELECT id FROM categories
+                                WHERE parent_id = :category_id AND archived_at IS NULL))
 ),
 active_groups AS (
     SELECT

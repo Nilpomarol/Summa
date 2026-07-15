@@ -225,6 +225,12 @@ CREATE TABLE categories (
 );
 CREATE INDEX idx_categories_parent ON categories(parent_id) WHERE parent_id IS NOT NULL;
 -- "Sense categoria" is not a row: it is the category_id IS NULL bucket in queries (spec §3.2).
+-- Container rollup (spec §3.2): a parent-with-children aggregates its active children everywhere.
+-- Aggregation/drill queries that take a single category id match the category OR its active
+-- children, e.g. `category_id = :id OR category_id IN (SELECT id FROM categories WHERE
+-- parent_id = :id AND archived_at IS NULL)` — applied to the analysis category filters,
+-- `budgetActualForCategory`, and the category drill-through queries. Rolling children into one
+-- parent row for display is done in app code so the per-category rows stay available.
 
 CREATE TABLE people (
     id    TEXT PRIMARY KEY,

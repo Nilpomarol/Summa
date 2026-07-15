@@ -211,6 +211,10 @@ A person's balance is **computed** from shared expenses, expenses-paid-by-them, 
 
 **Edge cases & open questions:**
 - **[DECIDED] Subcategories.** A two-level hierarchy (e.g. *Food → Groceries / Restaurants*) is included for v1. `parent_id` is optional, so flat use still works and a subcategory inherits nothing it doesn't override.
+- **[DECIDED] A parent-with-children is a *container*.** Once a top-level category has ≥1 active child it becomes a container, and containers behave consistently everywhere:
+  - **Not directly assignable.** Movement/template pickers show a container as a non-selectable header with its children indented beneath — you always post to a leaf. (Legacy movements already on a container are left as-is; the picker just won't offer it going forward.)
+  - **Rolls up its children.** A container's figures = its own spend + all its active children's, in every display (category list, dashboard top-categories, analysis breakdown), and its drill-through lists the children's movements too.
+  - **Budgetable and filterable as an aggregate.** A budget on a container, and an analysis category filter set to a container, both count the parent plus all its active children. Archived children are excluded (archived = absent). The Fixed/Variable analysis split stays at the leaf level, since `nature` is a per-category attribute.
 - **"No category" virtual bucket.** Uncategorized movements are grouped under a non-deletable virtual "Sense categoria" bucket in breakdowns and analysis, so uncategorized spending is always visible rather than hidden. It is not a real category row.
 - **Per-category insight view:** each category has a detail screen showing this-month total + count, this-year total + count + **share of the year**, and (for budgeted expense categories) a spend-vs-budget bar with green/amber/red status (§3.14, §4.5). Clicking a category drills into its movements.
 

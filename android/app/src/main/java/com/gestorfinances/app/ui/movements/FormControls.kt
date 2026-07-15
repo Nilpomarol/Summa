@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -41,11 +42,18 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.ui.theme.FinanceTheme
 
-/** A single choice inside a [FormSelect]; [leading] paints an icon/dot/avatar before the label. */
+/**
+ * A single choice inside a [FormSelect]; [leading] paints an icon/dot/avatar before the label.
+ * [enabled] = false renders a non-selectable header (used for category containers — a parent that
+ * groups children but cannot itself be assigned). [indented] shifts the row right to nest a child
+ * under such a header.
+ */
 internal class SelectOption(
     val id: String?,
     val label: String,
     val leading: (@Composable () -> Unit)? = null,
+    val enabled: Boolean = true,
+    val indented: Boolean = false,
 )
 
 /**
@@ -166,11 +174,13 @@ internal fun FormSelect(
         ) {
             options.forEach { option ->
                 DropdownMenuItem(
+                    enabled = option.enabled,
                     text = {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                         ) {
+                            if (option.indented) Spacer(modifier = Modifier.size(20.dp))
                             option.leading?.invoke()
                             Text(
                                 text = option.label,
@@ -179,7 +189,7 @@ internal fun FormSelect(
                             )
                         }
                     },
-                    trailingIcon = if (option.id == selectedId) {
+                    trailingIcon = if (option.id == selectedId && option.enabled) {
                         {
                             Icon(
                                 imageVector = Icons.Outlined.Check,

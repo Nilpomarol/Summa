@@ -19,7 +19,10 @@ WHERE e.date >= :from_date
   )
   AND (:category_nature IS NULL OR c.nature = :category_nature)
   AND (:account_id IS NULL OR m.account_id = :account_id)
-  AND (:category_id IS NULL OR e.category_id = :category_id)
+  AND (:category_id IS NULL
+       OR e.category_id = :category_id
+       OR e.category_id IN (SELECT id FROM categories
+                            WHERE parent_id = :category_id AND archived_at IS NULL))
 GROUP BY weekday
 HAVING SUM(e.amount_cents) <> 0
 ORDER BY weekday ASC;

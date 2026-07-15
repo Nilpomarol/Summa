@@ -15,7 +15,10 @@ WITH actual_expense AS (
       )
       AND (:category_nature IS NULL OR c.nature = :category_nature)
       AND (:account_id IS NULL OR m.account_id = :account_id)
-      AND (:category_id IS NULL OR e.category_id = :category_id)
+      AND (:category_id IS NULL
+           OR e.category_id = :category_id
+           OR e.category_id IN (SELECT id FROM categories
+                                WHERE parent_id = :category_id AND archived_at IS NULL))
 ),
 actual_income AS (
     SELECT COALESCE(SUM(i.amount_cents), 0) AS income_cents
@@ -30,7 +33,10 @@ actual_income AS (
       AND :one_time_mode != 'only'
       AND (:category_nature IS NULL OR c.nature = :category_nature)
       AND (:account_id IS NULL OR m.account_id = :account_id)
-      AND (:category_id IS NULL OR i.category_id = :category_id)
+      AND (:category_id IS NULL
+           OR i.category_id = :category_id
+           OR i.category_id IN (SELECT id FROM categories
+                                WHERE parent_id = :category_id AND archived_at IS NULL))
 ),
 period_flow AS (
     SELECT COALESCE(SUM(f.delta_cents), 0) AS flow_cents

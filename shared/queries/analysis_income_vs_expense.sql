@@ -18,7 +18,10 @@ WITH actual_rows AS (
       )
       AND (:category_nature IS NULL OR c.nature = :category_nature)
       AND (:account_id IS NULL OR m.account_id = :account_id)
-      AND (:category_id IS NULL OR e.category_id = :category_id)
+      AND (:category_id IS NULL
+           OR e.category_id = :category_id
+           OR e.category_id IN (SELECT id FROM categories
+                                WHERE parent_id = :category_id AND archived_at IS NULL))
 
     UNION ALL
 
@@ -37,7 +40,10 @@ WITH actual_rows AS (
       AND :one_time_mode != 'only'
       AND (:category_nature IS NULL OR c.nature = :category_nature)
       AND (:account_id IS NULL OR m.account_id = :account_id)
-      AND (:category_id IS NULL OR i.category_id = :category_id)
+      AND (:category_id IS NULL
+           OR i.category_id = :category_id
+           OR i.category_id IN (SELECT id FROM categories
+                                WHERE parent_id = :category_id AND archived_at IS NULL))
 ),
 bucketed_actual AS (
     SELECT

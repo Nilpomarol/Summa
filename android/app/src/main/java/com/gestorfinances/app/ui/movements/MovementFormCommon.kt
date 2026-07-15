@@ -60,6 +60,7 @@ import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.IconChip
 import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.categoryIcon
+import com.gestorfinances.app.ui.common.inPickerHierarchyOrder
 import com.gestorfinances.app.ui.common.scrollToWhen
 import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.amountColor
@@ -183,43 +184,66 @@ internal fun CategorySelect(
     isError: Boolean = false,
     supportingText: String? = null,
 ) {
-    val options = remember(categories, type) {
-        categories.filter { cat ->
+    val noCategory = stringResource(R.string.common_no_category)
+    val options = remember(categories, type, noCategory) {
+        val compatible = categories.filter { cat ->
             when (type) {
-                MovementType.EXPENSE, MovementType.EXTERNAL_EXPENSE -> cat.kind == CategoryKind.EXPENSE || cat.kind == CategoryKind.BOTH
+                MovementType.EXPENSE, MovementType.EXTERNAL_EXPENSE ->
+                    cat.kind == CategoryKind.EXPENSE || cat.kind == CategoryKind.BOTH
                 MovementType.INCOME -> cat.kind == CategoryKind.INCOME || cat.kind == CategoryKind.BOTH
                 else -> false
             }
         }
+        buildCategorySelectOptions(compatible, noCategory)
     }
-    val noCategory = stringResource(R.string.common_no_category)
     FormSelect(
         label = stringResource(R.string.movement_field_category),
-        options = buildList {
-            add(SelectOption(id = null, label = noCategory))
-            options.forEach { cat ->
-                add(
-                    SelectOption(
-                        id = cat.id,
-                        label = cat.name,
-                        leading = {
-                            IconChip(
-                                icon = categoryIcon(cat.icon),
-                                contentDescription = null,
-                                color = categoryColor(cat.color),
-                                size = 24.dp,
-                            )
-                        },
-                    ),
-                )
-            }
-        },
+        options = options,
         selectedId = selectedId,
         onSelect = onSelect,
         placeholder = noCategory,
         modifier = modifier,
         isError = isError,
         supportingText = supportingText,
+    )
+}
+
+/**
+ * Builds the movement/template category picker options as a two-level tree: a parent that has
+ * children (a container) becomes a **non-selectable** header, and its children are the pickable,
+ * indented leaves beneath it. Leaves and childless top-level categories are selectable directly.
+ * A movement is always posted to a leaf, never to a container.
+ */
+private fun buildCategorySelectOptions(
+    compatible: List<CategoryRecord>,
+    noCategoryLabel: String,
+): List<SelectOption> {
+    val presentIds = compatible.mapTo(HashSet()) { it.id }
+    // A top-level category that has ≥1 child in this set is a container: it becomes a
+    // non-selectable header so movements are only ever posted to a leaf.
+    val containerIds = compatible.mapNotNull { it.parentId }.filterTo(HashSet()) { it in presentIds }
+    return buildList {
+        add(SelectOption(id = null, label = noCategoryLabel))
+        compatible.inPickerHierarchyOrder().forEach { (cat, indented) ->
+            add(
+                SelectOption(
+                    id = cat.id,
+                    label = cat.name,
+                    leading = categorySelectLeading(cat),
+                    enabled = cat.id !in containerIds,
+                    indented = indented,
+                ),
+            )
+        }
+    }
+}
+
+private fun categorySelectLeading(cat: CategoryRecord): @Composable () -> Unit = {
+    IconChip(
+        icon = categoryIcon(cat.icon),
+        contentDescription = null,
+        color = categoryColor(cat.color),
+        size = 24.dp,
     )
 }
 

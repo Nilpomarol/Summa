@@ -201,6 +201,10 @@ Run these after building the app to confirm the categories redesign is correct.
 | 6 | Parent spend with subcategories | Card amount = parent own spend + all children's spend; section total uses same rollup |
 | 7 | Tap a category card | `ModalBottomSheet` opens; header shows category `IconChip`, name, movement count, and "Anàlisi" `TextButton` |
 | 8 | Sheet has movements | `LazyColumn` of `MovementListItem` rows with type chip, name, date, signed amount |
+| 8a | Tap a **container** card (parent with children) | Movement list + count include the children's movements, not just the parent's own — the total matches the card figure (container rollup, spec §3.2) |
+| 8b | Open a movement/recurring form category picker | A parent-with-children shows as a **non-selectable** header with its children indented beneath; leaves and childless top-level categories are selectable |
+| 8c | Set a budget on a container, then log spend to one of its children | The budget progress bar counts the child's spend |
+| 8d | In Anàlisi, filter by a container | Breakdown/totals include all its active children; the container appears as one rolled-up breakdown row (children not shown as separate peers) |
 | 9 | Tap "Anàlisi" in the category flow sheet | Sheet dismisses; navigates to Anàlisi tab; "Categoria: [name]" `FinanceFilterChip` appears below the title |
 | 10 | Tap the category filter chip in Anàlisi | Chip disappears (filter cleared) |
 | 11 | Open category add/edit form | Sheet shows `ColorPickerRow` (20 swatches + HSV slot), `IconPickerRow` with `CategoryIconPalette`, live `CategoryPreviewCard`, kind segmented control, nature segmented control, parent selector |
