@@ -8,10 +8,12 @@ import com.gestorfinances.app.data.repository.AccountSummary
 import com.gestorfinances.app.data.repository.AnalysisCategoryTotal
 import com.gestorfinances.app.data.repository.AnalysisPeriodTotals
 import com.gestorfinances.app.data.repository.AnalysisRepository
+import com.gestorfinances.app.data.repository.CategoryRepository
 import com.gestorfinances.app.data.repository.MovementRepository
 import com.gestorfinances.app.data.repository.MovementSummary
 import com.gestorfinances.app.data.repository.TripRepository
 import com.gestorfinances.app.data.repository.TripSummary
+import com.gestorfinances.app.ui.common.rollUpToParents
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.CoroutineDispatcher
@@ -29,6 +31,7 @@ class DashboardViewModel(
     private val accountRepository: AccountRepository,
     private val movementRepository: MovementRepository,
     private val tripRepository: TripRepository,
+    private val categoryRepository: CategoryRepository,
     private val todayProvider: () -> LocalDate = { LocalDate.now() },
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
@@ -65,7 +68,7 @@ class DashboardViewModel(
                         categories = analysisRepository.actualByCategory(
                             fromDate = fromDate.toString(),
                             toDate = toDate.toString(),
-                        ).take(6),
+                        ).rollUpToParents(categoryRepository.listActive().associateBy { it.id }).take(6),
                         accounts = accountRepository.listActive(),
                         latestMovements = movementRepository.listActive().take(5),
                         activeTrip = tripRepository.activeToday(today.toString()),
@@ -99,6 +102,7 @@ class DashboardViewModel(
         private val accountRepository: AccountRepository,
         private val movementRepository: MovementRepository,
         private val tripRepository: TripRepository,
+        private val categoryRepository: CategoryRepository,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -108,6 +112,7 @@ class DashboardViewModel(
                     accountRepository = accountRepository,
                     movementRepository = movementRepository,
                     tripRepository = tripRepository,
+                    categoryRepository = categoryRepository,
                 ) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")

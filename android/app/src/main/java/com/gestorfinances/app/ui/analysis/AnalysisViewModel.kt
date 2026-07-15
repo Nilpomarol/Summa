@@ -27,6 +27,7 @@ import com.gestorfinances.app.data.repository.TemplateStatus
 import com.gestorfinances.app.data.repository.TemplateSummary
 import com.gestorfinances.app.domain.rules.CustomRecurrenceUnit
 import com.gestorfinances.app.domain.rules.RecurrenceFrequency
+import com.gestorfinances.app.ui.common.rollUpToParents
 import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
@@ -337,7 +338,7 @@ class AnalysisViewModel(
             groupTrips = s.groupTripsAsBlocks,
             accountId = s.filterAccountId,
             categoryId = s.filterCategoryId,
-        )
+        ).rollUpToParents(categoryRepository.listActive().associateBy { it.id })
         return ResumData(totals = totals, chartBuckets = chartBuckets, topCategories = categories)
     }
 
@@ -370,7 +371,14 @@ class AnalysisViewModel(
             accountId = s.filterAccountId,
             categoryId = s.filterCategoryId,
         )
-        return CategoriesData(categories = categories, trends = trends, frequency = frequency)
+        // Roll child categories up into their container so the breakdown, sparklines, and scatter
+        // present a parent-with-children as one rolled-up entry (matching the Categories screen).
+        val categoriesById = categoryRepository.listActive().associateBy { it.id }
+        return CategoriesData(
+            categories = categories.rollUpToParents(categoriesById),
+            trends = trends.rollUpToParents(categoriesById),
+            frequency = frequency.rollUpToParents(categoriesById),
+        )
     }
 
     private fun loadComparativa(s: AnalysisUiState, range: AnalysisPeriodRange): ComparativaData {
@@ -528,6 +536,9 @@ class AnalysisViewModel(
             accountId = s.filterAccountId,
             categoryId = s.filterCategoryId,
         )
+        // Note: the Fixed/Variable tab intentionally stays at the leaf level — `nature` is a
+        // per-category attribute, so rolling children of possibly-mixed nature into one parent
+        // bucket would misrepresent it.
         val fixedCategories = analysisRepository.actualByCategory(
             fromDate = range.fromDate.toString(),
             toDate = range.toDateExclusive.toString(),

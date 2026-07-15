@@ -75,6 +75,11 @@ Content order:
    - tap opens the account detail/flow.
 5. Category breakdown:
    - current-month actual spending/income grouped by category;
+   - a parent-with-children (container, spec §3.2) rolls up: it appears once with its own + all
+     children's spend, and its sparkline/scatter/treemap figures roll up too; children are not
+     shown as separate peer rows in the breakdown. The dashboard top-categories list uses the same
+     rollup. Setting the analysis category filter to a container includes all its active children;
+   - the Fixed/Variable split stays at the leaf level (`nature` is per-category);
    - trips later appear as their own block when trip grouping exists;
    - sorted by absolute amount descending;
    - uncategorized appears as "Sense categoria".

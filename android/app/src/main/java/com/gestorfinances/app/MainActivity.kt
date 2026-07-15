@@ -281,6 +281,7 @@ private fun LedgerShell(
                 accountRepository = appContainer.accountRepository,
                 movementRepository = appContainer.movementRepository,
                 tripRepository = appContainer.tripRepository,
+                categoryRepository = appContainer.categoryRepository,
             ),
         )[DashboardViewModel::class.java]
     }

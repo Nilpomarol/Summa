@@ -94,6 +94,41 @@ class CategoriesViewModelTest {
         }
     }
 
+    @Test
+    fun parentDrillThroughIncludesChildrensMovements() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.categories.create(categoryDraft("food"), createdAt = NOW)
+            store.categories.create(
+                categoryDraft("restaurants").copy(parentId = "food"),
+                createdAt = NOW,
+            )
+            store.exec(
+                """
+                INSERT INTO accounts (id, name, starting_balance_cents, type, display_order, created_at, updated_at)
+                VALUES ('checking', 'Checking', 0, 'bank', 0, '$NOW', '$NOW');
+                """.trimIndent(),
+            )
+            store.exec(expenseInsert("m-own", category = "food", cents = 1000))
+            store.exec(expenseInsert("m-child", category = "restaurants", cents = 3000))
+
+            // Tapping the container 'food' rolls up: its drill-through returns the parent's own
+            // movement plus every child's movement.
+            val parentEntries = store.movements.listActiveForCategory("food")
+            assertEquals(setOf("m-own", "m-child"), parentEntries.map { it.id }.toSet())
+
+            // Tapping the leaf child stays scoped to itself.
+            val leafEntries = store.movements.listActiveForCategory("restaurants")
+            assertEquals(setOf("m-child"), leafEntries.map { it.id }.toSet())
+        }
+    }
+
+    private fun expenseInsert(id: String, category: String, cents: Long): String =
+        """
+        INSERT INTO movements
+            (id, type, amount_cents, date, account_id, name, is_one_time, category_id, created_at, updated_at)
+        VALUES ('$id', 'expense', $cents, '2026-06-05', 'checking', '$id', 0, '$category', '$NOW', '$NOW');
+        """.trimIndent()
+
     private fun viewModel(store: TestStore): CategoriesViewModel =
         CategoriesViewModel(
             categoryRepository = store.categories,
@@ -124,6 +159,10 @@ class CategoriesViewModelTest {
         val movements: MovementRepository,
         val budgets: BudgetRepository,
     ) : AutoCloseable {
+        fun exec(sql: String) {
+            driver.execute(null, sql, 0)
+        }
+
         override fun close() {
             driver.close()
         }
