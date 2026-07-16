@@ -421,6 +421,14 @@ fun TripDetailScreen(
                     modifier = Modifier.padding(20.dp),
                 )
             }
+            detail.isLoading -> {
+                Text(
+                    text = stringResource(R.string.trip_loading),
+                    color = FinanceTheme.colors.mutedText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(20.dp),
+                )
+            }
             else -> {
                 TripDetailContent(
                     detail = detail,
@@ -644,7 +652,12 @@ private fun TripResumTab(
                 onManageBudget = onManageBudget,
             )
         }
-        item { TripDailySection(items = detail.dailyActual) }
+        item {
+            TripDailySection(
+                actualCents = detail.summary.actualCents,
+                items = detail.dailyActual,
+            )
+        }
     }
 }
 
@@ -993,18 +1006,43 @@ private fun TripBudgetSection(
     }
 }
 
+/** States used to keep the Trip Detail KPI and chart honest at the presentation boundary. */
+internal enum class TripDailyChartState {
+    DATA,
+    TRUE_EMPTY,
+    KPI_WITHOUT_SERIES,
+    KPI_SERIES_MISMATCH,
+}
+
+internal fun tripDailyChartState(
+    actualCents: Long,
+    items: List<TripDailyActual>,
+): TripDailyChartState = when {
+    items.isEmpty() && actualCents == 0L -> TripDailyChartState.TRUE_EMPTY
+    items.isEmpty() -> TripDailyChartState.KPI_WITHOUT_SERIES
+    items.sumOf { it.actualCents } == actualCents -> TripDailyChartState.DATA
+    else -> TripDailyChartState.KPI_SERIES_MISMATCH
+}
+
 /**
  * Cumulative daily spend (design §6 charts are always cumulative, e.g. Analysis's own
  * `IncomeExpenseChart` use — no separate "daily bars" mode, matching that established pattern).
  */
 @Composable
-private fun TripDailySection(items: List<TripDailyActual>) {
+private fun TripDailySection(actualCents: Long, items: List<TripDailyActual>) {
+    val chartState = tripDailyChartState(actualCents = actualCents, items = items)
     IncomeExpenseChart(
         title = stringResource(R.string.trip_detail_daily_chart),
-        points = items.toChartPoints(),
+        points = if (chartState == TripDailyChartState.DATA) tripDailyChartPoints(items) else emptyList(),
         incomeLabel = stringResource(R.string.analysis_summary_income),
         expenseLabel = stringResource(R.string.analysis_summary_expense),
-        emptyText = stringResource(R.string.trip_analysis_empty_body),
+        emptyText = stringResource(
+            if (chartState == TripDailyChartState.TRUE_EMPTY) {
+                R.string.trip_analysis_empty_body
+            } else {
+                R.string.trip_analysis_chart_unavailable
+            },
+        ),
     )
 }
 
@@ -1326,13 +1364,32 @@ private fun TripStatus.filterLabel(): String =
     )
 
 /** [IncomeExpenseChart] cumulates its `expenseCents` series itself, so the per-day deltas feed straight through. */
-private fun List<TripDailyActual>.toChartPoints(): List<IncomeExpenseChartPoint> =
-    map { item ->
-        IncomeExpenseChartPoint(
-            label = formatDayLabel(item.date),
-            bucket = item.date,
-            incomeCents = 0L,
-            expenseCents = item.actualCents,
+/**
+ * The cumulative line needs two points to draw a visible segment. A one-day trip therefore gets
+ * a zero baseline immediately before its real bucket; this is a chart origin, not a fabricated
+ * movement or an extra day total.
+ */
+internal fun tripDailyChartPoints(items: List<TripDailyActual>): List<IncomeExpenseChartPoint> =
+    buildList {
+        if (items.size == 1) {
+            add(
+                IncomeExpenseChartPoint(
+                    label = "",
+                    bucket = "${items.first().date}:baseline",
+                    incomeCents = 0L,
+                    expenseCents = 0L,
+                ),
+            )
+        }
+        addAll(
+            items.map { item ->
+                IncomeExpenseChartPoint(
+                    label = formatDayLabel(item.date),
+                    bucket = item.date,
+                    incomeCents = 0L,
+                    expenseCents = item.actualCents,
+                )
+            },
         )
     }
 

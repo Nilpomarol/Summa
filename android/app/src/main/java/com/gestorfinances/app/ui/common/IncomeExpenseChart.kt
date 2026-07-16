@@ -154,18 +154,18 @@ fun IncomeExpenseChart(
                             .height(if (hasComparison) 240.dp else 208.dp)
                             .chartPointTap(points = points, onPointClick = onPointClick),
                     )
+                    ChartLegend(
+                        incomeLabel = incomeLabel,
+                        expenseLabel = expenseLabel,
+                        incomeColor = incomeColor,
+                        expenseColor = expenseColor,
+                        comparisonIncomeColor = comparisonIncomeColor,
+                        comparisonExpenseColor = comparisonExpenseColor,
+                        hasComparison = hasComparison,
+                        currentCaption = currentCaption,
+                        previousCaption = previousCaption,
+                    )
                 }
-                ChartLegend(
-                    incomeLabel = incomeLabel,
-                    expenseLabel = expenseLabel,
-                    incomeColor = incomeColor,
-                    expenseColor = expenseColor,
-                    comparisonIncomeColor = comparisonIncomeColor,
-                    comparisonExpenseColor = comparisonExpenseColor,
-                    hasComparison = hasComparison,
-                    currentCaption = currentCaption,
-                    previousCaption = previousCaption,
-                )
             }
         }
     }

@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.heightIn
@@ -18,18 +17,16 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
-import androidx.compose.material.icons.outlined.Calculate
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.FilterList
-import androidx.compose.material.icons.outlined.Functions
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -54,7 +51,6 @@ import com.gestorfinances.app.ui.analysis.labelRes
 import com.gestorfinances.app.ui.common.BannerKind
 import com.gestorfinances.app.ui.common.FilterSelectorField
 import com.gestorfinances.app.ui.common.InlineBanner
-import com.gestorfinances.app.ui.common.SegmentedControl
 import com.gestorfinances.app.ui.common.TopBarIconButton
 import com.gestorfinances.app.ui.common.formatLongDate
 import com.gestorfinances.app.ui.common.formatMonthYear
@@ -64,7 +60,7 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneOffset
 
-/** The persistent two-row analysis header: scope + totals/averages + filter button, then period navigator. */
+/** The persistent two-row analysis header: labeled scope/value selectors + filters, then period navigator. */
 @Composable
 internal fun AnalysisHeader(
     state: AnalysisUiState,
@@ -84,23 +80,20 @@ internal fun AnalysisHeader(
             .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 4.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        // Row 1 — scope + totals/averages toggle + filter button.
+        // Row 1 — labeled scope/value selectors + filter button.
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Box(modifier = Modifier.weight(1f)) {
-                SegmentedControl(
-                    options = AnalysisScope.entries,
-                    selected = state.scope,
-                    label = { stringResource(it.labelRes()) },
-                    onSelect = onScopeSelected,
-                    itemHeight = 40.dp,
-                )
-            }
-            ValueModeToggle(
+            ScopeSelector(
+                scope = state.scope,
+                onScopeSelected = onScopeSelected,
+                modifier = Modifier.weight(1f),
+            )
+            ValueModeSelector(
                 valueMode = state.valueMode,
                 onValueModeSelected = onValueModeSelected,
+                modifier = Modifier.weight(1f),
             )
             FilterButton(active = state.hasActiveFilters, onClick = onOpenFilters)
         }
@@ -128,38 +121,63 @@ internal fun AnalysisHeader(
 }
 
 @Composable
-private fun ValueModeToggle(
+private fun ScopeSelector(
+    scope: AnalysisScope,
+    onScopeSelected: (AnalysisScope) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box(modifier = modifier) {
+        FilterSelectorField(
+            label = stringResource(R.string.analysis_scope_label),
+            value = stringResource(scope.labelRes()),
+            onClick = { expanded = true },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            AnalysisScope.entries.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(text = stringResource(option.labelRes())) },
+                    onClick = {
+                        expanded = false
+                        onScopeSelected(option)
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ValueModeSelector(
     valueMode: AnalysisValueMode,
     onValueModeSelected: (AnalysisValueMode) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    val nextMode = when (valueMode) {
-        AnalysisValueMode.TOTALS -> AnalysisValueMode.AVERAGES
-        AnalysisValueMode.AVERAGES -> AnalysisValueMode.TOTALS
-    }
-    val text = when (valueMode) {
-        AnalysisValueMode.TOTALS -> "Tot"
-        AnalysisValueMode.AVERAGES -> "Mit"
-    }
-    val contentDescription = stringResource(
-        when (valueMode) {
-            AnalysisValueMode.TOTALS -> R.string.analysis_mode_total
-            AnalysisValueMode.AVERAGES -> R.string.analysis_mode_average
-        }
-    )
-    Surface(
-        onClick = { onValueModeSelected(nextMode) },
-        modifier = Modifier.size(44.dp),
-        shape = MaterialTheme.shapes.small,
-        color = MaterialTheme.colorScheme.surface,
-        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Text(
-                text = text,
-                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                maxLines = 1,
-            )
+    var expanded by remember { mutableStateOf(false) }
+    Box(modifier = modifier) {
+        FilterSelectorField(
+            label = stringResource(R.string.analysis_value_mode_label),
+            value = stringResource(valueMode.labelRes()),
+            onClick = { expanded = true },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            AnalysisValueMode.entries.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(text = stringResource(option.labelRes())) },
+                    onClick = {
+                        expanded = false
+                        onValueModeSelected(option)
+                    },
+                )
+            }
         }
     }
 }

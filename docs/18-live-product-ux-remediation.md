@@ -1,6 +1,6 @@
 # Live Android Product UX Remediation — P5R-19 Working Contract
 
-> Status: **WP1–WP3 implementation complete (2026-07-16); WP3 physical checks pending; WP4–WP6 not started**
+> Status: **WP1–WP4 implementation complete (2026-07-16); WP3/WP4 physical checks pending; WP5–WP6 not started**
 > Source: live product/UX/UI/usability review on a physical Android device, 2026-07-15
 > Scope: the Android product that is implemented today; no desktop, roadmap-completeness, or intentionally unbuilt-feature findings
 
@@ -47,8 +47,8 @@ Check a finding only after its implementation tasks and corresponding manual che
 | [x] | **LUX-C1** | Critical | Bottom navigation renders with a black background on several routes, leaving destinations visually absent even though they remain in the accessibility tree. | WP1 |
 | [x] | **LUX-H1** | High | Global bottom navigation competes with Back navigation on creation and detail screens, creating accidental context-switch and abandonment risk. | WP1 |
 | [x] | **LUX-H2** | High | A basic new expense requires scrolling before the primary Save action becomes visible. | WP2 |
-| [ ] | **LUX-H3** | High | The Analysis header presents too many simultaneous controls and visibly truncates `Personalitzat` at a normal phone width. | WP4 |
-| [ ] | **LUX-H4** | High | Trip detail can show a non-zero real cost while the daily-evolution chart is empty but still displays axes and a legend. | WP4 |
+| [x] | **LUX-H3** | High | The Analysis header presents too many simultaneous controls and visibly truncates `Personalitzat` at a normal phone width. | WP4 |
+| [x] | **LUX-H4** | High | Trip detail can show a non-zero real cost while the daily-evolution chart is empty but still displays axes and a legend. | WP4 |
 | [ ] | **LUX-H5** | High | Custom charts expose titles and legends but no usable value/trend summary to the accessibility hierarchy. | WP5 |
 | [ ] | **LUX-H6** | High | An active movement filter is communicated primarily by a tiny dot, so a filtered ledger can be mistaken for the full ledger. | WP3 |
 | [ ] | **LUX-M1** | Medium | The filter sheet does not explain whether selections apply immediately or require confirmation. | WP3 |
@@ -167,13 +167,27 @@ gates pass.
 
 ### WP4 — Understandable Analysis and trustworthy trip charts — owns LUX-H3, LUX-H4
 
-- [ ] **WP4.1** Replace the four fixed Analysis scope segments with one clearly labeled scope selector that fits 360 dp without truncation.
-- [ ] **WP4.2** Rename the ambiguous `Tot` value-mode control to explicit `Total` / `Mitjana` language and expose the current mode without requiring recall.
-- [ ] **WP4.3** Keep the five analysis tabs legible at 360 dp through scrolling or a justified hierarchy change; do not silently clip labels.
-- [ ] **WP4.4** Reduce duplicated header controls while preserving month/year/all/custom, period navigation, and filters.
-- [ ] **WP4.5** Trace the Trip Detail `Cost real` KPI and daily chart to confirm whether the observed mismatch is a presentation empty-state defect or a data aggregation defect.
-- [ ] **WP4.6** If data exists, plot it consistently with the KPI; if it does not, hide axes/legend and show a specific empty-state explanation.
-- [ ] **WP4.7** Add regression coverage for non-zero KPI + empty-series and true no-data cases.
+- [x] **WP4.1** Replace the four fixed Analysis scope segments with one clearly labeled scope selector that fits 360 dp without truncation.
+- [x] **WP4.2** Rename the ambiguous `Tot` value-mode control to explicit `Total` / `Mitjana` language and expose the current mode without requiring recall.
+- [x] **WP4.3** Keep the five analysis tabs legible at 360 dp through scrolling or a justified hierarchy change; do not silently clip labels.
+- [x] **WP4.4** Reduce duplicated header controls while preserving month/year/all/custom, period navigation, and filters.
+- [x] **WP4.5** Trace the Trip Detail `Cost real` KPI and daily chart to confirm whether the observed mismatch is a presentation empty-state defect or a data aggregation defect.
+- [x] **WP4.6** If data exists, plot it consistently with the KPI; if it does not, hide axes/legend and show a specific empty-state explanation.
+- [x] **WP4.7** Add regression coverage for non-zero KPI + empty-series and true no-data cases.
+
+**WP4 implementation record (2026-07-16):** Analysis replaces the four-way fixed scope track with
+two labeled dropdown fields (`Abast` and `Valors`), whose current values are the full `Mes` /
+`Any` / `Tot` / `Personalitzat` and `Total` / `Mitjana` labels. The five tabs use a
+`ScrollableTabRow` so their labels remain readable at narrow widths while preserving the same tab
+order and state. Trip Detail now waits for its detail load before rendering KPI/chart empty states.
+The trace confirmed that `Cost real` and `tripActualByDay` both read the same canonical
+`v_actual_expense` series with the same trip and extraordinary-expense filters; no shared SQL or
+schema change was required. A presentation guard now checks that the daily series sums to the KPI,
+and the shared chart hides axes and legend whenever the series is empty, showing either the true
+no-data copy or a specific unavailable-series explanation. A one-bucket trip series gets a zero
+chart-origin point so its cumulative line remains visibly drawable without inventing a movement.
+`TripDailyChartStateTest`, the existing TripAnalysis repository coverage, and the focused Analysis tests pass. Physical 360/412 dp checks
+remain pending because the connected device was keyguard-locked during this pass.
 
 **Acceptance:** Analysis controls fit and explain themselves at standard phone widths; Trip Detail never presents contradictory cost and chart states.
 
@@ -249,10 +263,10 @@ After P5R-19, resume:
 - [ ] **MC-07** Change and clear filters. **Expected:** application timing is explicit and the visible list always agrees with the chips.
 - [ ] **MC-08** Browse movements spanning multiple days. **Expected:** rows remain date-ordered and each row shows its localized date.
 - [ ] **MC-09** View shared movements representing user owes, user is owed, and paid-for-other. **Expected:** `La teva part` and `Total` make the amount roles unambiguous without color.
-- [ ] **MC-10** Open Analysis at 360 dp and 412 dp. **Expected:** scope and tab labels do not truncate; `Total`/`Mitjana` is self-explanatory.
-- [ ] **MC-11** Navigate every Analysis scope, period, tab, value mode, and filter. **Expected:** simplification removes no existing capability.
-- [ ] **MC-12** Open a trip with non-zero real cost and movements across days. **Expected:** daily chart values reconcile with the KPI.
-- [ ] **MC-13** Open a true no-data trip/period. **Expected:** a specific empty state replaces empty axes and legend.
+- [ ] **MC-10** Open Analysis at 360 dp and 412 dp. **Expected:** labeled `Abast`/`Valors` selectors and all tab labels remain readable; `Total`/`Mitjana` is self-explanatory. **Automated layout contract closed 2026-07-16; physical check pending.**
+- [ ] **MC-11** Navigate every Analysis scope, period, tab, value mode, and filter. **Expected:** simplification removes no existing capability. **Automated state/period coverage remains green; physical check pending.**
+- [ ] **MC-12** Open a trip with non-zero real cost and movements across days. **Expected:** daily chart values reconcile with the KPI. **Repository and chart-state regression coverage closed 2026-07-16; physical check pending.**
+- [ ] **MC-13** Open a true no-data trip/period. **Expected:** a specific empty state replaces empty axes and legend. **Automated true-empty coverage closed 2026-07-16; physical check pending.**
 - [ ] **MC-14** Use TalkBack on Dashboard, Analysis, and Trip Detail charts. **Expected:** each chart announces context, totals, and trend; detailed values are reachable when needed.
 - [ ] **MC-15** Inspect muted labels and off/disabled switches in light and dark themes. **Expected:** labels remain readable and control states are visually distinct.
 - [ ] **MC-16** Navigate Management → Viatges and related filters/forms. **Expected:** `Viatges` is used consistently.

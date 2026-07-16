@@ -7,7 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -123,10 +123,11 @@ internal fun AnalysisContent(
             onCustomToChange = onCustomToChange,
             onOpenFilters = { showFilters = true },
         )
-        TabRow(
+        ScrollableTabRow(
             selectedTabIndex = tabs.indexOf(state.selectedTab),
             containerColor = MaterialTheme.colorScheme.surface,
             contentColor = MaterialTheme.colorScheme.onSurface,
+            edgePadding = 20.dp,
         ) {
             tabs.forEach { tab ->
                 Tab(
@@ -139,6 +140,7 @@ internal fun AnalysisContent(
                             text = stringResource(tab.labelRes()),
                             style = MaterialTheme.typography.labelMedium,
                             maxLines = 1,
+                            softWrap = false,
                         )
                     },
                 )
