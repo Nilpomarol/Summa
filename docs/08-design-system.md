@@ -32,8 +32,8 @@ The structural backbone. Cool-gray ramp from white to near-black ink.
 | `N200` | `#E2E5EA` | Default borders |
 | `N300` | `#CDD2DA` | Strong borders |
 | `N400` | `#A4ABB7` | Disabled text |
-| `N500` | `#8A92A0` | Secondary / muted text |
-| `N700` | `#4A5160` | Body labels |
+| `N500` | `#8A92A0` | Disabled and non-essential text only |
+| `N700` | `#4A5160` | Secondary text and body labels |
 | `N900` | `#0B0D12` | Primary ink |
 
 ### 2.2 Neutrals — dark mode
@@ -49,8 +49,8 @@ Cool, almost-black surfaces (never pure black). Elevation comes from lighter sur
 | `D200` | `#2C303A` | Strong borders / active segment |
 | `D300` | `#3A3F4B` | — |
 | `D400` | `#565E6C` | — |
-| `D500` | `#7C8494` | Secondary text |
-| `D700` | `#AEB6C4` | Body labels |
+| `D500` | `#7C8494` | Disabled and non-essential text only |
+| `D700` | `#AEB6C4` | Secondary text and body labels |
 | `D900` | `#F2F4F8` | Primary text |
 
 ### 2.3 Brand / interactive — Indigo
@@ -182,7 +182,7 @@ Core set: `space_dashboard` · `receipt_long` · `monitoring` · `account_balanc
 
 - **Filter chips:** active = ink `#0B0D12` fill + white text; inactive = `N150`-bordered, `N700` text; dropdown chips append `expand_more`.
 - **Segmented control:** `N100`/`F4F5F7` track, selected segment = white fill + `e1` shadow.
-- **Toggle:** 38×22 pill — on = indigo, off = `#D7DBE1`; 18px white knob.
+- **Toggle:** 38×22 pill — on = indigo, enabled-off = light `N200` track with `N700` thumb/border (dark `D200` track with `D700` thumb/border); disabled-off = light `N100` track with `N400` thumb and `N300` border (dark `D100` track with `D400` thumb and `D300` border). Enabled-off remains visibly interactive in both themes.
 - **Checkbox:** 18px, `r` 5px, indigo fill + white `check` when selected.
 
 ### Fields
@@ -193,7 +193,7 @@ Core set: `space_dashboard` · `receipt_long` · `monitoring` · `account_balanc
 
 ### Cards
 
-- **KPI hero:** dark ink `#0B0D12` surface, white text, `r3`; trailing % delta badge in green tint. Net-worth figure in IBM Plex Mono. Hero surfaces are always this dark ink regardless of the app's overall light/dark theme, so income/debt content placed on them must always use the **Dark** column functional colors (§2.4) for contrast, never the Light column — Android exposes these as `heroIncome`/`heroDebt` theme tokens, bound to the same dark-mode hex in both themes.
+- **KPI hero:** dark ink `#0B0D12` surface, white text, `r3`; trailing % delta badge in green tint. Net-worth figure in IBM Plex Mono. Hero surfaces are always this dark ink regardless of the app's overall light/dark theme, so income/debt content placed on them must always use the **Dark** column functional colors (§2.4) for contrast, never the Light column — Android exposes these as `heroIncome`/`heroDebt` theme tokens, bound to the same dark-mode hex in both themes. Hero secondary text uses the light-theme `N400` on the ink surface and the dark-theme `D700` on the dark card surface so normal labels remain AA-compliant.
 - **Account / list card:** white, `N150` border, `r3` (13px), icon chip + title + sub + right-aligned mono amount.
 
 ### Transaction row
@@ -237,6 +237,7 @@ A **persistent, non-dismissible** top banner (distinct from the never-block bann
 - **Net worth:** indigo line + 8% fill area sparkline.
 - **Spending heatmap:** calendar grid of day cells on a **neutral ink ramp** (light track → ink); darker = more spent that day. Expense is ink, not a hue, and indigo stays reserved for action.
 - **Category trends:** one line per top category over the period buckets, each in its **category** color (multi-series, no fill).
+- **Accessible chart contract:** every custom chart exposes one concise semantic summary with its period, totals, direction, and material trend. Charts whose exact values cannot be recovered from that summary provide a user-invoked, scrollable data list immediately after the visual. The visual chart is one TalkBack node, followed by the data-list action and then the rows; decorative axes and legends do not create duplicate accessibility stops.
 
 ---
 
@@ -277,7 +278,7 @@ Cool, almost-black surfaces (not pure black). Functional color **lightens slight
 
 ## 10. Accessibility
 
-- Body and label text meets **WCAG AA** contrast on its surface; muted `N400`/`N500` is for non-essential text only.
+- Body, label, and secondary text meets **WCAG AA** contrast on its actual surface. `N400`/`N500` and `D400`/`D500` are for disabled or non-essential text only.
 - Touch targets are **≥ 44px** on mobile (rows, buttons, toggles, nav items sized accordingly).
 - **Never rely on colour alone** — direction and status always pair colour with an icon or label (e.g. the person-row "owes you"/"you owe" text; expense = ink default; the one-time `bolt` badge).
 

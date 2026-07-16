@@ -40,6 +40,10 @@ import com.gestorfinances.app.data.repository.AnalysisCategoryTotal
 import com.gestorfinances.app.ui.analysis.AnalysisUiState
 import com.gestorfinances.app.ui.analysis.FixVariableData
 import com.gestorfinances.app.ui.analysis.RecurringVeteranItem
+import com.gestorfinances.app.ui.analysis.fallbackPeriodLabel
+import com.gestorfinances.app.ui.analysis.formatForScope
+import com.gestorfinances.app.ui.common.AccessibleChart
+import com.gestorfinances.app.ui.common.ChartDataRow
 import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.IconChip
 import com.gestorfinances.app.ui.common.MoneyText
@@ -48,7 +52,9 @@ import com.gestorfinances.app.ui.common.SankeyLink
 import com.gestorfinances.app.ui.common.SankeyNode
 import com.gestorfinances.app.ui.common.SectionHeader
 import com.gestorfinances.app.ui.common.categoryIcon
+import com.gestorfinances.app.ui.common.chartTrendLabel
 import com.gestorfinances.app.ui.common.formatBasisPoints
+import com.gestorfinances.app.ui.common.formatEuroCents
 import com.gestorfinances.app.ui.common.formatMonthYear
 import com.gestorfinances.app.ui.common.formatPercentLabel
 import com.gestorfinances.app.ui.theme.FinanceTheme
@@ -69,6 +75,7 @@ internal fun FixVariableTab(
     val fixedColor = FinanceTheme.colors.debt
     val variableColor = FinanceTheme.colors.transfer
     val uncategorizedColor = FinanceTheme.colors.expense
+    val periodLabel = state.currentRange?.formatForScope(state.scope) ?: state.fallbackPeriodLabel()
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = contentPadding,
@@ -84,7 +91,6 @@ internal fun FixVariableTab(
         val fixedCents = data.fixedExpenseCents
         val variableCents = data.variableExpenseCents
         val hasFixVarData = fixedCents > 0 || variableCents > 0
-
         if (!hasFixVarData) {
             item { EmptyAnalysisCard() }
             return@LazyColumn
@@ -98,6 +104,7 @@ internal fun FixVariableTab(
                 variableCents = variableCents,
                 incomeCents = income,
                 ratioBasisPoints = data.fixedRatioOfIncomeBasisPoints,
+                periodLabel = periodLabel,
             )
         }
 
@@ -128,7 +135,24 @@ internal fun FixVariableTab(
                             savingsColor = MaterialTheme.colorScheme.primary,
                             uncategorizedColor = uncategorizedColor,
                         )
-                        SankeyDiagram(columns = columns, links = links)
+                        val savings = data.totals.netActualCents.coerceAtLeast(0L)
+                        SankeyDiagram(
+                            columns = columns,
+                            links = links,
+                            accessibilitySummary = stringResource(
+                                R.string.accessibility_chart_flow_summary,
+                                stringResource(R.string.analysis_sankey_title),
+                                periodLabel,
+                                formatEuroCents(income),
+                                formatEuroCents(fixedCents),
+                                formatEuroCents(variableCents),
+                                formatEuroCents(savings),
+                                chartTrendLabel(fixedCents, variableCents),
+                            ),
+                            accessibilityRows = columns.flatten().map { node ->
+                                ChartDataRow(node.label, formatEuroCents(node.valueCents))
+                            },
+                        )
                     }
                 }
             }
@@ -235,6 +259,7 @@ private fun FixedVariableGauge(
     variableCents: Long,
     incomeCents: Long,
     ratioBasisPoints: Long?,
+    periodLabel: String,
 ) {
     val total = (fixedCents + variableCents).coerceAtLeast(1L)
     val fixedFraction = fixedCents.toFloat() / total
@@ -242,11 +267,32 @@ private fun FixedVariableGauge(
     val variableColor = FinanceTheme.colors.transfer
     FinanceCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Canvas(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(120.dp),
+            AccessibleChart(
+                summary = stringResource(
+                    R.string.accessibility_chart_fixed_variable_summary,
+                    stringResource(R.string.analysis_fixvar_gauge_title),
+                    periodLabel,
+                    formatEuroCents(fixedCents),
+                    formatEuroCents(variableCents),
+                    if (ratioBasisPoints != null) {
+                        stringResource(R.string.analysis_fixvar_income_ratio, formatBasisPoints(ratioBasisPoints))
+                    } else {
+                        stringResource(R.string.analysis_fixvar_income_unavailable)
+                    },
+                    chartTrendLabel(fixedCents, variableCents),
+                ),
+                dataRows = listOf(
+                    ChartDataRow(stringResource(R.string.analysis_fixvar_fixed), formatEuroCents(fixedCents)),
+                    ChartDataRow(stringResource(R.string.analysis_fixvar_variable), formatEuroCents(variableCents)),
+                    ChartDataRow(stringResource(R.string.dashboard_categories_income), formatEuroCents(incomeCents)),
+                ),
             ) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Canvas(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(120.dp),
+                    ) {
                 val stroke = 18.dp.toPx()
                 val diameter = minOf(size.width, size.height * 2) - stroke
                 val topLeft = Offset((size.width - diameter) / 2f, size.height - diameter / 2f - stroke / 2f)
@@ -269,24 +315,26 @@ private fun FixedVariableGauge(
                     size = arcSize,
                     style = Stroke(width = stroke, cap = StrokeCap.Round),
                 )
+                    }
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        GaugeLegend(
+                            color = fixedColor,
+                            label = stringResource(R.string.analysis_fixvar_fixed),
+                            cents = fixedCents,
+                            percent = (fixedFraction * 100f).toInt(),
+                            modifier = Modifier.weight(1f),
+                        )
+                        GaugeLegend(
+                            color = variableColor,
+                            label = stringResource(R.string.analysis_fixvar_variable),
+                            cents = variableCents,
+                            percent = ((1f - fixedFraction) * 100f).toInt(),
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    FixedIncomeRatioRow(incomeCents = incomeCents, ratioBasisPoints = ratioBasisPoints)
+                }
             }
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                GaugeLegend(
-                    color = fixedColor,
-                    label = stringResource(R.string.analysis_fixvar_fixed),
-                    cents = fixedCents,
-                    percent = (fixedFraction * 100f).toInt(),
-                    modifier = Modifier.weight(1f),
-                )
-                GaugeLegend(
-                    color = variableColor,
-                    label = stringResource(R.string.analysis_fixvar_variable),
-                    cents = variableCents,
-                    percent = ((1f - fixedFraction) * 100f).toInt(),
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            FixedIncomeRatioRow(incomeCents = incomeCents, ratioBasisPoints = ratioBasisPoints)
         }
     }
 }

@@ -36,7 +36,11 @@ import com.gestorfinances.app.data.repository.AnalysisCategoryTotal
 import com.gestorfinances.app.ui.analysis.AnalysisUiState
 import com.gestorfinances.app.ui.analysis.currentDisplayDivisor
 import com.gestorfinances.app.ui.analysis.divideCents
+import com.gestorfinances.app.ui.analysis.fallbackPeriodLabel
+import com.gestorfinances.app.ui.analysis.formatForScope
 import com.gestorfinances.app.ui.analysis.rowKey
+import com.gestorfinances.app.ui.common.AccessibleChart
+import com.gestorfinances.app.ui.common.ChartDataRow
 import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.IconChip
 import com.gestorfinances.app.ui.common.MoneyText
@@ -44,6 +48,8 @@ import com.gestorfinances.app.ui.common.Sparkline
 import com.gestorfinances.app.ui.common.Treemap
 import com.gestorfinances.app.ui.common.TreemapItem
 import com.gestorfinances.app.ui.common.categoryIcon
+import com.gestorfinances.app.ui.common.chartTrendLabel
+import com.gestorfinances.app.ui.common.formatEuroCents
 import com.gestorfinances.app.ui.common.formatEuroCompact
 import com.gestorfinances.app.ui.common.formatPercentLabel
 import com.gestorfinances.app.ui.theme.FinanceTheme
@@ -84,7 +90,22 @@ internal fun CategoriesTab(
                 tripColor = FinanceTheme.colors.transfer,
                 otherColor = FinanceTheme.colors.mutedText,
             )
-            Treemap(items = blocks)
+            val leader = blocks.maxByOrNull { it.valueCents }
+            Treemap(
+                items = blocks,
+                accessibilitySummary = stringResource(
+                    R.string.accessibility_chart_period_summary,
+                    stringResource(R.string.analysis_treemap_title),
+                    state.currentRange?.formatForScope(state.scope) ?: state.fallbackPeriodLabel(),
+                    formatEuroCents(blocks.sumOf { it.valueCents }),
+                    leader?.let { stringResource(R.string.accessibility_chart_category_leader, it.label) }
+                        ?: stringResource(R.string.dashboard_no_data),
+                    stringResource(R.string.accessibility_chart_no_trend),
+                ),
+                accessibilityRows = blocks.map { block ->
+                    ChartDataRow(block.label, formatEuroCents(block.valueCents))
+                },
+            )
         }
 
         // Breakdown list with sparklines.
@@ -110,6 +131,7 @@ internal fun CategoriesTab(
                 FrequencyVolumeChart(
                     points = data.frequency,
                     divisor = state.currentDisplayDivisor(),
+                    periodLabel = state.currentRange?.formatForScope(state.scope) ?: state.fallbackPeriodLabel(),
                 )
             }
         }
@@ -226,6 +248,15 @@ private fun CategoryDistributionRow(
                     color = color,
                     modifier = Modifier.width(64.dp),
                     height = 18.dp,
+                    accessibilitySummary = stringResource(
+                        R.string.accessibility_chart_sparkline_summary,
+                        category.categoryName ?: stringResource(R.string.common_no_category),
+                        chartTrendLabel(sparkValues.firstOrNull()?.times(100f)?.toLong(), sparkValues.lastOrNull()?.times(100f)?.toLong()),
+                        sparkValues.firstOrNull()?.times(100f)?.toLong()?.let(::formatEuroCents)
+                            ?: stringResource(R.string.dashboard_no_data),
+                        sparkValues.lastOrNull()?.times(100f)?.toLong()?.let(::formatEuroCents)
+                            ?: stringResource(R.string.dashboard_no_data),
+                    ),
                 )
             }
         }
@@ -243,6 +274,7 @@ private const val FREQUENCY_MAX_BUBBLES = 10
 private fun FrequencyVolumeChart(
     points: List<AnalysisCategoryFrequency>,
     divisor: Long,
+    periodLabel: String,
 ) {
     val shown = points.sortedByDescending { it.totalCents }.take(FREQUENCY_MAX_BUBBLES)
     val maxCount = shown.maxOf { it.movementCount }.coerceAtLeast(1L)
@@ -257,13 +289,31 @@ private fun FrequencyVolumeChart(
     val tickStyle = MaterialTheme.typography.labelSmall.copy(color = tickColor)
     val bubbleLabelStyle = MaterialTheme.typography.labelSmall.copy(color = labelColor)
 
+    val leader = shown.firstOrNull()?.categoryName ?: stringResource(R.string.dashboard_no_data)
     FinanceCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Canvas(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(200.dp),
+            AccessibleChart(
+                summary = stringResource(
+                    R.string.accessibility_chart_bubble_summary,
+                    stringResource(R.string.analysis_scatter_title),
+                    periodLabel,
+                    shown.size,
+                    leader,
+                    stringResource(R.string.accessibility_chart_no_trend),
+                ),
+                dataRows = shown.map { point ->
+                    ChartDataRow(
+                        point.categoryName ?: stringResource(R.string.common_no_category),
+                        "${point.movementCount} · ${formatEuroCents(point.totalCents.divideCents(divisor))}",
+                    )
+                },
             ) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Canvas(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp),
+                    ) {
                 val leftGutter = 46.dp.toPx()
                 val bottomGutter = 18.dp.toPx()
                 val topPad = 18.dp.toPx()
@@ -327,24 +377,26 @@ private fun FrequencyVolumeChart(
                         drawnLabels += rect
                     }
                 }
+                    }
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(
+                            text = stringResource(R.string.analysis_scatter_y),
+                            color = FinanceTheme.colors.mutedText,
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                        Text(
+                            text = stringResource(R.string.analysis_scatter_x),
+                            color = FinanceTheme.colors.mutedText,
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                    }
+                    Text(
+                        text = stringResource(R.string.analysis_scatter_bubble_hint),
+                        color = FinanceTheme.colors.mutedText,
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
             }
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(
-                    text = stringResource(R.string.analysis_scatter_y),
-                    color = FinanceTheme.colors.mutedText,
-                    style = MaterialTheme.typography.labelSmall,
-                )
-                Text(
-                    text = stringResource(R.string.analysis_scatter_x),
-                    color = FinanceTheme.colors.mutedText,
-                    style = MaterialTheme.typography.labelSmall,
-                )
-            }
-            Text(
-                text = stringResource(R.string.analysis_scatter_bubble_hint),
-                color = FinanceTheme.colors.mutedText,
-                style = MaterialTheme.typography.labelSmall,
-            )
         }
     }
 }

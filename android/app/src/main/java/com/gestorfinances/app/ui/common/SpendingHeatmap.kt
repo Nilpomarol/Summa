@@ -36,45 +36,53 @@ data class HeatmapCell(
 fun SpendingHeatmap(
     cells: List<HeatmapCell>,
     modifier: Modifier = Modifier,
+    accessibilitySummary: String,
+    accessibilityRows: List<ChartDataRow> = emptyList(),
 ) {
     val maxCents = cells.maxOfOrNull { it.expenseCents }?.coerceAtLeast(1L) ?: 1L
     val base = MaterialTheme.colorScheme.surfaceVariant
     val ink = MaterialTheme.colorScheme.onSurface
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            cells.forEach { cell ->
-                val intensity = cell.expenseCents.toFloat() / maxCents.toFloat()
-                Box(
-                    modifier = Modifier
-                        .size(14.dp)
-                        .background(heatColor(intensity, base, ink), MaterialTheme.shapes.extraSmall),
+    AccessibleChart(
+        summary = accessibilitySummary,
+        dataRows = accessibilityRows,
+        modifier = modifier,
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                cells.forEach { cell ->
+                    val intensity = cell.expenseCents.toFloat() / maxCents.toFloat()
+                    Box(
+                        modifier = Modifier
+                            .size(14.dp)
+                            .background(heatColor(intensity, base, ink), MaterialTheme.shapes.extraSmall),
+                    )
+                }
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.analysis_heatmap_legend_less),
+                    color = FinanceTheme.colors.mutedText,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+                listOf(0f, 0.33f, 0.66f, 1f).forEach { intensity ->
+                    Box(
+                        modifier = Modifier
+                            .size(12.dp)
+                            .background(heatColor(intensity, base, ink), MaterialTheme.shapes.extraSmall),
+                    )
+                }
+                Text(
+                    text = stringResource(R.string.analysis_heatmap_legend_more),
+                    color = FinanceTheme.colors.mutedText,
+                    style = MaterialTheme.typography.labelSmall,
                 )
             }
-        }
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Text(
-                text = stringResource(R.string.analysis_heatmap_legend_less),
-                color = FinanceTheme.colors.mutedText,
-                style = MaterialTheme.typography.labelSmall,
-            )
-            listOf(0f, 0.33f, 0.66f, 1f).forEach { intensity ->
-                Box(
-                    modifier = Modifier
-                        .size(12.dp)
-                        .background(heatColor(intensity, base, ink), MaterialTheme.shapes.extraSmall),
-                )
-            }
-            Text(
-                text = stringResource(R.string.analysis_heatmap_legend_more),
-                color = FinanceTheme.colors.mutedText,
-                style = MaterialTheme.typography.labelSmall,
-            )
         }
     }
 }

@@ -49,6 +49,8 @@ fun SankeyDiagram(
     links: List<SankeyLink>,
     modifier: Modifier = Modifier,
     height: Dp = 280.dp,
+    accessibilitySummary: String,
+    accessibilityRows: List<ChartDataRow> = emptyList(),
 ) {
     if (columns.isEmpty()) return
     val measurer = rememberTextMeasurer()
@@ -61,11 +63,16 @@ fun SankeyDiagram(
         fontSize = 10.sp,
     )
 
-    Canvas(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(height),
+    AccessibleChart(
+        summary = accessibilitySummary,
+        dataRows = accessibilityRows,
+        modifier = modifier,
     ) {
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(height),
+        ) {
         val nodeWidth = 10.dp.toPx()
         val nodeCornerRadius = CornerRadius(2.dp.toPx())
         val vGap = 8.dp.toPx()
@@ -183,6 +190,7 @@ fun SankeyDiagram(
                 drawText(textLayoutResult = nameLayout, topLeft = Offset(textX, nameOnlyTop))
                 nextAvailableTop = nameOnlyTop + nameOnlyHeight + minLabelGap
             }
+        }
         }
     }
 }

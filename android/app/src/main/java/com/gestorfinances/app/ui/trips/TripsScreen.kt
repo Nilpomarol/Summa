@@ -34,7 +34,6 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
@@ -74,12 +73,14 @@ import com.gestorfinances.app.data.repository.effectiveIcon
 import com.gestorfinances.app.data.repository.icon
 import com.gestorfinances.app.data.repository.label
 import com.gestorfinances.app.ui.common.BudgetProgressBar
+import com.gestorfinances.app.ui.common.ChartDataRow
 import com.gestorfinances.app.ui.common.CategoryIconPalette
 import com.gestorfinances.app.ui.common.ChipFlowSection
 import com.gestorfinances.app.ui.common.ColorPickerRow
 import com.gestorfinances.app.ui.common.doneKeyboardActions
 import com.gestorfinances.app.ui.common.DestructiveTextButton
 import com.gestorfinances.app.ui.common.FinanceCard
+import com.gestorfinances.app.ui.common.FinanceSwitch
 import com.gestorfinances.app.ui.common.FinanceFilterChip
 import com.gestorfinances.app.ui.common.IconChip
 import com.gestorfinances.app.ui.common.IconPickerRow
@@ -97,6 +98,8 @@ import com.gestorfinances.app.ui.common.color
 import com.gestorfinances.app.ui.common.formatEuroCents
 import com.gestorfinances.app.ui.common.formatPercentLabel
 import com.gestorfinances.app.ui.common.formatWeekdayDate
+import com.gestorfinances.app.ui.common.chartBalanceLabel
+import com.gestorfinances.app.ui.common.chartTrendLabel
 import com.gestorfinances.app.ui.common.parseIsoDateOrNull
 import com.gestorfinances.app.ui.common.progressFraction
 import com.gestorfinances.app.ui.common.scrollToWhen
@@ -936,7 +939,7 @@ private fun TripHeroSection(
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.weight(1f),
                 )
-                Switch(checked = excludeOneTime, onCheckedChange = onExcludeOneTimeToggled)
+                FinanceSwitch(checked = excludeOneTime, onCheckedChange = onExcludeOneTimeToggled)
             }
         }
     }
@@ -1031,9 +1034,15 @@ internal fun tripDailyChartState(
 @Composable
 private fun TripDailySection(actualCents: Long, items: List<TripDailyActual>) {
     val chartState = tripDailyChartState(actualCents = actualCents, items = items)
+    val points = if (chartState == TripDailyChartState.DATA) tripDailyChartPoints(items) else emptyList()
+    val period = items.firstOrNull()?.date?.let { first ->
+        items.lastOrNull()?.date?.let { last ->
+            if (first == last) formatWeekdayDate(first) else "${formatWeekdayDate(first)} - ${formatWeekdayDate(last)}"
+        }
+    } ?: stringResource(R.string.trip_analysis_empty_title)
     IncomeExpenseChart(
         title = stringResource(R.string.trip_detail_daily_chart),
-        points = if (chartState == TripDailyChartState.DATA) tripDailyChartPoints(items) else emptyList(),
+        points = points,
         incomeLabel = stringResource(R.string.analysis_summary_income),
         expenseLabel = stringResource(R.string.analysis_summary_expense),
         emptyText = stringResource(
@@ -1043,6 +1052,24 @@ private fun TripDailySection(actualCents: Long, items: List<TripDailyActual>) {
                 R.string.trip_analysis_chart_unavailable
             },
         ),
+        accessibilitySummary = stringResource(
+            R.string.accessibility_chart_income_expense_summary,
+            stringResource(R.string.trip_detail_daily_chart),
+            period,
+            formatEuroCents(0L),
+            formatEuroCents(actualCents),
+            chartBalanceLabel(0L, actualCents),
+            chartTrendLabel(
+                items.firstOrNull()?.actualCents,
+                items.lastOrNull()?.actualCents,
+            ),
+        ),
+        accessibilityRows = points.map { point ->
+            ChartDataRow(
+                point.label,
+                "${stringResource(R.string.analysis_summary_expense)} ${formatEuroCents(point.expenseCents)}",
+            )
+        },
     )
 }
 

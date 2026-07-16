@@ -5,6 +5,7 @@ package com.gestorfinances.app.ui.movements
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,7 +34,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
@@ -59,6 +59,7 @@ import com.gestorfinances.app.data.repository.TemplateStatus
 import com.gestorfinances.app.data.repository.TripSummary
 import com.gestorfinances.app.domain.rules.RecurrenceFrequency
 import com.gestorfinances.app.ui.common.FinanceCard
+import com.gestorfinances.app.ui.common.FinanceSwitch
 import com.gestorfinances.app.ui.common.IconChip
 import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.categoryIcon
@@ -138,7 +139,11 @@ internal fun FormToggleRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clickable { onCheckedChange(!checked) }
+            .toggleable(
+                value = checked,
+                role = androidx.compose.ui.semantics.Role.Switch,
+                onValueChange = onCheckedChange,
+            )
             .padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -147,7 +152,7 @@ internal fun FormToggleRow(
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.weight(1f),
         )
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        FinanceSwitch(checked = checked, onCheckedChange = null)
     }
 }
 

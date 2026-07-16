@@ -8,6 +8,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.ui.analysis.AnalysisUiState
+import com.gestorfinances.app.ui.analysis.fallbackPeriodLabel
+import com.gestorfinances.app.ui.analysis.formatForScope
 import com.gestorfinances.app.ui.analysis.heatmapCellsFor
 
 /**
@@ -55,12 +57,22 @@ internal fun HistoricTab(
         // 4. Spending heatmap.
         val range = state.currentRange
         if (range != null && data.heatmapDays.isNotEmpty()) {
-            item { SpendingHeatmapWidget(cells = heatmapCellsFor(range, data.heatmapDays)) }
+            item {
+                SpendingHeatmapWidget(
+                    cells = heatmapCellsFor(range, data.heatmapDays),
+                    periodLabel = range.formatForScope(state.scope),
+                )
+            }
         }
 
         // 5. Weekday radar.
         if (data.weekday.any { it.expenseCents != 0L }) {
-            item { WeekdayRadarWidget(weekday = data.weekday) }
+            item {
+                WeekdayRadarWidget(
+                    weekday = data.weekday,
+                    periodLabel = range?.formatForScope(state.scope) ?: state.fallbackPeriodLabel(),
+                )
+            }
         }
 
         // 6. Category trends.

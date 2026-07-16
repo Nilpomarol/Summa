@@ -38,6 +38,7 @@ import com.gestorfinances.app.ui.analysis.displayCents
 import com.gestorfinances.app.ui.analysis.fallbackPeriodLabel
 import com.gestorfinances.app.ui.analysis.incomeExpensePoints
 import com.gestorfinances.app.ui.analysis.periodComparisonLabels
+import com.gestorfinances.app.ui.common.ChartDataRow
 import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.IconChip
 import com.gestorfinances.app.ui.common.IncomeExpenseChart
@@ -45,8 +46,11 @@ import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.SegmentedControl
 import com.gestorfinances.app.ui.common.WaterfallChart
 import com.gestorfinances.app.ui.common.WaterfallStep
+import com.gestorfinances.app.ui.common.chartBalanceLabel
+import com.gestorfinances.app.ui.common.chartTrendLabel
 import com.gestorfinances.app.ui.common.categoryIcon
 import com.gestorfinances.app.ui.common.formatBasisPoints
+import com.gestorfinances.app.ui.common.formatEuroCents
 import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.categoryColor
 import java.time.YearMonth
@@ -180,6 +184,10 @@ internal fun ComparativaTab(
         val currentPoints = state.currentRange
             ?.let { incomeExpensePoints(it, state.scope, data.currentChartBuckets) } ?: emptyList()
         val previousPoints = incomeExpensePoints(data.comparisonRange, state.scope, data.previousChartBuckets)
+        val currentIncome = currentPoints.sumOf { it.incomeCents }
+        val currentExpense = currentPoints.sumOf { it.expenseCents }
+        val currentNet = currentIncome - currentExpense
+        val previousNet = previousPoints.sumOf { it.incomeCents - it.expenseCents }
         item {
             IncomeExpenseChart(
                 title = stringResource(R.string.analysis_comparison_chart_title),
@@ -190,6 +198,26 @@ internal fun ComparativaTab(
                 currentCaption = currentPeriodLabel,
                 previousCaption = comparisonPeriodLabel,
                 emptyText = stringResource(R.string.dashboard_no_data),
+                accessibilitySummary = stringResource(
+                    R.string.accessibility_chart_income_expense_summary,
+                    stringResource(R.string.analysis_comparison_chart_title),
+                    "$currentPeriodLabel · ${stringResource(R.string.analysis_compare_with_label)} $comparisonPeriodLabel",
+                    formatEuroCents(currentIncome),
+                    formatEuroCents(currentExpense),
+                    chartBalanceLabel(currentIncome, currentExpense),
+                    chartTrendLabel(previousNet, currentNet),
+                ),
+                accessibilityRows = (0 until maxOf(currentPoints.size, previousPoints.size)).map { index ->
+                    val current = currentPoints.getOrNull(index)
+                    val previous = previousPoints.getOrNull(index)
+                    ChartDataRow(
+                        current?.label ?: previous?.label.orEmpty(),
+                        listOfNotNull(
+                            current?.let { "${stringResource(R.string.analysis_comparison_chart_title)} ${formatEuroCents(it.incomeCents - it.expenseCents)}" },
+                            previous?.let { "${stringResource(R.string.analysis_period_previous)} ${formatEuroCents(it.incomeCents - it.expenseCents)}" },
+                        ).joinToString(" · "),
+                    )
+                },
             )
         }
 
@@ -230,16 +258,31 @@ internal fun ComparativaTab(
         // (final layout: KPI row → chart → notable swings → category list → waterfall).
         item { TabSection(stringResource(R.string.analysis_waterfall_title)) }
         item {
+            val steps = waterfallSteps(deltas)
             FinanceCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(14.dp)) {
                     WaterfallChart(
                         startLabel = stringResource(R.string.analysis_period_previous),
                         startCents = previousTotals.actualExpenseCents,
-                        steps = waterfallSteps(deltas),
+                        steps = steps,
                         endLabel = stringResource(R.string.analysis_period_current),
                         endCents = data.currentTotals.actualExpenseCents,
                         increaseColor = FinanceTheme.colors.debt,
                         decreaseColor = FinanceTheme.colors.income,
+                        accessibilitySummary = stringResource(
+                            R.string.accessibility_chart_waterfall_summary,
+                            stringResource(R.string.analysis_waterfall_title),
+                            "$comparisonPeriodLabel · $currentPeriodLabel",
+                            formatEuroCents(previousTotals.actualExpenseCents),
+                            formatEuroCents(data.currentTotals.actualExpenseCents),
+                            formatEuroCents(data.currentTotals.actualExpenseCents - previousTotals.actualExpenseCents),
+                            chartTrendLabel(previousTotals.actualExpenseCents, data.currentTotals.actualExpenseCents),
+                        ),
+                        accessibilityRows = buildList {
+                            add(ChartDataRow(stringResource(R.string.analysis_period_previous), formatEuroCents(previousTotals.actualExpenseCents)))
+                            steps.forEach { step -> add(ChartDataRow(step.label, formatEuroCents(step.deltaCents))) }
+                            add(ChartDataRow(stringResource(R.string.analysis_period_current), formatEuroCents(data.currentTotals.actualExpenseCents)))
+                        },
                     )
                 }
             }

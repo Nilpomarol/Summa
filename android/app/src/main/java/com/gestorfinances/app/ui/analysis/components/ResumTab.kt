@@ -14,9 +14,14 @@ import com.gestorfinances.app.R
 import com.gestorfinances.app.ui.analysis.AnalysisUiState
 import com.gestorfinances.app.ui.analysis.currentDisplayDivisor
 import com.gestorfinances.app.ui.analysis.displayCents
+import com.gestorfinances.app.ui.analysis.formatForScope
 import com.gestorfinances.app.ui.analysis.incomeExpensePoints
 import com.gestorfinances.app.ui.analysis.rowKey
+import com.gestorfinances.app.ui.common.ChartDataRow
 import com.gestorfinances.app.ui.common.IncomeExpenseChart
+import com.gestorfinances.app.ui.common.chartBalanceLabel
+import com.gestorfinances.app.ui.common.chartTrendLabel
+import com.gestorfinances.app.ui.common.formatEuroCents
 import com.gestorfinances.app.ui.theme.FinanceTheme
 import kotlin.math.abs
 
@@ -51,12 +56,34 @@ internal fun ResumTab(
         val range = state.currentRange
         if (range != null) {
             item {
+                val points = incomeExpensePoints(range, state.scope, data.chartBuckets)
+                val incomeCents = points.sumOf { it.incomeCents }
+                val expenseCents = points.sumOf { it.expenseCents }
                 IncomeExpenseChart(
                     title = stringResource(R.string.analysis_income_vs_expense_title),
-                    points = incomeExpensePoints(range, state.scope, data.chartBuckets),
+                    points = points,
                     incomeLabel = stringResource(R.string.analysis_summary_income),
                     expenseLabel = stringResource(R.string.analysis_summary_expense),
                     emptyText = stringResource(R.string.dashboard_no_data),
+                    accessibilitySummary = stringResource(
+                        R.string.accessibility_chart_income_expense_summary,
+                        stringResource(R.string.analysis_income_vs_expense_title),
+                        range.formatForScope(state.scope),
+                        formatEuroCents(incomeCents),
+                        formatEuroCents(expenseCents),
+                        chartBalanceLabel(incomeCents, expenseCents),
+                        chartTrendLabel(
+                            points.firstOrNull()?.incomeCents?.minus(points.firstOrNull()?.expenseCents ?: 0L),
+                            points.lastOrNull()?.incomeCents?.minus(points.lastOrNull()?.expenseCents ?: 0L),
+                        ),
+                    ),
+                    accessibilityRows = points.map { point ->
+                        ChartDataRow(
+                            point.label,
+                            "${stringResource(R.string.analysis_summary_income)} ${formatEuroCents(point.incomeCents)} · " +
+                                "${stringResource(R.string.analysis_summary_expense)} ${formatEuroCents(point.expenseCents)}",
+                        )
+                    },
                 )
             }
         }

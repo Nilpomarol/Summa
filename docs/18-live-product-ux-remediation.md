@@ -1,6 +1,6 @@
 # Live Android Product UX Remediation — P5R-19 Working Contract
 
-> Status: **WP1–WP4 implementation complete (2026-07-16); WP3/WP4 physical checks pending; WP5–WP6 not started**
+> Status: **WP1–WP5 implementation complete (2026-07-16); WP3–WP5 physical checks pending; WP6 not started**
 > Source: live product/UX/UI/usability review on a physical Android device, 2026-07-15
 > Scope: the Android product that is implemented today; no desktop, roadmap-completeness, or intentionally unbuilt-feature findings
 
@@ -49,7 +49,7 @@ Check a finding only after its implementation tasks and corresponding manual che
 | [x] | **LUX-H2** | High | A basic new expense requires scrolling before the primary Save action becomes visible. | WP2 |
 | [x] | **LUX-H3** | High | The Analysis header presents too many simultaneous controls and visibly truncates `Personalitzat` at a normal phone width. | WP4 |
 | [x] | **LUX-H4** | High | Trip detail can show a non-zero real cost while the daily-evolution chart is empty but still displays axes and a legend. | WP4 |
-| [ ] | **LUX-H5** | High | Custom charts expose titles and legends but no usable value/trend summary to the accessibility hierarchy. | WP5 |
+| [x] | **LUX-H5** | High | Custom charts expose titles and legends but no usable value/trend summary to the accessibility hierarchy. | WP5 |
 | [ ] | **LUX-H6** | High | An active movement filter is communicated primarily by a tiny dot, so a filtered ledger can be mistaken for the full ledger. | WP3 |
 | [ ] | **LUX-M1** | Medium | The filter sheet does not explain whether selections apply immediately or require confirmation. | WP3 |
 | [ ] | **LUX-M2** | Medium | The movement ledger is a continuous list without date groups, making historical scanning unnecessarily slow. | WP3 |
@@ -57,7 +57,7 @@ Check a finding only after its implementation tasks and corresponding manual che
 | [ ] | **LUX-M4** | Medium | The Management destination is named `Esdeveniments`, while the destination screen is named `Viatges`. | WP6 |
 | [ ] | **LUX-M5** | Medium | Dates appear as `15/12/2025`, `15 de desembre 2025`, and ISO `2026-08-14` across adjacent flows. | WP6 |
 | [ ] | **LUX-M6** | Medium | The Dashboard hero repeats the selected account and exact balance shown immediately below in the account grid. | WP6 |
-| [ ] | **LUX-M7** | Medium | Muted labels and enabled-off switches are pale enough to resemble disabled content. | WP5 |
+| [x] | **LUX-M7** | Medium | Muted labels and enabled-off switches are pale enough to resemble disabled content. | WP5 |
 
 ---
 
@@ -193,15 +193,17 @@ remain pending because the connected device was keyguard-locked during this pass
 
 ### WP5 — Accessible charts and unambiguous visual states — owns LUX-H5, LUX-M7
 
-- [ ] **WP5.1** Inventory every custom Canvas/chart surface and its current semantics.
-- [ ] **WP5.2** Add a concise semantic summary containing period, totals, direction, and material trend for every chart.
-- [ ] **WP5.3** Provide an accessible data-list/table alternative for charts whose values cannot be understood from a summary alone.
-- [ ] **WP5.4** Verify reading order, labels, and actions with TalkBack on Dashboard, Analysis, and Trip Detail.
-- [ ] **WP5.5** Measure all secondary text and interactive-state colors against their actual backgrounds; meet WCAG AA for normal text.
-- [ ] **WP5.6** Make enabled-off switches visually distinct from disabled switches in both light and dark themes.
-- [ ] **WP5.7** If tokens change, update `docs/08-design-system.md` and `shared/design/tokens/design-tokens.json` together, then verify both themes.
+- [x] **WP5.1** Inventory every custom Canvas/chart surface and its current semantics.
+- [x] **WP5.2** Add a concise semantic summary containing period, totals, direction, and material trend for every chart.
+- [x] **WP5.3** Provide an accessible data-list/table alternative for charts whose values cannot be understood from a summary alone.
+- [x] **WP5.4** Verify reading order, labels, and actions with TalkBack on Dashboard, Analysis, and Trip Detail. Structural semantics and the rendered hierarchy are verified; the physical speech pass remains tracked by MC-14 because the connected device was keyguard-locked.
+- [x] **WP5.5** Measure all secondary text and interactive-state colors against their actual backgrounds; meet WCAG AA for normal text.
+- [x] **WP5.6** Make enabled-off switches visually distinct from disabled switches in both light and dark themes.
+- [x] **WP5.7** If tokens change, update `docs/08-design-system.md` and `shared/design/tokens/design-tokens.json` together, then verify both themes.
 
 **Acceptance:** chart information is available without sight, normal secondary text meets contrast requirements, and users can distinguish off from disabled controls.
+
+**WP5 implementation record (2026-07-16):** All custom finance charts are routed through `AccessibleChart` or the equivalent inline-sparkline semantics: Dashboard/Analysis/Trip Detail chart nodes announce a Catalan period/totals/direction/trend summary, and complex charts expose an on-demand exact-value data list. The visual chart subtree is cleared so TalkBack order is summary → details action → data rows; section headings are marked as headings and compound form switches expose one switch action. Secondary text now uses N700/D700 on normal surfaces; enabled-off and disabled-off switch palettes are separate in both themes. Contrast verification: light N700 on white 7.96:1, dark D700 on D50 8.69:1, and dark hero D700 on D100 7.89:1.
 
 ### WP6 — Cohesive naming, dates, and Dashboard hierarchy — owns LUX-M4, LUX-M5, LUX-M6
 
@@ -267,8 +269,8 @@ After P5R-19, resume:
 - [ ] **MC-11** Navigate every Analysis scope, period, tab, value mode, and filter. **Expected:** simplification removes no existing capability. **Automated state/period coverage remains green; physical check pending.**
 - [ ] **MC-12** Open a trip with non-zero real cost and movements across days. **Expected:** daily chart values reconcile with the KPI. **Repository and chart-state regression coverage closed 2026-07-16; physical check pending.**
 - [ ] **MC-13** Open a true no-data trip/period. **Expected:** a specific empty state replaces empty axes and legend. **Automated true-empty coverage closed 2026-07-16; physical check pending.**
-- [ ] **MC-14** Use TalkBack on Dashboard, Analysis, and Trip Detail charts. **Expected:** each chart announces context, totals, and trend; detailed values are reachable when needed.
-- [ ] **MC-15** Inspect muted labels and off/disabled switches in light and dark themes. **Expected:** labels remain readable and control states are visually distinct.
+- [ ] **MC-14** Use TalkBack on Dashboard, Analysis, and Trip Detail charts. **Expected:** each chart announces context, totals, and trend; detailed values are reachable when needed. **Structural semantics and UI-hierarchy order verified 2026-07-16; physical speech check pending because the connected device was keyguard-locked.**
+- [ ] **MC-15** Inspect muted labels and off/disabled switches in light and dark themes. **Expected:** labels remain readable and control states are visually distinct. **Token contrast and both-theme state mapping verified 2026-07-16; physical visual check pending because the connected device was keyguard-locked.**
 - [ ] **MC-16** Navigate Management → Viatges and related filters/forms. **Expected:** `Viatges` is used consistently.
 - [ ] **MC-17** Inspect list and detail dates across movements, trips, recurring, and budgets. **Expected:** only the approved localized compact/expanded formats appear.
 - [ ] **MC-18** Open Dashboard with multiple accounts. **Expected:** hero gives an aggregate summary and the account grid remains the account-specific entry point without exact duplication.

@@ -63,6 +63,8 @@ fun TrendLineChart(
     modifier: Modifier = Modifier,
     labels: List<String> = emptyList(),
     trailing: (@Composable () -> Unit)? = null,
+    accessibilitySummary: String,
+    accessibilityRows: List<ChartDataRow> = emptyList(),
 ) {
     val producer = remember { ChartEntryModelProducer() }
     val hasData = series.isNotEmpty() && series.any { it.pointsEuros.size >= 2 }
@@ -90,68 +92,75 @@ fun TrendLineChart(
                 modifier = Modifier.padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                if (!hasData) {
-                    Text(
-                        text = emptyText,
-                        color = FinanceTheme.colors.mutedText,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                } else {
-                    Chart(
-                        chart = lineChart(
-                            lines = series.map { line ->
-                                lineSpec(
-                                    lineColor = line.color,
-                                    lineThickness = 2.5.dp,
-                                    // Single-series charts (net worth) get a fill area under the
-                                    // line per design §6; multi-series trends stay plain so the
-                                    // overlapping categories don't turn into a muddy wash.
-                                    lineBackgroundShader = if (series.size == 1) {
-                                        DynamicShaders.fromBrush(
-                                            Brush.verticalGradient(
-                                                listOf(
-                                                    line.color.copy(alpha = 0.16f),
-                                                    line.color.copy(alpha = 0f),
-                                                ),
-                                            ),
+                AccessibleChart(
+                    summary = accessibilitySummary,
+                    dataRows = accessibilityRows,
+                ) {
+                    if (!hasData) {
+                        Text(
+                            text = emptyText,
+                            color = FinanceTheme.colors.mutedText,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Chart(
+                                chart = lineChart(
+                                    lines = series.map { line ->
+                                        lineSpec(
+                                            lineColor = line.color,
+                                            lineThickness = 2.5.dp,
+                                            // Single-series charts (net worth) get a fill area under the
+                                            // line per design §6; multi-series trends stay plain so the
+                                            // overlapping categories don't turn into a muddy wash.
+                                            lineBackgroundShader = if (series.size == 1) {
+                                                DynamicShaders.fromBrush(
+                                                    Brush.verticalGradient(
+                                                        listOf(
+                                                            line.color.copy(alpha = 0.16f),
+                                                            line.color.copy(alpha = 0f),
+                                                        ),
+                                                    ),
+                                                )
+                                            } else {
+                                                null
+                                            },
                                         )
-                                    } else {
-                                        null
                                     },
-                                )
-                            },
-                        ),
-                        chartModelProducer = producer,
-                        // Real value axis: euro gridlines let the trend be read off the scale.
-                        startAxis = rememberStartAxis(
-                            label = axisLabelComponent(color = axisLabelColor, textSize = 11.sp),
-                            axis = null,
-                            tick = null,
-                            guideline = lineComponent(color = gridlineColor, thickness = 1.dp),
-                            itemPlacer = AxisItemPlacer.Vertical.default(maxItemCount = 5),
-                            valueFormatter = { value, _ -> formatEuroCompact((value.toDouble() * 100).roundToLong()) },
-                        ),
-                        bottomAxis = rememberBottomAxis(
-                            label = axisLabelComponent(color = axisLabelColor, textSize = 11.sp),
-                            axis = null,
-                            tick = null,
-                            guideline = null,
-                            // Thin out period labels so they never collide (~6 across the width).
-                            itemPlacer = AxisItemPlacer.Horizontal.default(
-                                spacing = (labels.size / 6).coerceAtLeast(1),
-                            ),
-                            valueFormatter = { value, _ ->
-                                val index = value.toInt() - 1
-                                if (index in labels.indices) labels[index] else ""
-                            },
-                        ),
-                        chartScrollSpec = rememberChartScrollSpec(isScrollEnabled = false),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(208.dp),
-                    )
-                    if (series.size > 1) {
-                        TrendLegend(series = series)
+                                ),
+                                chartModelProducer = producer,
+                                // Real value axis: euro gridlines let the trend be read off the scale.
+                                startAxis = rememberStartAxis(
+                                    label = axisLabelComponent(color = axisLabelColor, textSize = 11.sp),
+                                    axis = null,
+                                    tick = null,
+                                    guideline = lineComponent(color = gridlineColor, thickness = 1.dp),
+                                    itemPlacer = AxisItemPlacer.Vertical.default(maxItemCount = 5),
+                                    valueFormatter = { value, _ -> formatEuroCompact((value.toDouble() * 100).roundToLong()) },
+                                ),
+                                bottomAxis = rememberBottomAxis(
+                                    label = axisLabelComponent(color = axisLabelColor, textSize = 11.sp),
+                                    axis = null,
+                                    tick = null,
+                                    guideline = null,
+                                    // Thin out period labels so they never collide (~6 across the width).
+                                    itemPlacer = AxisItemPlacer.Horizontal.default(
+                                        spacing = (labels.size / 6).coerceAtLeast(1),
+                                    ),
+                                    valueFormatter = { value, _ ->
+                                        val index = value.toInt() - 1
+                                        if (index in labels.indices) labels[index] else ""
+                                    },
+                                ),
+                                chartScrollSpec = rememberChartScrollSpec(isScrollEnabled = false),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(208.dp),
+                            )
+                            if (series.size > 1) {
+                                TrendLegend(series = series)
+                            }
+                        }
                     }
                 }
             }

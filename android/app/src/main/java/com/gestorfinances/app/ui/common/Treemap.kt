@@ -40,15 +40,23 @@ fun Treemap(
     modifier: Modifier = Modifier,
     height: Dp = 220.dp,
     gap: Dp = 3.dp,
+    accessibilitySummary: String,
+    accessibilityRows: List<ChartDataRow> = emptyList(),
 ) {
     val ordered = items.filter { it.valueCents > 0 }.sortedByDescending { it.valueCents }
     if (ordered.isEmpty()) return
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(height),
+    AccessibleChart(
+        summary = accessibilitySummary,
+        dataRows = accessibilityRows,
+        modifier = modifier,
     ) {
-        TreemapSplit(items = ordered, horizontal = true, gap = gap)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(height),
+        ) {
+            TreemapSplit(items = ordered, horizontal = true, gap = gap)
+        }
     }
 }
 

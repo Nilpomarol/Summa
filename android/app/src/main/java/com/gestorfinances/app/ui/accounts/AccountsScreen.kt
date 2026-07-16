@@ -43,7 +43,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -72,6 +71,7 @@ import com.gestorfinances.app.ui.common.ColorPickerRow
 import com.gestorfinances.app.ui.common.DestructiveTextButton
 import com.gestorfinances.app.ui.common.EntityColorPalette
 import com.gestorfinances.app.ui.common.FinanceCard
+import com.gestorfinances.app.ui.common.FinanceSwitch
 import com.gestorfinances.app.ui.common.FinanceFilterChip
 import com.gestorfinances.app.ui.common.IconChip
 import com.gestorfinances.app.ui.common.IconPickerRow
@@ -663,7 +663,7 @@ private fun AccountFormScreen(
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.weight(1f),
             )
-            Switch(
+            FinanceSwitch(
                 checked = form.isDefault,
                 onCheckedChange = { onFormChange(form.copy(isDefault = it)) },
             )

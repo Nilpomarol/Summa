@@ -9,6 +9,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -23,9 +25,16 @@ fun Sparkline(
     modifier: Modifier = Modifier,
     height: Dp = 28.dp,
     strokeWidth: Dp = 2.dp,
+    accessibilitySummary: String? = null,
 ) {
+    val semanticsModifier = if (accessibilitySummary == null) {
+        Modifier
+    } else {
+        Modifier.semantics { contentDescription = accessibilitySummary }
+    }
     Canvas(
         modifier = modifier
+            .then(semanticsModifier)
             .fillMaxWidth()
             .height(height),
     ) {

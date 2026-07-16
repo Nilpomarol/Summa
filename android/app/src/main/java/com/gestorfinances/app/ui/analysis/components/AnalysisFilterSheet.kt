@@ -30,7 +30,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -49,6 +48,7 @@ import com.gestorfinances.app.ui.analysis.AnalysisNatureFilter
 import com.gestorfinances.app.ui.analysis.AnalysisUiState
 import com.gestorfinances.app.ui.analysis.labelRes
 import com.gestorfinances.app.ui.common.FilterSelectorField
+import com.gestorfinances.app.ui.common.FinanceSwitch
 import androidx.compose.material3.rememberModalBottomSheetState
 import com.gestorfinances.app.ui.common.IconChip
 import com.gestorfinances.app.ui.common.SegmentedControl
@@ -379,7 +379,7 @@ internal fun AnalysisFilterSheet(
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.weight(1f)
                     )
-                    Switch(
+                    FinanceSwitch(
                         checked = state.groupTripsAsBlocks,
                         onCheckedChange = onGroupTripsAsBlocksChange
                     )
