@@ -58,7 +58,7 @@ Each entry: **purpose · content blocks · primary actions · platform note.**
 ### Finances
 
 **Movements list**
-- Blocks: filter/search bar (type, account, category, trip, tag, person, nature, recurring, amount range, period, "paid by someone"); grouped/sorted list; each row shows concept, date, account, signed amount, shared/"paid by X" marker.
+- Blocks: filter/search bar (type, account, category, trip, tag, person, nature, recurring, amount range, period, "paid by someone") with named active-filter chips and count; continuous date-ordered list with localized row dates; each row shows concept, account, signed amount, shared/"paid by X" marker.
 - Actions: New movement; open detail; bulk-select (desktop, v1.5).
 - Platform: desktop master/detail (list + detail pane).
 

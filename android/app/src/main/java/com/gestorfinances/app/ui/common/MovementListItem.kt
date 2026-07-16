@@ -25,6 +25,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -37,6 +39,22 @@ import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.amountColor
 import com.gestorfinances.app.ui.theme.categoryColor as categoryColorFromTheme
 
+internal enum class MovementAmountRole {
+    YOUR_SHARE,
+    MOVEMENT,
+    TOTAL,
+}
+
+internal fun MovementSummary.primaryAmountRole(): MovementAmountRole =
+    if ((isShared && type == MovementType.EXPENSE) || type == MovementType.EXTERNAL_EXPENSE) {
+        MovementAmountRole.YOUR_SHARE
+    } else {
+        MovementAmountRole.MOVEMENT
+    }
+
+internal fun MovementSummary.secondaryAmountRole(): MovementAmountRole? =
+    if (primaryAmountRole() == MovementAmountRole.YOUR_SHARE) MovementAmountRole.TOTAL else null
+
 @Composable
 fun MovementListItem(
     movement: MovementSummary,
@@ -47,6 +65,11 @@ fun MovementListItem(
     val visual = movement.chipVisual()
     val typeColor = FinanceTheme.colors.amountColor(movement.type)
     val eventLine = listOfNotNull(movement.tripName, movement.tagName).joinToString(" · ")
+    val amountAccessibilityDescription = movement.primaryAmountContentDescription()
+    val totalAccessibilityDescription = stringResource(
+        R.string.movement_amount_accessibility_total,
+        formatEuroCents(movement.amountCents),
+    )
 
     val borderColor = FinanceTheme.colors.cardBorder
     Row(
@@ -142,16 +165,28 @@ fun MovementListItem(
                 val isExternal = movement.type == MovementType.EXTERNAL_EXPENSE
 
                 if (isShared || isExternal) {
-                    // Show my share as primary. External expense = real debt (red); merely-shared expense
-                    // uses the neutral "shared" hue since splitting a cost isn't a debt or a warning.
+                    // Show my share as primary and name both amounts. External expense is a debt,
+                    // so keep its outgoing sign visible instead of relying on the red tint.
+                    Text(
+                        text = stringResource(R.string.movement_amount_your_share_label),
+                        color = FinanceTheme.colors.mutedText,
+                        style = MaterialTheme.typography.labelSmall,
+                        textAlign = TextAlign.End,
+                    )
                     MoneyText(
-                        cents = if (isExternal) movement.amountCents else movement.userShareCents,
+                        cents = if (isExternal) -movement.amountCents else movement.userShareCents,
+                        modifier = Modifier.clearAndSetSemantics {
+                            contentDescription = amountAccessibilityDescription
+                        },
                         color = if (isExternal) FinanceTheme.colors.debt else FinanceTheme.colors.shared,
                         style = MaterialTheme.typography.titleMedium,
-                        signed = isExternal, // External shows minus
+                        signed = isExternal,
                     )
                     Text(
                         text = stringResource(R.string.movement_total_short, formatEuroCents(movement.amountCents)),
+                        modifier = Modifier.clearAndSetSemantics {
+                            contentDescription = totalAccessibilityDescription
+                        },
                         color = FinanceTheme.colors.mutedText,
                         style = MaterialTheme.typography.labelSmall,
                         textAlign = TextAlign.End,
@@ -159,6 +194,9 @@ fun MovementListItem(
                 } else {
                     MoneyText(
                         cents = movement.signedAmountCents(),
+                        modifier = Modifier.clearAndSetSemantics {
+                            contentDescription = amountAccessibilityDescription
+                        },
                         color = typeColor,
                         style = MaterialTheme.typography.titleMedium,
                         signed = movement.type == MovementType.INCOME || movement.type == MovementType.SETTLEMENT,
@@ -166,6 +204,45 @@ fun MovementListItem(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun MovementSummary.primaryAmountContentDescription(): String {
+    if (primaryAmountRole() == MovementAmountRole.YOUR_SHARE) {
+        val shareCents = if (type == MovementType.EXTERNAL_EXPENSE) amountCents else userShareCents
+        val shareText = formatEuroCents(shareCents)
+        val direction = when {
+            type == MovementType.EXTERNAL_EXPENSE ->
+                stringResource(R.string.movement_amount_accessibility_owes, shareText)
+            userShareCents == 0L ->
+                stringResource(R.string.movement_amount_accessibility_owed, formatEuroCents(amountCents))
+            else ->
+                stringResource(R.string.movement_amount_accessibility_assumed)
+        }
+        return stringResource(
+            R.string.movement_amount_accessibility_your_share,
+            shareText,
+            direction,
+        )
+    }
+
+    val amountText = formatEuroCents(signedAmountCents())
+    return when (type) {
+        MovementType.EXPENSE ->
+            stringResource(R.string.movement_amount_accessibility_expense, amountText)
+        MovementType.INCOME ->
+            stringResource(R.string.movement_amount_accessibility_income, amountText)
+        MovementType.TRANSFER ->
+            stringResource(R.string.movement_amount_accessibility_transfer, amountText)
+        MovementType.SETTLEMENT -> if (settlementDirection == SettlementDirection.USER_TO_PERSON) {
+            stringResource(R.string.movement_amount_accessibility_settlement_out, amountText)
+        } else {
+            stringResource(R.string.movement_amount_accessibility_settlement_in, amountText)
+        }
+        MovementType.REFUND ->
+            stringResource(R.string.movement_amount_accessibility_refund, amountText)
+        MovementType.EXTERNAL_EXPENSE -> error("External expense is a shared amount")
     }
 }
 

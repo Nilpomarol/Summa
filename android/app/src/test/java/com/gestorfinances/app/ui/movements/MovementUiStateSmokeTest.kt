@@ -3,10 +3,82 @@ package com.gestorfinances.app.ui.movements
 import com.gestorfinances.app.data.repository.CategoryNature
 import com.gestorfinances.app.data.repository.MovementSummary
 import com.gestorfinances.app.data.repository.MovementType
+import com.gestorfinances.app.ui.common.MovementAmountRole
+import com.gestorfinances.app.ui.common.primaryAmountRole
+import com.gestorfinances.app.ui.common.secondaryAmountRole
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class MovementUiStateSmokeTest {
+    @Test
+    fun activeFilterCountMatchesNamedLedgerFilters() {
+        assertEquals(
+            5,
+            MovementFilters(
+                accountId = "checking",
+                categoryId = "food",
+                tripId = "trip",
+                tagId = "tag",
+                dateFrom = "2026-01-01",
+                dateTo = "2026-01-31",
+            ).activeFilterCount,
+        )
+        assertEquals(
+            3,
+            MovementFilters(
+                categoryId = "food",
+                sourceMode = MovementSourceMode.ACTUAL,
+                oneTimeMode = MovementOneTimeMode.EXCLUDE,
+            ).activeFilterCount,
+        )
+        assertEquals(0, MovementFilters().activeFilterCount)
+    }
+
+    @Test
+    fun visibleMovementsRemainInContinuousLedgerOrder() {
+        val state = MovementsUiState(
+            movements = listOf(
+                movement("newer", MovementType.EXPENSE, date = "2026-01-05", accountId = "a", accountName = "A"),
+                movement("same-day", MovementType.INCOME, date = "2026-01-05", accountId = "a", accountName = "A"),
+                movement("older", MovementType.EXPENSE, date = "2026-01-04", accountId = "a", accountName = "A"),
+            ),
+        )
+
+        assertEquals(listOf("newer", "same-day", "older"), state.visibleMovements.map { it.id })
+    }
+
+    @Test
+    fun sharedAmountRolesNameMyShareAndKeepTotalSecondary() {
+        val shared = movement(
+            id = "shared",
+            type = MovementType.EXPENSE,
+            accountId = "checking",
+            accountName = "Compte",
+            isShared = true,
+            userShareCents = 1_500,
+        )
+        val external = movement(
+            id = "external",
+            type = MovementType.EXTERNAL_EXPENSE,
+            accountId = null,
+            accountName = null,
+            userShareCents = 0,
+        )
+        val personal = movement(
+            id = "personal",
+            type = MovementType.EXPENSE,
+            accountId = "checking",
+            accountName = "Compte",
+        )
+
+        assertEquals(MovementAmountRole.YOUR_SHARE, shared.primaryAmountRole())
+        assertEquals(MovementAmountRole.TOTAL, shared.secondaryAmountRole())
+        assertEquals(MovementAmountRole.YOUR_SHARE, external.primaryAmountRole())
+        assertEquals(MovementAmountRole.TOTAL, external.secondaryAmountRole())
+        assertEquals(MovementAmountRole.MOVEMENT, personal.primaryAmountRole())
+        assertEquals(null, personal.secondaryAmountRole())
+    }
+
     @Test
     fun visibleMovementsApplyMainFiltersTogether() {
         val state = MovementsUiState(
@@ -208,6 +280,8 @@ class MovementUiStateSmokeTest {
         categoryNature: CategoryNature? = null,
         name: String? = null,
         isOneTime: Boolean = false,
+        isShared: Boolean = false,
+        userShareCents: Long = -1L,
     ): MovementSummary =
         MovementSummary(
             id = id,
@@ -227,8 +301,8 @@ class MovementUiStateSmokeTest {
             payee = null,
             notes = null,
             isOneTime = isOneTime,
-            isShared = false,
-            userShareCents = -1L,
+            isShared = isShared,
+            userShareCents = userShareCents,
             isRecurring = false,
             paidByPersonName = null,
             payerId = null,
