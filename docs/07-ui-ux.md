@@ -12,7 +12,7 @@
 
 Same screens on both platforms; different shells.
 
-- **Mobile (Android, primary):** bottom navigation with four destinations plus an embedded centered **"＋ New movement"** primary action: **Inici · Moviments · + · Anàlisi · Gestió**. The FAB remains visible throughout the app after onboarding; if no account exists yet, tapping it opens account creation instead of a blocked movement form. Secondary destinations are reached from within their section.
+- **Mobile (Android, primary):** root and Management child routes use bottom navigation with four destinations plus an embedded centered **"+ New movement"** primary action: **Inici · Moviments · + · Anàlisi · Gestió**. Focused full-page routes (Trip Detail, Movement Detail, and create/edit flows) use their own Back/primary-action chrome and hide the global bar/FAB. Trip Detail exposes a local **"Afegeix moviment"** action that keeps trip/default-account prefill. If no account exists yet, the global FAB routes to account creation instead of a blocked movement form. Secondary destinations are reached from within their section.
 - **Desktop (Windows, secondary):** left **sidebar** with the same groups; wider content area, frequently **two-pane** (list + detail).
 
 **Navigation groups** (from spec §5.9):
@@ -22,9 +22,9 @@ Same screens on both platforms; different shells.
 - **Management / Gestió:** Accounts / Comptes · Categories · People / Persones · Events / Esdeveniments · Recurring / Recurrents · Settings / Configuració
 - **Event-local:** Tags / Etiquetes live inside Events; they are not a top-level management destination.
 
-**Global behaviors:** "New movement" available everywhere through the centered FAB; **live refresh** (a change on one screen updates related screens); a **read-only banner** when this device doesn't hold the sync token (spec §6, `docs/02`).
+**Global behaviors:** "New movement" is available through the centered FAB on root and Management child routes; focused pages expose only their contextual actions. **Live refresh** (a change on one screen updates related screens); a **read-only banner** when this device doesn't hold the sync token (spec §6, `docs/02`).
 
-**Android back behavior:** from Moviments, Anàlisi, or the Gestió hub, Back returns to Inici; from a Gestió child page, Back returns to the Gestió hub; from Inici, Back follows normal Android app-exit/minimize behavior. Bottom-nav switching does not build a deep back stack. Any page opened from Gestió keeps Gestió highlighted in the bottom bar.
+**Android back behavior:** from Moviments, Anàlisi, or the Gestió hub, Back returns to Inici; from a Gestió child page, Back returns to the Gestió hub; from focused full-page routes, Back returns to the exact route that opened them (including Trip Detail → Movement Form/Detail and nested Tags/Budgets); from Inici, Back follows normal Android app-exit/minimize behavior. Bottom-nav switching does not build a deep back stack. Management child pages keep Gestió highlighted; focused pages do not show the global bar.
 
 ---
 

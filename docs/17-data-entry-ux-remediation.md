@@ -6,6 +6,27 @@
 
 ---
 
+## Status audit — 2026-07-16
+
+`P5R-17` is **partially complete**, not unstarted and not ready to close. Commit `2cf829e` implemented WP1–WP5 and WP6a. The 2026-07-16 controlled-data run manually closed WP1 and WP3–WP6a; WP2 C17-03 remains open because its exact invalid-state setup is unreachable from the current UI. The current `main` passes `:app:testDebugUnitTest` and `:app:assembleDebug`, WP7–WP11 are not implemented, and optional WP6b remains deliberately deferred.
+
+| Package | Implementation | Automated evidence | Manual closure | Status |
+|---|---|---|---|---|
+| WP1 — movement data-loss guards | [x] | [x] | [x] | Implemented and manually closed (C17-01/C17-02) |
+| WP2 — field-level validation | [x] | [x] | [ ] | Automated coverage complete; C17-03 remains open because the current form has no clear affordance for the required account/date invalid-state setup |
+| WP3 — recurring truth | [x] | [x] | [x] | Implemented and manually closed (C17-04) |
+| WP4 — budget discovery/safe archive | [x] | [x] | [x] | Implemented and manually closed (C17-05) |
+| WP5 — unified date controls | [x] | [x] | [x] | Implemented and manually closed (C17-06) |
+| WP6a — no-edit explanation | [x] | [x] | [x] | Implemented and manually closed (C17-07) |
+| WP6b — settlement/refund editing | [ ] | [ ] | [ ] | Optional, deferred; does not block P5R-17 |
+| WP7 — consistency/string pass | [ ] | [ ] | [ ] | Not started |
+| WP8 — template cleanup/split visibility | [ ] | [ ] | [ ] | Not started |
+| WP9 — split remainder helper | [ ] | [ ] | [ ] | Not started |
+| WP10 — inline category creation | [ ] | [ ] | [ ] | Not started |
+| WP11 — account reorder mode | [ ] | [ ] | [ ] | Not started |
+
+**Immediate closure gate:** before new implementation, execute and record the existing manual checks for WP1–WP6a using controlled data. This is verification only; do not redesign those flows during the gate. Any failure reopens the owning WP. The 2026-07-16 run closed WP1 and WP3–WP6a; WP2 remains open only for C17-03's unreachable exact invalid-state setup.
+
 ## 1. Purpose & scope
 
 Fix the data-entry UX problems found in the audit **without changing any money rule**. The problems fall into three groups:
@@ -35,6 +56,8 @@ Out of scope: anything touching split rounding, recurring advancement, dedup, au
 
 ### WP1 — Movement form: stop silent data loss — owns **C9** — CRITICAL
 
+**Status:** implementation and automated tests complete (`2cf829e`); manual closure complete for C17-01/C17-02.
+
 **Goal:** switching type/payer, or re-tapping a selected segment, never destroys form input; destructive edits warn (never block, never silently proceed).
 
 **Files:** `ui/common/DesignComponents.kt` (`SegmentedControl`, `LabeledSegmentedControl`) · `ui/movements/MovementsViewModel.kt` (`normalizeForm`, `onSharedToggled`, `attemptSave`, `MovementFormState`) · `ui/movements/ExpenseFormSection.kt`, `MovementFormScreen.kt` · `MovementsViewModelTest.kt`.
@@ -54,6 +77,8 @@ Out of scope: anything touching split rounding, recurring advancement, dedup, au
 ---
 
 ### WP2 — Field-level validation & error placement — owns **U8** — CRITICAL
+
+**Status:** implementation and automated tests complete (`2cf829e`); C17-03 manual closure remains open because the exact invalid-state setup is unreachable from the current UI.
 
 **Goal:** validation feedback appears in the viewport and identifies the offending field.
 
@@ -75,6 +100,8 @@ Out of scope: anything touching split rounding, recurring advancement, dedup, au
 
 ### WP3 — Recurring truth in the movement form — owns **F12** — CRITICAL
 
+**Status:** implementation and automated tests complete (`2cf829e`); manual closure complete for C17-04.
+
 **Goal:** the form never misrepresents or silently ignores recurrence.
 
 **Files:** `ui/movements/MovementsViewModel.kt` (`onEditClicked`, `toFormState`, `attemptSave`, `createQuickTemplate`) · `ui/movements/MovementFormCommon.kt` (`FormRecurringSection`) · section files · `docs/13-recurring-refunds-budgets-ui.md`.
@@ -94,6 +121,8 @@ Out of scope: anything touching split rounding, recurring advancement, dedup, au
 
 ### WP4 — Budgets: discovery, safe delete, form polish — owns **F13, U10** (+ part of U12's form quality) — CRITICAL
 
+**Status:** implementation and automated tests complete (`2cf829e`); manual closure complete for C17-05.
+
 **Files:** `ui/management/ManagementScreen.kt` (+ `ManagementDestination`) · `MainActivity.kt` · `ui/budgets/BudgetsScreen.kt`, `BudgetsViewModel.kt` · `ui/categories/CategoriesScreen.kt`, `CategoriesViewModel.kt` · `notifications/` destination routing · `docs/13`.
 
 **Steps:**
@@ -111,6 +140,8 @@ Out of scope: anything touching split rounding, recurring advancement, dedup, au
 
 ### WP5 — One date control everywhere — owns **U9** — HIGH, quick win
 
+**Status:** implementation and automated tests complete (`2cf829e`); manual closure complete for C17-06.
+
 **Files:** `ui/movements/MovementDetailScreen.kt` (refund) · `ui/people/PeopleScreen.kt` (settlement) · `ui/recurring/RecurringScreen.kt` (`ConfirmPromptDialog`) · `ui/budgets/BudgetsScreen.kt`.
 
 **Steps:**
@@ -127,6 +158,8 @@ Out of scope: anything touching split rounding, recurring advancement, dedup, au
 
 ### WP6 — Settlements & refunds: explain, then (optionally) edit — owns **U11** — HIGH
 
+**Status:** WP6a implementation is complete (`2cf829e`) with manual closure complete for C17-07. WP6b remains an optional, separately approved enhancement and does not block this slice.
+
 **WP6a (do now, UI-only):** in `MovementDetailScreen`, where Edit is suppressed for SETTLEMENT/REFUND, render a muted caption `movement_detail_no_edit_hint` ("Les liquidacions i devolucions no es poden editar. Arxiva-la i registra'n una de nova.").
 
 **WP6b (optional follow-up, separate branch, `schema-steward` sign-off required before code):** editing amount/date/account/notes for settlements and refunds. Same-row updates on `movements` respecting the type⇔field CHECK constraints — **no schema change expected**; steward confirms no canonical-SQL/golden implication (vectors test rules, not app edit paths — confirm, never weaken). UI reuses `SettlementScreen` (prefilled from the movement) and `RefundFormContent` (add `refundId`; `remainingCents` excludes the edited refund itself). Over-refund/over-settle stay dismissible warnings. Update `docs/12`/`docs/13`.
@@ -136,6 +169,8 @@ Out of scope: anything touching split rounding, recurring advancement, dedup, au
 ---
 
 ### WP7 — Consistency pass — owns **U12, M16** — HIGH
+
+**Status:** not started. Run after P5R-19 because both tasks touch route chrome, list actions, movement-form presentation, Trips naming, and design-system interaction rules.
 
 `ui-ux-designer` locks two rules first (recorded in `docs/08-design-system.md` §patterns); `android-engineer` then applies them.
 
@@ -156,6 +191,8 @@ Out of scope: anything touching split rounding, recurring advancement, dedup, au
 
 ### WP8 — Template form cleanup — owns **U13, F14** — MEDIUM
 
+**Status:** not started. Run after P5R-19 WP2 so the template form reuses the final advanced-options/disclosure pattern instead of extracting a competing component.
+
 **Files:** `ui/recurring/RecurringScreen.kt` (`TemplateFormScreen`) · `RecurringViewModel.kt` · `ui/common/` (one extraction) · `docs/13`.
 
 **Steps:**
@@ -170,6 +207,8 @@ Out of scope: anything touching split rounding, recurring advancement, dedup, au
 
 ### WP9 — Split editor helpers — owns **U14** — MEDIUM
 
+**Status:** not started. No direct P5R-19 behavior overlap, but schedule after the movement-form layout settles to avoid parallel churn in the same flow.
+
 **Files:** `ui/movements/SplitEditorCard.kt`, `SplitEditorState.kt`, tests.
 
 **Steps:**
@@ -182,6 +221,8 @@ Out of scope: anything touching split rounding, recurring advancement, dedup, au
 ---
 
 ### WP10 — Inline category creation — owns **U15** — MEDIUM
+
+**Status:** not started. Run after P5R-19 WP2 and P5R-17 WP7 because all three touch movement-form selectors and creation affordances.
 
 **Files:** `ui/movements/MovementFormCommon.kt` (`CategorySelect`) · `MovementsViewModel.kt` · strings.
 
@@ -197,6 +238,8 @@ Out of scope: anything touching split rounding, recurring advancement, dedup, au
 
 ### WP11 — Account reordering — owns **U16** — LOW
 
+**Status:** not started. No material P5R-19 dependency; keep after higher-priority navigation, entry, accessibility, and consistency work.
+
 **Files:** `ui/accounts/AccountsScreen.kt`, `AccountsViewModel.kt`.
 
 **Steps:**
@@ -210,15 +253,59 @@ Out of scope: anything touching split rounding, recurring advancement, dedup, au
 
 ## 4. Sequencing
 
-| Wave | Packages | Notes |
-|---|---|---|
-| 1 | **WP1**, **WP4**, **WP5** | Independent; WP1 gates most later work |
-| 2 | **WP2**, **WP3**, **WP6a** | Build on WP1's banner/save-path refactor |
-| 3 | **WP7**, **WP8**, **WP9** | Consistency pass after its target screens settle |
-| 4 | **WP10**, **WP11**, **WP6b** | WP6b only with schema-steward sign-off |
+The original implementation waves are historical for WP1–WP6a. From the 2026-07-16 audit onward, use this order:
 
-One writing agent at a time per the roadmap principle; a WP is the unit of assignment. `P5R-11` (manual checklist) and `P5R-12` (final audit) run **after** this slice so they validate the remediated flows.
+| Order | Work | Reason |
+|---|---|---|
+| 0 | **P5R-17 closure gate for WP1–WP6a** | Confirm already-shipped correctness before later layout work obscures whether a regression was pre-existing. |
+| 1 | **P5R-19 WP1–WP6** | Contains the only current Critical live-product defect (navigation rendering) and establishes the final shell/movement/interaction presentation. |
+| 2 | **P5R-17 WP7** | Apply one consistency/string pass to the final P5R-19 routes, names, and controls rather than polishing the old layout first. |
+| 3 | **P5R-17 WP8 + WP9** | Reuse the settled advanced-disclosure pattern; finish template and split-editor friction. |
+| 4 | **P5R-17 WP10 + WP11** | Add the remaining convenience features after movement selectors and account presentation settle. |
+| Optional | **WP6b** | Only with explicit scope approval and `schema-steward` sign-off; never blocks P5R-17 closure. |
+| Final | **P5R-11 + P5R-12** | Whole-app checklist and final correctness/simplicity audit. |
+
+### Collision map with P5R-19
+
+| P5R-17 work | P5R-19 overlap | Resolution |
+|---|---|---|
+| Completed WP1/WP2 | P5R-19 WP1/WP2 touch the movement route and save area | Preserve the existing warnings/error slot; P5R-19 owns chrome, sticky CTA, and layout only. |
+| Completed WP5 | P5R-19 WP6 standardizes rendered date formats | Reuse `FormDatePicker`; P5R-19 changes display formatting, not the date-entry control. |
+| Completed WP6a | P5R-19 WP1 changes Movement Detail chrome | Keep the no-edit explanation while replacing the competing global navigation. |
+| Remaining WP7 | P5R-19 WP1/WP6 change route chrome, Viatges naming, and Dashboard hierarchy | P5R-19 first; WP7 then performs one final cross-screen interaction/string sweep. |
+| Remaining WP8 | P5R-19 WP2 changes progressive disclosure in movement entry | P5R-19 defines/extracts the shared disclosure pattern; WP8 reuses it in templates. |
+| Remaining WP10 | P5R-19 WP2 changes movement form layout/selectors | P5R-19 first, then WP7's create-person generalization, then WP10 inline category creation. |
+| Remaining WP9/WP11 | No material behavior collision | Keep after higher-severity work to minimize simultaneous churn. |
+
+One writing agent at a time per the roadmap principle; a WP is the unit of assignment.
 
 ## 5. Manual checklist
 
-Each WP's "Manual checks" above are the acceptance script; on completion, fold them into `docs/15`'s checklist series (or reference this section from there) so `P5R-11` executes them as part of the phase-close pass.
+### Closure gate for implemented packages
+
+- [x] **C17-01 / WP1:** Edit an existing three-person shared expense, re-tap selected segments, switch through every movement type and back, then save; the split remains intact.
+- [x] **C17-02 / WP1:** Explicitly remove sharing and save; the warning appears adjacent to Save, and only the accepted second action removes the split.
+- [ ] **C17-03 / WP2:** From the bottom of a long invalid form, save with account/category/date errors; the page scrolls to and labels the offending field.
+- [x] **C17-04 / WP3:** Edit a weekly linked movement; the real cadence is read-only, and turning recurrence off offers end-template versus unlink-only.
+- [x] **C17-05 / WP4:** Open Gestió → Pressupostos, create a budget, archive it through confirmation, and open a pre-scoped budget from a category with no budget.
+- [x] **C17-06 / WP5:** Record a refund, settlement, due occurrence, and optional budget start date using calendar controls only.
+- [x] **C17-07 / WP6a:** Open settlement and refund details; the non-edit explanation is visible and archive/recreate remains possible.
+- [x] **C17-08 / automated gate:** `:app:testDebugUnitTest` and `:app:assembleDebug` pass after the controlled-data run and verified wording fix (2026-07-16).
+
+### Controlled-data execution record — 2026-07-16
+
+The closure run used the isolated debug package `com.gestorfinances.app.manual` on device `61070DLCQ000KB`, with the existing debug fixture plus disposable records created under the `Controlled` onboarding account. It exercised the shared-expense round trip/removal warning, linked weekly recurrence and end-template choice, budget creation/archive/category pre-scoping, refund/settlement/due-occurrence calendars, and settlement/refund no-edit details. The real `com.gestorfinances.app` package was not installed, cleared, seeded, or edited.
+
+C17-03 remains open: the current `AccountSelect` has no clear option and the required movement date picker has no clear option, so the exact manual invalid-state setup cannot be reached from the UI. The corresponding ViewModel validation/error-field paths remain covered by automated tests. During C17-07 verification, the action and hint were confirmed to archive/recreate; their Catalan wording was corrected from `Elimina`/`Elimina-la` to `Arxiva`/`Arxiva-la`.
+
+### Remaining-package closure
+
+- [ ] WP7 manual checks completed and recorded.
+- [ ] WP8 manual checks completed and recorded.
+- [ ] WP9 manual checks completed and recorded.
+- [ ] WP10 manual checks completed and recorded.
+- [ ] WP11 manual checks completed and recorded.
+- [x] All resolved P5R-17 finding dispositions are updated in `docs/16`.
+- [ ] P5R-17 is checked complete in `docs/06-roadmap.md` only after every required item above is complete.
+
+The per-WP "Manual checks" above remain the detailed acceptance scripts. P5R-11 executes them again as part of the phase-close regression pass.

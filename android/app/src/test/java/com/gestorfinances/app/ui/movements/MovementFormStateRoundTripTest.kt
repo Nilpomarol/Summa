@@ -7,6 +7,7 @@ import com.gestorfinances.app.data.repository.AccountRepository
 import com.gestorfinances.app.data.repository.AccountType
 import com.gestorfinances.app.data.repository.CategoryRepository
 import com.gestorfinances.app.data.repository.MovementRepository
+import com.gestorfinances.app.data.repository.MovementType
 import com.gestorfinances.app.data.repository.PersonDraft
 import com.gestorfinances.app.data.repository.PersonRepository
 import com.gestorfinances.app.data.repository.SplitRepository
@@ -154,6 +155,88 @@ class MovementFormStateRoundTripTest {
             assertEquals(ExpenseKind.DEBT, reloaded.expenseKind)
             assertEquals("marc", reloaded.forOtherPersonId)
             assertNull(reloaded.accountId)
+        }
+    }
+
+    @Test
+    fun incomeRoundTripKeepsTypeAndAccount() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            val vm = viewModel(store)
+            vm.onAddClicked()
+            advanceUntilIdle()
+
+            vm.onFormChanged(vm.form().copy(
+                type = MovementType.INCOME,
+                amount = "100",
+                date = "2026-01-01",
+                accountId = "checking",
+                name = "Nòmina",
+            ))
+            vm.onSaveClicked()
+            advanceUntilIdle()
+
+            val movement = store.movements.listActive().single()
+            assertEquals(MovementType.INCOME, movement.type)
+            vm.onEditClicked(movement)
+            advanceUntilIdle()
+
+            assertEquals(MovementType.INCOME, vm.form().type)
+            assertEquals("checking", vm.form().accountId)
+        }
+    }
+
+    @Test
+    fun transferRoundTripKeepsBothAccounts() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            store.accounts.create(
+                accountDraft("savings").copy(isDefault = false, displayOrder = 1),
+                createdAt = NOW,
+            )
+            val vm = viewModel(store)
+            vm.onAddClicked()
+            advanceUntilIdle()
+
+            vm.onFormChanged(vm.form().copy(
+                type = MovementType.TRANSFER,
+                amount = "50",
+                date = "2026-01-01",
+                accountId = "checking",
+                destinationAccountId = "savings",
+                name = "Estalvi",
+            ))
+            vm.onSaveClicked()
+            advanceUntilIdle()
+
+            val movement = store.movements.listActive().single()
+            assertEquals(MovementType.TRANSFER, movement.type)
+            assertEquals("checking", movement.accountId)
+            assertEquals("savings", movement.destinationAccountId)
+            vm.onEditClicked(movement)
+            advanceUntilIdle()
+
+            assertEquals(MovementType.TRANSFER, vm.form().type)
+            assertEquals("savings", vm.form().destinationAccountId)
+        }
+    }
+
+    @Test
+    fun optionalDisclosureStartsCollapsedAndCanBeToggledWithoutChangingDraft() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            val vm = viewModel(store)
+            vm.onAddClicked()
+            advanceUntilIdle()
+            val before = vm.form()
+
+            assertEquals(false, before.showOptional)
+            vm.onOptionalToggled()
+            assertEquals(true, vm.form().showOptional)
+            assertEquals(before.copy(showOptional = true), vm.form())
+
+            vm.onOptionalToggled()
+            assertEquals(false, vm.form().showOptional)
         }
     }
 

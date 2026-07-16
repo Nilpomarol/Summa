@@ -83,7 +83,7 @@ Phase 5R should proceed in dependency order, not purely visual navigation order.
 1. **Global audit and shell**
    Validate navigation, top-level information architecture, global add flow, modal/sheet strategy, loading and empty states, and shared component gaps.
 
-   Current Phase 5R shell decision: Android uses **Inici · Moviments · + · Anàlisi · Gestió** as the bottom bar. The centered FAB is always visible after onboarding and starts New movement, or routes to account creation when no account exists. Gestió is a 2-column × 3-row hub for Comptes, Categories, Persones, Esdeveniments, Recurrents, and Configuració. Back from Moviments, Anàlisi, or the Gestió hub returns to Inici; Back from a Gestió child returns to the Gestió hub. Pages inside Gestió keep Gestió highlighted.
+   Current Phase 5R shell decision: Android uses **Inici · Moviments · + · Anàlisi · Gestió** as the bottom bar on root and Management child routes. The FAB starts New movement, or routes to account creation when no account exists; it is hidden on focused full-page routes. Gestió is a 2-column × 3-row hub for Comptes, Categories, Persones, Esdeveniments, Recurrents, and Configuració. Back from Moviments, Anàlisi, or the Gestió hub returns to Inici; Back from a Gestió child returns to the Gestió hub. Pages inside Gestió keep Gestió highlighted. Trip Detail uses focused page chrome and a local **Afegeix moviment** action with trip/default-account prefill; Movement Form/Detail and contextual full-page overlays return to their originating route.
 
 2. **Accounts and categories**
    These are foundational reference data. Many later screens depend on account and category identity, color, ordering, and validity.
@@ -121,6 +121,9 @@ Phase 5R should proceed in dependency order, not purely visual navigation order.
    Finish cross-cutting and secondary surfaces after the main product surfaces stabilize.
 
    **Settings/sync/read-only — complete** (see `docs/06-roadmap.md` P5R-8 and §17 above for the manual checklist). Settings needed no redesign work (already design-system compliant per `P5R-6`). The deferred shell seam landed: `DeviceAccessState` (`Writer`/`ReadOnly`) exposed as a no-op `StateFlow` from `AppContainer` (always `Writer`), read by `LedgerShell` and rendered as an `InlineBanner` in the outer `Scaffold`'s `topBar` slot when `ReadOnly` — never visible today. Write-path gating and disabling edit affordances stay deferred to Phase 7, when the state can actually change.
+
+9. **Live-device product UX remediation — P5R-19 WP1–WP2 implementation complete**
+   The P5R-17 WP1–WP6a closure gate remains recorded in `docs/17` §5. P5R-19 WP1 is complete: route chrome is explicit, root/Management navigation has opaque token-backed colors, focused pages hide the global bar/FAB, Trip Detail has a local add action, and Back preserves originating routes. WP2 now keeps `Desa moviment` in an inset-aware bottom bar and puts optional movement metadata behind `Més opcions`; its closure is accepted from the implementation, automated coverage, Android gates, and crash-free device launch. The connected device was keyguard-locked during visual inspection, so no screenshot was captured. WP3–WP6 remain in `docs/18-live-product-ux-remediation.md`. Preserve P5R-17's shipped data-loss guards, field-level validation, recurrence truth, budget safety, unified date controls, and no-edit explanation. Since P5R-16, assume local device data may be real: do not clear or reseed it while reproducing these findings.
 
 ### Advantages
 
@@ -160,6 +163,7 @@ Run these after building the app to confirm the shell is correct.
 | 2 | Tap Moviments, Anàlisi, Gestió in the bottom bar | Active item highlights; FAB stays centred in the bar across all tabs; top-edge separator on the bottom bar is a thin line, no full border |
 | 3 | Tap Gestió | Hub shows 6 tiles in a 2-column grid; each tile is ~88 dp tall with a coloured icon chip on the left and a title on the right; ripple starts from the tile surface |
 | 4 | Tap any Gestió tile | Navigate to the child screen; Back returns to the Gestió hub; Gestió tab stays highlighted |
+| 4a | Open Trip Detail, Movement Detail, and New/Edit movement | Each focused page hides the global bottom bar/FAB; Trip Detail exposes local "Afegeix moviment"; Back returns to the opening route |
 | 5 | Back from any top-level section | Returns to Inici |
 | 6 | Press system Back while on Inici | No navigation action |
 | 7 | Cold-start with a simulated DB failure | Error icon + message centred on screen; no blank band at top |
@@ -230,6 +234,20 @@ Run these after building the app to confirm all four expense types work correctl
 | 9 | Cold-launch on an existing v1 DB (schema_version=1) | App upgrades to v2 (`splits.tag_id` added); existing data intact; Settings shows `schema_version=2` |
 
 ---
+
+## 10a. P5R-19 WP2 Manual Checklist — Fast movement completion
+
+| # | Step | Expected |
+|---|------|----------|
+| 1 | Open a new expense on a 360dp-wide phone and focus the amount field | `Desa moviment` remains visible above the keyboard; the form scrolls independently of the CTA |
+| 2 | Press Next from concept, then Done from amount | Focus advances to amount, then clears without covering or moving the CTA off-screen |
+| 3 | Repeat with income and transfer | Account/destination requirements remain visible and the same CTA is reachable |
+| 4 | Repeat with shared, paid-for-other, and external-payer expenses | Split/person/payer controls and all existing warning/save behavior remain intact |
+| 5 | Expand `Més opcions`, select a trip, recurrence, and advanced details, then recreate the form | Optional controls appear only after disclosure; existing selections reopen visible and remain editable |
+
+Automated coverage for all variants and disclosure state is green, and WP2 closure was accepted
+on 2026-07-16 after the Android gates and crash-free device launch. The connected device remained
+keyguard-locked during visual inspection, so no screenshot was captured.
 
 ## 11. P5R-4 Manual Checklist — Dashboard and Analysis
 
@@ -340,7 +358,7 @@ Run these after building the app to confirm the P5R-7 redesign and logic fixes a
 | 9a | Dia a dia tab | One display-only card per day with spend, ascending: "Dia N · [weekday] [date]" (plain date for pre/post-trip spend), the day's total, and one colored-dot line per category; tapping a card does nothing (Aggregate Interaction Contract) |
 | 10 | Moviments tab | The full scoped ledger (no 5-row cap, no "Veure tots"), grouped under day headers with "Dia N" ordinals and day totals matching Dia a dia; rows render as standard `MovementListItem`s without their own date |
 | 10a | Tap a movement row in the Moviments tab | Opens the shared movement detail page (`MovementDialogHost`), the same as tapping a movement anywhere else in the app |
-| 11 | Tap the global FAB while trip detail is open | Movement form opens pre-filled with this trip and its default account; the FAB stays unscoped everywhere else |
+| 11 | Open Trip Detail from Trips or Dashboard | The local "Afegeix moviment" action opens the movement form pre-filled with this trip and its default account; no global FAB is shown on Trip Detail |
 | 12 | Open the trip add/edit form | Opens as a `ModalBottomSheet`; icon/color use `IconPickerRow`/`ColorPickerRow`; start/end dates use the same date picker the movement form uses (no free-text date fields); default account is a `FormSelect` dropdown (not a chip row) |
 | 13 | Open Gestió → Esdeveniments → "manage tags" (no trip context) | Tags page shows collapsible sections: Globals, one per event type with type-scoped tags, one per trip with trip-local tags — each with a count badge |
 | 14 | Tap a tag row | Icon/color shown are the tag's own if set, else its associated category's (`effectiveIcon()`/`effectiveColor()`) — never a hardcoded generic icon or a raw icon-string pill |
@@ -407,7 +425,7 @@ Run these after building the app to confirm the manual unencrypted backup path i
 |---|------|----------|
 | 1 | Cold-launch the app normally | No banner appears above any tab; layout, spacing, and bottom bar are unchanged from before this slice |
 | 2 | Navigate through Inici, Moviments, Anàlisi, and every Gestió child screen | Each screen's own top bar/title renders exactly as before; no extra blank space where the (empty) `topBar` slot sits |
-| 3 | Open and close the movement form, a `ModalBottomSheet`, and a full-page overlay (e.g. Trip Detail) | No layout shift or overlap introduced by the new `topBar` slot |
+| 3 | Open and close the movement form, a `ModalBottomSheet`, and a full-page overlay (e.g. Trip Detail) | Sheets retain the underlying route chrome; focused full-page overlays hide the global bar/FAB without layout shift or overlap |
 
 ---
 

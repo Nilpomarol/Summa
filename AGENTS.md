@@ -23,6 +23,9 @@ A personal finance app: offline-first, local-first. **Android (Kotlin/Compose)**
 - `docs/13-recurring-refunds-budgets-ui.md` — Android Phase 4 recurring/refunds/budgets/notifications screen refinement.
 - `docs/14-trips-tags-ui.md` — Android Phase 5 trips, tags, and trip-analysis screens.
 - `docs/15-android-redesign-validation.md` — Phase 5R Android redesign + logic-validation rules, order, and definition of done.
+- `docs/16-android-audit-findings.md` — Phase 5R correctness/usability/maintainability findings register and dispositions.
+- `docs/17-data-entry-ux-remediation.md` — P5R-17 data-entry correctness and form-remediation working contract.
+- `docs/18-live-product-ux-remediation.md` — P5R-19 live-device product/UX/UI remediation tracker; the next implementation task after the P5R-17 WP1–WP6a closure gate.
 - `shared/design/tokens/design-tokens.json` — machine-readable visual tokens consumed by both native apps.
 - `shared/design/tokens/platform-mapping.md` — Compose and WinUI mapping for shared visual tokens.
 

@@ -434,7 +434,7 @@ class MovementsViewModel(
 
     fun onRecurringToggled(enabled: Boolean) {
         val form = _state.value.form ?: return
-        onFormChanged(form.copy(isRecurring = enabled))
+        onFormChanged(form.copy(isRecurring = enabled, showOptional = true))
     }
 
     fun onRecurringFrequencyChanged(frequency: RecurrenceFrequency) {
@@ -442,9 +442,16 @@ class MovementsViewModel(
         onFormChanged(form.copy(recurringFrequency = frequency))
     }
 
+    fun onOptionalToggled() {
+        val form = _state.value.form ?: return
+        _state.value = _state.value.copy(form = form.copy(showOptional = !form.showOptional))
+    }
+
     fun onAdvancedToggled() {
         val form = _state.value.form ?: return
-        _state.value = _state.value.copy(form = form.copy(showAdvanced = !form.showAdvanced))
+        _state.value = _state.value.copy(
+            form = form.copy(showOptional = true, showAdvanced = !form.showAdvanced),
+        )
     }
 
     fun onCreatePersonInSplit(name: String) {
@@ -712,7 +719,13 @@ class MovementsViewModel(
         }
 
         if (errorRes != null) {
-            _state.value = _state.value.copy(form = form.copy(errorRes = errorRes, errorField = errorField))
+            _state.value = _state.value.copy(
+                form = form.copy(
+                    errorRes = errorRes,
+                    errorField = errorField,
+                    showOptional = form.showOptional || errorField == MovementFormField.TAG,
+                ),
+            )
             return
         }
 
@@ -1279,6 +1292,7 @@ data class MovementFormState(
     /** The linked template's status when [templateId] is set (audit F12, `docs/17` WP3) -- loaded
      * on edit so the form can reflect the template's real state; null for a new/unlinked movement. */
     val templateStatus: TemplateStatus? = null,
+    val showOptional: Boolean = false,
     val showAdvanced: Boolean = false,
     /** Read-only auto-categorization hint (audit F1); never applied without the user tapping it. */
     val suggestedCategoryId: String? = null,
@@ -1337,6 +1351,7 @@ private fun newMovementForm(
         date = LocalDate.now().toString(),
         expenseKind = if (debtPayerPersonId != null) ExpenseKind.DEBT else null,
         forOtherPersonId = debtPayerPersonId,
+        showOptional = trip?.id != null,
     )
 }
 
@@ -1414,6 +1429,7 @@ private fun MovementSummary.toFormState(
             name = name.orEmpty(),
             expenseKind = ExpenseKind.DEBT,
             forOtherPersonId = payerId,
+            showOptional = tripId != null || tagId != null,
         )
     }
 
@@ -1424,6 +1440,7 @@ private fun MovementSummary.toFormState(
     if (userLine != null && userLine.owedAmountCents == 0L &&
         personLines.size == 1 && personLines.first().owedAmountCents == amountCents
     ) {
+        val showAdvanced = isOneTime || isRecurring || !payee.isNullOrEmpty() || !notes.isNullOrEmpty()
         return MovementFormState(
             movementId = id,
             type = type,
@@ -1444,7 +1461,8 @@ private fun MovementSummary.toFormState(
             templateId = templateId,
             recurringFrequency = template?.frequency ?: RecurrenceFrequency.MONTHLY,
             templateStatus = template?.status,
-            showAdvanced = isOneTime || isRecurring || !payee.isNullOrEmpty() || !notes.isNullOrEmpty(),
+            showOptional = tripId != null || tagId != null || showAdvanced,
+            showAdvanced = showAdvanced,
         )
     }
 
@@ -1479,6 +1497,7 @@ private fun MovementSummary.toFormState(
         splitEditor != null -> ExpenseKind.SHARED
         else -> ExpenseKind.PERSONAL
     }
+    val showAdvanced = isOneTime || isRecurring || isShared || !payee.isNullOrEmpty() || !notes.isNullOrEmpty()
 
     return MovementFormState(
         movementId = id,
@@ -1501,7 +1520,8 @@ private fun MovementSummary.toFormState(
         recurringFrequency = template?.frequency ?: RecurrenceFrequency.MONTHLY,
         templateStatus = template?.status,
         expenseKind = expenseKind,
-        showAdvanced = isOneTime || isRecurring || isShared || !payee.isNullOrEmpty() || !notes.isNullOrEmpty(),
+        showOptional = tripId != null || tagId != null || showAdvanced,
+        showAdvanced = showAdvanced,
     )
 }
 

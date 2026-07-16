@@ -8,33 +8,24 @@ import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountSummary
 import com.gestorfinances.app.data.repository.PersonSummary
-import com.gestorfinances.app.data.repository.TagSummary
-import com.gestorfinances.app.data.repository.TripSummary
-import com.gestorfinances.app.domain.rules.RecurrenceFrequency
 import com.gestorfinances.app.ui.common.BannerKind
 import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.parseEuroCents
 import com.gestorfinances.app.ui.common.scrollToWhen
 
 /**
- * The INCOME body: account, then either the settlement toggle + settlement person
- * (a settlement records money received against a person's debt) or, for plain income,
- * the recurring + trip/tag tail.
+ * The INCOME body: account, then the settlement toggle + settlement person
+ * (a settlement records money received against a person's debt). Optional metadata is disclosed
+ * by [FormOptionalSection].
  */
 @Composable
 internal fun IncomeFormSection(
     form: MovementFormState,
     accounts: List<AccountSummary>,
     people: List<PersonSummary>,
-    trips: List<TripSummary>,
-    tags: List<TagSummary>,
     onFormChange: (MovementFormState) -> Unit,
     onSettlementToggled: (Boolean) -> Unit,
     onSettlementPersonSelected: (String?) -> Unit,
-    onRecurringToggled: (Boolean) -> Unit,
-    onRecurringFrequencyChanged: (RecurrenceFrequency) -> Unit,
-    onTripSelected: (String?) -> Unit,
-    onTagSelected: (String?) -> Unit,
 ) {
     val accountError = form.errorField == MovementFormField.ACCOUNT
     AccountSelect(
@@ -89,27 +80,5 @@ internal fun IncomeFormSection(
                 text = stringResource(R.string.settlement_warning_overpay),
             )
         }
-    } else {
-        FormRecurringSection(
-            isRecurring = form.isRecurring,
-            frequency = form.recurringFrequency,
-            linked = form.templateId != null,
-            templateStatus = form.templateStatus,
-            onToggle = onRecurringToggled,
-            onFrequencyChange = onRecurringFrequencyChanged,
-        )
-
-        FormTripTagSection(
-            trips = trips,
-            tags = tags,
-            tripId = form.tripId,
-            tagId = form.tagId,
-            onTripSelected = onTripSelected,
-            onTagSelected = onTagSelected,
-            isTagError = form.errorField == MovementFormField.TAG,
-            tagErrorText = if (form.errorField == MovementFormField.TAG && form.errorRes != null) {
-                stringResource(form.errorRes)
-            } else null,
-        )
     }
 }

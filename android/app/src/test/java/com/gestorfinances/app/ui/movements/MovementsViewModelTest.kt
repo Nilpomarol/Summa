@@ -187,6 +187,7 @@ class MovementsViewModelTest {
 
             assertEquals(R.string.tag_validation_trip_required, viewModel.form().errorRes)
             assertEquals(MovementFormField.TAG, viewModel.form().errorField)
+            assertEquals(true, viewModel.form().showOptional)
         }
     }
 
@@ -1199,6 +1200,7 @@ class MovementsViewModelTest {
 
             assertEquals("mallorca", viewModel.form().tripId)
             assertEquals("cash", viewModel.form().accountId)
+            assertEquals(true, viewModel.form().showOptional)
 
             viewModel.onFormChanged(
                 viewModel.form().copy(
