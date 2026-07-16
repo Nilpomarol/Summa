@@ -431,6 +431,7 @@
 
     <!-- Analysis -->
     <string name="analysis_title">Anàlisi</string>
+    <string name="analysis_scope_label">Abast</string>
     <string name="analysis_scope_month">Mes</string>
     <string name="analysis_scope_year">Any</string>
     <string name="analysis_scope_all_time">Tot</string>
@@ -445,8 +446,9 @@
     <string name="analysis_group_trip">Viatge</string>
     <string name="analysis_mode_actual">Actual</string>
     <string name="analysis_mode_flow">Flux</string>
-    <string name="analysis_mode_total">Totals</string>
-    <string name="analysis_mode_average">Mitjanes</string>
+    <string name="analysis_value_mode_label">Valors</string>
+    <string name="analysis_mode_total">Total</string>
+    <string name="analysis_mode_average">Mitjana</string>
     <string name="analysis_one_time_include">Inclou extraordinàries</string>
     <string name="analysis_one_time_exclude">Exclou extraordinàries</string>
     <string name="analysis_one_time_only">Només extraordinàries</string>
@@ -855,6 +857,7 @@
     <string name="trip_analysis_block_title">Viatge: %1$s</string>
     <string name="trip_analysis_empty_title">Sense despesa en aquest viatge</string>
     <string name="trip_analysis_empty_body">Afegeix moviments al viatge per veure\'n l\'anàlisi.</string>
+    <string name="trip_analysis_chart_unavailable">No hi ha una sèrie diària disponible per a aquest cost.</string>
 
     <!-- Tags -->
     <string name="tag_list_title">Etiquetes</string>

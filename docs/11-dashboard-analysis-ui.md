@@ -103,7 +103,8 @@ Purpose: the main workspace for comparing periods and changing the question with
 
 Top controls:
 
-- scope selector: month, year, all time, custom;
+- labeled scope selector (`Abast`): month, year, all time, custom;
+- labeled value selector (`Valors`): `Total` or `Mitjana`;
 - period selector: current scope with previous/next controls where meaningful;
 - comparison toggle: current period vs. previous equivalent period;
 - clear filters action when any filter is active.
@@ -117,7 +118,8 @@ Primary result area:
    - savings rate when income is non-zero.
 2. Main chart:
    - for month: daily income vs. expense;
-   - for year/all time: period buckets, monthly by default.
+   - for year/all time: period buckets, monthly by default;
+   - when no series exists, hide axes and legend and show a specific empty-state explanation.
 3. Breakdown list:
    - group by category (actual mode) or account (flow mode); trip-block grouping is deferred to Phase 5 with trips;
    - percentage bar per row;

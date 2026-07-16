@@ -84,7 +84,7 @@ Hero card (`TripHeroSection`):
 
 Budget (`TripBudgetSection`, under the hero): when an active TRIP-scope budget exists, a `BudgetProgressBar` card, **tappable** to open the Budgets surface pre-scoped to this trip; when none exists, a "Defineix pressupost" secondary button opening that same surface. (Budget-vs-toggle rule in §7 unchanged: the bar always reflects total actual spend.)
 
-Daily chart (`TripDailySection`): a cumulative `IncomeExpenseChart` fed the trip's daily-actual series (income left at 0); always cumulative, matching Analysis's own equivalent chart.
+Daily chart (`TripDailySection`): a cumulative `IncomeExpenseChart` fed the trip's daily-actual series (income left at 0); always cumulative, matching Analysis's own equivalent chart. The series must reconcile to the `Cost real` KPI before it is plotted; a one-bucket series starts from a zero chart origin so the cumulative line remains visible. A true no-data trip shows the specific empty-state copy without axes or legend; a non-zero KPI with no/reconciling daily series shows an unavailable-series explanation, also without axes or legend. The page does not render these empty states while the detail query is loading.
 
 ### Desglossament tab
 
@@ -104,7 +104,7 @@ There is no dependency on the global bottom-bar FAB on Trip Detail: the page exp
 
 ### Data rules
 
-- the KPIs, breakdowns, and day rollups read derived actual/flow data filtered by `trip_id` via `TripAnalysisRepository`, which calls the canonical `tripAnalysisSummary`/`tripActualByDay`/`tripActualByCategory`/`tripActualByTag`/`tripActualByDayByCategory` queries (all over `v_actual_expense`) — never recomputed ad hoc; the timeline/day-card **day totals also come from `tripActualByDay`**, so the Moviments, Dia a dia, and Resum figures can never disagree;
+- the KPIs, breakdowns, and day rollups read derived actual/flow data filtered by `trip_id` via `TripAnalysisRepository`, which calls the canonical `tripAnalysisSummary`/`tripActualByDay`/`tripActualByCategory`/`tripActualByTag`/`tripActualByDayByCategory` queries (all over `v_actual_expense`) — never recomputed ad hoc; the timeline/day-card **day totals also come from `tripActualByDay`**, so the Moviments, Dia a dia, and Resum figures can never disagree. The Trip Detail presentation keeps the chart hidden until the loaded daily series reconciles with the loaded KPI;
 - external friend-paid splits with `trip_id` count in actual spend and now also carry their own `tag_id` correctly into the tag breakdown (see §6, and `docs/16` F7 for the bug this fixes);
 - transfers may appear in the movement list, but not in actual expense KPIs;
 - refunds retain their normal actual behavior and are scoped by the refund's own `trip_id`.
