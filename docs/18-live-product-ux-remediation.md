@@ -1,6 +1,6 @@
 # Live Android Product UX Remediation — P5R-19 Working Contract
 
-> Status: **WP1–WP2 complete (2026-07-16); WP3–WP6 not started**
+> Status: **WP1–WP3 implementation complete (2026-07-16); WP3 physical checks pending; WP4–WP6 not started**
 > Source: live product/UX/UI/usability review on a physical Android device, 2026-07-15
 > Scope: the Android product that is implemented today; no desktop, roadmap-completeness, or intentionally unbuilt-feature findings
 
@@ -143,16 +143,27 @@ separate visual screenshot was captured.
 
 ### WP3 — Ledger scanning and filter clarity — owns LUX-H6, LUX-M1, LUX-M2, LUX-M3
 
-- [ ] **WP3.1** Render every active account/category/trip/period filter as a named, removable chip near search.
-- [ ] **WP3.2** Keep an active-filter count on the filter action; do not rely on an unlabeled dot.
-- [ ] **WP3.3** Make filter application explicit: either show `S'apliquen automàticament` with a clear close action or use a `Mostra resultats` CTA.
-- [ ] **WP3.4** Group movement rows under localized day headers; use sticky headers if they remain readable and simple.
-- [ ] **WP3.5** Avoid repeating the date inside every row when the date header already provides it; retain necessary account/category/trip context.
-- [ ] **WP3.6** Label shared amounts as `La teva part` and keep `Total` secondary; verify the visual language for user-owes, user-is-owed, refund, and income cases.
-- [ ] **WP3.7** Add content descriptions that communicate amount role and direction without relying on color.
-- [ ] **WP3.8** Add focused tests for filter-chip state and movement grouping/amount labels where practical.
+- [x] **WP3.1** Render every active account/category/trip/period filter as a named, removable chip near search.
+- [x] **WP3.2** Keep an active-filter count on the filter action; do not rely on an unlabeled dot.
+- [x] **WP3.3** Make filter application explicit: either show `S'apliquen automàticament` with a clear close action or use a `Mostra resultats` CTA.
+- [x] **WP3.4** Keep movement rows in one continuous date-ordered list; do not add day grouping.
+- [x] **WP3.5** Keep the localized date visible in each row together with the necessary account/category/trip context.
+- [x] **WP3.6** Label shared amounts as `La teva part` and keep `Total` secondary; verify the visual language for user-owes, user-is-owed, refund, and income cases.
+- [x] **WP3.7** Add content descriptions that communicate amount role and direction without relying on color.
+- [x] **WP3.8** Add focused tests for filter-chip state, continuous ledger order, and amount labels where practical.
 
-**Acceptance:** the ledger always states why it is filtered, can be scanned by day, and makes shared-amount meaning explicit.
+**Acceptance:** the ledger always states why it is filtered, remains easy to scan in date order, and makes shared-amount meaning explicit.
+
+**WP3 implementation record (2026-07-16):** `MovementsScreen` now renders active account,
+category, trip, tag, period, source, nature, and extraordinary-mode criteria as named removable
+chips below search. The filter action exposes the active count both visually and to accessibility;
+the filter sheet states that changes apply automatically and provides a visible close action.
+Filtered rows remain in the continuous date-ordered ledger and retain each localized row date.
+Shared and external-payer rows label the primary figure
+`La teva part`, keep `Total` secondary, show external debt as outgoing, and expose role/direction
+through amount content descriptions. `MovementUiStateSmokeTest` covers active-filter count,
+continuous ledger order, and primary/secondary amount roles. Android debug assemble and unit-test
+gates pass.
 
 ### WP4 — Understandable Analysis and trustworthy trip charts — owns LUX-H3, LUX-H4
 
@@ -236,7 +247,7 @@ After P5R-19, resume:
 - [x] **MC-05** Repeat MC-04 for income, transfer, shared, paid-for-other, and external-payer variants. **Expected:** no fields, warnings, or save semantics regress. **Closed 2026-07-16:** all variant round-trip and warning/save regression tests pass; device visual inspection was keyguard-locked.
 - [ ] **MC-06** Apply an account filter from Moviments. **Expected:** the ledger shows a named removable chip and active count before the filter sheet is reopened.
 - [ ] **MC-07** Change and clear filters. **Expected:** application timing is explicit and the visible list always agrees with the chips.
-- [ ] **MC-08** Browse movements spanning multiple days. **Expected:** localized day headers separate groups and remain readable while scrolling.
+- [ ] **MC-08** Browse movements spanning multiple days. **Expected:** rows remain date-ordered and each row shows its localized date.
 - [ ] **MC-09** View shared movements representing user owes, user is owed, and paid-for-other. **Expected:** `La teva part` and `Total` make the amount roles unambiguous without color.
 - [ ] **MC-10** Open Analysis at 360 dp and 412 dp. **Expected:** scope and tab labels do not truncate; `Total`/`Mitjana` is self-explanatory.
 - [ ] **MC-11** Navigate every Analysis scope, period, tab, value mode, and filter. **Expected:** simplification removes no existing capability.

@@ -101,10 +101,10 @@ Content:
 
 - title: Movements;
 - search field for concept, payee, and notes;
-- compact filters for type, account, category, and period;
-- flat list of movement cards with date included in card subline;
+- compact filters for type, account, category, trip/tag, and period; active criteria appear as named removable chips with a count on the filter action;
+- continuous date-ordered movement cards with localized dates in each row;
 - row title from the movement concept (`movements.name`), falling back to payee/category/type label;
-- subtitle with formatted date (`formatMovementDate`), category or transfer destination, account, and optional notes snippet;
+- subtitle with localized date, category or transfer destination, account, and optional notes snippet;
 - right-aligned signed amount:
   - expense: negative;
   - income: positive;

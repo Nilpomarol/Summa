@@ -122,8 +122,8 @@ Phase 5R should proceed in dependency order, not purely visual navigation order.
 
    **Settings/sync/read-only — complete** (see `docs/06-roadmap.md` P5R-8 and §17 above for the manual checklist). Settings needed no redesign work (already design-system compliant per `P5R-6`). The deferred shell seam landed: `DeviceAccessState` (`Writer`/`ReadOnly`) exposed as a no-op `StateFlow` from `AppContainer` (always `Writer`), read by `LedgerShell` and rendered as an `InlineBanner` in the outer `Scaffold`'s `topBar` slot when `ReadOnly` — never visible today. Write-path gating and disabling edit affordances stay deferred to Phase 7, when the state can actually change.
 
-9. **Live-device product UX remediation — P5R-19 WP1–WP2 implementation complete**
-   The P5R-17 WP1–WP6a closure gate remains recorded in `docs/17` §5. P5R-19 WP1 is complete: route chrome is explicit, root/Management navigation has opaque token-backed colors, focused pages hide the global bar/FAB, Trip Detail has a local add action, and Back preserves originating routes. WP2 now keeps `Desa moviment` in an inset-aware bottom bar and puts optional movement metadata behind `Més opcions`; its closure is accepted from the implementation, automated coverage, Android gates, and crash-free device launch. The connected device was keyguard-locked during visual inspection, so no screenshot was captured. WP3–WP6 remain in `docs/18-live-product-ux-remediation.md`. Preserve P5R-17's shipped data-loss guards, field-level validation, recurrence truth, budget safety, unified date controls, and no-edit explanation. Since P5R-16, assume local device data may be real: do not clear or reseed it while reproducing these findings.
+9. **Live-device product UX remediation — P5R-19 WP1–WP3 implementation complete**
+   The P5R-17 WP1–WP6a closure gate remains recorded in `docs/17` §5. P5R-19 WP1 is complete: route chrome is explicit, root/Management navigation has opaque token-backed colors, focused pages hide the global bar/FAB, Trip Detail has a local add action, and Back preserves originating routes. WP2 now keeps `Desa moviment` in an inset-aware bottom bar and puts optional movement metadata behind `Més opcions`; its closure is accepted from the implementation, automated coverage, Android gates, and crash-free device launch. WP3 now makes ledger filters named/removable and counted, states that sheet changes apply automatically, keeps the ledger as a continuous date-ordered list with localized row dates, and names shared amounts as `La teva part` versus `Total` with accessible direction descriptions. The connected device was keyguard-locked during visual inspection, so no screenshot was captured. WP4–WP6 remain in `docs/18-live-product-ux-remediation.md`. Preserve P5R-17's shipped data-loss guards, field-level validation, recurrence truth, budget safety, unified date controls, and no-edit explanation. Since P5R-16, assume local device data may be real: do not clear or reseed it while reproducing these findings.
 
 ### Advantages
 
@@ -249,6 +249,18 @@ Automated coverage for all variants and disclosure state is green, and WP2 closu
 on 2026-07-16 after the Android gates and crash-free device launch. The connected device remained
 keyguard-locked during visual inspection, so no screenshot was captured.
 
+## 10b. P5R-19 WP3 Manual Checklist — Ledger scanning and filter clarity
+
+| # | Step | Expected |
+|---|------|----------|
+| 1 | Apply account, category, trip, tag, and period filters from Moviments | Each active criterion appears as a named removable chip below search; the filter action shows the active count |
+| 2 | Change or remove a filter, then dismiss Filtres | The sheet says changes apply automatically; the visible list and chips update immediately |
+| 3 | Browse movements spanning multiple dates | Rows remain in date order, each row shows its localized date, and account/category/trip context remains visible |
+| 4 | View shared, paid-for-other, and external-payer movements | The primary amount is labeled `La teva part`, `Total` is secondary, and TalkBack can distinguish the user's share/debt direction without color |
+
+Automated WP3 coverage and Android gates are green on 2026-07-16. The four physical-device
+checks remain pending because the connected device was keyguard-locked during this pass.
+
 ## 11. P5R-4 Manual Checklist — Dashboard and Analysis
 
 Run these after building the app to confirm the redesigned dashboard and analysis screens are correct.
@@ -356,7 +368,7 @@ Run these after building the app to confirm the P5R-7 redesign and logic fixes a
 | 8 | Desglossament tab | Percent-bar rows with icon/color identity behind a category/tag dimension switch + Totals/Mitjana-per-dia mode toggle; a tag with no icon/color of its own but an associated category shows that category's icon/color; the untagged/no-category bucket is visually muted; the tag dimension shows a trailing "Gestiona etiquetes" action |
 | 9 | Record an expense via an external split (§2.6, "Una altra persona") with `trip_id` and its own tag set | The tag now correctly appears in the trip's "Per etiqueta" breakdown instead of falling into "Sense etiqueta" (regression check for `docs/16` F7) |
 | 9a | Dia a dia tab | One display-only card per day with spend, ascending: "Dia N · [weekday] [date]" (plain date for pre/post-trip spend), the day's total, and one colored-dot line per category; tapping a card does nothing (Aggregate Interaction Contract) |
-| 10 | Moviments tab | The full scoped ledger (no 5-row cap, no "Veure tots"), grouped under day headers with "Dia N" ordinals and day totals matching Dia a dia; rows render as standard `MovementListItem`s without their own date |
+| 10 | Moviments tab | The full scoped ledger (no 5-row cap, no "Veure tots") remains date-ordered; rows render as standard `MovementListItem`s with their localized dates and day totals still matching Dia a dia |
 | 10a | Tap a movement row in the Moviments tab | Opens the shared movement detail page (`MovementDialogHost`), the same as tapping a movement anywhere else in the app |
 | 11 | Open Trip Detail from Trips or Dashboard | The local "Afegeix moviment" action opens the movement form pre-filled with this trip and its default account; no global FAB is shown on Trip Detail |
 | 12 | Open the trip add/edit form | Opens as a `ModalBottomSheet`; icon/color use `IconPickerRow`/`ColorPickerRow`; start/end dates use the same date picker the movement form uses (no free-text date fields); default account is a `FormSelect` dropdown (not a chip row) |

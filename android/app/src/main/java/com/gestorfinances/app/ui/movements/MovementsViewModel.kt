@@ -1182,17 +1182,21 @@ data class MovementFilters(
     val dateTo: String = "",
     val errorRes: Int? = null,
 ) {
+    /** Number of filter-sheet/drill-down criteria that are active on the ledger. */
+    val activeFilterCount: Int
+        get() = listOf(
+            accountId != null,
+            categoryId != null || uncategorizedOnly,
+            tripId != null,
+            tagId != null,
+            dateFrom.isNotBlank() || dateTo.isNotBlank(),
+            sourceMode != null,
+            categoryNature != null,
+            oneTimeMode != MovementOneTimeMode.INCLUDE,
+        ).count { it }
+
     val hasAdvancedFilters: Boolean
-        get() = accountId != null ||
-            categoryId != null ||
-            tripId != null ||
-            tagId != null ||
-            uncategorizedOnly ||
-            dateFrom.isNotBlank() ||
-            dateTo.isNotBlank() ||
-            sourceMode != null ||
-            categoryNature != null ||
-            oneTimeMode != MovementOneTimeMode.INCLUDE
+        get() = activeFilterCount > 0
 }
 
 enum class MovementSourceMode {

@@ -5,6 +5,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -30,8 +32,10 @@ import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.ChevronLeft
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material3.Button
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -58,12 +62,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountSummary
 import com.gestorfinances.app.data.repository.CategoryKind
+import com.gestorfinances.app.data.repository.CategoryNature
 import com.gestorfinances.app.data.repository.CategoryRecord
 import com.gestorfinances.app.data.repository.MovementSummary
 import com.gestorfinances.app.data.repository.MovementType
@@ -123,6 +130,155 @@ fun MovementsScreen(
     )
 }
 
+private data class ActiveMovementFilterChip(
+    val label: String,
+    val onRemove: () -> Unit,
+)
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ActiveMovementFilterRow(
+    filters: MovementFilters,
+    accounts: List<AccountSummary>,
+    categories: List<CategoryRecord>,
+    trips: List<TripSummary>,
+    tags: List<TagSummary>,
+    onFiltersChange: (MovementFilters) -> Unit,
+) {
+    val chips = buildList {
+        filters.accountId?.let { accountId ->
+            add(
+                ActiveMovementFilterChip(
+                    label = stringResource(
+                        R.string.movement_filter_chip_account,
+                        accounts.firstOrNull { it.id == accountId }?.name
+                            ?: stringResource(R.string.movement_filter_unknown_value),
+                    ),
+                    onRemove = { onFiltersChange(filters.copy(accountId = null)) },
+                ),
+            )
+        }
+        if (filters.categoryId != null || filters.uncategorizedOnly) {
+            val categoryName = if (filters.uncategorizedOnly) {
+                stringResource(R.string.common_no_category)
+            } else {
+                categories.firstOrNull { it.id == filters.categoryId }?.name
+                    ?: stringResource(R.string.movement_filter_unknown_value)
+            }
+            add(
+                ActiveMovementFilterChip(
+                    label = stringResource(R.string.movement_filter_chip_category, categoryName),
+                    onRemove = {
+                        onFiltersChange(filters.copy(categoryId = null, uncategorizedOnly = false))
+                    },
+                ),
+            )
+        }
+        filters.tripId?.let { tripId ->
+            add(
+                ActiveMovementFilterChip(
+                    label = stringResource(
+                        R.string.movement_filter_chip_trip,
+                        trips.firstOrNull { it.id == tripId }?.name
+                            ?: stringResource(R.string.movement_filter_unknown_value),
+                    ),
+                    onRemove = { onFiltersChange(filters.copy(tripId = null, tagId = null)) },
+                ),
+            )
+        }
+        filters.tagId?.let { tagId ->
+            add(
+                ActiveMovementFilterChip(
+                    label = stringResource(
+                        R.string.movement_filter_chip_tag,
+                        tags.firstOrNull { it.id == tagId }?.name
+                            ?: stringResource(R.string.movement_filter_unknown_value),
+                    ),
+                    onRemove = { onFiltersChange(filters.copy(tagId = null)) },
+                ),
+            )
+        }
+        if (filters.dateFrom.isNotBlank() || filters.dateTo.isNotBlank()) {
+            add(
+                ActiveMovementFilterChip(
+                    label = stringResource(R.string.movement_filter_chip_period, filters.formattedPeriod()),
+                    onRemove = { onFiltersChange(filters.copy(dateFrom = "", dateTo = "")) },
+                ),
+            )
+        }
+        filters.sourceMode?.let { sourceMode ->
+            val sourceLabel = when (sourceMode) {
+                MovementSourceMode.ACTUAL -> stringResource(R.string.analysis_mode_actual)
+                MovementSourceMode.FLOW -> stringResource(R.string.analysis_mode_flow)
+            }
+            add(
+                ActiveMovementFilterChip(
+                    label = stringResource(R.string.movement_filter_chip_source, sourceLabel),
+                    onRemove = { onFiltersChange(filters.copy(sourceMode = null)) },
+                ),
+            )
+        }
+        filters.categoryNature?.let { nature ->
+            val natureLabel = when (nature) {
+                CategoryNature.FIXED -> stringResource(R.string.analysis_filter_fixed)
+                CategoryNature.VARIABLE -> stringResource(R.string.analysis_filter_variable)
+            }
+            add(
+                ActiveMovementFilterChip(
+                    label = stringResource(R.string.movement_filter_chip_nature, natureLabel),
+                    onRemove = { onFiltersChange(filters.copy(categoryNature = null)) },
+                ),
+            )
+        }
+        when (filters.oneTimeMode) {
+            MovementOneTimeMode.INCLUDE -> Unit
+            MovementOneTimeMode.EXCLUDE,
+            MovementOneTimeMode.ONLY,
+            -> add(
+                ActiveMovementFilterChip(
+                    label = stringResource(
+                        R.string.movement_filter_chip_one_time,
+                        when (filters.oneTimeMode) {
+                            MovementOneTimeMode.EXCLUDE -> stringResource(R.string.analysis_one_time_exclude)
+                            MovementOneTimeMode.ONLY -> stringResource(R.string.analysis_one_time_only)
+                            MovementOneTimeMode.INCLUDE -> error("unreachable")
+                        },
+                    ),
+                    onRemove = {
+                        onFiltersChange(filters.copy(oneTimeMode = MovementOneTimeMode.INCLUDE))
+                    },
+                ),
+            )
+        }
+    }
+
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        chips.forEach { chip ->
+            val removeDescription = stringResource(
+                R.string.movement_filter_remove_named,
+                chip.label,
+            )
+            AssistChip(
+                onClick = chip.onRemove,
+                label = { Text(chip.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                trailingIcon = {
+                    Icon(
+                        imageVector = Icons.Outlined.Close,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                    )
+                },
+                modifier = Modifier.semantics {
+                    contentDescription = removeDescription
+                },
+            )
+        }
+    }
+}
+
 @Composable
 private fun MovementsContent(
     state: MovementsUiState,
@@ -134,6 +290,7 @@ private fun MovementsContent(
 ) {
     var filtersExpanded by remember { mutableStateOf(false) }
     val visibleMovements = state.visibleMovements
+    val activeFilterCount = state.filters.activeFilterCount
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -148,17 +305,30 @@ private fun MovementsContent(
                         Box {
                             TopBarIconButton(
                                 icon = Icons.Outlined.Tune,
-                                contentDescription = stringResource(R.string.movement_filter_title),
+                                contentDescription = if (activeFilterCount == 0) {
+                                    stringResource(R.string.movement_filter_title)
+                                } else {
+                                    stringResource(
+                                        R.string.movement_filter_action_accessibility,
+                                        activeFilterCount,
+                                    )
+                                },
                                 onClick = { filtersExpanded = !filtersExpanded },
                             )
-                            if (state.filters.hasAdvancedFilters) {
+                            if (activeFilterCount > 0) {
                                 Box(
                                     modifier = Modifier
                                         .align(Alignment.TopEnd)
                                         .offset(x = (-4).dp, y = 4.dp)
-                                        .size(8.dp)
+                                        .padding(horizontal = 4.dp, vertical = 2.dp)
                                         .background(MaterialTheme.colorScheme.primary, CircleShape),
-                                )
+                                ) {
+                                    Text(
+                                        text = activeFilterCount.toString(),
+                                        color = MaterialTheme.colorScheme.onPrimary,
+                                        style = MaterialTheme.typography.labelSmall,
+                                    )
+                                }
                             }
                         }
                     }
@@ -185,6 +355,18 @@ private fun MovementsContent(
                     shape = MaterialTheme.shapes.small,
                     modifier = Modifier.fillMaxWidth(),
                 )
+            }
+            if (activeFilterCount > 0) {
+                item {
+                    ActiveMovementFilterRow(
+                        filters = state.filters,
+                        accounts = state.accounts,
+                        categories = state.categories,
+                        trips = state.trips,
+                        tags = state.tags,
+                        onFiltersChange = onFiltersChange,
+                    )
+                }
             }
             item {
                 MovementTypeFilterRow(
@@ -220,6 +402,7 @@ private fun MovementsContent(
             else -> items(items = visibleMovements, key = { it.id }) { movement ->
                 MovementListItem(
                     movement = movement,
+                    showDate = true,
                     onClick = { onDetail(movement) },
                 )
             }
@@ -352,6 +535,20 @@ private fun MovementFiltersSheet(
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f),
                 )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.movement_filter_auto_apply),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = FinanceTheme.colors.mutedText,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = onDismiss) {
+                    Text(text = stringResource(R.string.common_close))
+                }
             }
             filters.errorRes?.let {
                 Text(
