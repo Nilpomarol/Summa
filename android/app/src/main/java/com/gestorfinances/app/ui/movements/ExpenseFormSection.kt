@@ -8,17 +8,14 @@ import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountSummary
 import com.gestorfinances.app.data.repository.PersonSummary
-import com.gestorfinances.app.data.repository.TagSummary
-import com.gestorfinances.app.data.repository.TripSummary
-import com.gestorfinances.app.domain.rules.RecurrenceFrequency
 import com.gestorfinances.app.ui.common.BannerKind
 import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.LabeledSegmentedControl
 import com.gestorfinances.app.ui.common.scrollToWhen
 
 /**
- * The EXPENSE body of the movement form: the 4-type cascade ("Qui ha pagat?" → "Per a qui?")
- * plus the recurring/trip-tag tail.
+ * The EXPENSE body of the movement form: the 4-type cascade ("Qui ha pagat?" → "Per a qui?").
+ * Optional trip, recurrence, and advanced details are disclosed by [FormOptionalSection].
  *
  * The four [ExpenseKind]s map 1:1 to the user's mental model:
  * - [ExpenseKind.PERSONAL] — user paid, for self.
@@ -31,17 +28,11 @@ internal fun ExpenseFormSection(
     form: MovementFormState,
     accounts: List<AccountSummary>,
     people: List<PersonSummary>,
-    trips: List<TripSummary>,
-    tags: List<TagSummary>,
     onFormChange: (MovementFormState) -> Unit,
     onSharedToggled: (Boolean) -> Unit,
     onSplitEditorChange: (SplitEditorState) -> Unit,
     onOtherPersonSelected: (String?) -> Unit,
     onCreatePersonInSplit: (String) -> Unit,
-    onRecurringToggled: (Boolean) -> Unit,
-    onRecurringFrequencyChanged: (RecurrenceFrequency) -> Unit,
-    onTripSelected: (String?) -> Unit,
-    onTagSelected: (String?) -> Unit,
 ) {
     val sharedEnabled = form.splitEditor != null || (form.existingSplit && !form.removeExistingSplit)
 
@@ -168,28 +159,4 @@ internal fun ExpenseFormSection(
         }
     }
 
-    // Recurring excluded for DEBT (no template support); trip/tag always available.
-    if (form.expenseKind != ExpenseKind.DEBT) {
-        FormRecurringSection(
-            isRecurring = form.isRecurring,
-            frequency = form.recurringFrequency,
-            linked = form.templateId != null,
-            templateStatus = form.templateStatus,
-            onToggle = onRecurringToggled,
-            onFrequencyChange = onRecurringFrequencyChanged,
-        )
-    }
-
-    FormTripTagSection(
-        trips = trips,
-        tags = tags,
-        tripId = form.tripId,
-        tagId = form.tagId,
-        onTripSelected = onTripSelected,
-        onTagSelected = onTagSelected,
-        isTagError = form.errorField == MovementFormField.TAG,
-        tagErrorText = if (form.errorField == MovementFormField.TAG && form.errorRes != null) {
-            stringResource(form.errorRes)
-        } else null,
-    )
 }

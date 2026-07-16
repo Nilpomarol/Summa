@@ -23,6 +23,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
@@ -384,7 +385,7 @@ private fun TripRowMenu(
  * Content is four tabs mirroring Anàlisi's own `TabRow` (docs/14 §4): Resum (hero + budget +
  * cumulative chart) · Desglossament (category/tag percent-bar rows) · Dia a dia (display-only
  * per-day category rollup cards) · Moviments (the full day-grouped scoped ledger). Adding a
- * movement is the global FAB's job — it pre-fills this trip while the page is open (MainActivity).
+ * movement is a local action — it pre-fills this trip while the page is open (MainActivity).
  */
 @Composable
 fun TripDetailScreen(
@@ -392,6 +393,7 @@ fun TripDetailScreen(
     onBack: () -> Unit,
     onManageTags: (String) -> Unit,
     onManageBudget: (String) -> Unit,
+    onAddMovement: () -> Unit,
     onMovementDetail: (MovementSummary) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -427,6 +429,7 @@ fun TripDetailScreen(
                     onArchive = { viewModel.onArchiveClicked(detail.trip) },
                     onManageTags = { onManageTags(detail.trip.id) },
                     onManageBudget = { onManageBudget(detail.trip.id) },
+                    onAddMovement = onAddMovement,
                     onExcludeOneTimeToggled = viewModel::onExcludeOneTimeToggled,
                     onMovementDetail = onMovementDetail,
                 )
@@ -468,6 +471,7 @@ private fun TripDetailContent(
     onArchive: () -> Unit,
     onManageTags: () -> Unit,
     onManageBudget: () -> Unit,
+    onAddMovement: () -> Unit,
     onExcludeOneTimeToggled: (Boolean) -> Unit,
     onMovementDetail: (MovementSummary) -> Unit,
 ) {
@@ -512,6 +516,19 @@ private fun TripDetailContent(
                 )
             }
             TripDetailMenu(onEdit = onEdit, onArchive = onArchive)
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.End,
+        ) {
+            TextButton(onClick = onAddMovement) {
+                Icon(imageVector = Icons.Filled.Add, contentDescription = null)
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(text = stringResource(R.string.trip_action_add_movement))
+            }
         }
 
         detail.errorMessage?.let { message ->

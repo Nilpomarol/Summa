@@ -26,23 +26,42 @@ enum class TopLevelSection(
     MANAGEMENT(R.string.nav_management, Icons.Filled.Tune, Icons.Outlined.Tune),
 }
 
+/** The route/chrome choices used by the app shell (docs/18 WP1.2). */
+enum class RouteChrome(
+    val showsGlobalNavigation: Boolean,
+) {
+    ROOT_BOTTOM_NAV(showsGlobalNavigation = true),
+    MANAGEMENT_CHILD_BOTTOM_NAV(showsGlobalNavigation = true),
+    FOCUSED_PAGE(showsGlobalNavigation = false),
+}
+
 /**
  * A child page layered above the current [TopLevelSection], reached from within a section:
  * Budgets from Analysis or from an event, Tags from an event. It carries the optional trip
  * context it was opened with so Back returns to the right place.
  *
- * [Budgets] and [Tags] also carry an optional [returnTo] overlay: when opened from
- * [TripDetail] (its own "Gestiona etiquetes"/"Pressupost del viatge" actions), `returnTo` holds
- * that [TripDetail] so [AppNavState.back] restores it instead of clearing straight to the
- * underlying section. Opened any other way (from the Trips list, Analysis, or a notification),
- * `returnTo` stays null and Back behaves exactly as before.
+ * Focused overlays carry an optional [returnTo] overlay: when a movement form/detail or
+ * [Budgets]/[Tags] is opened from [TripDetail], `returnTo` holds that page so
+ * [AppNavState.back] restores it instead of clearing straight to the underlying section. Opened
+ * any other way (from the Trips list, Analysis, or a notification), `returnTo` stays null and
+ * Back behaves exactly as before.
  */
 sealed interface AppOverlay {
     val tripId: String?
 
-    data class Budgets(override val tripId: String?, val returnTo: AppOverlay? = null) : AppOverlay
+    /** Optional focused page to reveal when this overlay is dismissed. */
+    val returnTo: AppOverlay?
+        get() = null
 
-    data class Tags(override val tripId: String?, val returnTo: AppOverlay? = null) : AppOverlay
+    data class Budgets(
+        override val tripId: String?,
+        override val returnTo: AppOverlay? = null,
+    ) : AppOverlay
+
+    data class Tags(
+        override val tripId: String?,
+        override val returnTo: AppOverlay? = null,
+    ) : AppOverlay
 
     data class TripDetail(override val tripId: String) : AppOverlay
 
@@ -54,10 +73,14 @@ sealed interface AppOverlay {
     data class MovementForm(
         override val tripId: String? = null,
         val debtPayerPersonId: String? = null,
+        override val returnTo: AppOverlay? = null,
     ) : AppOverlay
 
     /** Movement detail, reachable from the same range of screens as [MovementForm]. */
-    data class MovementDetail(val movementId: String) : AppOverlay {
+    data class MovementDetail(
+        val movementId: String,
+        override val returnTo: AppOverlay? = null,
+    ) : AppOverlay {
         override val tripId: String? = null
     }
 }
@@ -73,6 +96,15 @@ data class AppNavState(
     val managementDestination: ManagementDestination? = null,
     val overlay: AppOverlay? = null,
 ) {
+    /** Route/chrome matrix used by the shell (docs/18 WP1.2). */
+    val routeChrome: RouteChrome
+        get() = when {
+            overlay != null -> RouteChrome.FOCUSED_PAGE
+            section == TopLevelSection.MANAGEMENT && managementDestination != null ->
+                RouteChrome.MANAGEMENT_CHILD_BOTTOM_NAV
+            else -> RouteChrome.ROOT_BOTTOM_NAV
+        }
+
     val canNavigateBack: Boolean
         get() = overlay != null ||
             managementDestination != null ||
@@ -80,8 +112,7 @@ data class AppNavState(
 
     /** Pop one level: overlay → Gestió child → top-level → Inici. */
     fun back(): AppNavState = when {
-        overlay is AppOverlay.Tags && overlay.returnTo != null -> copy(overlay = overlay.returnTo)
-        overlay is AppOverlay.Budgets && overlay.returnTo != null -> copy(overlay = overlay.returnTo)
+        overlay?.returnTo != null -> copy(overlay = overlay.returnTo)
         overlay != null -> copy(overlay = null)
         managementDestination != null -> copy(managementDestination = null)
         section != TopLevelSection.DASHBOARD -> Home

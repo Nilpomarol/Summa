@@ -10,11 +10,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountSummary
-import com.gestorfinances.app.domain.rules.RecurrenceFrequency
 import com.gestorfinances.app.ui.common.scrollToWhen
 
 /**
- * The TRANSFER body: origin + destination account row, then the recurring tail.
+ * The TRANSFER body: origin + destination account row. Optional recurrence/details are disclosed
+ * by [FormOptionalSection].
  * Transfers are never categorized or shared (spec §3.5).
  */
 @Composable
@@ -22,8 +22,6 @@ internal fun TransferFormSection(
     form: MovementFormState,
     accounts: List<AccountSummary>,
     onFormChange: (MovementFormState) -> Unit,
-    onRecurringToggled: (Boolean) -> Unit,
-    onRecurringFrequencyChanged: (RecurrenceFrequency) -> Unit,
 ) {
     val accountError = form.errorField == MovementFormField.ACCOUNT
     val destinationError = form.errorField == MovementFormField.DESTINATION_ACCOUNT
@@ -57,12 +55,4 @@ internal fun TransferFormSection(
         )
     }
 
-    FormRecurringSection(
-        isRecurring = form.isRecurring,
-        frequency = form.recurringFrequency,
-        linked = form.templateId != null,
-        templateStatus = form.templateStatus,
-        onToggle = onRecurringToggled,
-        onFrequencyChange = onRecurringFrequencyChanged,
-    )
 }

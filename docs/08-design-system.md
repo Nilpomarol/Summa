@@ -226,7 +226,8 @@ A **persistent, non-dismissible** top banner (distinct from the never-block bann
 
 ### Navigation
 
-- **Mobile:** bottom nav with four destinations — **Inici, Moviments, Anàlisi, Gestió** — and a centered indigo **FAB** embedded between Moviments and Anàlisi. The FAB is always visible after onboarding and opens New movement, or routes to account creation when no account exists. Active item = indigo + filled icon. Gestió stays active for all pages opened from the Gestió hub.
+- **Mobile:** root and Management child routes use a bottom nav with four destinations — **Inici, Moviments, Anàlisi, Gestió** — and a centered indigo **FAB** embedded between Moviments and Anàlisi. The FAB opens New movement, or routes to account creation when no account exists. Focused full-page routes (Trip Detail, Movement Detail, create/edit forms, and contextual full-page overlays) hide the global bar and FAB; Trip Detail exposes its own local `Afegeix moviment` action. Active item = indigo + filled icon. Gestió stays active for Management children.
+- **Android navigation surface tokens:** the bar and its system-inset area use the semantic `bottomBarSurface` token; inactive labels/icons use `bottomBarContent`, active labels/icons use `bottomBarActive`, and the top separator uses `bottomBarDivider`. These are explicit light/dark mappings to the existing neutral/indigo design tokens, never the underlying route background.
 - **Gestió hub:** simple 2-column × 3-row grid for Comptes, Categories, Persones, Esdeveniments, Recurrents, and Configuració. Tiles use neutral surfaces, compact icon emphasis, and restrained text; avoid decorative card-heavy treatment.
 - **Desktop:** same groups become a **248px sidebar**, grouped with section labels; active = light-indigo (`#EEF0FE`) fill + filled icon; pending counts as indigo pills.
 
@@ -260,7 +261,7 @@ On mobile, any editor/detail whose content scrolls is a **full page**, not a bot
 
 - **Scrim:** 55% ink — `rgba(11,13,18,.55)`.
 - **Desktop · centered dialog:** white surface, `r4` (16px), `e4` shadow, width **344–480px** by density. Header (title + close) → scrollable body → footer (secondary left, primary right).
-- **Mobile · full page (forms, detail/drill-down views):** back arrow + title as the first list item, full-width scrollable content below, primary action anchored at the bottom. Reached in place of — not layered over — whatever screen opened it; a form/detail opened *from* another full page (e.g. Settle-up from Person detail, Refund from Movement detail, editing a trip from Trip detail) layers on top of that page the same way, revealing it again on cancel/back.
+- **Mobile · full page (forms, detail/drill-down views):** back arrow + title as the first list item, full-width scrollable content below, primary action anchored at the bottom, and focused page chrome without the global destination bar/FAB. Reached in place of — not layered over — whatever screen opened it; a form/detail opened *from* another full page (e.g. Settle-up from Person detail, Refund from Movement detail, editing a trip from Trip detail) carries its return route and reveals it again on cancel/back.
 - **Mobile · bottom sheet (short, non-scrolling content only):** full-width, anchored bottom, `r4` top corners, 34×4 handle on top. Primary action anchored; no secondary button (dismiss via handle, scrim tap, or ✕).
 - **Destructive confirmation — identical on both devices:** compact centered alert (~312px), **never a sheet**. Red circular icon, description of what's lost, destructive button in red (right on desktop / top when stacked on mobile).
 

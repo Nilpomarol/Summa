@@ -100,7 +100,7 @@ The **full** scoped ledger (`TripMovementsTab`) — active movements with `trip_
 
 ### Adding a movement
 
-There is **no in-page "Nou moviment" button**: the global bottom-bar FAB is context-aware — while Trip Detail is open it opens the movement form pre-filled with this trip (and, downstream, the trip's default account, unchanged from P5); everywhere else it keeps its plain unscoped meaning (`MainActivity`, `openMovementForm((nav.overlay as? AppOverlay.TripDetail)?.tripId)`).
+There is no dependency on the global bottom-bar FAB on Trip Detail: the page exposes a local **"Afegeix moviment"** action that opens the movement form pre-filled with this trip (and, downstream, the trip's default account). The global FAB remains the unscoped action on root and Management child routes; focused pages hide it.
 
 ### Data rules
 
@@ -241,7 +241,7 @@ Content (`ActiveTripCard`, `ui/dashboard/DashboardScreen.kt`):
 - positioned after the hero KPI block, before the account grid;
 - shows the trip's name/icon and a compact spend-so-far figure (`TripSummary.totalActualCents`);
 - a "Veure viatge" link opens `AppOverlay.TripDetail(tripId)`;
-- a quick "Afegeix moviment" action opens the movement form pre-filled with the trip's id and default account, the same `openMovementForm(tripId)` path the context-aware FAB uses while trip detail is open (§4).
+- a quick "Afegeix moviment" action opens the movement form pre-filled with the trip's id and default account, using the same `openMovementForm(tripId)` prefill path as the Dashboard active-trip action (§4).
 
 ---
 
@@ -276,7 +276,7 @@ All values are Catalan. Keep adding strings beside the slice that needs them; do
 ## 13. Acceptance Checklist
 
 - Trips list shows statuses, date ranges, total spend, average/day, empty state, and New trip action.
-- Trip detail is a full page (`AppOverlay.TripDetail`, not a dialog) with the trip as its own header (overflow = Edit/Archive only) and four Anàlisi-style tabs: Resum (hero spend card incl. the exclude-one-time toggle, tappable budget bar / "Defineix pressupost", cumulative daily chart), Desglossament (category/tag dimension switch + Totals/Mitjana-per-dia mode, tags using effective icon/color inheritance, trailing "Gestiona etiquetes" on the tag dimension), Dia a dia (display-only per-day category-rollup cards), and Moviments (the full uncapped scoped ledger, day-grouped with "Dia N" ordinals and canonical day totals). Adding a movement is the context-aware global FAB's job — no in-page button.
+- Trip detail is a full page (`AppOverlay.TripDetail`, not a dialog) with the trip as its own header (overflow = Edit/Archive only) and four Anàlisi-style tabs: Resum (hero spend card incl. the exclude-one-time toggle, tappable budget bar / "Defineix pressupost", cumulative daily chart), Desglossament (category/tag dimension switch + Totals/Mitjana-per-dia mode, tags using effective icon/color inheritance, trailing "Gestiona etiquetes" on the tag dimension), Dia a dia (display-only per-day category-rollup cards), and Moviments (the full uncapped scoped ledger, day-grouped with "Dia N" ordinals and canonical day totals). The header exposes a local "Afegeix moviment" action; Trip Detail has no global FAB.
 - Add/Edit trip and tag forms are `ModalBottomSheet`s using `IconPickerRow`/`ColorPickerRow`/`FormDatePicker`/`SegmentedControl`/`FormSelect`; every "pick one of many" field (default account, category association, specific-trip picker) is a `FormSelect` dropdown, not a chip picker; archive stays a destructive `AlertDialog`.
 - Tapping a movement row in trip detail's scoped movement list opens the shared movement detail sheet (`MovementDialogHost`), the same as everywhere else in the app.
 - Tag management supports three scopes (global / event-type / specific-trip, schema-enforced exclusivity between the last two) plus an optional category association, grouped into collapsible sections.

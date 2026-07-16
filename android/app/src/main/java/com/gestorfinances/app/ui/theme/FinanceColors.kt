@@ -24,6 +24,10 @@ data class FinanceColors(
     val heroOnSurfaceMuted: Color,
     val heroIncome: Color,
     val heroDebt: Color,
+    val bottomBarSurface: Color,
+    val bottomBarContent: Color,
+    val bottomBarActive: Color,
+    val bottomBarDivider: Color,
 )
 
 /** Color of an amount by movement type — expense is plain ink, never a hue (§2.4). */
@@ -68,6 +72,10 @@ internal val LightFinanceColors = FinanceColors(
     // them always needs the brighter dark-mode functional colors for contrast (design system §9).
     heroIncome = TokenColor.IncomeDark,
     heroDebt = TokenColor.DebtDark,
+    bottomBarSurface = TokenColor.Neutral0,
+    bottomBarContent = TokenColor.Neutral700,
+    bottomBarActive = TokenColor.Indigo,
+    bottomBarDivider = TokenColor.Neutral150,
 )
 
 internal val DarkFinanceColors = FinanceColors(
@@ -86,6 +94,10 @@ internal val DarkFinanceColors = FinanceColors(
     heroOnSurfaceMuted = TokenColor.Dark500,
     heroIncome = TokenColor.IncomeDark,
     heroDebt = TokenColor.DebtDark,
+    bottomBarSurface = TokenColor.Dark50,
+    bottomBarContent = TokenColor.Dark700,
+    bottomBarActive = TokenColor.IndigoDark,
+    bottomBarDivider = TokenColor.Dark300,
 )
 
 val LocalFinanceColors = staticCompositionLocalOf { LightFinanceColors }

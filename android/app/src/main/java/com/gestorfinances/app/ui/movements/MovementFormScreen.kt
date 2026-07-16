@@ -13,11 +13,14 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -64,6 +67,7 @@ fun MovementFormScreen(
     onOtherPersonSelected: (String?) -> Unit,
     onRecurringToggled: (Boolean) -> Unit,
     onRecurringFrequencyChanged: (RecurrenceFrequency) -> Unit,
+    onOptionalToggled: () -> Unit,
     onAdvancedToggled: () -> Unit,
     onCreatePersonInSplit: (String) -> Unit,
     onBack: () -> Unit,
@@ -77,16 +81,35 @@ fun MovementFormScreen(
 ) {
     val typeColor = FinanceTheme.colors.amountColor(form.type)
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp)
-            .navigationBarsPadding()
-            .imePadding()
-            .padding(bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        bottomBar = {
+            MovementSaveBar(
+                form = form,
+                onSave = onSave,
+                onOverride = onOverride,
+                onDataLossOverride = onDataLossOverride,
+                onRecurrenceStopEnd = onRecurrenceStopEnd,
+                onRecurrenceStopUnlink = onRecurrenceStopUnlink,
+                onWarningDismissed = onWarningDismissed,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .imePadding()
+                    .navigationBarsPadding(),
+            )
+        },
+    ) { contentPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(contentPadding)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
         PageHeaderRow(onBack = onBack)
 
         val selectedCategory = remember(form.categoryId, categories) {
@@ -254,94 +277,114 @@ fun MovementFormScreen(
             }
         }
 
-        // Type-specific body (each section owns its full run: body + recurring/trip-tag tail).
+        // Type-specific body. Optional metadata is disclosed below so the required variant fields
+        // stay in the primary flow.
         when (form.type) {
             MovementType.EXPENSE -> ExpenseFormSection(
                 form = form,
                 accounts = accounts,
                 people = people,
-                trips = trips,
-                tags = tags,
                 onFormChange = onFormChange,
                 onSharedToggled = onSharedToggled,
                 onSplitEditorChange = onSplitEditorChange,
                 onOtherPersonSelected = onOtherPersonSelected,
                 onCreatePersonInSplit = onCreatePersonInSplit,
-                onRecurringToggled = onRecurringToggled,
-                onRecurringFrequencyChanged = onRecurringFrequencyChanged,
-                onTripSelected = onTripSelected,
-                onTagSelected = onTagSelected,
             )
             MovementType.INCOME -> IncomeFormSection(
                 form = form,
                 accounts = accounts,
                 people = people,
-                trips = trips,
-                tags = tags,
                 onFormChange = onFormChange,
                 onSettlementToggled = onSettlementToggled,
                 onSettlementPersonSelected = onSettlementPersonSelected,
-                onRecurringToggled = onRecurringToggled,
-                onRecurringFrequencyChanged = onRecurringFrequencyChanged,
-                onTripSelected = onTripSelected,
-                onTagSelected = onTagSelected,
             )
             MovementType.TRANSFER -> TransferFormSection(
                 form = form,
                 accounts = accounts,
                 onFormChange = onFormChange,
-                onRecurringToggled = onRecurringToggled,
-                onRecurringFrequencyChanged = onRecurringFrequencyChanged,
             )
             else -> Unit
         }
 
-        if (form.expenseKind != ExpenseKind.DEBT) {
-            FormAdvancedSection(
-                form = form,
-                onFormChange = onFormChange,
-                onToggle = onAdvancedToggled,
-            )
-        }
-
-        // Duplicate/data-loss warnings share one banner slot adjacent to the Save button (audit
-        // C9/U8, `docs/17` WP1+WP2): "Guarda igualment" accepts and re-attempts the save, "Revisa"
-        // dismisses the warning and restores the normal Save button without saving.
-        val hasWarning = form.duplicateWarning || form.pendingDataLossWarning != null
-        val isRecurrenceStop = form.pendingDataLossWarning == DataLossWarning.RECURRING_STOP
-        if (hasWarning) {
-            val warningText = when (form.pendingDataLossWarning) {
-                DataLossWarning.SPLIT_REMOVED -> stringResource(R.string.movement_warning_split_removed)
-                DataLossWarning.PAYER_SWITCH -> stringResource(R.string.movement_warning_payer_switch_drops_fields)
-                DataLossWarning.RECURRING_STOP -> stringResource(R.string.movement_recurring_stop_title)
-                null -> stringResource(R.string.movement_duplicate_warning)
-            }
-            InlineBanner(kind = BannerKind.Alert, text = warningText)
-            TextButton(onClick = onWarningDismissed, modifier = Modifier.fillMaxWidth()) {
-                Text(text = stringResource(R.string.common_review))
-            }
-        }
-
-        PrimaryButton(
-            text = when {
-                isRecurrenceStop -> stringResource(R.string.movement_recurring_stop_end)
-                hasWarning -> stringResource(R.string.movement_duplicate_override)
-                form.isNew -> stringResource(R.string.movement_save_new)
-                else -> stringResource(R.string.movement_save_changes)
-            },
-            onClick = when {
-                isRecurrenceStop -> onRecurrenceStopEnd
-                form.pendingDataLossWarning != null -> onDataLossOverride
-                form.duplicateWarning -> onOverride
-                else -> onSave
-            },
-            modifier = Modifier.fillMaxWidth(),
+        FormOptionalSection(
+            form = form,
+            trips = trips,
+            tags = tags,
+            onFormChange = onFormChange,
+            onTripSelected = onTripSelected,
+            onTagSelected = onTagSelected,
+            onRecurringToggled = onRecurringToggled,
+            onRecurringFrequencyChanged = onRecurringFrequencyChanged,
+            onOptionalToggled = onOptionalToggled,
+            onAdvancedToggled = onAdvancedToggled,
         )
-        // Third choice for the recurring-stop warning (audit F12/`docs/17` WP3): the old "just
-        // detach" behavior, offered alongside the default "end the template" primary action above.
-        if (isRecurrenceStop) {
-            TextButton(onClick = onRecurrenceStopUnlink, modifier = Modifier.fillMaxWidth()) {
-                Text(text = stringResource(R.string.movement_recurring_stop_unlink))
+        }
+    }
+}
+
+/**
+ * The save action is part of the focused page chrome, not the scrolling form. Keeping this as a
+ * Scaffold bottom bar reserves its measured height and applies IME/navigation insets, so the
+ * action remains reachable while the keyboard is open without adding a second save path.
+ */
+@Composable
+private fun MovementSaveBar(
+    form: MovementFormState,
+    onSave: () -> Unit,
+    onOverride: () -> Unit,
+    onDataLossOverride: () -> Unit,
+    onRecurrenceStopEnd: () -> Unit,
+    onRecurrenceStopUnlink: () -> Unit,
+    onWarningDismissed: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val hasWarning = form.duplicateWarning || form.pendingDataLossWarning != null
+    val isRecurrenceStop = form.pendingDataLossWarning == DataLossWarning.RECURRING_STOP
+    val warningText = when (form.pendingDataLossWarning) {
+        DataLossWarning.SPLIT_REMOVED -> stringResource(R.string.movement_warning_split_removed)
+        DataLossWarning.PAYER_SWITCH -> stringResource(R.string.movement_warning_payer_switch_drops_fields)
+        DataLossWarning.RECURRING_STOP -> stringResource(R.string.movement_recurring_stop_title)
+        null -> stringResource(R.string.movement_duplicate_warning)
+    }
+
+    Surface(
+        modifier = modifier,
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 2.dp,
+        shadowElevation = 4.dp,
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            if (hasWarning) {
+                InlineBanner(kind = BannerKind.Alert, text = warningText)
+                TextButton(onClick = onWarningDismissed, modifier = Modifier.fillMaxWidth()) {
+                    Text(text = stringResource(R.string.common_review))
+                }
+            }
+
+            PrimaryButton(
+                text = when {
+                    isRecurrenceStop -> stringResource(R.string.movement_recurring_stop_end)
+                    hasWarning -> stringResource(R.string.movement_duplicate_override)
+                    form.isNew -> stringResource(R.string.movement_save_new)
+                    else -> stringResource(R.string.movement_save_changes)
+                },
+                onClick = when {
+                    isRecurrenceStop -> onRecurrenceStopEnd
+                    form.pendingDataLossWarning != null -> onDataLossOverride
+                    form.duplicateWarning -> onOverride
+                    else -> onSave
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            // Third choice for the recurring-stop warning (audit F12/`docs/17` WP3): the old
+            // "just detach" behavior remains alongside the default end-template action.
+            if (isRecurrenceStop) {
+                TextButton(onClick = onRecurrenceStopUnlink, modifier = Modifier.fillMaxWidth()) {
+                    Text(text = stringResource(R.string.movement_recurring_stop_unlink))
+                }
             }
         }
     }

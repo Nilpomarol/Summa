@@ -90,6 +90,7 @@ import com.gestorfinances.app.ui.settings.SettingsViewModel
 import com.gestorfinances.app.ui.tags.TagsScreen
 import com.gestorfinances.app.ui.tags.TagsViewModel
 import com.gestorfinances.app.ui.theme.GestorFinancesTheme
+import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.trips.TripDetailScreen
 import com.gestorfinances.app.ui.trips.TripsScreen
 import com.gestorfinances.app.ui.trips.TripsViewModel
@@ -446,11 +447,19 @@ private fun LedgerShell(
         nav = AppNavState.management(destination)
     }
 
-    fun openMovementForm(tripId: String? = null) {
+    fun openMovementForm(
+        tripId: String? = null,
+        returnTo: AppOverlay? = null,
+    ) {
         val hasAccount = movementsState.accounts.isNotEmpty() || accountsState.accounts.isNotEmpty()
         if (hasAccount) {
             movementsViewModel.onAddClicked(tripId)
-            nav = nav.copy(overlay = AppOverlay.MovementForm(tripId = tripId))
+            nav = nav.copy(
+                overlay = AppOverlay.MovementForm(
+                    tripId = tripId,
+                    returnTo = returnTo,
+                ),
+            )
         } else {
             showManagement(ManagementDestination.ACCOUNTS)
             accountsViewModel.onAddClicked()
@@ -501,7 +510,12 @@ private fun LedgerShell(
 
     val openMovementDetail: (MovementSummary) -> Unit = { movement ->
         movementsViewModel.onDetailClicked(movement)
-        nav = nav.copy(overlay = AppOverlay.MovementDetail(movementId = movement.id))
+        nav = nav.copy(
+            overlay = AppOverlay.MovementDetail(
+                movementId = movement.id,
+                returnTo = nav.overlay,
+            ),
+        )
     }
 
     val openExternalExpenseForm: (PersonSummary) -> Unit = { person ->
@@ -526,13 +540,12 @@ private fun LedgerShell(
             }
         },
         bottomBar = {
-            FinanceBottomBar(
+            if (nav.routeChrome.showsGlobalNavigation) FinanceBottomBar(
                 selectedSection = nav.section,
                 onSelected = ::showTopLevel,
-                // Context-aware FAB (docs/14 §4): while Trip Detail is open, the global add
-                // action pre-fills that trip (and, downstream, its default account); everywhere
-                // else it opens the plain unscoped movement form.
-                onAddMovement = { openMovementForm((nav.overlay as? AppOverlay.TripDetail)?.tripId) },
+                // The global FAB is available only on root/Management child routes. Trip Detail
+                // owns its local contextual add action because focused routes hide this bar.
+                onAddMovement = { openMovementForm() },
             )
         },
     ) { innerPadding ->
@@ -575,6 +588,9 @@ private fun LedgerShell(
                     onManageBudget = { tripId ->
                         nav = nav.copy(overlay = AppOverlay.Budgets(tripId = tripId, returnTo = overlay))
                     },
+                    onAddMovement = {
+                        openMovementForm(tripId = overlay.tripId, returnTo = overlay)
+                    },
                     onMovementDetail = openMovementDetail,
                     modifier = Modifier
                         .fillMaxSize()
@@ -615,6 +631,7 @@ private fun LedgerShell(
                         onOtherPersonSelected = movementsViewModel::onOtherPersonSelected,
                         onRecurringToggled = movementsViewModel::onRecurringToggled,
                         onRecurringFrequencyChanged = movementsViewModel::onRecurringFrequencyChanged,
+                        onOptionalToggled = movementsViewModel::onOptionalToggled,
                         onAdvancedToggled = movementsViewModel::onAdvancedToggled,
                         onCreatePersonInSplit = movementsViewModel::onCreatePersonInSplit,
                         onBack = {
@@ -643,7 +660,9 @@ private fun LedgerShell(
                     },
                     onEdit = { movement ->
                         movementsViewModel.onEditClicked(movement)
-                        nav = nav.copy(overlay = AppOverlay.MovementForm())
+                        nav = nav.copy(
+                            overlay = AppOverlay.MovementForm(returnTo = overlay),
+                        )
                     },
                     modifier = Modifier
                         .fillMaxSize()
@@ -791,11 +810,12 @@ private fun FinanceBottomBar(
     onAddMovement: () -> Unit,
 ) {
     Surface(
-        color = MaterialTheme.colorScheme.surface,
-        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.fillMaxWidth(),
+        color = FinanceTheme.colors.bottomBarSurface,
+        contentColor = FinanceTheme.colors.bottomBarContent,
     ) {
         Column {
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            HorizontalDivider(color = FinanceTheme.colors.bottomBarDivider)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -863,11 +883,11 @@ private fun BottomBarItem(
         modifier = modifier
             .height(64.dp)
             .padding(horizontal = 2.dp),
-        color = MaterialTheme.colorScheme.surface,
+        color = FinanceTheme.colors.bottomBarSurface,
         contentColor = if (selected) {
-            MaterialTheme.colorScheme.primary
+            FinanceTheme.colors.bottomBarActive
         } else {
-            MaterialTheme.colorScheme.onSurfaceVariant
+            FinanceTheme.colors.bottomBarContent
         },
     ) {
         Column(

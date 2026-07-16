@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CalendarMonth
@@ -45,6 +46,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.R
@@ -60,7 +62,9 @@ import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.IconChip
 import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.categoryIcon
+import com.gestorfinances.app.ui.common.doneKeyboardActions
 import com.gestorfinances.app.ui.common.inPickerHierarchyOrder
+import com.gestorfinances.app.ui.common.nextFieldKeyboardActions
 import com.gestorfinances.app.ui.common.scrollToWhen
 import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.amountColor
@@ -435,10 +439,78 @@ internal fun FormTripTagSection(
     }
 }
 
+/**
+ * Optional movement metadata is collapsed in the primary flow. A selected trip, recurrence, or
+ * advanced value auto-expands this section when an existing movement is edited, so editing never
+ * hides data that is already present. Required variant fields remain in their type section above.
+ */
 @Composable
-internal fun FormAdvancedSection(
+internal fun FormOptionalSection(
     form: MovementFormState,
+    trips: List<TripSummary>,
+    tags: List<TagSummary>,
     onFormChange: (MovementFormState) -> Unit,
+    onTripSelected: (String?) -> Unit,
+    onTagSelected: (String?) -> Unit,
+    onRecurringToggled: (Boolean) -> Unit,
+    onRecurringFrequencyChanged: (RecurrenceFrequency) -> Unit,
+    onOptionalToggled: () -> Unit,
+    onAdvancedToggled: () -> Unit,
+) {
+    FormDisclosureRow(
+        label = stringResource(R.string.movement_form_optional),
+        expanded = form.showOptional,
+        onToggle = onOptionalToggled,
+    )
+    if (!form.showOptional) return
+
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        val recurringAllowed = when (form.type) {
+            MovementType.EXPENSE -> form.expenseKind != ExpenseKind.DEBT
+            MovementType.INCOME -> !form.isSettlement
+            MovementType.TRANSFER -> true
+            else -> false
+        }
+        if (recurringAllowed) {
+            FormRecurringSection(
+                isRecurring = form.isRecurring,
+                frequency = form.recurringFrequency,
+                linked = form.templateId != null,
+                templateStatus = form.templateStatus,
+                onToggle = onRecurringToggled,
+                onFrequencyChange = onRecurringFrequencyChanged,
+            )
+        }
+
+        if (form.type == MovementType.EXPENSE || (form.type == MovementType.INCOME && !form.isSettlement)) {
+            FormTripTagSection(
+                trips = trips,
+                tags = tags,
+                tripId = form.tripId,
+                tagId = form.tagId,
+                onTripSelected = onTripSelected,
+                onTagSelected = onTagSelected,
+                isTagError = form.errorField == MovementFormField.TAG,
+                tagErrorText = if (form.errorField == MovementFormField.TAG && form.errorRes != null) {
+                    stringResource(form.errorRes)
+                } else null,
+            )
+        }
+
+        if (form.expenseKind != ExpenseKind.DEBT) {
+            FormAdvancedSection(
+                form = form,
+                onFormChange = onFormChange,
+                onToggle = onAdvancedToggled,
+            )
+        }
+    }
+}
+
+@Composable
+private fun FormDisclosureRow(
+    label: String,
+    expanded: Boolean,
     onToggle: () -> Unit,
 ) {
     Row(
@@ -455,18 +527,31 @@ internal fun FormAdvancedSection(
     ) {
         HorizontalDivider(modifier = Modifier.weight(1f), color = FinanceTheme.colors.cardBorder)
         Text(
-            text = stringResource(R.string.movement_form_advanced),
+            text = label,
             style = MaterialTheme.typography.labelMedium,
             color = FinanceTheme.colors.mutedText,
         )
         Icon(
-            imageVector = if (form.showAdvanced) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+            imageVector = if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
             contentDescription = null,
             tint = FinanceTheme.colors.mutedText,
             modifier = Modifier.size(14.dp),
         )
         HorizontalDivider(modifier = Modifier.weight(1f), color = FinanceTheme.colors.cardBorder)
     }
+}
+
+@Composable
+internal fun FormAdvancedSection(
+    form: MovementFormState,
+    onFormChange: (MovementFormState) -> Unit,
+    onToggle: () -> Unit,
+) {
+    FormDisclosureRow(
+        label = stringResource(R.string.movement_form_advanced),
+        expanded = form.showAdvanced,
+        onToggle = onToggle,
+    )
 
     if (form.showAdvanced) {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -484,6 +569,8 @@ internal fun FormAdvancedSection(
                     label = { Text(stringResource(R.string.movement_field_payee)) },
                     singleLine = true,
                     shape = MaterialTheme.shapes.small,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                    keyboardActions = nextFieldKeyboardActions(),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -493,6 +580,8 @@ internal fun FormAdvancedSection(
                 label = { Text(stringResource(R.string.movement_field_notes)) },
                 minLines = 2,
                 shape = MaterialTheme.shapes.small,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = doneKeyboardActions(),
                 modifier = Modifier.fillMaxWidth(),
             )
         }
