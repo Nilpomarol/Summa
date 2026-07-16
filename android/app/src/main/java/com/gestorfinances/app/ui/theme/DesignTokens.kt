@@ -77,6 +77,20 @@ internal object TokenColor {
 
     // Category
     val CategoryUncategorized = Color(0xFF9097A3)
+
+    // Toggle states: enabled-off remains visibly interactive; disabled-off is lower-emphasis.
+    val ToggleOffTrackLight = Color(0xFFE2E5EA)
+    val ToggleOffThumbLight = Color(0xFF4A5160)
+    val ToggleOffBorderLight = Color(0xFF4A5160)
+    val ToggleDisabledTrackLight = Color(0xFFF0F1F4)
+    val ToggleDisabledThumbLight = Color(0xFFA4ABB7)
+    val ToggleDisabledBorderLight = Color(0xFFCDD2DA)
+    val ToggleOffTrackDark = Color(0xFF2C303A)
+    val ToggleOffThumbDark = Color(0xFFAEB6C4)
+    val ToggleOffBorderDark = Color(0xFFAEB6C4)
+    val ToggleDisabledTrackDark = Color(0xFF1E2128)
+    val ToggleDisabledThumbDark = Color(0xFF565E6C)
+    val ToggleDisabledBorderDark = Color(0xFF3A3F4B)
 }
 
 private fun interfaceTextStyle(

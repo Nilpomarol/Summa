@@ -12,8 +12,8 @@
         "N200": { "hex": "#E2E5EA", "use": "Default borders" },
         "N300": { "hex": "#CDD2DA", "use": "Strong borders" },
         "N400": { "hex": "#A4ABB7", "use": "Disabled text" },
-        "N500": { "hex": "#8A92A0", "use": "Secondary and muted text" },
-        "N700": { "hex": "#4A5160", "use": "Body labels" },
+        "N500": { "hex": "#8A92A0", "use": "Disabled and non-essential text only" },
+        "N700": { "hex": "#4A5160", "use": "Secondary text and body labels" },
         "N900": { "hex": "#0B0D12", "use": "Primary ink" }
       },
       "dark": {
@@ -24,8 +24,8 @@
         "D200": { "hex": "#2C303A", "use": "Strong borders and active segment" },
         "D300": { "hex": "#3A3F4B", "use": "Dark neutral" },
         "D400": { "hex": "#565E6C", "use": "Dark neutral" },
-        "D500": { "hex": "#7C8494", "use": "Secondary text" },
-        "D700": { "hex": "#AEB6C4", "use": "Body labels" },
+        "D500": { "hex": "#7C8494", "use": "Disabled and non-essential text only" },
+        "D700": { "hex": "#AEB6C4", "use": "Secondary text and body labels" },
         "D900": { "hex": "#F2F4F8", "use": "Primary text" }
       }
     },
@@ -95,7 +95,19 @@
     },
     "component": {
       "destructiveBorder": "#E7C4C4",
-      "toggleOff": "#D7DBE1",
+      "toggleOff": "#E2E5EA",
+      "toggleOffTrackLight": "#E2E5EA",
+      "toggleOffThumbLight": "#4A5160",
+      "toggleOffBorderLight": "#4A5160",
+      "toggleDisabledTrackLight": "#F0F1F4",
+      "toggleDisabledThumbLight": "#A4ABB7",
+      "toggleDisabledBorderLight": "#CDD2DA",
+      "toggleOffTrackDark": "#2C303A",
+      "toggleOffThumbDark": "#AEB6C4",
+      "toggleOffBorderDark": "#AEB6C4",
+      "toggleDisabledTrackDark": "#1E2128",
+      "toggleDisabledThumbDark": "#565E6C",
+      "toggleDisabledBorderDark": "#3A3F4B",
       "focusRingIndigo": "rgba(51,68,224,.1)",
       "desktopWindowChrome": "#F3F1EC",
       "desktopSelectedRowBackground": "#F4F5FE",

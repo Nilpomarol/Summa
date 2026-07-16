@@ -37,6 +37,8 @@ fun RadarChart(
     color: Color,
     modifier: Modifier = Modifier,
     height: Dp = 240.dp,
+    accessibilitySummary: String,
+    accessibilityRows: List<ChartDataRow> = emptyList(),
 ) {
     if (axes.size < 3) return
     val measurer = rememberTextMeasurer()
@@ -45,11 +47,16 @@ fun RadarChart(
     val labelStyle = TextStyle(fontSize = 10.sp, color = labelColor)
     val maxValue = axes.maxOf { it.value }.coerceAtLeast(1f)
 
-    Canvas(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(height),
+    AccessibleChart(
+        summary = accessibilitySummary,
+        dataRows = accessibilityRows,
+        modifier = modifier,
     ) {
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(height),
+        ) {
         val center = Offset(size.width / 2f, size.height / 2f)
         val radius = (minOf(size.width, size.height) / 2f) - 26.dp.toPx()
         val n = axes.size
@@ -95,6 +102,7 @@ fun RadarChart(
         for (i in 0 until n) {
             val p = pointAt(i, axes[i].value / maxValue)
             drawCircle(color = color, radius = 3.dp.toPx(), center = p)
+        }
         }
     }
 }

@@ -66,6 +66,8 @@ fun IncomeExpenseChart(
     previous: List<IncomeExpenseChartPoint> = emptyList(),
     currentCaption: String? = null,
     previousCaption: String? = null,
+    accessibilitySummary: String,
+    accessibilityRows: List<ChartDataRow> = emptyList(),
     onPointClick: ((IncomeExpenseChartPoint) -> Unit)? = null,
 ) {
     val hasComparison = previous.isNotEmpty()
@@ -101,70 +103,77 @@ fun IncomeExpenseChart(
                 modifier = Modifier.padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                if (!hasData) {
-                    Text(
-                        text = emptyText,
-                        color = FinanceTheme.colors.mutedText,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                } else {
-                    Chart(
-                        chart = lineChart(
-                            lines = if (hasComparison) {
-                                listOf(
-                                    lineSpec(lineColor = incomeColor, lineThickness = 2.5.dp),
-                                    lineSpec(lineColor = expenseColor, lineThickness = 2.5.dp),
-                                    lineSpec(lineColor = comparisonIncomeColor, lineThickness = 1.5.dp),
-                                    lineSpec(lineColor = comparisonExpenseColor, lineThickness = 1.5.dp),
-                                )
-                            } else {
-                                listOf(
-                                    lineSpec(lineColor = incomeColor, lineThickness = 2.5.dp),
-                                    lineSpec(lineColor = expenseColor, lineThickness = 2.5.dp),
-                                )
-                            },
-                        ),
-                        chartModelProducer = producer,
-                        // Real value axis: euro gridlines let the running totals be read off the scale.
-                        startAxis = rememberStartAxis(
-                            label = axisLabelComponent(color = axisLabelColor, textSize = 11.sp),
-                            axis = null,
-                            tick = null,
-                            guideline = lineComponent(color = gridlineColor, thickness = 1.dp),
-                            itemPlacer = AxisItemPlacer.Vertical.default(maxItemCount = 5),
-                            valueFormatter = { value, _ -> formatEuroCompact((value.toDouble() * 100).roundToLong()) },
-                        ),
-                        bottomAxis = rememberBottomAxis(
-                            label = axisLabelComponent(color = axisLabelColor, textSize = 11.sp),
-                            axis = null,
-                            tick = null,
-                            guideline = null,
-                            // Thin out date labels so they never collide (~6 across the width).
-                            itemPlacer = AxisItemPlacer.Horizontal.default(
-                                spacing = (labels.size / 6).coerceAtLeast(1),
-                            ),
-                            valueFormatter = { value, _ ->
-                                val index = value.toInt() - 1
-                                if (index in labels.indices) labels[index] else ""
-                            },
-                        ),
-                        chartScrollSpec = rememberChartScrollSpec(isScrollEnabled = false),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(if (hasComparison) 240.dp else 208.dp)
-                            .chartPointTap(points = points, onPointClick = onPointClick),
-                    )
-                    ChartLegend(
-                        incomeLabel = incomeLabel,
-                        expenseLabel = expenseLabel,
-                        incomeColor = incomeColor,
-                        expenseColor = expenseColor,
-                        comparisonIncomeColor = comparisonIncomeColor,
-                        comparisonExpenseColor = comparisonExpenseColor,
-                        hasComparison = hasComparison,
-                        currentCaption = currentCaption,
-                        previousCaption = previousCaption,
-                    )
+                AccessibleChart(
+                    summary = accessibilitySummary,
+                    dataRows = accessibilityRows,
+                ) {
+                    if (!hasData) {
+                        Text(
+                            text = emptyText,
+                            color = FinanceTheme.colors.mutedText,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Chart(
+                                chart = lineChart(
+                                    lines = if (hasComparison) {
+                                        listOf(
+                                            lineSpec(lineColor = incomeColor, lineThickness = 2.5.dp),
+                                            lineSpec(lineColor = expenseColor, lineThickness = 2.5.dp),
+                                            lineSpec(lineColor = comparisonIncomeColor, lineThickness = 1.5.dp),
+                                            lineSpec(lineColor = comparisonExpenseColor, lineThickness = 1.5.dp),
+                                        )
+                                    } else {
+                                        listOf(
+                                            lineSpec(lineColor = incomeColor, lineThickness = 2.5.dp),
+                                            lineSpec(lineColor = expenseColor, lineThickness = 2.5.dp),
+                                        )
+                                    },
+                                ),
+                                chartModelProducer = producer,
+                                // Real value axis: euro gridlines let the running totals be read off the scale.
+                                startAxis = rememberStartAxis(
+                                    label = axisLabelComponent(color = axisLabelColor, textSize = 11.sp),
+                                    axis = null,
+                                    tick = null,
+                                    guideline = lineComponent(color = gridlineColor, thickness = 1.dp),
+                                    itemPlacer = AxisItemPlacer.Vertical.default(maxItemCount = 5),
+                                    valueFormatter = { value, _ -> formatEuroCompact((value.toDouble() * 100).roundToLong()) },
+                                ),
+                                bottomAxis = rememberBottomAxis(
+                                    label = axisLabelComponent(color = axisLabelColor, textSize = 11.sp),
+                                    axis = null,
+                                    tick = null,
+                                    guideline = null,
+                                    // Thin out date labels so they never collide (~6 across the width).
+                                    itemPlacer = AxisItemPlacer.Horizontal.default(
+                                        spacing = (labels.size / 6).coerceAtLeast(1),
+                                    ),
+                                    valueFormatter = { value, _ ->
+                                        val index = value.toInt() - 1
+                                        if (index in labels.indices) labels[index] else ""
+                                    },
+                                ),
+                                chartScrollSpec = rememberChartScrollSpec(isScrollEnabled = false),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(if (hasComparison) 240.dp else 208.dp)
+                                    .chartPointTap(points = points, onPointClick = onPointClick),
+                            )
+                            ChartLegend(
+                                incomeLabel = incomeLabel,
+                                expenseLabel = expenseLabel,
+                                incomeColor = incomeColor,
+                                expenseColor = expenseColor,
+                                comparisonIncomeColor = comparisonIncomeColor,
+                                comparisonExpenseColor = comparisonExpenseColor,
+                                hasComparison = hasComparison,
+                                currentCaption = currentCaption,
+                                previousCaption = previousCaption,
+                            )
+                        }
+                    }
                 }
             }
         }

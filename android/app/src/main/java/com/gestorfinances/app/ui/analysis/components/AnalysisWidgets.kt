@@ -49,6 +49,7 @@ import com.gestorfinances.app.ui.analysis.RecurringCostItem
 import com.gestorfinances.app.ui.analysis.RecurringCostSummary
 import com.gestorfinances.app.ui.analysis.divideCents
 import com.gestorfinances.app.ui.common.FinanceCard
+import com.gestorfinances.app.ui.common.ChartDataRow
 import com.gestorfinances.app.ui.common.HeatmapCell
 import com.gestorfinances.app.ui.common.IconChip
 import com.gestorfinances.app.ui.common.MoneyText
@@ -62,9 +63,12 @@ import com.gestorfinances.app.ui.common.TrendLineChart
 import com.gestorfinances.app.ui.common.TrendSeries
 import com.gestorfinances.app.ui.common.categoryIcon
 import com.gestorfinances.app.ui.common.formatBasisPoints
+import com.gestorfinances.app.ui.common.formatEuroCents
 import com.gestorfinances.app.ui.common.formatLongDate
 import com.gestorfinances.app.ui.common.formatMonth
 import com.gestorfinances.app.ui.common.formatPercentLabel
+import com.gestorfinances.app.ui.common.formatWeekdayDate
+import com.gestorfinances.app.ui.common.chartTrendLabel
 import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.categoryColor
 import java.time.LocalDate
@@ -420,17 +424,40 @@ internal fun BufferHeroCard(
  */
 @Composable
 internal fun SavingsRateTrendWidget(buckets: List<AnalysisIncomeExpenseBucket>) {
-    val bars = buckets
-        .sortedBy { it.bucket }
+    val orderedBuckets = buckets.sortedBy { it.bucket }
+    val bars = orderedBuckets
         .map { SavingsRateBar(label = formatBucketLabel(it.bucket), basisPoints = it.savingsRateBasisPoints) }
+    val title = stringResource(R.string.analysis_savings_rate_period_title)
+    val period = bars.firstOrNull()?.label?.let { first ->
+        bars.lastOrNull()?.label?.let { last -> if (first == last) first else "$first - $last" }
+    } ?: stringResource(R.string.analysis_scope_all_time)
+    val best = bars.maxByOrNull { it.basisPoints }
+    val worst = bars.minByOrNull { it.basisPoints }
+    val trend = chartTrendLabel(bars.firstOrNull()?.basisPoints, bars.lastOrNull()?.basisPoints)
     SavingsRateChart(
-        title = stringResource(R.string.analysis_savings_rate_period_title),
+        title = title,
         bars = bars,
         positiveColor = FinanceTheme.colors.income,
         negativeColor = FinanceTheme.colors.debt,
         positiveLabel = stringResource(R.string.analysis_savings_rate_surplus),
         negativeLabel = stringResource(R.string.analysis_savings_rate_deficit),
         emptyText = stringResource(R.string.dashboard_no_data),
+        accessibilitySummary = stringResource(
+            R.string.accessibility_chart_savings_summary,
+            title,
+            period,
+            best?.let { "${it.label} ${formatBasisPoints(it.basisPoints)}" } ?: stringResource(R.string.dashboard_no_data),
+            worst?.let { "${it.label} ${formatBasisPoints(it.basisPoints)}" } ?: stringResource(R.string.dashboard_no_data),
+            if ((bars.lastOrNull()?.basisPoints ?: 0L) >= 0L) {
+                stringResource(R.string.analysis_savings_rate_surplus)
+            } else {
+                stringResource(R.string.analysis_savings_rate_deficit)
+            },
+            trend,
+        ),
+        accessibilityRows = bars.map { bar ->
+            ChartDataRow(bar.label, formatBasisPoints(bar.basisPoints))
+        },
     )
 }
 
@@ -444,12 +471,29 @@ private fun formatBucketLabel(bucket: String): String =
 
 /** Històric tab: spending heatmap wrapped in the same section-header + card shell as the other widgets. */
 @Composable
-internal fun SpendingHeatmapWidget(cells: List<HeatmapCell>) {
+internal fun SpendingHeatmapWidget(cells: List<HeatmapCell>, periodLabel: String) {
+    val title = stringResource(R.string.analysis_heatmap_title)
+    val totalCents = cells.sumOf { it.expenseCents }
+    val highest = cells.maxByOrNull { it.expenseCents }
+    val trend = chartTrendLabel(cells.firstOrNull()?.expenseCents, cells.lastOrNull()?.expenseCents)
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        SectionHeader(title = stringResource(R.string.analysis_heatmap_title))
+        SectionHeader(title = title)
         FinanceCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(14.dp)) {
-                SpendingHeatmap(cells = cells)
+                SpendingHeatmap(
+                    cells = cells,
+                    accessibilitySummary = stringResource(
+                        R.string.accessibility_chart_heatmap_summary,
+                        title,
+                        periodLabel,
+                        formatEuroCents(totalCents),
+                        highest?.let { formatWeekdayDate(it.date.toString()) } ?: stringResource(R.string.dashboard_no_data),
+                        trend,
+                    ),
+                    accessibilityRows = cells.map { cell ->
+                        ChartDataRow(formatWeekdayDate(cell.date.toString()), formatEuroCents(cell.expenseCents))
+                    },
+                )
             }
         }
     }
@@ -457,9 +501,10 @@ internal fun SpendingHeatmapWidget(cells: List<HeatmapCell>) {
 
 /** Històric tab: day-of-week radar wrapped in the same section-header + card shell as the other widgets. */
 @Composable
-internal fun WeekdayRadarWidget(weekday: List<AnalysisWeekdaySpend>) {
+internal fun WeekdayRadarWidget(weekday: List<AnalysisWeekdaySpend>, periodLabel: String) {
+    val title = stringResource(R.string.analysis_weekday_title)
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        SectionHeader(title = stringResource(R.string.analysis_weekday_title))
+        SectionHeader(title = title)
         FinanceCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(14.dp)) {
                 val labels = stringArrayResource(R.array.analysis_weekday_short)
@@ -470,7 +515,25 @@ internal fun WeekdayRadarWidget(weekday: List<AnalysisWeekdaySpend>) {
                         value = (byWeekday[day] ?: 0L).coerceAtLeast(0L) / 100f,
                     )
                 }
-                RadarChart(axes = axes, color = MaterialTheme.colorScheme.primary)
+                val totalCents = weekday.sumOf { it.expenseCents }
+                val highest = weekday.maxByOrNull { it.expenseCents }
+                RadarChart(
+                    axes = axes,
+                    color = MaterialTheme.colorScheme.primary,
+                    accessibilitySummary = stringResource(
+                        R.string.accessibility_chart_radar_summary,
+                        title,
+                        periodLabel,
+                        formatEuroCents(totalCents),
+                        highest?.let { highestDay ->
+                            labels.getOrElse(highestDay.weekday) { highestDay.weekday.toString() }
+                        } ?: stringResource(R.string.dashboard_no_data),
+                        chartTrendLabel(weekday.firstOrNull()?.expenseCents, weekday.lastOrNull()?.expenseCents),
+                    ),
+                    accessibilityRows = axes.map { axis ->
+                        ChartDataRow(axis.label, formatEuroCents((axis.value * 100f).toLong()))
+                    },
+                )
             }
         }
     }
@@ -479,19 +542,38 @@ internal fun WeekdayRadarWidget(weekday: List<AnalysisWeekdaySpend>) {
 @Composable
 internal fun NetWorthTrendWidget(points: List<AnalysisNetWorthPoint>) {
     val sorted = points.sortedBy { it.bucket }
+    val title = stringResource(R.string.analysis_net_worth_title)
     val series = listOf(
         TrendSeries(
-            label = stringResource(R.string.analysis_net_worth_title),
+            label = title,
             color = MaterialTheme.colorScheme.primary,
             pointsEuros = sorted.map { it.netWorthCents / 100f },
         ),
     )
     val latest = sorted.lastOrNull()?.netWorthCents
+    val first = sorted.firstOrNull()?.netWorthCents
+    val period = sorted.firstOrNull()?.bucket?.let { firstBucket ->
+        sorted.lastOrNull()?.bucket?.let { lastBucket ->
+            "${formatBucketLabel(firstBucket)} - ${formatBucketLabel(lastBucket)}"
+        }
+    } ?: stringResource(R.string.analysis_scope_all_time)
     TrendLineChart(
-        title = stringResource(R.string.analysis_net_worth_title),
+        title = title,
         series = series,
         labels = sorted.map { formatBucketLabel(it.bucket) },
         emptyText = stringResource(R.string.dashboard_no_data),
+        accessibilitySummary = stringResource(
+            R.string.accessibility_chart_period_summary,
+            title,
+            period,
+            latest?.let(::formatEuroCents) ?: stringResource(R.string.dashboard_no_data),
+            if ((latest ?: 0L) >= 0L) stringResource(R.string.accessibility_chart_result_positive)
+            else stringResource(R.string.accessibility_chart_result_negative),
+            chartTrendLabel(first, latest),
+        ),
+        accessibilityRows = sorted.map { point ->
+            ChartDataRow(formatBucketLabel(point.bucket), formatEuroCents(point.netWorthCents))
+        },
         trailing = latest?.let {
             {
                 MoneyText(
@@ -520,11 +602,31 @@ internal fun CategoryTrendsWidget(trends: List<AnalysisCategoryTrendPoint>) {
             pointsEuros = buckets.map { (byBucket[it] ?: 0L) / 100f },
         )
     }
+    val title = stringResource(R.string.analysis_stacked_title)
+    val firstTotal = trends.filter { it.bucket == buckets.firstOrNull() }.sumOf { it.expenseCents }
+    val lastTotal = trends.filter { it.bucket == buckets.lastOrNull() }.sumOf { it.expenseCents }
+    val leader = series.firstOrNull()?.label ?: stringResource(R.string.dashboard_no_data)
     TrendLineChart(
-        title = stringResource(R.string.analysis_stacked_title),
+        title = title,
         series = series,
         labels = buckets.map { formatBucketLabel(it) },
         emptyText = stringResource(R.string.dashboard_no_data),
+        accessibilitySummary = stringResource(
+            R.string.accessibility_chart_period_summary,
+            title,
+            if (buckets.isEmpty()) stringResource(R.string.analysis_scope_all_time)
+            else "${formatBucketLabel(buckets.first())} - ${formatBucketLabel(buckets.last())}",
+            formatEuroCents(trends.sumOf { it.expenseCents }),
+            stringResource(R.string.accessibility_chart_category_leader, leader),
+            chartTrendLabel(firstTotal, lastTotal),
+        ),
+        accessibilityRows = buckets.map { bucket ->
+            val values = series.map { line ->
+                val euros = line.pointsEuros.getOrNull(buckets.indexOf(bucket)) ?: 0f
+                "${line.label}: ${formatEuroCents((euros * 100f).toLong())}"
+            }
+            ChartDataRow(formatBucketLabel(bucket), values.joinToString(" · "))
+        },
     )
 }
 

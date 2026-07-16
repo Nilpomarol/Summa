@@ -33,12 +33,17 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
@@ -69,6 +74,37 @@ fun FinanceCard(
     ) {
         Column(content = content)
     }
+}
+
+/** Token-backed switch; enabled-off and disabled-off remain distinguishable in both themes. */
+@Composable
+fun FinanceSwitch(
+    checked: Boolean,
+    onCheckedChange: ((Boolean) -> Unit)?,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    val colors = FinanceTheme.colors
+    Switch(
+        checked = checked,
+        onCheckedChange = onCheckedChange,
+        enabled = enabled,
+        modifier = if (onCheckedChange == null) modifier.clearAndSetSemantics {} else modifier,
+        colors = SwitchDefaults.colors(
+            checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+            checkedTrackColor = MaterialTheme.colorScheme.primary,
+            checkedBorderColor = MaterialTheme.colorScheme.primary,
+            uncheckedThumbColor = colors.switchOffThumb,
+            uncheckedTrackColor = colors.switchOffTrack,
+            uncheckedBorderColor = colors.switchOffBorder,
+            disabledCheckedThumbColor = colors.switchDisabledThumb,
+            disabledCheckedTrackColor = colors.switchDisabledTrack,
+            disabledCheckedBorderColor = colors.switchDisabledBorder,
+            disabledUncheckedThumbColor = colors.switchDisabledThumb,
+            disabledUncheckedTrackColor = colors.switchDisabledTrack,
+            disabledUncheckedBorderColor = colors.switchDisabledBorder,
+        ),
+    )
 }
 
 /** Rounded-square icon chip with a soft tint background (design §2.5 category identity). */
@@ -136,7 +172,9 @@ fun SectionHeader(
         Text(
             text = title,
             style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f)
+                .semantics { heading() },
         )
         trailing?.invoke()
     }
@@ -474,7 +512,7 @@ fun PrimaryButton(
             containerColor = MaterialTheme.colorScheme.primary,
             contentColor = MaterialTheme.colorScheme.onPrimary,
             disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-            disabledContentColor = FinanceTheme.colors.mutedText,
+            disabledContentColor = FinanceTheme.colors.disabledText,
         ),
     ) {
         leadingIcon?.let {

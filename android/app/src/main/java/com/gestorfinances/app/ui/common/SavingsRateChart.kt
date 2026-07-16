@@ -57,6 +57,8 @@ fun SavingsRateChart(
     negativeLabel: String,
     emptyText: String,
     modifier: Modifier = Modifier,
+    accessibilitySummary: String,
+    accessibilityRows: List<ChartDataRow> = emptyList(),
 ) {
     val shown = bars.takeLast(SAVINGS_RATE_MAX_BARS)
     val measurer = rememberTextMeasurer()
@@ -75,19 +77,24 @@ fun SavingsRateChart(
                 modifier = Modifier.padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                if (shown.isEmpty()) {
-                    Text(
-                        text = emptyText,
-                        color = FinanceTheme.colors.mutedText,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                } else {
-                    Canvas(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(190.dp)
-                            .padding(bottom = 18.dp),
-                    ) {
+                AccessibleChart(
+                    summary = accessibilitySummary,
+                    dataRows = accessibilityRows,
+                ) {
+                    if (shown.isEmpty()) {
+                        Text(
+                            text = emptyText,
+                            color = FinanceTheme.colors.mutedText,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Canvas(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(190.dp)
+                                    .padding(bottom = 18.dp),
+                            ) {
                         val maxAbs = shown.maxOf { abs(it.basisPoints) }.coerceAtLeast(100L)
                         val slot = size.width / shown.size
                         val barWidth = (slot * 0.55f).coerceAtMost(28.dp.toPx())
@@ -182,13 +189,15 @@ fun SavingsRateChart(
                                 topLeft = Offset(x - valueLayout.size.width / 2f, valueY),
                             )
                         }
+                            }
+                            SavingsRateLegend(
+                                positiveLabel = positiveLabel,
+                                negativeLabel = negativeLabel,
+                                positiveColor = positiveColor,
+                                negativeColor = negativeColor,
+                            )
+                        }
                     }
-                    SavingsRateLegend(
-                        positiveLabel = positiveLabel,
-                        negativeLabel = negativeLabel,
-                        positiveColor = positiveColor,
-                        negativeColor = negativeColor,
-                    )
                 }
             }
         }

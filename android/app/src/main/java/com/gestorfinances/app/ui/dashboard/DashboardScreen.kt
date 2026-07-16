@@ -38,6 +38,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -375,6 +377,11 @@ private fun HeroKpiBlock(
     val savingsProgress = if (income > 0) {
         (state.totals.savingsRateBasisPoints / 10000f).coerceIn(0f, 1f)
     } else 0f
+    val savingsAccessibility = stringResource(
+        R.string.dashboard_savings_progress_accessibility,
+        if (income > 0) formatBasisPoints(state.totals.savingsRateBasisPoints)
+        else stringResource(R.string.dashboard_savings_rate_unavailable),
+    )
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         // Row 1: income | expenses | patrimoni
@@ -462,7 +469,10 @@ private fun HeroKpiBlock(
                 progress = { savingsProgress },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(5.dp),
+                    .height(5.dp)
+                    .semantics {
+                        contentDescription = savingsAccessibility
+                    },
                 color = incomeColor,
                 trackColor = FinanceTheme.colors.heroOnSurface.copy(alpha = 0.2f),
                 drawStopIndicator = {},
@@ -734,6 +744,11 @@ private fun CategoryBreakdownRow(
     val displayAmount = if (mode == CategoryDisplayMode.EXPENSES) -amount else amount
     val fraction = (amount.toFloat() / totalCents.toFloat()).coerceIn(0f, 1f)
     val pctText = formatPercentLabel(fraction)
+    val progressAccessibility = stringResource(
+        R.string.dashboard_category_progress_accessibility,
+        category.categoryName ?: stringResource(R.string.common_no_category),
+        pctText,
+    )
 
     Column(
         modifier = Modifier
@@ -777,7 +792,10 @@ private fun CategoryBreakdownRow(
             progress = { fraction },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(5.dp),
+                .height(5.dp)
+                .semantics {
+                    contentDescription = progressAccessibility
+                },
             color = color,
             trackColor = MaterialTheme.colorScheme.surfaceVariant,
             drawStopIndicator = {},

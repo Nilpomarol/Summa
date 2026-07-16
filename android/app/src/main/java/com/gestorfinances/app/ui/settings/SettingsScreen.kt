@@ -30,7 +30,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -50,6 +49,7 @@ import com.gestorfinances.app.data.backup.PendingBackupRestore
 import com.gestorfinances.app.ui.common.BannerKind
 import com.gestorfinances.app.ui.common.DestructiveTextButton
 import com.gestorfinances.app.ui.common.FinanceCard
+import com.gestorfinances.app.ui.common.FinanceSwitch
 import com.gestorfinances.app.ui.common.IconChip
 import com.gestorfinances.app.ui.common.InlineBanner
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -517,7 +517,7 @@ private fun SettingsSwitchCard(
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
-            Switch(checked = checked, onCheckedChange = onCheckedChange)
+            FinanceSwitch(checked = checked, onCheckedChange = onCheckedChange)
         }
     }
 }

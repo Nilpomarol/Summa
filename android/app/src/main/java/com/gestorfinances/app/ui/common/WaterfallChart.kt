@@ -48,6 +48,8 @@ fun WaterfallChart(
     increaseColor: Color,
     decreaseColor: Color,
     modifier: Modifier = Modifier,
+    accessibilitySummary: String,
+    accessibilityRows: List<ChartDataRow> = emptyList(),
 ) {
     val measurer = rememberTextMeasurer()
     val totalColor = MaterialTheme.colorScheme.onSurfaceVariant
@@ -86,13 +88,18 @@ fun WaterfallChart(
         Modifier
     }
 
-    Canvas(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(200.dp)
-            .padding(bottom = 18.dp)
-            .then(tapModifier),
+    AccessibleChart(
+        summary = accessibilitySummary,
+        dataRows = accessibilityRows,
+        modifier = modifier,
     ) {
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(200.dp)
+                .padding(bottom = 18.dp)
+                .then(tapModifier),
+        ) {
         val valueLabelSpace = 18.dp.toPx()
         val drawableHeight = size.height - valueLabelSpace
         val slot = size.width / barCount
@@ -176,5 +183,6 @@ fun WaterfallChart(
         }
         // End total.
         drawBar(barCount - 1, 0L, endCents, totalColor, endLabel, formatEuroCompact(endCents))
+        }
     }
 }
