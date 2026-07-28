@@ -44,6 +44,7 @@ Keep documentation concise and current. Record durable behaviour or decisions, n
 - Schema changes are atomic: fresh DDL, new migration and version bump, embedded/canonical views, golden vectors where relevant, Android bindings, Windows harness, tests, and concise docs.
 - Work in thin vertical slices. Preserve unrelated and uncommitted user changes.
 - User-facing strings are resource-backed. Use shared tokens semantically, but redesign may intentionally change them by updating the JSON and native mapping together.
+- Keep recurring UI patterns consistent: inspect and reuse the semantic components in `ui/common` for cards, rows, pickers, sheets, menus, filters, and feedback states. When a pattern has the same visual and interaction contract on more than one screen, promote it to a focused shared component; do not create generic wrappers or abstractions for one-off layouts.
 - Add manual checks with expected results when the user can exercise changed behaviour; keep them in the handoff or focused tests, not as a permanent roadmap.
 - Do not commit, push, clear data, or create a branch unless asked.
 

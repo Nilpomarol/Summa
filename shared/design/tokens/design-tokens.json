@@ -1,120 +1,120 @@
 {
-  "version": "0.1.0",
+  "version": "0.2.0",
   "source": "docs/design.md",
   "description": "Shared design tokens for the Android and Windows finance apps. Values are intentionally platform-neutral.",
   "colors": {
     "neutral": {
       "light": {
-        "N0": { "hex": "#FFFFFF", "use": "Surfaces, cards" },
-        "N50": { "hex": "#F7F8FA", "use": "App background, table headers" },
-        "N100": { "hex": "#F0F1F4", "use": "Track and fill backgrounds" },
-        "N150": { "hex": "#EAECEF", "use": "Hairline dividers" },
-        "N200": { "hex": "#E2E5EA", "use": "Default borders" },
-        "N300": { "hex": "#CDD2DA", "use": "Strong borders" },
-        "N400": { "hex": "#A4ABB7", "use": "Disabled text" },
-        "N500": { "hex": "#8A92A0", "use": "Disabled and non-essential text only" },
-        "N700": { "hex": "#4A5160", "use": "Secondary text and body labels" },
-        "N900": { "hex": "#0B0D12", "use": "Primary ink" }
+        "N0": { "hex": "#FFFDF9", "use": "Surfaces, cards" },
+        "N50": { "hex": "#F6F0E5", "use": "App background, table headers" },
+        "N100": { "hex": "#EEE6DA", "use": "Track and control backgrounds" },
+        "N150": { "hex": "#E7DDD1", "use": "Hairline dividers" },
+        "N200": { "hex": "#D8CCBF", "use": "Default borders" },
+        "N300": { "hex": "#C7B9AA", "use": "Strong borders" },
+        "N400": { "hex": "#A59588", "use": "Disabled text" },
+        "N500": { "hex": "#85776D", "use": "Disabled and non-essential text only" },
+        "N700": { "hex": "#66584F", "use": "Secondary text and body labels" },
+        "N900": { "hex": "#331329", "use": "Primary ink" }
       },
       "dark": {
-        "D0": { "hex": "#0E1014", "use": "App background" },
-        "D50": { "hex": "#16181E", "use": "Cards" },
-        "D100": { "hex": "#1E2128", "use": "Track and control backgrounds" },
-        "D150": { "hex": "#23262E", "use": "Dividers and borders" },
-        "D200": { "hex": "#2C303A", "use": "Strong borders and active segment" },
-        "D300": { "hex": "#3A3F4B", "use": "Dark neutral" },
-        "D400": { "hex": "#565E6C", "use": "Dark neutral" },
-        "D500": { "hex": "#7C8494", "use": "Disabled and non-essential text only" },
-        "D700": { "hex": "#AEB6C4", "use": "Secondary text and body labels" },
-        "D900": { "hex": "#F2F4F8", "use": "Primary text" }
+        "D0": { "hex": "#191317", "use": "App background" },
+        "D50": { "hex": "#21191F", "use": "Cards" },
+        "D100": { "hex": "#2B222A", "use": "Track and control backgrounds" },
+        "D150": { "hex": "#393039", "use": "Dividers and borders" },
+        "D200": { "hex": "#4A3D49", "use": "Strong borders and active segment" },
+        "D300": { "hex": "#5B4E59", "use": "Dark neutral" },
+        "D400": { "hex": "#766874", "use": "Dark neutral" },
+        "D500": { "hex": "#958793", "use": "Disabled and non-essential text only" },
+        "D700": { "hex": "#C9BAC5", "use": "Secondary text and body labels" },
+        "D900": { "hex": "#F5EFEB", "use": "Primary text" }
       }
     },
     "brand": {
-      "indigoDefault": { "hex": "#3344E0", "use": "Primary buttons, links, active nav" },
-      "indigoHover": { "hex": "#2A3BCB", "use": "Hover state" },
-      "indigoPressed": { "hex": "#2230AE", "use": "Pressed state and active nav text" },
-      "indigoTint": { "hex": "#ECEEFD", "use": "Light fills and active backgrounds" },
-      "indigoDark": { "hex": "#6E7BFF", "use": "Indigo on dark surfaces" }
+      "plumDefault": { "hex": "#765077", "use": "Primary buttons, links, active navigation" },
+      "plumHover": { "hex": "#674267", "use": "Hover state" },
+      "plumPressed": { "hex": "#542F53", "use": "Pressed state and active navigation text" },
+      "plumTint": { "hex": "#F0E7EE", "use": "Light fills and active backgrounds" },
+      "plumDark": { "hex": "#C9A5C7", "use": "Primary interaction on dark surfaces" }
     },
     "functional": {
       "incomePositive": {
-        "light": "#1F8F5F",
-        "dark": "#43C28A",
+        "light": "#5E7448",
+        "dark": "#B1C891",
         "use": "Income, gains, owed to the user"
       },
       "expense": {
-        "light": "#20242E",
-        "dark": "#F2F4F8",
+        "light": "#331329",
+        "dark": "#F5EFEB",
         "use": "Default expense ink; no separate hue"
       },
       "transfer": {
-        "light": "#5B6B86",
-        "dark": "#8A99B5",
+        "light": "#5F667A",
+        "dark": "#AEB4C4",
         "use": "Movements between user accounts"
       },
       "settlement": {
-        "light": "#B9772A",
-        "dark": "#D9A152",
+        "light": "#A66F1C",
+        "dark": "#E0AE5B",
         "use": "Debt payments"
       },
       "refund": {
-        "light": "#128A93",
-        "dark": "#3FB6BE",
+        "light": "#277F7D",
+        "dark": "#6BC2BE",
         "use": "Linked returns"
       },
       "debtDanger": {
-        "light": "#CC4B4B",
-        "dark": "#E8736F",
+        "light": "#B94E46",
+        "dark": "#EF8A80",
         "use": "User owes, over budget, destructive"
       },
       "shared": {
-        "light": "#6D5DD3",
-        "dark": "#A99BFF",
+        "light": "#7A5A91",
+        "dark": "#C5A7DC",
         "use": "Movements split with other people (not a debt or a warning)"
       },
       "alert": {
-        "light": "#C98A14",
-        "dark": "#E0A93C",
+        "light": "#A56B00",
+        "dark": "#E5B75D",
         "use": "Near limit and warning states"
       }
     },
     "category": {
-      "housing": { "color": "#C77D4A", "tint": "#F4E7DA", "icon": "home" },
-      "groceries": { "color": "#3F9E72", "tint": "#E0F0E8", "icon": "shopping_cart" },
-      "restaurants": { "color": "#C9554E", "tint": "#F6E2DF", "icon": "restaurant" },
-      "transport": { "color": "#4B7DC4", "tint": "#E1EAF6", "icon": "directions_car" },
-      "leisure": { "color": "#8A6FD1", "tint": "#EBE4F7", "icon": "sports_esports" },
-      "subscriptions": { "color": "#2C9AA6", "tint": "#DCEFF1", "icon": "credit_card" },
-      "uncategorized": { "color": "#9097A3", "tint": "#F0F1F4", "icon": "more_horiz" }
+      "housing": { "color": "#B96F55", "tint": "#F5E7DE", "icon": "home" },
+      "groceries": { "color": "#6E8B58", "tint": "#E8F0E3", "icon": "shopping_cart" },
+      "restaurants": { "color": "#D76758", "tint": "#F9E4DF", "icon": "restaurant" },
+      "transport": { "color": "#5485B7", "tint": "#E3ECF7", "icon": "directions_car" },
+      "leisure": { "color": "#8A6EAA", "tint": "#EEE6F4", "icon": "sports_esports" },
+      "subscriptions": { "color": "#4A9793", "tint": "#DEF0EE", "icon": "credit_card" },
+      "uncategorized": { "color": "#9E9187", "tint": "#F1EBE4", "icon": "more_horiz" }
     },
     "banner": {
-      "info": { "background": "#ECEEFD", "border": "#D5D9FA", "text": "#28308C", "icon": "info" },
-      "success": { "background": "#E6F4EC", "border": "#C6E6D4", "text": "#136443", "icon": "check_circle" },
-      "alert": { "background": "#FBF1DD", "border": "#F1E2BE", "text": "#7A5A12", "icon": "warning" },
-      "error": { "background": "#FBEAEA", "border": "#F0CDCD", "text": "#8E2F2F", "icon": "error" }
+      "info": { "background": "#F0E7EE", "border": "#DFCFE0", "text": "#59385A", "icon": "info" },
+      "success": { "background": "#E8F0E3", "border": "#CDDEC1", "text": "#405B32", "icon": "check_circle" },
+      "alert": { "background": "#FBF0D9", "border": "#EDD8AE", "text": "#76510B", "icon": "warning" },
+      "error": { "background": "#FBE8E5", "border": "#EFCAC4", "text": "#883A35", "icon": "error" }
     },
     "component": {
-      "destructiveBorder": "#E7C4C4",
-      "toggleOff": "#E2E5EA",
-      "toggleOffTrackLight": "#E2E5EA",
-      "toggleOffThumbLight": "#4A5160",
-      "toggleOffBorderLight": "#4A5160",
-      "toggleDisabledTrackLight": "#F0F1F4",
-      "toggleDisabledThumbLight": "#A4ABB7",
-      "toggleDisabledBorderLight": "#CDD2DA",
-      "toggleOffTrackDark": "#2C303A",
-      "toggleOffThumbDark": "#AEB6C4",
-      "toggleOffBorderDark": "#AEB6C4",
-      "toggleDisabledTrackDark": "#1E2128",
-      "toggleDisabledThumbDark": "#565E6C",
-      "toggleDisabledBorderDark": "#3A3F4B",
-      "focusRingIndigo": "rgba(51,68,224,.1)",
-      "desktopWindowChrome": "#F3F1EC",
-      "desktopSelectedRowBackground": "#F4F5FE",
-      "desktopSelectedRowBorder": "#DADFFB",
-      "desktopActiveNavBackground": "#EEF0FE",
-      "chartExpense": "#6E7891",
-      "scrim": "rgba(11,13,18,.55)"
+      "destructiveBorder": "#E8C4BE",
+      "toggleOff": "#E7DDD1",
+      "toggleOffTrackLight": "#E7DDD1",
+      "toggleOffThumbLight": "#66584F",
+      "toggleOffBorderLight": "#66584F",
+      "toggleDisabledTrackLight": "#EEE6DA",
+      "toggleDisabledThumbLight": "#A59588",
+      "toggleDisabledBorderLight": "#C7B9AA",
+      "toggleOffTrackDark": "#4A3D49",
+      "toggleOffThumbDark": "#C9BAC5",
+      "toggleOffBorderDark": "#C9BAC5",
+      "toggleDisabledTrackDark": "#2B222A",
+      "toggleDisabledThumbDark": "#766874",
+      "toggleDisabledBorderDark": "#5B4E59",
+      "focusRingPlum": "rgba(118,80,119,.12)",
+      "desktopWindowChrome": "#F6F0E5",
+      "desktopSelectedRowBackground": "#F3EAF1",
+      "desktopSelectedRowBorder": "#E2D1E0",
+      "desktopActiveNavBackground": "#F0E7EE",
+      "chartExpense": "#C77262",
+      "scrim": "rgba(51,19,41,.55)"
     }
   },
   "typography": {
@@ -155,10 +155,10 @@
   },
   "elevation": {
     "e0": { "shadow": "none", "use": "Default bordered surfaces" },
-    "e1": { "shadow": "0 1px 2px rgba(11,13,18,.06)", "use": "Separators" },
-    "e2": { "shadow": "0 2px 8px rgba(11,13,18,.06)", "use": "Cards" },
-    "e3": { "shadow": "0 8px 18px -6px rgba(51,68,224,.45)", "use": "Button and FAB" },
-    "e4": { "shadow": "0 24px 50px -12px rgba(15,18,30,.28)", "use": "Sheets and dialogs" }
+    "e1": { "shadow": "0 1px 2px rgba(51,19,41,.06)", "use": "Separators" },
+    "e2": { "shadow": "0 2px 8px rgba(51,19,41,.06)", "use": "Cards" },
+    "e3": { "shadow": "0 8px 18px -6px rgba(118,80,119,.32)", "use": "Button and FAB" },
+    "e4": { "shadow": "0 24px 50px -12px rgba(51,19,41,.28)", "use": "Sheets and dialogs" }
   },
   "sizing": {
     "buttonHeightPx": 40,
@@ -226,7 +226,7 @@
   "components": {
     "button": {
       "primary": {
-        "background": "{colors.brand.indigoDefault}",
+        "background": "{colors.brand.plumDefault}",
         "foreground": "{colors.neutral.light.N0}",
         "radius": "{radius.r2}",
         "height": "{sizing.buttonHeightPx}",

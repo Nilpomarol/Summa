@@ -88,7 +88,7 @@ internal val LightFinanceColors = FinanceColors(
     heroDebt = TokenColor.DebtDark,
     bottomBarSurface = TokenColor.Neutral0,
     bottomBarContent = TokenColor.Neutral700,
-    bottomBarActive = TokenColor.Indigo,
+    bottomBarActive = TokenColor.Plum,
     bottomBarDivider = TokenColor.Neutral150,
 )
 
@@ -117,7 +117,7 @@ internal val DarkFinanceColors = FinanceColors(
     heroDebt = TokenColor.DebtDark,
     bottomBarSurface = TokenColor.Dark50,
     bottomBarContent = TokenColor.Dark700,
-    bottomBarActive = TokenColor.IndigoDark,
+    bottomBarActive = TokenColor.PlumDark,
     bottomBarDivider = TokenColor.Dark300,
 )
 
