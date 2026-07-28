@@ -16,81 +16,81 @@ import androidx.compose.ui.unit.sp
 // or MaterialTheme, never these raw values.
 internal object TokenColor {
     // Neutrals — light
-    val Neutral0 = Color(0xFFFFFFFF)
-    val Neutral50 = Color(0xFFF7F8FA)
-    val Neutral100 = Color(0xFFF0F1F4)
-    val Neutral150 = Color(0xFFEAECEF)
-    val Neutral200 = Color(0xFFE2E5EA)
-    val Neutral300 = Color(0xFFCDD2DA)
-    val Neutral400 = Color(0xFFA4ABB7)
-    val Neutral500 = Color(0xFF8A92A0)
-    val Neutral700 = Color(0xFF4A5160)
-    val Neutral900 = Color(0xFF0B0D12)
+    val Neutral0 = Color(0xFFFFFDF9)
+    val Neutral50 = Color(0xFFF6F0E5)
+    val Neutral100 = Color(0xFFEEE6DA)
+    val Neutral150 = Color(0xFFE7DDD1)
+    val Neutral200 = Color(0xFFD8CCBF)
+    val Neutral300 = Color(0xFFC7B9AA)
+    val Neutral400 = Color(0xFFA59588)
+    val Neutral500 = Color(0xFF85776D)
+    val Neutral700 = Color(0xFF66584F)
+    val Neutral900 = Color(0xFF331329)
 
     // Neutrals — dark
-    val Dark0 = Color(0xFF0E1014)
-    val Dark50 = Color(0xFF16181E)
-    val Dark100 = Color(0xFF1E2128)
-    val Dark150 = Color(0xFF23262E)
-    val Dark200 = Color(0xFF2C303A)
-    val Dark300 = Color(0xFF3A3F4B)
-    val Dark400 = Color(0xFF565E6C)
-    val Dark500 = Color(0xFF7C8494)
-    val Dark700 = Color(0xFFAEB6C4)
-    val Dark900 = Color(0xFFF2F4F8)
+    val Dark0 = Color(0xFF191317)
+    val Dark50 = Color(0xFF21191F)
+    val Dark100 = Color(0xFF2B222A)
+    val Dark150 = Color(0xFF393039)
+    val Dark200 = Color(0xFF4A3D49)
+    val Dark300 = Color(0xFF5B4E59)
+    val Dark400 = Color(0xFF766874)
+    val Dark500 = Color(0xFF958793)
+    val Dark700 = Color(0xFFC9BAC5)
+    val Dark900 = Color(0xFFF5EFEB)
 
     // Brand — indigo (action/interactive only)
-    val Indigo = Color(0xFF3344E0)
-    val IndigoHover = Color(0xFF2A3BCB)
-    val IndigoPressed = Color(0xFF2230AE)
-    val IndigoTint = Color(0xFFECEEFD)
-    val IndigoDark = Color(0xFF6E7BFF)
+    val Plum = Color(0xFF765077)
+    val PlumHover = Color(0xFF674267)
+    val PlumPressed = Color(0xFF542F53)
+    val PlumTint = Color(0xFFF0E7EE)
+    val PlumDark = Color(0xFFC9A5C7)
 
     // Functional — fixed meaning (light / dark)
-    val IncomeLight = Color(0xFF1F8F5F)
-    val IncomeDark = Color(0xFF43C28A)
-    val ExpenseLight = Color(0xFF20242E)
-    val ExpenseDark = Color(0xFFF2F4F8)
-    val TransferLight = Color(0xFF5B6B86)
-    val TransferDark = Color(0xFF8A99B5)
-    val SettlementLight = Color(0xFFB9772A)
-    val SettlementDark = Color(0xFFD9A152)
-    val RefundLight = Color(0xFF128A93)
-    val RefundDark = Color(0xFF3FB6BE)
-    val DebtLight = Color(0xFFCC4B4B)
-    val DebtDark = Color(0xFFE8736F)
-    val SharedLight = Color(0xFF6D5DD3)
-    val SharedDark = Color(0xFFA99BFF)
-    val AlertLight = Color(0xFFC98A14)
-    val AlertDark = Color(0xFFE0A93C)
+    val IncomeLight = Color(0xFF5E7448)
+    val IncomeDark = Color(0xFFB1C891)
+    val ExpenseLight = Color(0xFF331329)
+    val ExpenseDark = Color(0xFFF5EFEB)
+    val TransferLight = Color(0xFF5F667A)
+    val TransferDark = Color(0xFFAEB4C4)
+    val SettlementLight = Color(0xFFA66F1C)
+    val SettlementDark = Color(0xFFE0AE5B)
+    val RefundLight = Color(0xFF277F7D)
+    val RefundDark = Color(0xFF6BC2BE)
+    val DebtLight = Color(0xFFB94E46)
+    val DebtDark = Color(0xFFEF8A80)
+    val SharedLight = Color(0xFF7A5A91)
+    val SharedDark = Color(0xFFC5A7DC)
+    val AlertLight = Color(0xFFA56B00)
+    val AlertDark = Color(0xFFE5B75D)
 
     // Banner — light triples (background / border / text); Info + Alert + Error are in use.
-    val BannerInfoBg = Color(0xFFECEEFD)
-    val BannerInfoBorder = Color(0xFFD5D9FA)
-    val BannerInfoText = Color(0xFF28308C)
-    val BannerAlertBg = Color(0xFFFBF1DD)
-    val BannerAlertBorder = Color(0xFFF1E2BE)
-    val BannerAlertText = Color(0xFF7A5A12)
-    val BannerErrorBg = Color(0xFFFBEAEA)
-    val BannerErrorBorder = Color(0xFFF0CDCD)
-    val BannerErrorText = Color(0xFF8E2F2F)
+    val BannerInfoBg = Color(0xFFF0E7EE)
+    val BannerInfoBorder = Color(0xFFDFCFE0)
+    val BannerInfoText = Color(0xFF59385A)
+    val BannerAlertBg = Color(0xFFFBF0D9)
+    val BannerAlertBorder = Color(0xFFEDD8AE)
+    val BannerAlertText = Color(0xFF76510B)
+    val BannerErrorBg = Color(0xFFFBE8E5)
+    val BannerErrorBorder = Color(0xFFEFCAC4)
+    val BannerErrorText = Color(0xFF883A35)
 
     // Category
-    val CategoryUncategorized = Color(0xFF9097A3)
+    val CategoryUncategorized = Color(0xFF9E9187)
 
     // Toggle states: enabled-off remains visibly interactive; disabled-off is lower-emphasis.
-    val ToggleOffTrackLight = Color(0xFFE2E5EA)
-    val ToggleOffThumbLight = Color(0xFF4A5160)
-    val ToggleOffBorderLight = Color(0xFF4A5160)
-    val ToggleDisabledTrackLight = Color(0xFFF0F1F4)
-    val ToggleDisabledThumbLight = Color(0xFFA4ABB7)
-    val ToggleDisabledBorderLight = Color(0xFFCDD2DA)
-    val ToggleOffTrackDark = Color(0xFF2C303A)
-    val ToggleOffThumbDark = Color(0xFFAEB6C4)
-    val ToggleOffBorderDark = Color(0xFFAEB6C4)
-    val ToggleDisabledTrackDark = Color(0xFF1E2128)
-    val ToggleDisabledThumbDark = Color(0xFF565E6C)
-    val ToggleDisabledBorderDark = Color(0xFF3A3F4B)
+    val ToggleOffTrackLight = Color(0xFFE7DDD1)
+    val ToggleOffThumbLight = Color(0xFF66584F)
+    val ToggleOffBorderLight = Color(0xFF66584F)
+    val ToggleDisabledTrackLight = Color(0xFFEEE6DA)
+    val ToggleDisabledThumbLight = Color(0xFFA59588)
+    val ToggleDisabledBorderLight = Color(0xFFC7B9AA)
+    val ToggleOffTrackDark = Color(0xFF4A3D49)
+    val ToggleOffThumbDark = Color(0xFFC9BAC5)
+    val ToggleOffBorderDark = Color(0xFFC9BAC5)
+    val ToggleDisabledTrackDark = Color(0xFF2B222A)
+    val ToggleDisabledThumbDark = Color(0xFF766874)
+    val ToggleDisabledBorderDark = Color(0xFF5B4E59)
 }
 
 private fun interfaceTextStyle(
@@ -116,10 +116,10 @@ private val LabelText = interfaceTextStyle(sizeSp = 12, weight = FontWeight.Medi
 private val CaptionText = interfaceTextStyle(sizeSp = 11, weight = FontWeight.Medium)
 
 internal val GestorLightColorScheme = lightColorScheme(
-    primary = TokenColor.Indigo,
+    primary = TokenColor.Plum,
     onPrimary = TokenColor.Neutral0,
-    primaryContainer = TokenColor.IndigoTint,
-    onPrimaryContainer = TokenColor.IndigoPressed,
+    primaryContainer = TokenColor.PlumTint,
+    onPrimaryContainer = TokenColor.PlumPressed,
     secondary = TokenColor.IncomeLight,
     onSecondary = TokenColor.Neutral0,
     tertiary = TokenColor.RefundLight,
@@ -140,7 +140,7 @@ internal val GestorLightColorScheme = lightColorScheme(
 )
 
 internal val GestorDarkColorScheme = darkColorScheme(
-    primary = TokenColor.IndigoDark,
+    primary = TokenColor.PlumDark,
     onPrimary = TokenColor.Dark0,
     primaryContainer = TokenColor.Dark200,
     onPrimaryContainer = TokenColor.Dark900,

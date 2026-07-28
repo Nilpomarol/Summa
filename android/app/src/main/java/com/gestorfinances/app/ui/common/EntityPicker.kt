@@ -48,14 +48,14 @@ data class EntityColorOption(val hex: String, val color: Color)
  */
 val EntityColorPalette: List<EntityColorOption> = listOf(
     // Original 8 — design-token functional colors
-    EntityColorOption("#3344E0", TokenColor.Indigo),
-    EntityColorOption("#1F8F5F", TokenColor.IncomeLight),
-    EntityColorOption("#128A93", TokenColor.RefundLight),
-    EntityColorOption("#5B6B86", TokenColor.TransferLight),
-    EntityColorOption("#B9772A", TokenColor.SettlementLight),
-    EntityColorOption("#C98A14", TokenColor.AlertLight),
-    EntityColorOption("#CC4B4B", TokenColor.DebtLight),
-    EntityColorOption("#9097A3", TokenColor.CategoryUncategorized),
+    EntityColorOption("#765077", TokenColor.Plum),
+    EntityColorOption("#5E7448", TokenColor.IncomeLight),
+    EntityColorOption("#277F7D", TokenColor.RefundLight),
+    EntityColorOption("#5F667A", TokenColor.TransferLight),
+    EntityColorOption("#A66F1C", TokenColor.SettlementLight),
+    EntityColorOption("#A56B00", TokenColor.AlertLight),
+    EntityColorOption("#B94E46", TokenColor.DebtLight),
+    EntityColorOption("#9E9187", TokenColor.CategoryUncategorized),
     // New additions
     EntityColorOption("#8B5CF6", Color(0xFF8B5CF6)),
     EntityColorOption("#3B82F6", Color(0xFF3B82F6)),
