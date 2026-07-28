@@ -47,7 +47,7 @@ data class IncomeExpenseChartPoint(
 )
 
 /**
- * Cumulative income and expense over the period (design §6 Charts). Each line is a running total,
+ * Cumulative income and expense over the period (design baseline Charts). Each line is a running total,
  * so a one-off salary/rent shows as a step and small daily movements as gentle slope — both stay
  * visible regardless of size. The vertical gap between the two lines is the running net.
  *

@@ -37,7 +37,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import com.gestorfinances.app.ui.theme.FinanceTheme
 import kotlinx.coroutines.flow.conflate
 
 /**

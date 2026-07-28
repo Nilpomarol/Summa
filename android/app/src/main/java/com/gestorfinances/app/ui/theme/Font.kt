@@ -6,7 +6,7 @@ import androidx.compose.ui.text.googlefonts.Font
 import androidx.compose.ui.text.googlefonts.GoogleFont
 import com.gestorfinances.app.R
 
-// Design system §3: Geist for the interface, IBM Plex Mono for ledger figures.
+// Geist for the interface, IBM Plex Mono for ledger figures.
 // Loaded as downloadable Google Fonts; if the provider/network is unavailable the
 // platform default is used as a graceful fallback (tabular numerals on figures still
 // apply via fontFeatureSettings = "tnum" in the typography).

@@ -6,7 +6,6 @@ import androidx.lifecycle.viewModelScope
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountRepository
 import com.gestorfinances.app.data.repository.AccountSummary
-import com.gestorfinances.app.data.repository.CategoryKind
 import com.gestorfinances.app.data.repository.CategoryRecord
 import com.gestorfinances.app.data.repository.CategoryRepository
 import com.gestorfinances.app.data.repository.MovementDraft
@@ -26,13 +25,14 @@ import com.gestorfinances.app.data.repository.TemplateRepository
 import com.gestorfinances.app.data.repository.TemplateSplitConfig
 import com.gestorfinances.app.data.repository.TemplateStatus
 import com.gestorfinances.app.data.repository.TemplateSummary
+import com.gestorfinances.app.data.repository.supportsExpense
+import com.gestorfinances.app.data.repository.supportsIncome
 import com.gestorfinances.app.data.repository.toTemplateSplitConfig
 import com.gestorfinances.app.domain.rules.CustomRecurrenceUnit
 import com.gestorfinances.app.domain.rules.DetectedRecurringCandidate
 import com.gestorfinances.app.domain.rules.DetectedTemplateAction
 import com.gestorfinances.app.domain.rules.ExistingTemplateSignature
 import com.gestorfinances.app.domain.rules.RecurrenceFrequency
-import com.gestorfinances.app.domain.rules.RecurrenceRule
 import com.gestorfinances.app.domain.rules.RecurringAdvancer
 import com.gestorfinances.app.domain.rules.RecurringCandidateMovement
 import com.gestorfinances.app.domain.rules.RecurringPatternDetector
@@ -418,7 +418,7 @@ class RecurringViewModel(
         }
     }
 
-    /** User-triggered, one-shot scan (spec §3.10) — never automatic/background. The detector
+    /** User-triggered, one-shot scan (product rule) — never automatic/background. The detector
      * itself stays split-blind (correct layering — see [RecurringPatternDetector]); the split each
      * candidate *would* carry is resolved here, separately, purely so the review sheet can show a
      * "Compartit" badge and a user-share/total preview instead of a raw total that hides sharing
@@ -604,7 +604,7 @@ data class RecurringUiState(
             form != null || detectionReview != null
 }
 
-/** Review list produced by a "Detecta periòdics" scan (spec §3.10) — nothing is created/updated
+/** Review list produced by a "Detecta periòdics" scan (product rule) — nothing is created/updated
  * until the user confirms; each item is pre-checked and can be unchecked (skipped) individually. */
 data class DetectionReviewState(
     val items: List<DetectionReviewItem>,
@@ -626,8 +626,7 @@ data class DuePrompt(
     val pendingCount: Int,
 )
 
-/** Identifies which field a due-payment confirm-prompt validation error belongs to (audit U8,
- * `docs/17` WP2). */
+/** Identifies which field a due-payment confirm-prompt validation error belongs to (field-level validation). */
 enum class ConfirmPromptField {
     AMOUNT,
     DATE,
@@ -647,7 +646,7 @@ data class ConfirmPromptState(
     val splitConfig: TemplateSplitConfig? = null,
 )
 
-/** Identifies which field a template-form validation error belongs to (audit U8, `docs/17` WP2). */
+/** Identifies which field a template-form validation error belongs to (field-level validation). */
 enum class TemplateFormField {
     AMOUNT,
     ACCOUNT,
@@ -740,7 +739,7 @@ fun TemplateSummary.effectiveDayOfMonth(): Int =
 /** Cursor after materializing/skipping a single occurrence. */
 private fun TemplateSummary.advancedOneStep(): String {
     val cursor = LocalDate.parse(nextDueDate)
-    return RecurringAdvancer.advance(toRecurrenceRule(), cursor = cursor, today = cursor).newCursor.toString()
+    return RecurringAdvancer.nextOccurrence(toRecurrenceRule(), cursor).toString()
 }
 
 /** Cursor after skipping the whole backlog up to [today]. */
@@ -832,12 +831,6 @@ fun RecurrenceFrequency.usesDayOfMonth(): Boolean =
 fun RecurrenceFrequency.usesWeekday(): Boolean =
     this == RecurrenceFrequency.WEEKLY || this == RecurrenceFrequency.FORTNIGHTLY
 
-val CategoryRecord.supportsExpense: Boolean
-    get() = kind == CategoryKind.EXPENSE || kind == CategoryKind.BOTH
-
-val CategoryRecord.supportsIncome: Boolean
-    get() = kind == CategoryKind.INCOME || kind == CategoryKind.BOTH
-
 private fun TemplateSummary.toFormState(): TemplateFormState =
     TemplateFormState(
         id = id,
@@ -862,7 +855,7 @@ private fun TemplateSummary.toFormState(): TemplateFormState =
         status = status,
     )
 
-/** Pattern-detection candidates are scoped to EXPENSE/INCOME (spec §3.10 addendum) — a recurring
+/** Pattern-detection candidates are scoped to EXPENSE/INCOME (product rule) — a recurring
  * transfer's identity also depends on its destination account, which this detector doesn't track. */
 private fun MovementSummary.toRecurringCandidateMovementOrNull(): RecurringCandidateMovement? {
     val account = accountId ?: return null

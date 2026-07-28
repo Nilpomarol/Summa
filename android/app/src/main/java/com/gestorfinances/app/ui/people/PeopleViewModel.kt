@@ -362,7 +362,7 @@ data class PersonDetailState(
     val copyMessage: PersonDebtMessage? = null,
 )
 
-/** Identifies which field a person-form validation error belongs to (audit U8, `docs/17` WP2). */
+/** Identifies which field a person-form validation error belongs to (field-level validation). */
 enum class PersonFormField {
     NAME,
 }
@@ -377,7 +377,7 @@ data class PersonFormState(
     val errorMessage: String? = null,
 )
 
-/** Identifies which field a settlement-form validation error belongs to (audit U8, `docs/17` WP2). */
+/** Identifies which field a settlement-form validation error belongs to (field-level validation). */
 enum class SettlementFormField {
     AMOUNT,
     ACCOUNT,

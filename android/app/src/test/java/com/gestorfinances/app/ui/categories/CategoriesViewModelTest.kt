@@ -24,7 +24,7 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * Smoke coverage for the category form's field-level validation (audit U8, `docs/17` WP2) --
+ * Smoke coverage for the category form's field-level validation (field-level validation) --
  * asserts `(errorRes, errorField)` for the two validation branches this form can hit.
  */
 @OptIn(ExperimentalCoroutinesApi::class)

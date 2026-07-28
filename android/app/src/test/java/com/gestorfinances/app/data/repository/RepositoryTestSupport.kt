@@ -14,11 +14,9 @@ import com.gestorfinances.app.data.db.GestorDatabase
  *
  * ## Multi-write atomicity pattern
  *
- * Several audit findings (C3 recurring confirm, C4 quick-template create, C5
- * external-split edit) are about two logical writes that must share a single
- * transaction but currently do not. The fix for each is to collapse the two
- * writes into one `queries.transaction { }` (or a single repository method that
- * does so). The test for each fix follows the same shape:
+ * Operations such as recurring confirmation, quick-template creation, and
+ * external-split editing combine logical writes that must share one transaction.
+ * Their tests follow the same shape:
  *
  * 1. Build a database via [newDatabase] and set up the minimum fixture the
  *    combined operation needs (an account, a person, a template, …).

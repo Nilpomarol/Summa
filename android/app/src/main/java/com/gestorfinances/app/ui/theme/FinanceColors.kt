@@ -5,7 +5,7 @@ import androidx.compose.ui.graphics.Color
 import com.gestorfinances.app.data.repository.MovementType
 
 /**
- * Semantic finance colors (design-system §2.4). Screens consume these names instead of
+ * Semantic finance colors (design baseline). Screens consume these names instead of
  * raw token hex, so money meaning and identity stay consistent across light/dark.
  */
 data class FinanceColors(
@@ -37,7 +37,7 @@ data class FinanceColors(
     val bottomBarDivider: Color,
 )
 
-/** Color of an amount by movement type — expense is plain ink, never a hue (§2.4). */
+/** Color of an amount by movement type — expense is plain ink, never a hue. */
 fun FinanceColors.amountColor(type: MovementType): Color =
     when (type) {
         MovementType.INCOME -> income
@@ -58,7 +58,7 @@ fun categoryColor(hex: String?): Color {
     }
 }
 
-/** Soft tint background for a category icon chip (§2.5), derived from its color. */
+/** Soft tint background for a category icon chip, derived from its color. */
 fun categoryTint(color: Color): Color = color.copy(alpha = 0.16f)
 
 internal val LightFinanceColors = FinanceColors(
@@ -83,7 +83,7 @@ internal val LightFinanceColors = FinanceColors(
     heroOnSurface = TokenColor.Neutral0,
     heroOnSurfaceMuted = TokenColor.Neutral400,
     // Hero surfaces are always dark ink regardless of the app's light/dark theme, so content on
-    // them always needs the brighter dark-mode functional colors for contrast (design system §9).
+    // them always needs the brighter dark-mode functional colors for contrast (design baseline).
     heroIncome = TokenColor.IncomeDark,
     heroDebt = TokenColor.DebtDark,
     bottomBarSurface = TokenColor.Neutral0,

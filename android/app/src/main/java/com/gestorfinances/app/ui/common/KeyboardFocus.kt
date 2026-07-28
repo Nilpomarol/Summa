@@ -5,7 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.platform.LocalFocusManager
 
-/** Advances focus to the next field on IME "Next" (design §10 keyboard/focus basics). */
+/** Advances focus to the next field on IME "Next" (design baseline keyboard/focus basics). */
 @Composable
 fun nextFieldKeyboardActions(): KeyboardActions {
     val focusManager = LocalFocusManager.current

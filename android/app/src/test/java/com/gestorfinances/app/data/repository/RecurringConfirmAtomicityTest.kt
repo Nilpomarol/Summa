@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Regression test for audit finding C3: `RecurringViewModel.onConfirmSaveClicked` used to write
+ * Regression test: `RecurringViewModel.onConfirmSaveClicked` used to write
  * the movement and advance the template cursor in two separate transactions, so a failure between
  * them could leave a persisted movement with a stale cursor (silent duplicate on next refresh).
  *

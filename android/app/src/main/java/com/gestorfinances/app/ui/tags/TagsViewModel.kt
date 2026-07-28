@@ -210,7 +210,7 @@ data class TagsUiState(
         }
 }
 
-/** Identifies which field a tag-form validation error belongs to (audit U8, `docs/17` WP2). */
+/** Identifies which field a tag-form validation error belongs to (field-level validation). */
 enum class TagFormField {
     NAME,
     TRIP,

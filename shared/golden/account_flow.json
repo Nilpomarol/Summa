@@ -1,6 +1,6 @@
 {
   "rule": "account_flow",
-  "description": "current_balance per account = starting_balance + Σ flow (v_account_balance, spec §4.2). Everything counts; a transfer is dual-signed (−origin, +destination); settlement sign follows direction; refund is an inflow at amount_cents.",
+  "description": "current_balance per account = starting_balance + Σ flow from v_account_balance. Everything counts; a transfer is dual-signed (−origin, +destination); settlement sign follows direction; refund is an inflow at amount_cents.",
   "cases": [
     {
       "name": "all movement types across two accounts",

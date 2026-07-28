@@ -8,8 +8,7 @@ import org.junit.Test
 /**
  * Covers the [AppNavState.back] reducer, in particular the `returnTo`-carrying overlays
  * (`Tags`/`Budgets` opened from within [AppOverlay.TripDetail]) that keep Trip Detail on the
- * back-stack instead of losing it — see `docs/16-android-audit-findings.md` and
- * `docs/14-trips-tags-ui.md` §2.
+ * back-stack instead of losing it.
  */
 class AppNavStateTest {
     @Test

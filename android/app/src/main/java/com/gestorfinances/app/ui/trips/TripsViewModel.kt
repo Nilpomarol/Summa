@@ -355,7 +355,7 @@ data class TripsUiState(
         get() = trips.filter { statusFilter == null || it.status == statusFilter }
 }
 
-/** Identifies which field a trip-form validation error belongs to (audit U8, `docs/17` WP2). */
+/** Identifies which field a trip-form validation error belongs to (field-level validation). */
 enum class TripFormField {
     NAME,
     START_DATE,

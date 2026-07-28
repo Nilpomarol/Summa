@@ -42,10 +42,6 @@ class DashboardViewModel(
         refresh()
     }
 
-    fun onHeroAccountSelected(id: String?) {
-        _state.value = _state.value.copy(selectedHeroAccountId = id)
-    }
-
     fun onCategoryModeChanged(mode: CategoryDisplayMode) {
         _state.value = _state.value.copy(categoryMode = mode)
     }
@@ -134,7 +130,6 @@ data class DashboardUiState(
     val accounts: List<AccountSummary> = emptyList(),
     val latestMovements: List<MovementSummary> = emptyList(),
     val activeTrip: TripSummary? = null,
-    val selectedHeroAccountId: String? = null,
     val categoryMode: CategoryDisplayMode = CategoryDisplayMode.EXPENSES,
     val isLoading: Boolean = true,
     val errorMessage: String? = null,

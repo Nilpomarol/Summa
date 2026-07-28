@@ -64,12 +64,10 @@ import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountSummary
 import com.gestorfinances.app.data.repository.AccountType
 import com.gestorfinances.app.data.repository.MovementSummary
-import com.gestorfinances.app.data.repository.MovementType
 import com.gestorfinances.app.ui.common.AccountIconPalette
 import com.gestorfinances.app.ui.common.ChipFlowSection
 import com.gestorfinances.app.ui.common.ColorPickerRow
 import com.gestorfinances.app.ui.common.DestructiveTextButton
-import com.gestorfinances.app.ui.common.EntityColorPalette
 import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.FinanceSwitch
 import com.gestorfinances.app.ui.common.FinanceFilterChip
@@ -84,7 +82,6 @@ import com.gestorfinances.app.ui.common.scrollToWhen
 import com.gestorfinances.app.ui.common.accountIcon
 import com.gestorfinances.app.ui.common.accountTypeIcon
 import com.gestorfinances.app.ui.common.doneKeyboardActions
-import com.gestorfinances.app.ui.common.formatEuroCents
 import com.gestorfinances.app.ui.common.label
 import com.gestorfinances.app.ui.common.nextFieldKeyboardActions
 import com.gestorfinances.app.ui.common.parseEuroCents

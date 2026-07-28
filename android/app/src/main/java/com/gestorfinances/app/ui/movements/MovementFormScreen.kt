@@ -163,8 +163,8 @@ fun MovementFormScreen(
         )
 
         // Top-of-form text is reserved for save/repository failures (errorMessage) -- field-level
-        // validation errors (errorRes) render next to the offending control instead (audit U8,
-        // `docs/17` WP2), and the duplicate/data-loss warnings render next to the Save button below.
+        // validation errors (errorRes) render next to the offending control, while duplicate and
+        // data-loss warnings render next to the Save button below.
         form.errorMessage?.let {
             Text(
                 text = it,
@@ -263,7 +263,7 @@ fun MovementFormScreen(
             }
         }
 
-        // Read-only auto-categorization hint (audit F1): tap to apply, never auto-applied.
+        // Read-only auto-categorization hint (category suggestion): tap to apply, never auto-applied.
         if (form.suggestedCategoryId != null && form.suggestedCategoryId != form.categoryId) {
             val suggestedCategory = remember(form.suggestedCategoryId, categories) {
                 categories.firstOrNull { it.id == form.suggestedCategoryId }
@@ -379,7 +379,7 @@ private fun MovementSaveBar(
                 },
                 modifier = Modifier.fillMaxWidth(),
             )
-            // Third choice for the recurring-stop warning (audit F12/`docs/17` WP3): the old
+            // Third choice for the recurring-stop warning (recurrence consistency): the old
             // "just detach" behavior remains alongside the default end-template action.
             if (isRecurrenceStop) {
                 TextButton(onClick = onRecurrenceStopUnlink, modifier = Modifier.fillMaxWidth()) {

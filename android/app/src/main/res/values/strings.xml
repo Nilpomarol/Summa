@@ -1,6 +1,5 @@
 <resources>
     <string name="app_name">Gestor de finances</string>
-    <string name="home_scaffold_status">Esquelet inicial de l\'app Android.</string>
     <string name="home_database_checking">Obrint la base de dades...</string>
     <string name="home_database_ready">Base de dades oberta. Esquema %1$s, instantània %2$s.</string>
     <string name="home_database_failed">No s\'ha pogut obrir la base de dades: %1$s</string>
@@ -12,54 +11,35 @@
     <string name="common_back">Enrere</string>
     <string name="common_close">Tanca</string>
     <string name="common_next">Següent</string>
-    <string name="common_detail">Detall</string>
-    <string name="common_search">Cerca</string>
     <string name="common_clear_filters">Neteja filtres</string>
-    <string name="common_optional">Opcional</string>
-    <string name="common_required">Obligatori</string>
     <string name="common_no_category">Sense categoria</string>
     <string name="common_yes">Sí</string>
     <string name="common_apply">Aplica</string>
     <string name="common_more_options">Més opcions</string>
-    <string name="common_done">Fet</string>
     <string name="common_remove">Treu</string>
-    <string name="common_share">Comparteix</string>
     <string name="common_review">Revisa</string>
     <string name="common_clear">Neteja</string>
     <string name="common_no_date">Sense data</string>
 
     <!-- Relative dates -->
-    <string name="date_today">Avui</string>
-    <string name="date_yesterday">Ahir</string>
 
     <!-- Navigation -->
     <string name="nav_home">Inici</string>
     <string name="nav_movements">Moviments</string>
-    <string name="nav_accounts">Comptes</string>
-    <string name="nav_categories">Categories</string>
     <string name="nav_analysis">Anàlisi</string>
-    <string name="nav_people">Persones</string>
     <string name="nav_recurring">Recurrents</string>
     <string name="nav_trips">Viatges</string>
     <string name="nav_management">Gestió</string>
 
     <!-- Management hub -->
     <string name="management_title">Gestió</string>
-    <string name="management_subtitle">Administra les peces que organitzen les finances.</string>
     <string name="management_accounts_title">Comptes</string>
-    <string name="management_accounts_subtitle">Saldos i ordre</string>
     <string name="management_categories_title">Categories</string>
-    <string name="management_categories_subtitle">Classificació</string>
     <string name="management_people_title">Persones</string>
-    <string name="management_people_subtitle">Deutes compartits</string>
-    <string name="management_events_title">Esdeveniments</string>
-    <string name="management_events_subtitle">Viatges i ocasions</string>
+    <string name="management_events_title">Viatges</string>
     <string name="management_recurring_title">Recurrents</string>
-    <string name="management_recurring_subtitle">Plantilles i avisos</string>
     <string name="management_budgets_title">Pressupostos</string>
-    <string name="management_budgets_subtitle">Límits de despesa</string>
     <string name="management_settings_title">Configuració</string>
-    <string name="management_settings_subtitle">Sistema i avisos</string>
 
     <!-- Onboarding -->
     <string name="onboarding_loading">Preparant l\'inici...</string>
@@ -106,7 +86,6 @@
     <string name="account_type_investment">Inversió</string>
     <string name="account_type_other">Altres</string>
     <string name="account_default_badge">Per defecte</string>
-    <string name="account_starting_balance_value">Saldo inicial: %1$s</string>
     <string name="account_flow_loading">Carregant flux...</string>
     <string name="account_flow_empty">Aquest compte encara no té moviments.</string>
     <string name="account_flow_view_analysis">Anàlisi</string>
@@ -121,7 +100,6 @@
     <string name="category_list_add">Nova categoria</string>
     <string name="category_loading">Carregant categories...</string>
     <string name="category_empty_title">Encara no hi ha categories</string>
-    <string name="category_empty_body">Crea categories per classificar despeses i ingressos.</string>
     <string name="category_uncategorized_body">Els moviments sense categoria es mantenen en aquest grup virtual.</string>
     <string name="category_form_new_title">Nova categoria</string>
     <string name="category_form_edit_title">Edita categoria</string>
@@ -155,7 +133,6 @@
     <string name="category_flow_empty">Sense moviments per a aquesta categoria.</string>
     <string name="category_flow_define_budget">Defineix un pressupost</string>
     <string name="category_parent_search_empty">Cap categoria coincideix amb la cerca.</string>
-    <string name="analysis_category_filter">Categoria: %1$s</string>
     <string name="category_spend_month">Aquest mes</string>
     <string name="category_spend_year">Aquest any</string>
 
@@ -173,15 +150,10 @@
     <string name="person_balance_you_owe">Li deus</string>
     <string name="person_balance_settled">Liquidat</string>
     <string name="person_latest_context_empty">Sense moviments compartits</string>
-    <string name="person_detail_title">Detall de la persona</string>
-    <string name="person_detail_balance">Saldo amb aquesta persona</string>
     <string name="person_detail_breakdown">Historial</string>
     <string name="person_detail_settled_body">No hi ha cap import pendent amb aquesta persona.</string>
     <string name="person_action_settle_up">Liquidar</string>
     <string name="person_action_external_split">Ha pagat per mi</string>
-    <string name="person_action_export_statement">Exporta extracte</string>
-    <string name="person_action_edit">Edita la persona</string>
-    <string name="person_action_archive">Elimina la persona</string>
     <string name="person_archive_confirm_title">Eliminar persona?</string>
     <string name="person_archive_warning">La persona es deixarà de mostrar a les llistes. L\'historial compartit es conservarà.</string>
     <string name="person_archive_warning_nonzero">Aquesta persona té un saldo pendent. Pots eliminar-la igualment; l\'historial es conservarà.</string>
@@ -190,7 +162,6 @@
     <string name="person_save_new">Crea persona</string>
     <string name="person_save_changes">Desa canvis</string>
     <string name="person_field_name">Nom</string>
-    <string name="person_field_avatar">Avatar</string>
     <string name="person_field_color">Color</string>
     <string name="person_field_notes">Notes</string>
     <string name="person_validation_name_required">Introdueix el nom de la persona.</string>
@@ -208,41 +179,27 @@
     <string name="debt_source_person_paid">Ha pagat %1$s</string>
     <string name="debt_source_settlement_in">T\'ha pagat</string>
     <string name="debt_source_settlement_out">Li has pagat</string>
-    <string name="debt_effect_owes_you">Et deu</string>
-    <string name="debt_effect_you_owe">Li deus</string>
-    <string name="debt_effect_settled">Liquidat</string>
-    <string name="debt_statement_title">Extracte amb %1$s</string>
-    <string name="debt_statement_net_balance">Saldo net: %1$s</string>
 
     <!-- Split editor -->
     <string name="split_editor_title">Repartiment</string>
-    <string name="split_editor_shared_expense_title">Despesa compartida</string>
     <string name="split_participants_title">Participants</string>
-    <string name="split_method_title">Mètode</string>
     <string name="split_method_equal">Parts iguals</string>
     <string name="split_method_exact">Imports exactes</string>
     <string name="split_method_percentage">Percentatges</string>
     <string name="split_payer_title">Qui ha pagat</string>
     <string name="split_payer_user">Jo</string>
-    <string name="split_field_person_share">Part de %1$s</string>
-    <string name="split_field_percent">Percentatge</string>
-    <string name="split_field_trip">Viatge</string>
     <string name="split_add_person">Afegeix persona</string>
     <string name="split_remove_person">Treu persona</string>
     <string name="split_reconcile_balanced">Repartiment quadrat</string>
     <string name="split_reconcile_remaining">Queden %1$s per assignar</string>
     <string name="split_reconcile_over">Sobra %1$s</string>
     <string name="split_remainder_to_payer">Els cèntims sobrants van a qui ha pagat.</string>
-    <string name="split_save">Desa repartiment</string>
     <string name="split_validation_total_positive">L\'import total ha de ser superior a zero.</string>
     <string name="split_validation_payer_required">Tria qui ha pagat.</string>
     <string name="split_validation_participant_required">Tria com a mínim una persona.</string>
-    <string name="split_validation_user_line_required">El repartiment ha d\'incloure la teva part.</string>
     <string name="split_validation_reconcile">El repartiment ha de quadrar amb l\'import total.</string>
-    <string name="split_warning_existing_settlement">Aquest canvi pot fer que una liquidació existent superi el nou saldo. Pots continuar si és correcte.</string>
 
     <!-- Settlements -->
-    <string name="settlement_title">Liquidació</string>
     <string name="settlement_title_with_person">Liquidar amb %1$s</string>
     <string name="settlement_direction_person_to_user">La persona et paga</string>
     <string name="settlement_direction_user_to_person">Tu pagues la persona</string>
@@ -251,12 +208,10 @@
     <string name="settlement_field_amount">Import</string>
     <string name="settlement_field_date">Data</string>
     <string name="settlement_field_notes">Notes</string>
-    <string name="settlement_prefill_full">Import pendent complet</string>
     <string name="settlement_warning_overpay">L\'import supera el saldo pendent. Si continues, el saldo canviarà de direcció.</string>
     <string name="settlement_save">Desa liquidació</string>
     <string name="settlement_validation_person_required">Tria una persona.</string>
     <string name="settlement_validation_account_required">Tria un compte.</string>
-    <string name="settlement_validation_no_balance">No hi ha saldo pendent per liquidar.</string>
 
     <!-- Movements -->
     <string name="movement_list_title">Moviments</string>
@@ -286,21 +241,18 @@
     <string name="movement_filter_chip_nature">Naturalesa: %1$s</string>
     <string name="movement_filter_chip_one_time">Extraordinàries: %1$s</string>
     <string name="movement_filter_remove_named">Neteja el filtre %1$s</string>
-    <string name="movement_filter_active_label">Filtres actius</string>
     <string name="movement_filter_unknown_value">Desconegut</string>
     <string name="movement_filter_all_accounts">Tots els comptes</string>
     <string name="movement_filter_all_categories">Totes les categories</string>
     <string name="movement_filter_date_from">Des de</string>
     <string name="movement_filter_date_to">Fins a</string>
-    <string name="movement_filter_date_invalid">Introdueix les dates dels filtres en format AAAA-MM-DD.</string>
+    <string name="movement_filter_date_invalid">Introdueix unes dates de filtre vàlides.</string>
     <string name="movement_filter_date_order_invalid">La data inicial ha de ser anterior o igual a la data final.</string>
     <string name="movement_filter_empty_title">Cap moviment coincideix</string>
     <string name="movement_filter_empty_body">Canvia o neteja els filtres per tornar a veure moviments.</string>
     <string name="movement_archive_confirm_title">Eliminar moviment?</string>
     <string name="movement_archive_warning">El moviment es deixarà de mostrar a les llistes i no comptarà als saldos.</string>
     <string name="movement_archive_revert_due_checkbox">Marca «%1$s» com a pendent una altra vegada</string>
-    <string name="movement_add_title">Nou moviment</string>
-    <string name="movement_edit_title">Editant moviment</string>
     <string name="movement_type_expense">Despesa</string>
     <string name="movement_type_income">Ingrés</string>
     <string name="movement_type_transfer">Transferència</string>
@@ -319,7 +271,7 @@
     <string name="movement_field_payee">Beneficiari</string>
     <string name="movement_field_notes">Notes</string>
 
-    <!-- Movement detail sheet (P5R-10) -->
+    <!-- Movement detail -->
     <string name="movement_detail_settlement_received_from">Rebut de</string>
     <string name="movement_detail_settlement_paid_to">Pagat a</string>
     <string name="movement_detail_one_time_short">Extraordinari</string>
@@ -344,10 +296,7 @@
     <string name="movement_debt_amount_help">L\'import que li deus.</string>
     <string name="movement_field_trip">Viatge</string>
     <string name="movement_field_tag">Etiqueta</string>
-    <string name="movement_trip_badge">Viatge</string>
-    <string name="movement_tag_disabled_no_trip">Tria un viatge per afegir una etiqueta.</string>
     <string name="movement_field_one_time">Despesa extraordinària</string>
-    <string name="movement_field_one_time_support">Marca aquesta despesa per poder-la aïllar de l\'anàlisi.</string>
     <string name="movement_one_time_badge">Extraordinària</string>
     <string name="movement_shared_badge">Compartit</string>
     <string name="movement_amount_your_share_label">La teva part</string>
@@ -367,7 +316,6 @@
     <string name="movement_label_shared">Compartit</string>
     <string name="movement_recurring_badge">Recurrent</string>
     <string name="movement_total_short">Total %1$s</string>
-    <string name="movement_field_shared">Despesa compartida</string>
     <string name="movement_field_shared_support">Reparteix aquesta despesa amb altres persones.</string>
     <string name="movement_field_settlement">Liquidació</string>
     <string name="movement_field_recurring">Recurrent</string>
@@ -382,8 +330,6 @@
     <string name="movement_create_person_title">Nova persona</string>
     <string name="movement_create_person_name_hint">Nom de la persona</string>
     <string name="movement_no_trip">Sense viatge</string>
-    <string name="movement_action_add_split">Afegeix repartiment</string>
-    <string name="movement_action_edit_split">Edita repartiment</string>
     <string name="movement_split_summary">%1$d participants · la teva part: %2$s</string>
     <string name="movement_existing_split_unchanged">Aquest moviment ja té un repartiment. Es mantindrà igual si no l\'edites.</string>
     <string name="movement_paid_by_person">Pagat per %1$s</string>
@@ -400,7 +346,7 @@
     <string name="movement_validation_amount_required">Introdueix un import.</string>
     <string name="movement_validation_amount_positive">L\'import ha de ser superior a zero.</string>
     <string name="movement_validation_date_required">Tria una data.</string>
-    <string name="movement_validation_date_invalid">Introdueix una data vàlida en format AAAA-MM-DD.</string>
+    <string name="movement_validation_date_invalid">Introdueix una data vàlida.</string>
     <string name="movement_validation_account_required">Tria un compte.</string>
     <string name="movement_validation_destination_required">Tria un compte destí.</string>
     <string name="movement_validation_transfer_same_account">El compte d\'origen i el compte destí han de ser diferents.</string>
@@ -408,31 +354,25 @@
 
     <!-- Dashboard -->
     <string name="dashboard_title">Inici</string>
-    <string name="dashboard_current_month">Aquest mes</string>
-    <string name="dashboard_net_worth">Patrimoni net</string>
-    <string name="dashboard_month_income">Ingressos del mes</string>
-    <string name="dashboard_month_expenses">Despeses del mes</string>
     <string name="dashboard_net_flow">Flux net</string>
-    <string name="dashboard_savings_rate">Taxa d\'estalvi</string>
     <string name="dashboard_savings_short">Estalvi</string>
     <string name="dashboard_savings_rate_unavailable">No disponible</string>
     <string name="dashboard_savings_progress_accessibility">Estalvi del mes: %1$s</string>
+    <string name="dashboard_hero_title">Resum global</string>
+    <string name="dashboard_hero_net_worth_label">Patrimoni total</string>
     <string name="dashboard_accounts_title">Comptes</string>
     <string name="dashboard_category_breakdown_title">Categories del mes</string>
     <string name="dashboard_categories_expenses">Despeses</string>
     <string name="dashboard_categories_income">Ingressos</string>
     <string name="dashboard_category_progress_accessibility">%1$s: %2$s del total</string>
     <string name="dashboard_latest_movements_title">Últims moviments</string>
-    <string name="dashboard_view_analysis">Veure anàlisi</string>
     <string name="dashboard_no_data">Encara no hi ha dades per aquest període.</string>
-    <string name="dashboard_empty_title">Encara no hi ha activitat aquest mes</string>
     <string name="dashboard_empty_body">Afegeix moviments per veure el resum mensual.</string>
     <string name="dashboard_active_trip_title">Viatge actiu</string>
     <string name="dashboard_active_trip_view">Veure viatge</string>
     <string name="dashboard_active_trip_add_movement">Afegeix moviment</string>
 
     <!-- Analysis -->
-    <string name="analysis_title">Anàlisi</string>
     <string name="analysis_scope_label">Abast</string>
     <string name="analysis_scope_month">Mes</string>
     <string name="analysis_scope_year">Any</string>
@@ -440,12 +380,6 @@
     <string name="analysis_scope_custom">Personalitzat</string>
     <string name="analysis_period_current">Període actual</string>
     <string name="analysis_period_previous">Període anterior</string>
-    <string name="analysis_delta">Diferència</string>
-    <string name="analysis_compare_previous">Compara amb l\'anterior</string>
-    <string name="analysis_group_by">Agrupa per</string>
-    <string name="analysis_group_category">Categoria</string>
-    <string name="analysis_group_account">Compte</string>
-    <string name="analysis_group_trip">Viatge</string>
     <string name="analysis_mode_actual">Actual</string>
     <string name="analysis_mode_flow">Flux</string>
     <string name="analysis_value_mode_label">Valors</string>
@@ -459,37 +393,20 @@
     <string name="analysis_filter_all_natures">Totes</string>
     <string name="analysis_filter_fixed">Fixes</string>
     <string name="analysis_filter_variable">Variables</string>
-    <string name="analysis_filter_amount_min">Import mínim</string>
-    <string name="analysis_filter_amount_max">Import màxim</string>
-    <string name="analysis_account_filter">Compte: %1$s</string>
     <string name="analysis_summary_expense">Despesa actual</string>
     <string name="analysis_summary_income">Ingrés actual</string>
-    <string name="analysis_summary_net">Net actual</string>
-    <string name="analysis_flow_positive">Entrades</string>
-    <string name="analysis_flow_negative">Sortides</string>
     <string name="analysis_breakdown_title">Desglossament</string>
     <string name="analysis_income_vs_expense_title">Ingressos i despeses acumulats</string>
-    <string name="analysis_account_flow_title">Evolució de comptes</string>
-    <string name="analysis_top_merchants_title">Despeses freqüents</string>
-    <string name="analysis_largest_expenses_title">Despeses més grans</string>
     <string name="analysis_heatmap_title">Mapa de despesa</string>
-    <string name="analysis_category_trends_title">Tendència per categoria</string>
     <string name="analysis_net_worth_title">Patrimoni net</string>
     <string name="analysis_savings_rate_title">Taxa d\'estalvi</string>
-    <string name="analysis_drilldown_title">Moviments inclosos</string>
-    <string name="analysis_estimate_badge">Estimació</string>
     <string name="analysis_empty_title">Sense dades per analitzar</string>
     <string name="analysis_empty_body">Canvia el període o afegeix moviments per veure l\'anàlisi.</string>
     <string name="analysis_savings_rate_period_title">Estalvi per període</string>
-    <string name="analysis_merchant_none">Sense comerç</string>
     <string name="analysis_heatmap_legend_less">Menys</string>
     <string name="analysis_heatmap_legend_more">Més</string>
-    <plurals name="analysis_merchant_count">
-        <item quantity="one">%1$d moviment</item>
-        <item quantity="other">%1$d moviments</item>
-    </plurals>
 
-    <!-- Phase 5R: Analysis 5-tab redesign -->
+    <!-- Analysis tabs -->
     <string name="analysis_tab_resum">Resum</string>
     <string name="analysis_tab_categories">Categories</string>
     <string name="analysis_tab_comparativa">Compara</string>
@@ -501,8 +418,6 @@
     <string name="analysis_filter_account_all">Tots els comptes</string>
     <string name="analysis_filter_category_all">Totes les categories</string>
     <string name="analysis_filter_reset">Restableix els filtres</string>
-    <string name="analysis_period_pick_month">Tria el mes</string>
-    <string name="analysis_period_pick_year">Tria l\'any</string>
     <string name="analysis_top_categories_title">Categories principals</string>
     <string name="analysis_treemap_title">Distribució de despesa</string>
     <string name="analysis_scatter_title">Freqüència vs volum</string>
@@ -609,7 +524,7 @@
         <item quantity="other">%1$d subcategories</item>
     </plurals>
 
-    <!-- Phase 4 (P4-1): recurring, refunds, budgets, notifications. -->
+    <!-- Recurring, refunds, budgets, and notifications -->
 
     <!-- Recurring list & due prompts -->
     <string name="recurring_list_title">Recurrents</string>
@@ -645,11 +560,9 @@
     <string name="recurring_action_add_payment">Afegeix pagament</string>
     <string name="recurring_action_skip">Omet aquest període</string>
     <string name="recurring_action_end">Finalitza la sèrie</string>
-    <string name="recurring_action_edit">Edita la plantilla</string>
     <string name="recurring_action_pause">Posa en pausa</string>
     <string name="recurring_action_resume">Reactiva</string>
     <string name="recurring_ended_section_title">Finalitzats</string>
-    <string name="recurring_confirm_all">Confirma\'ls tots</string>
     <string name="recurring_skip_all">Omet-los tots</string>
     <string name="recurring_empty_title">Encara no tens moviments recurrents</string>
     <string name="recurring_empty_body">Crea una plantilla per repetir despeses, ingressos o transferències.</string>
@@ -704,7 +617,6 @@
     <string name="template_delete_confirm_body">Els moviments ja creats es mantenen, però deixaran d\'estar vinculats a aquest recurrent i ja no es marcaran com a recurrents.</string>
 
     <!-- Refunds -->
-    <string name="refund_title">Devolució</string>
     <string name="refund_add_title">Afegeix una devolució</string>
     <string name="refund_field_linked_expense">Despesa vinculada</string>
     <string name="refund_field_amount">Import retornat</string>
@@ -716,11 +628,9 @@
     <string name="refund_remaining">Pendent de retornar: %1$s</string>
     <string name="refund_warning_over">L\'import supera el que queda per retornar. Pots continuar si és correcte.</string>
     <string name="refund_save">Desa la devolució</string>
-    <string name="refund_list_title">Devolucions</string>
     <string name="refund_orphaned_warning">La despesa vinculada s\'ha eliminat. Revisa o elimina aquesta devolució.</string>
     <string name="refund_validation_amount_required">Introdueix un import.</string>
     <string name="refund_validation_actual_over">L\'ajust real no pot superar l\'import retornat.</string>
-    <string name="movement_refund_of">Devolució de %1$s</string>
 
     <!-- Budgets -->
     <string name="budget_list_title">Pressupostos</string>
@@ -751,7 +661,6 @@
     <string name="budget_status_over">Superat</string>
 
     <!-- Notifications & alerts (settings) -->
-    <string name="settings_notifications_title">Avisos</string>
     <string name="notification_recurring_title">Recordatoris de recurrents</string>
     <string name="notification_recurring_lead_default">Dies d\'antelació per defecte</string>
     <string name="alert_budget_title">Avisos de pressupost</string>
@@ -773,10 +682,10 @@
     <string name="notification_low_balance_title">Saldo baix</string>
     <string name="notification_low_balance_body">%1$s: saldo %2$s, llindar %3$s.</string>
 
-    <!-- Sync / read-only seam (P5R-8) -->
+    <!-- Sync / read-only -->
     <string name="sync_read_only_banner">Només lectura. %1$s té el control d\'edició.</string>
 
-    <!-- Backups (P5R-16) -->
+    <!-- Backups -->
     <string name="settings_backup_title">Còpies de seguretat</string>
     <string name="settings_backup_body">Exporta o restaura una còpia completa de la base de dades en una carpeta que triïs.</string>
     <string name="settings_backup_folder_missing">Tria una carpeta abans de crear o restaurar còpies.</string>
@@ -812,14 +721,14 @@
     <string name="settings_backup_error_export_destination">No s\'ha pogut escriure la còpia a la carpeta seleccionada.</string>
     <string name="settings_backup_error_generic">No s\'ha pogut completar la còpia: %1$s</string>
 
-    <!-- Phase 5 (P5-1): trips, trip analysis, tags. -->
+    <!-- Trips, trip analysis, and tags -->
 
     <!-- Trips list and detail -->
     <string name="trip_list_title">Viatges</string>
     <string name="trip_list_add">Nou viatge</string>
     <string name="trip_loading">Carregant viatges...</string>
     <string name="trip_empty_title">Encara no tens viatges</string>
-    <string name="trip_empty_body">Crea un viatge o esdeveniment per veure\'n el cost separat de la despesa habitual.</string>
+    <string name="trip_empty_body">Crea un viatge per veure\'n el cost separat de la despesa habitual.</string>
     <string name="trip_filter_all">Tots</string>
     <string name="trip_filter_planned">Planificats</string>
     <string name="trip_filter_active">Actius</string>
@@ -902,18 +811,17 @@
     <string name="tag_field_color">Color</string>
     <string name="tag_field_category">Categoria associada</string>
     <string name="tag_scope_global">Global</string>
-    <string name="tag_scope_event_type">Tipus d\'esdeveniment</string>
+    <string name="tag_scope_event_type">Tipus de viatge</string>
     <string name="tag_scope_specific_trip">Viatge concret</string>
     <string name="tag_scope_trip_local_value">Local de %1$s</string>
     <string name="tag_scope_event_type_value">Tipus: %1$s</string>
     <string name="tag_picker_none">Sense etiqueta</string>
     <string name="tag_category_picker_none">Sense categoria</string>
-    <string name="tag_action_archive">Elimina etiqueta</string>
     <string name="tag_archive_confirm_title">Eliminar etiqueta?</string>
     <string name="tag_archive_warning">L\'etiqueta es deixarà de mostrar. Els moviments vinculats conservaran l\'historial.</string>
     <string name="tag_validation_name_required">Introdueix el nom de l\'etiqueta.</string>
     <string name="tag_validation_trip_required">Tria un viatge per crear una etiqueta local.</string>
-    <string name="tag_validation_scope_exclusive">Una etiqueta no pot ser alhora local d\'un viatge i d\'un tipus d\'esdeveniment.</string>
+    <string name="tag_validation_scope_exclusive">Una etiqueta no pot ser alhora local d\'un viatge i d\'un tipus de viatge.</string>
     <string name="tag_section_global">Globals</string>
     <string name="tag_section_event_type">Tags de %1$s</string>
     <string name="tag_section_trip">%1$s</string>
@@ -921,8 +829,6 @@
     <!-- Trip budgets -->
     <string name="budget_scope_category">Categoria</string>
     <string name="budget_scope_trip">Viatge</string>
-    <string name="budget_trip_title">Pressupost del viatge</string>
-    <string name="budget_trip_empty">Aquest viatge encara no té pressupost.</string>
 
     <!-- Debug / Testing -->
     <string name="settings_debug_title">Depuració i proves</string>

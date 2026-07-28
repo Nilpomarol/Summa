@@ -17,6 +17,7 @@ import com.gestorfinances.app.data.repository.BudgetRepository
 import com.gestorfinances.app.data.repository.BudgetStatus
 import com.gestorfinances.app.data.repository.TemplateRepository
 import com.gestorfinances.app.ui.common.formatEuroCents
+import com.gestorfinances.app.ui.common.formatCompactDate
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.YearMonth
@@ -72,7 +73,7 @@ class FinanceNotificationCoordinator(
         )
         val body = appContext.getString(
             R.string.notification_recurring_due_body,
-            candidate.dueDate.toString(),
+            formatCompactDate(candidate.dueDate.toString()),
         )
         val intent = FinanceNotificationReceiver.notificationIntent(
             context = appContext,
@@ -219,7 +220,6 @@ fun Context.canPostFinanceNotifications(): Boolean =
         checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 
 internal fun ensureNotificationChannel(context: Context) {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
     val manager = context.getSystemService(NotificationManager::class.java)
     val channel = NotificationChannel(
         FINANCE_NOTIFICATION_CHANNEL_ID,

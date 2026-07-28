@@ -533,7 +533,7 @@ private fun BackupFileCandidate.describe(): String {
 
 @Composable
 private fun Instant.formatBackupInstant(): String =
-    DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
+    DateTimeFormatter.ofPattern("d MMM yyyy HH:mm", java.util.Locale.forLanguageTag("ca"))
         .withZone(ZoneId.systemDefault())
         .format(this)
 

@@ -257,7 +257,7 @@ class MigrationTest {
 
         // Build a minimal v3 schema: a v3 database has movements/trips but, prior to this
         // migration, had never had v_trip_actual_total created (it was only wired into
-        // sharedViewFiles for fresh installs, not into a migration step — the P5R-7 regression
+        // sharedViewFiles for fresh installs, not into a migration step — the trip-analysis work regression
         // this test guards against). Also includes splits/split_lines (empty) since the v3->v4
         // migration now recreates v_actual_expense too (a second post-close fix, see
         // MigrationTest's dedicated v_actual_expense case below), and its real definition joins
@@ -404,14 +404,14 @@ class MigrationTest {
 
     @Test
     fun `v3 to v4 migration recreates v_actual_expense so upgraders that predate the tag_id fix can query tag_id`() {
-        // v_actual_expense has existed since before schema_version existed at all (P0A-3) and was
+        // v_actual_expense has existed since before schema_version existed at all and was
         // NEVER embedded in any migration before this fix (unlike v_movement_summary, which
         // migration 002/1.sqm has always created). Any database that was ever fresh-created
         // (Schema.create()) before the tag_id fix landed — at schema v1, v2, or v3 — therefore
         // carries the OLD view shape (no tag_id on any branch) forever, since only the v3->v4
         // migration now recreates it. Build exactly that: a full current (v4) database via
         // Schema.create(), then overwrite v_actual_expense with its verbatim pre-fix definition
-        // (as it was from the P0A-3 commit until this fix) and rewind to schema v3, simulating a
+        // (as it was from its first commit until this fix) and rewind to schema v3, simulating a
         // device whose last applied migration was v2->v3.
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         driver.execute(null, "PRAGMA foreign_keys = ON", 0)
@@ -530,7 +530,7 @@ class MigrationTest {
             """.trimIndent(),
             0,
         )
-        // A §2.6 external split (friend paid) carrying its own tag_id (the branch F7 fixed:
+        // A external-payer external split (friend paid) carrying its own tag_id (the branch F7 fixed:
         // this used to be dropped into "Sense etiqueta" because the old tripActualByTag
         // re-joined movements on source_id, which doesn't resolve for a splits.id).
         driver.execute(

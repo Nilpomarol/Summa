@@ -3,7 +3,6 @@ package com.gestorfinances.app.ui.budgets
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import com.gestorfinances.app.data.db.GestorDatabase
 import com.gestorfinances.app.data.repository.BudgetDraft
-import com.gestorfinances.app.data.repository.BudgetPeriod
 import com.gestorfinances.app.data.repository.BudgetRepository
 import com.gestorfinances.app.data.repository.BudgetScope
 import com.gestorfinances.app.data.repository.CategoryDraft

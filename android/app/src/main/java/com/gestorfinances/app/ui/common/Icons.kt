@@ -95,7 +95,7 @@ import com.gestorfinances.app.data.repository.AccountType
 import com.gestorfinances.app.data.repository.MovementType
 
 /**
- * Maps the Material Symbols names stored on categories (design tokens §2.5) to the
+ * Maps the Material Symbols names stored on categories (design baseline) to the
  * outlined Compose vectors. Unknown names fall back to the neutral "uncategorized" glyph.
  */
 fun categoryIcon(name: String?): ImageVector =

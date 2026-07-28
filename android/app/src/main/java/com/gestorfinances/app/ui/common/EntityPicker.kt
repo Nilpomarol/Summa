@@ -43,7 +43,7 @@ import com.gestorfinances.app.ui.theme.TokenColor
 data class EntityColorOption(val hex: String, val color: Color)
 
 /**
- * Fixed 8-color palette drawn from the design-token functional colors (docs/08 §2.4).
+ * Fixed 8-color palette drawn from the design-token functional colors.
  * Stored in the DB as hex strings; `categoryColor()` / `accountIcon()` parse them back.
  */
 val EntityColorPalette: List<EntityColorOption> = listOf(

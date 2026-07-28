@@ -22,7 +22,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Autorenew
 import androidx.compose.material.icons.outlined.Group
@@ -76,6 +75,7 @@ import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.doneKeyboardActions
 import com.gestorfinances.app.ui.common.nextFieldKeyboardActions
 import com.gestorfinances.app.ui.common.formatEuroCents
+import com.gestorfinances.app.ui.common.formatCompactDate
 import com.gestorfinances.app.ui.common.IconChip
 import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.LabeledSegmentedControl
@@ -429,7 +429,7 @@ private fun TemplateRow(
                 style = MaterialTheme.typography.bodyMedium,
             )
             Text(
-                text = stringResource(R.string.recurring_next_due, template.nextDueDate),
+                text = stringResource(R.string.recurring_next_due, formatCompactDate(template.nextDueDate)),
                 color = FinanceTheme.colors.mutedText,
                 style = MaterialTheme.typography.labelSmall,
             )
@@ -596,7 +596,7 @@ private fun DuePromptCard(
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        text = stringResource(R.string.recurring_next_due, prompt.dueDate),
+                        text = stringResource(R.string.recurring_next_due, formatCompactDate(prompt.dueDate)),
                         color = FinanceTheme.colors.mutedText,
                         style = MaterialTheme.typography.labelSmall,
                     )
@@ -626,7 +626,7 @@ private fun DuePromptCard(
 }
 
 /** Auto-triggered on app cold start (from `MainActivity`, not from [RecurringScreen] itself) when
- * any template is due -- see `docs/13-recurring-refunds-budgets-ui.md` §13 for the "once per cold
+ * any template is due; the prompt appears once per cold
  * start, persists until acted on" rationale. Reuses [DuePromptCard] verbatim; every action here
  * (confirm/skip/skip-all/end) opens the same existing dialogs [RecurringOverlays] renders. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -771,7 +771,7 @@ private fun ConfirmPromptDialog(
 }
 
 /** Live preview of how the confirmed amount would be split, so a shared template's confirm sheet
- * never books a rescaled or dropped split without the user seeing it first (docs/13 §84). Uses the
+ * never books a rescaled or dropped split without the user seeing it first. Uses the
  * exact same rule [RecurringViewModel] applies at save time ([TemplateSplitConfig.previewShares]). */
 @Composable
 private fun SplitPreviewCard(

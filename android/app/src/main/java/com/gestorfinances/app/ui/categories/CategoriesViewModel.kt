@@ -306,7 +306,7 @@ data class CategoryFlowDetailState(
     val errorMessage: String? = null,
 )
 
-/** Identifies which field a category-form validation error belongs to (audit U8, `docs/17` WP2). */
+/** Identifies which field a category-form validation error belongs to (field-level validation). */
 enum class CategoryFormField {
     NAME,
     PARENT,

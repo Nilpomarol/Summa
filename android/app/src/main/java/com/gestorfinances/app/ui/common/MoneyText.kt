@@ -11,7 +11,7 @@ import com.gestorfinances.app.ui.theme.asFigures
 import kotlin.math.roundToInt
 
 /**
- * Renders a money amount as a ledger figure (IBM Plex Mono + tabular numerals, design §3).
+ * Renders a money amount as a ledger figure (IBM Plex Mono + tabular numerals, design baseline).
  *
  * @param cents already-signed amount; negatives format with a leading minus.
  * @param signed when true, positive values are prefixed with `+` (income, positive deltas).
@@ -103,7 +103,7 @@ internal fun formatEuroCompact(cents: Long): String {
     }
 }
 
-// Locale formatting (design §3): thousands dot, decimal comma — e.g. 18.420,15 €.
+// Locale formatting (design baseline): thousands dot, decimal comma — e.g. 18.420,15 €.
 internal fun formatBasisPoints(value: Long): String {
     val sign = if (value < 0) "-" else ""
     val absolute = kotlin.math.abs(value)

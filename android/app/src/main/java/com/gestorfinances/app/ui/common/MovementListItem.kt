@@ -267,7 +267,7 @@ internal fun MovementSummary.movementTitle(): String =
 
 @Composable
 internal fun MovementSummary.contextLine(showDate: Boolean = true): String {
-    val datePrefix = if (showDate && date.isNotBlank()) formatMovementDate(date) else null
+    val datePrefix = if (showDate && date.isNotBlank()) formatCompactDate(date) else null
     val contextText = when (type) {
         MovementType.TRANSFER -> stringResource(
             R.string.movement_transfer_accounts,

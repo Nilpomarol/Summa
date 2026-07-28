@@ -239,8 +239,8 @@ private fun LedgerShell(
         return
     }
 
-    // No-op today (AppContainer always reports Writer) — a seam for Phase 7's real sync/token
-    // protocol so the shell doesn't need shape changes once it lands (docs/09 §8).
+    // No-op today (AppContainer always reports Writer) — a seam for the real sync/token
+    // protocol so the shell doesn't need shape changes once it lands (docs/architecture.md).
     val deviceAccessState by appContainer.deviceAccessState.collectAsState()
 
     var nav by remember { mutableStateOf(AppNavState.Home) }
@@ -680,6 +680,10 @@ private fun LedgerShell(
                 onSettings = { showManagement(ManagementDestination.SETTINGS) },
                 onDrillDown = openMovements,
                 onMovementDetail = openMovementDetail,
+                onAccountAnalysis = { account ->
+                    analysisViewModel.setAccountFilter(account.id, account.name)
+                    showTopLevel(TopLevelSection.ANALYSIS)
+                },
                 onViewTrip = { trip -> nav = nav.copy(overlay = AppOverlay.TripDetail(tripId = trip.id)) },
                 onAddTripMovement = { trip -> openMovementForm(trip.id) },
                 modifier = Modifier

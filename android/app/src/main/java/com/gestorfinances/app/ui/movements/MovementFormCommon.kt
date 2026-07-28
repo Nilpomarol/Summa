@@ -51,9 +51,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountSummary
-import com.gestorfinances.app.data.repository.CategoryKind
 import com.gestorfinances.app.data.repository.CategoryRecord
 import com.gestorfinances.app.data.repository.MovementType
+import com.gestorfinances.app.data.repository.supports
 import com.gestorfinances.app.data.repository.TagSummary
 import com.gestorfinances.app.data.repository.TemplateStatus
 import com.gestorfinances.app.data.repository.TripSummary
@@ -66,6 +66,7 @@ import com.gestorfinances.app.ui.common.categoryIcon
 import com.gestorfinances.app.ui.common.doneKeyboardActions
 import com.gestorfinances.app.ui.common.inPickerHierarchyOrder
 import com.gestorfinances.app.ui.common.nextFieldKeyboardActions
+import com.gestorfinances.app.ui.common.formatCompactDate
 import com.gestorfinances.app.ui.common.scrollToWhen
 import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.amountColor
@@ -73,7 +74,6 @@ import com.gestorfinances.app.ui.theme.categoryColor
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
 
 /**
  * Colored type selector: each segment carries its semantic money color.
@@ -195,14 +195,7 @@ internal fun CategorySelect(
 ) {
     val noCategory = stringResource(R.string.common_no_category)
     val options = remember(categories, type, noCategory) {
-        val compatible = categories.filter { cat ->
-            when (type) {
-                MovementType.EXPENSE, MovementType.EXTERNAL_EXPENSE ->
-                    cat.kind == CategoryKind.EXPENSE || cat.kind == CategoryKind.BOTH
-                MovementType.INCOME -> cat.kind == CategoryKind.INCOME || cat.kind == CategoryKind.BOTH
-                else -> false
-            }
-        }
+        val compatible = categories.filter { it.supports(type) }
         buildCategorySelectOptions(compatible, noCategory)
     }
     FormSelect(
@@ -264,7 +257,7 @@ internal fun FormDatePicker(
     modifier: Modifier = Modifier,
     isError: Boolean = false,
     supportingText: String? = null,
-    /** Non-null only for optional date fields (e.g. budget start date, `docs/17` WP5): shows a
+    /** Non-null only for optional date fields, such as a budget start date: shows a
      * trailing clear icon while [date] is non-blank. Required date fields never pass this. */
     onClear: (() -> Unit)? = null,
 ) {
@@ -274,9 +267,7 @@ internal fun FormDatePicker(
         if (date.isBlank()) {
             null
         } else {
-            runCatching {
-                LocalDate.parse(date).format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
-            }.getOrDefault(date)
+            formatCompactDate(date)
         }
     }
 
@@ -353,10 +344,10 @@ internal fun FormRecurringSection(
     onToggle: (Boolean) -> Unit,
     onFrequencyChange: (RecurrenceFrequency) -> Unit,
     /** True when this movement is linked to an existing template (`form.templateId != null`,
-     * audit F12/`docs/17` WP3): the frequency is the template's truth, not this form's, so it's
+     * recurrence consistency): the frequency is the template's truth, not this form's, so it's
      * shown as a muted read-only line instead of an editable select -- editing it here would
      * either silently do nothing or misrepresent what "changing" it actually means. No navigation
-     * to the template editor in this slice (decision recorded in `docs/17`); the label alone is
+     * to the template editor from this form; the label alone is
      * honest and sufficient. */
     linked: Boolean,
     /** The linked template's real status (only meaningful when [linked]) -- ending a template
@@ -628,8 +619,8 @@ internal fun MovementSheetHeader(
     iconColor: Color,
     modifier: Modifier = Modifier,
     amountColor: Color = FinanceTheme.colors.amountColor(type),
-    /** Total cost caption shown under the amount -- shared/external expenses only (§movement
-     * detail redesign): the header amount is the user's own share, so the total needs calling
+    /** Total cost caption shown under the amount -- shared/external expenses only. The header
+     * amount is the user's own share, so the total needs calling
      * out separately or it reads as the full cost. */
     totalCaption: String? = null,
 ) {
@@ -678,7 +669,7 @@ internal data class GridItemData(
 
 /**
  * One row inside a [DetailGroupCard]: icon chip + label/value pair. Replaces the former
- * per-field bordered tiles (P5R-18) -- rows now share one card per group instead of each
+ * per-field bordered tiles (form-group consolidation) -- rows now share one card per group instead of each
  * field getting its own border, so related fields read as a set.
  */
 @Composable

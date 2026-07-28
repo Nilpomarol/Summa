@@ -4,7 +4,6 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Tab
 import androidx.compose.material3.ScrollableTabRow
@@ -34,11 +33,10 @@ import com.gestorfinances.app.ui.analysis.components.ResumTab
 import com.gestorfinances.app.ui.common.HeatmapCell
 import com.gestorfinances.app.ui.common.IncomeExpenseChartPoint
 import com.gestorfinances.app.ui.common.formatCompactDateRange
-import com.gestorfinances.app.ui.common.formatLongDate
+import com.gestorfinances.app.ui.common.formatExpandedDate
 import com.gestorfinances.app.ui.common.formatMonth
 import com.gestorfinances.app.ui.common.formatMonthYear
 import com.gestorfinances.app.ui.theme.FinanceTheme
-import java.time.LocalDate
 import java.time.YearMonth
 
 @Composable
@@ -234,7 +232,7 @@ internal fun AnalysisPeriodRange.formatForScope(scope: AnalysisScope): String =
         AnalysisScope.YEAR -> fromDate.year.toString()
         AnalysisScope.ALL_TIME -> stringResource(R.string.analysis_scope_all_time)
         AnalysisScope.CUSTOM ->
-            "${formatLongDate(fromDate.toString())} - ${formatLongDate(toDateExclusive.minusDays(1).toString())}"
+            "${formatExpandedDate(fromDate.toString())} - ${formatExpandedDate(toDateExclusive.minusDays(1).toString())}"
     }
 
 @Composable
@@ -243,14 +241,14 @@ internal fun AnalysisUiState.fallbackPeriodLabel(): String =
         AnalysisScope.MONTH -> formatMonthYear(month)
         AnalysisScope.YEAR -> year.toString()
         AnalysisScope.ALL_TIME -> stringResource(R.string.analysis_scope_all_time)
-        AnalysisScope.CUSTOM -> "${formatLongDate(customFrom)} - ${formatLongDate(customTo)}"
+        AnalysisScope.CUSTOM -> "${formatExpandedDate(customFrom)} - ${formatExpandedDate(customTo)}"
     }
 
 /**
  * Current vs comparison period labels (Comparativa tab: KPI captions, chart legend). For month
  * scope, when both months fall in the same year the year is dropped from both labels ("Juliol" /
  * "Juny" instead of "Juliol 2026" / "Juny 2026") since repeating it twice is redundant. For custom
- * scope, uses the compact `d MMM` date form (instead of the long `formatLongDate` pair, which
+ * scope, uses the compact `d MMM` date form (instead of the expanded date pair, which
  * overflows KPI cards) and likewise drops the year from both labels when all four endpoints share
  * one common year.
  */

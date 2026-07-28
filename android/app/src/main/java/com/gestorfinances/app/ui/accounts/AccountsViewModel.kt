@@ -284,7 +284,7 @@ data class AccountFlowDetailState(
     val errorMessage: String? = null,
 )
 
-/** Identifies which field an account-form validation error belongs to (audit U8, `docs/17` WP2). */
+/** Identifies which field an account-form validation error belongs to (field-level validation). */
 enum class AccountFormField {
     NAME,
     STARTING_BALANCE,

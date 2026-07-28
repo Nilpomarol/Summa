@@ -19,9 +19,9 @@ private data class AutoCatConditionsJson(
 )
 
 /**
- * Read-only access to `auto_cat_rules` for the movement-form category suggestion (audit F1).
+ * Read-only access to `auto_cat_rules` for the movement-form category suggestion.
  * No CRUD yet — rules can only be inserted directly against the DB until a rules-management
- * screen ships (tracked separately, e.g. alongside Phase 6C CSV import).
+ * screen is intentionally not implemented yet.
  */
 class AutoCatRuleRepository(
     private val queries: AutoCatRulesQueries,

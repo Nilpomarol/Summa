@@ -45,7 +45,7 @@ data class TrendSeries(
 )
 
 /**
- * Multi-series line chart over a shared bucket axis (design §6 Charts). A single-series chart
+ * Multi-series line chart over a shared bucket axis (design baseline Charts). A single-series chart
  * (net worth) gets the indigo line + fill-area treatment; multi-series charts (category trends)
  * draw one colored line per series with no fill. Euro-formatted gridlines on the start axis and
  * [labels] (thinned so they never collide) on the bottom axis match the rest of the app's custom
@@ -111,7 +111,7 @@ fun TrendLineChart(
                                             lineColor = line.color,
                                             lineThickness = 2.5.dp,
                                             // Single-series charts (net worth) get a fill area under the
-                                            // line per design §6; multi-series trends stay plain so the
+                                            // line per design baseline; multi-series trends stay plain so the
                                             // overlapping categories don't turn into a muddy wash.
                                             lineBackgroundShader = if (series.size == 1) {
                                                 DynamicShaders.fromBrush(

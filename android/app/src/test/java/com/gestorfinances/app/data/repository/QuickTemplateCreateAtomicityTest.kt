@@ -5,7 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Regression test for audit finding C4: `MovementsViewModel.attemptSave` used to create a quick
+ * Regression test: `MovementsViewModel.attemptSave` used to create a quick
  * recurring template and its first movement in two separate transactions (despite a comment
  * claiming the link was atomic). A failure between them left an orphaned active template with no
  * backing movement, generating due prompts for nothing.

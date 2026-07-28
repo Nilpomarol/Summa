@@ -572,7 +572,7 @@ class MovementsViewModelTest {
         }
     }
 
-    // Regression (audit C9/docs/17 WP1): switching the top-level movement type away from EXPENSE
+    // Regression (data-loss protection): switching the top-level movement type away from EXPENSE
     // and back used to null `splitEditor` unconditionally in `normalizeForm`, silently destroying
     // the split. The split must survive the round trip and still save correctly.
     @Test
@@ -623,7 +623,7 @@ class MovementsViewModelTest {
         }
     }
 
-    // Regression (audit C9/docs/17 WP1): explicitly turning off sharing on an existing shared
+    // Regression (data-loss protection): explicitly turning off sharing on an existing shared
     // expense must warn before removing the stored split (never block, never silently proceed).
     @Test
     fun explicitlyUnsharingAnExistingSplitWarnsThenRemovesItOnAccept() = runTest(dispatcher) {
@@ -774,7 +774,7 @@ class MovementsViewModelTest {
         }
     }
 
-    // Audit F12/`docs/17` WP3: editing a movement linked to a template previously always showed
+    // Regression: editing a movement linked to a template previously always showed
     // MONTHLY (`toFormState` never read the actual template) regardless of the template's real
     // frequency, and never surfaced `templateId`/`templateStatus` for the FOR_OTHER kind at all --
     // the form silently misrepresented the movement's recurrence.
@@ -846,7 +846,7 @@ class MovementsViewModelTest {
         }
     }
 
-    // Audit F12/`docs/17` WP3: toggling recurrence off on a movement still linked to a template
+    // Regression: toggling recurrence off on a movement still linked to a template
     // must warn (never silently unlink or silently keep the template alive) and, on the "end"
     // choice, end the template and unlink this movement atomically in the same save.
     @Test
@@ -1375,7 +1375,7 @@ class MovementsViewModelTest {
         }
     }
 
-    // Regression (audit BLOCKER): MovementSummary.id is splits.id for an EXTERNAL_EXPENSE (DEBT,
+    // Data-loss regression: MovementSummary.id is splits.id for an EXTERNAL_EXPENSE (DEBT,
     // "Un altre ha pagat") but movements.id for everything else. Editing an existing DEBT expense
     // and switching "Qui ha pagat?" to "Jo" must archive the old split and create a real movement
     // -- not silently no-op an UPDATE against a movements row that never existed.
@@ -1425,7 +1425,7 @@ class MovementsViewModelTest {
         }
     }
 
-    // Regression (audit BLOCKER + C9/docs/17 WP1): the reverse direction. Editing an existing
+    // Regression (data-loss regression): the reverse direction. Editing an existing
     // regular movement and switching "Qui ha pagat?" to "Un altre" must archive the old movements
     // row and create a real external split -- not silently insert a brand-new split while leaving
     // the original movement live, which would double-count the expense (balances/account flow

@@ -49,7 +49,7 @@ data class MovementSummary(
     val payerId: String?,
     val settlementDirection: SettlementDirection?,
     val settlementPersonName: String?,
-    /** Set only when [type] is REFUND: the expense this refund refers to (§3.3b). */
+    /** Set only when [type] is REFUND: the expense this refund refers to. */
     val refundsExpenseId: String? = null,
     val refundsExpenseName: String? = null,
     /** True when the linked [refundsExpenseId] expense has been archived (orphaned refund). */

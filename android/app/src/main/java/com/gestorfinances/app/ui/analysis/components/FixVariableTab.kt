@@ -393,7 +393,7 @@ private fun FixedIncomeRatioRow(incomeCents: Long, ratioBasisPoints: Long?) {
     }
 }
 
-/** Small colored status badge (design §6 pill shape) — tint background, matching-color text. */
+/** Small colored status badge (design baseline pill shape) — tint background, matching-color text. */
 @Composable
 private fun StatusPill(text: String, color: androidx.compose.ui.graphics.Color) {
     Surface(

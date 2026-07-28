@@ -29,7 +29,7 @@ data class HeatmapCell(
 
 /**
  * A calendar/contribution-style spend grid: one square per day, darker = more spent.
- * Spend intensity is a neutral ink ramp (expense is ink, not a hue — design §2.4/§2.3).
+ * Spend intensity is a neutral ink ramp (expense is ink, not a hue — design baseline).
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
