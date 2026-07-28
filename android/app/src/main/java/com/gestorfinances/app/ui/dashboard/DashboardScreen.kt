@@ -1,7 +1,10 @@
 package com.gestorfinances.app.ui.dashboard
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -10,28 +13,42 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material3.Button
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -43,18 +60,18 @@ import com.gestorfinances.app.data.repository.MovementSummary
 import com.gestorfinances.app.data.repository.MovementType
 import com.gestorfinances.app.data.repository.TripSummary
 import com.gestorfinances.app.data.repository.icon
+import com.gestorfinances.app.ui.common.BannerKind
 import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.FinanceFilterChip
 import com.gestorfinances.app.ui.common.IconChip
+import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.MovementListItem
 import com.gestorfinances.app.ui.common.SectionHeader
-import com.gestorfinances.app.ui.common.TopBarIconButton
 import com.gestorfinances.app.ui.common.accountIcon
 import com.gestorfinances.app.ui.common.accountTypeIcon
 import com.gestorfinances.app.ui.common.categoryIcon
-import com.gestorfinances.app.ui.common.label
-import com.gestorfinances.app.ui.common.formatBasisPoints
+import com.gestorfinances.app.ui.common.formatEuroCents
 import com.gestorfinances.app.ui.common.formatMonthYear
 import com.gestorfinances.app.ui.common.formatPercentLabel
 import com.gestorfinances.app.ui.movements.MovementFilters
@@ -63,12 +80,12 @@ import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.categoryColor
 import java.time.YearMonth
 
+/** Named slices of the monthly breakdown ring; everything past them is folded into one aggregate. */
+private const val DASHBOARD_NAMED_CATEGORIES = 4
+
 @Composable
 fun DashboardScreen(
     viewModel: DashboardViewModel,
-    onNewMovement: () -> Unit,
-    onViewAnalysis: () -> Unit,
-    onSettings: () -> Unit,
     onDrillDown: (MovementFilters) -> Unit,
     onMovementDetail: (MovementSummary) -> Unit,
     onAccountAnalysis: (AccountSummary) -> Unit,
@@ -84,10 +101,10 @@ fun DashboardScreen(
 
     DashboardContent(
         state = state,
-        onSettings = onSettings,
         onDrillDown = onDrillDown,
         onMovementDetail = onMovementDetail,
         onAccountAnalysis = onAccountAnalysis,
+        onAccountSelected = viewModel::onAccountSelected,
         onCategoryModeChanged = viewModel::onCategoryModeChanged,
         onViewTrip = onViewTrip,
         onAddTripMovement = onAddTripMovement,
@@ -98,10 +115,10 @@ fun DashboardScreen(
 @Composable
 private fun DashboardContent(
     state: DashboardUiState,
-    onSettings: () -> Unit,
     onDrillDown: (MovementFilters) -> Unit,
     onMovementDetail: (MovementSummary) -> Unit,
     onAccountAnalysis: (AccountSummary) -> Unit,
+    onAccountSelected: (String) -> Unit,
     onCategoryModeChanged: (CategoryDisplayMode) -> Unit,
     onViewTrip: (TripSummary) -> Unit,
     onAddTripMovement: (TripSummary) -> Unit,
@@ -109,40 +126,19 @@ private fun DashboardContent(
 ) {
     LazyColumn(
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 92.dp),
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 4.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            DashboardHeader(
-                month = state.month,
-                onSettings = onSettings,
+            Text(
+                text = stringResource(R.string.dashboard_title),
+                style = MaterialTheme.typography.headlineMedium,
             )
-        }
-
-        item {
-            MainAccountCard(
-                state = state,
-                onDrillDown = onDrillDown,
-            )
-        }
-
-        state.activeTrip?.let { trip ->
-            item {
-                ActiveTripCard(
-                    trip = trip,
-                    onViewTrip = { onViewTrip(trip) },
-                    onAddMovement = { onAddTripMovement(trip) },
-                )
-            }
         }
 
         state.errorMessage?.let { message ->
             item {
-                Text(
-                    text = message,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+                InlineBanner(kind = BannerKind.Error, text = message)
             }
         }
 
@@ -156,26 +152,34 @@ private fun DashboardContent(
             }
         }
 
-        // Accounts section — patrimoni overview, always visible
         item {
-            SectionHeader(title = stringResource(R.string.dashboard_accounts_title))
+            DashboardHeroCard(
+                state = state,
+                onAccountSelected = onAccountSelected,
+                onAccountAnalysis = onAccountAnalysis,
+                onDrillDown = onDrillDown,
+            )
         }
-        if (state.accounts.isEmpty()) {
+
+        // Attention item: rendered only when the loaded state already exposes the condition.
+        state.lowBalanceAccount?.let { account ->
             item {
-                Text(
-                    text = stringResource(R.string.movement_no_accounts_body),
-                    color = FinanceTheme.colors.mutedText,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+                LowBalanceBanner(account = account)
             }
-        } else {
+        }
+
+        state.activeTrip?.let { trip ->
             item {
-                AccountGrid(accounts = state.accounts, onAccountAnalysis = onAccountAnalysis)
+                ActiveTripRow(
+                    trip = trip,
+                    onViewTrip = { onViewTrip(trip) },
+                    onAddMovement = { onAddTripMovement(trip) },
+                )
             }
         }
 
         item {
-            CategorySection(
+            MonthCategorySection(
                 state = state,
                 onCategoryModeChanged = onCategoryModeChanged,
                 onDrillDown = onDrillDown,
@@ -183,222 +187,327 @@ private fun DashboardContent(
         }
 
         item {
-            SectionHeader(title = stringResource(R.string.dashboard_latest_movements_title))
-        }
-        if (state.latestMovements.isEmpty()) {
-            item {
-                Text(
-                    text = stringResource(R.string.dashboard_empty_body),
-                    color = FinanceTheme.colors.mutedText,
-                    style = MaterialTheme.typography.bodyMedium,
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                SectionHeader(
+                    title = stringResource(R.string.dashboard_latest_movements_title),
+                    trailing = {
+                        TextButton(onClick = { onDrillDown(MovementFilters()) }) {
+                            Text(text = stringResource(R.string.dashboard_view_all))
+                        }
+                    },
                 )
-            }
-        } else {
-            items(items = state.latestMovements, key = { it.id }) { movement ->
-                MovementListItem(
-                    movement = movement,
-                    onClick = { onMovementDetail(movement) },
-                )
-                HorizontalDivider(
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                )
+                if (state.latestMovements.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.dashboard_empty_body),
+                        color = FinanceTheme.colors.mutedText,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                } else {
+                    state.latestMovements.forEach { movement ->
+                        MovementListItem(
+                            movement = movement,
+                            onClick = { onMovementDetail(movement) },
+                        )
+                    }
+                }
             }
         }
     }
 }
 
 // ---------------------------------------------------------------------------
-// Header
+// Hero — account, balance, net worth, and month totals in one contained card
 // ---------------------------------------------------------------------------
 
+/** Static month indicator: the dashboard always reflects the current month, so it is read-only. */
 @Composable
-private fun DashboardHeader(
-    month: YearMonth,
-    onSettings: () -> Unit,
-) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
+private fun MonthIndicator(month: YearMonth) {
+    Surface(
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        border = BorderStroke(1.dp, FinanceTheme.colors.cardBorder),
+    ) {
+        Row(
+            modifier = Modifier
+                .heightIn(min = 36.dp)
+                .padding(horizontal = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(
-                text = stringResource(R.string.dashboard_title),
-                style = MaterialTheme.typography.headlineMedium,
+            Icon(
+                imageVector = Icons.Outlined.CalendarMonth,
+                contentDescription = null,
+                tint = FinanceTheme.colors.mutedText,
+                modifier = Modifier.size(18.dp),
             )
             Text(
                 text = formatMonthYear(month),
-                color = FinanceTheme.colors.mutedText,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.titleSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
-        TopBarIconButton(
-            icon = Icons.Outlined.Settings,
-            contentDescription = stringResource(R.string.nav_settings),
-            onClick = onSettings,
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Financial summary — one contained card: account, balance, net worth
+// ---------------------------------------------------------------------------
+
+/**
+ * The dashboard hero: one contained card that folds the account switcher, the current balance,
+ * net worth, and the current month's totals into a single dense surface. The month indicator is
+ * read-only; the balance and net worth reflect current standing.
+ */
+@Composable
+private fun DashboardHeroCard(
+    state: DashboardUiState,
+    onAccountSelected: (String) -> Unit,
+    onAccountAnalysis: (AccountSummary) -> Unit,
+    onDrillDown: (MovementFilters) -> Unit,
+) {
+    FinanceCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            val account = state.mainAccount
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (account != null) {
+                    AccountSwitcher(
+                        account = account,
+                        accounts = state.accounts,
+                        onAccountSelected = onAccountSelected,
+                        modifier = Modifier.weight(1f),
+                    )
+                } else {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+                MonthIndicator(month = state.month)
+            }
+
+            if (account == null) {
+                Text(
+                    text = stringResource(R.string.movement_no_accounts_body),
+                    color = FinanceTheme.colors.mutedText,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = stringResource(R.string.dashboard_available_balance_label),
+                        color = FinanceTheme.colors.mutedText,
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                    AvailableBalance(
+                        account = account,
+                        onAccountAnalysis = { onAccountAnalysis(account) },
+                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.dashboard_net_worth_label),
+                            color = FinanceTheme.colors.mutedText,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        MoneyText(
+                            cents = state.totals.netWorthCents,
+                            color = if (state.totals.netWorthCents < 0) {
+                                FinanceTheme.colors.debt
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
+            }
+
+            HorizontalDivider(color = FinanceTheme.colors.cardBorder)
+
+            MonthTotalsRow(state = state, onDrillDown = onDrillDown)
+        }
+    }
+}
+
+/** Compact account picker for the hero top row: leading icon, name, and the shared account menu. */
+@Composable
+private fun AccountSwitcher(
+    account: AccountSummary,
+    accounts: List<AccountSummary>,
+    onAccountSelected: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val accessibility = stringResource(
+        R.string.dashboard_account_selector_accessibility,
+        account.name,
+    )
+
+    Box(modifier = modifier) {
+        Row(
+            modifier = Modifier
+                .clickable { expanded = true }
+                .heightIn(min = 44.dp)
+                .clearAndSetSemantics { contentDescription = accessibility },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Icon(
+                imageVector = accountTypeIcon(account.type),
+                contentDescription = null,
+                tint = FinanceTheme.colors.mutedText,
+                modifier = Modifier.size(18.dp),
+            )
+            Text(
+                text = account.name,
+                style = MaterialTheme.typography.titleSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            Icon(
+                imageVector = Icons.Outlined.ExpandMore,
+                contentDescription = null,
+                tint = FinanceTheme.colors.mutedText,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            accounts.forEach { option ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = option.name,
+                            style = if (option.id == account.id) {
+                                MaterialTheme.typography.titleSmall
+                            } else {
+                                MaterialTheme.typography.bodyLarge
+                            },
+                        )
+                    },
+                    leadingIcon = {
+                        IconChip(
+                            icon = accountChipIcon(option),
+                            contentDescription = null,
+                            color = categoryColor(option.color),
+                            size = 28.dp,
+                        )
+                    },
+                    trailingIcon = {
+                        MoneyText(
+                            cents = option.currentBalanceCents,
+                            color = if (option.currentBalanceCents < 0) {
+                                FinanceTheme.colors.debt
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    },
+                    onClick = {
+                        onAccountSelected(option.id)
+                        expanded = false
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AvailableBalance(
+    account: AccountSummary,
+    onAccountAnalysis: () -> Unit,
+) {
+    val accessibility = stringResource(
+        R.string.dashboard_account_balance_accessibility,
+        account.name,
+        formatEuroCents(account.currentBalanceCents),
+    )
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onAccountAnalysis),
+    ) {
+        MoneyText(
+            cents = account.currentBalanceCents,
+            modifier = Modifier.clearAndSetSemantics { contentDescription = accessibility },
+            color = if (account.currentBalanceCents < 0) {
+                FinanceTheme.colors.debt
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            },
+            style = MaterialTheme.typography.displayMedium.copy(
+                fontSize = 36.sp,
+                lineHeight = 42.sp,
+            ),
         )
     }
 }
 
-// ---------------------------------------------------------------------------
-// Aggregate monthly/portfolio summary (dark hero)
-// ---------------------------------------------------------------------------
-
+/** Income, actual expense, and savings for the selected month, in one quiet three-column row. */
 @Composable
-private fun MainAccountCard(
+private fun MonthTotalsRow(
     state: DashboardUiState,
     onDrillDown: (MovementFilters) -> Unit,
 ) {
-    Surface(
+    val totals = state.totals
+    Row(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        color = FinanceTheme.colors.heroSurface,
-        contentColor = FinanceTheme.colors.heroOnSurface,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 20.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(R.string.dashboard_hero_title),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = FinanceTheme.colors.heroOnSurfaceMuted,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            Text(
-                text = stringResource(R.string.dashboard_hero_net_worth_label),
-                color = FinanceTheme.colors.heroOnSurfaceMuted,
-                style = MaterialTheme.typography.labelSmall,
-            )
-            MoneyText(
-                cents = state.totals.netWorthCents,
-                color = if (state.totals.netWorthCents < 0) FinanceTheme.colors.debt
-                        else FinanceTheme.colors.heroOnSurface,
-                style = MaterialTheme.typography.displayMedium.copy(
-                    fontSize = 40.sp,
-                    lineHeight = 46.sp,
-                ),
-            )
-
-            Spacer(modifier = Modifier.height(18.dp))
-
-            HeroKpiBlock(state = state, onDrillDown = onDrillDown)
-        }
-    }
-}
-
-@Composable
-private fun HeroKpiBlock(
-    state: DashboardUiState,
-    onDrillDown: (MovementFilters) -> Unit,
-) {
-    val income = state.totals.actualIncomeCents
-    val expense = state.totals.actualExpenseCents
-    val flux = state.totals.netActualCents
-    val incomeColor = FinanceTheme.colors.income
-    val savingsProgress = if (income > 0) {
-        (state.totals.savingsRateBasisPoints / 10000f).coerceIn(0f, 1f)
-    } else 0f
-    val savingsAccessibility = stringResource(
-        R.string.dashboard_savings_progress_accessibility,
-        if (income > 0) formatBasisPoints(state.totals.savingsRateBasisPoints)
-        else stringResource(R.string.dashboard_savings_rate_unavailable),
-    )
-
-    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        // Row 1: income | expenses. Portfolio net worth is the hero headline above.
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        MonthTotalCell(
+            label = stringResource(R.string.dashboard_categories_income),
+            onClick = { onDrillDown(state.month.actualPeriodFilters(type = MovementType.INCOME)) },
         ) {
-            HeroKpiCell(
-                label = stringResource(R.string.dashboard_categories_income),
-                onClick = { onDrillDown(state.month.actualPeriodFilters(type = MovementType.INCOME)) },
-            ) {
-                MoneyText(
-                    cents = income,
-                    color = incomeColor,
-                    style = MaterialTheme.typography.titleMedium,
-                    signed = true,
-                )
-            }
-            HeroKpiCell(
-                label = stringResource(R.string.dashboard_categories_expenses),
-                onClick = { onDrillDown(state.month.actualPeriodFilters(type = MovementType.EXPENSE)) },
-            ) {
-                MoneyText(
-                    cents = -expense,
-                    color = FinanceTheme.colors.debt,
-                    style = MaterialTheme.typography.titleMedium,
-                )
-            }
+            MoneyText(
+                cents = totals.actualIncomeCents,
+                color = FinanceTheme.colors.income,
+                style = MaterialTheme.typography.bodyMedium,
+                signed = true,
+            )
         }
-
-        // Row 2: savings progress bar + flux net
-        Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Text(
-                        text = stringResource(R.string.dashboard_savings_short),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = FinanceTheme.colors.heroOnSurfaceMuted,
-                    )
-                    if (income > 0) {
-                        Text(
-                            text = formatBasisPoints(state.totals.savingsRateBasisPoints),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = FinanceTheme.colors.heroOnSurface,
-                        )
-                    }
-                }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Text(
-                        text = stringResource(R.string.dashboard_net_flow),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = FinanceTheme.colors.heroOnSurfaceMuted,
-                    )
-                    MoneyText(
-                        cents = flux,
-                        color = if (flux >= 0) incomeColor else FinanceTheme.colors.debt,
-                        style = MaterialTheme.typography.bodySmall,
-                        signed = true,
-                    )
-                }
-            }
-            LinearProgressIndicator(
-                progress = { savingsProgress },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(5.dp)
-                    .semantics {
-                        contentDescription = savingsAccessibility
-                    },
-                color = incomeColor,
-                trackColor = FinanceTheme.colors.heroOnSurface.copy(alpha = 0.2f),
-                drawStopIndicator = {},
+        MonthTotalDivider()
+        MonthTotalCell(
+            label = stringResource(R.string.dashboard_summary_expense),
+            onClick = { onDrillDown(state.month.actualPeriodFilters(type = MovementType.EXPENSE)) },
+        ) {
+            MoneyText(
+                cents = totals.actualExpenseCents,
+                color = MaterialTheme.colorScheme.onBackground,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+        MonthTotalDivider()
+        MonthTotalCell(
+            label = stringResource(R.string.dashboard_savings_short),
+            onClick = null,
+        ) {
+            MoneyText(
+                cents = totals.netActualCents,
+                color = if (totals.netActualCents < 0) {
+                    FinanceTheme.colors.debt
+                } else {
+                    FinanceTheme.colors.income
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                signed = true,
             )
         }
     }
 }
 
 @Composable
-private fun RowScope.HeroKpiCell(
+private fun RowScope.MonthTotalCell(
     label: String,
     onClick: (() -> Unit)?,
     value: @Composable () -> Unit,
@@ -406,14 +515,15 @@ private fun RowScope.HeroKpiCell(
     Column(
         modifier = Modifier
             .weight(1f)
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
-        horizontalAlignment = Alignment.Start,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .heightIn(min = 44.dp)
+            .padding(vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
         Text(
             text = label,
-            color = FinanceTheme.colors.heroOnSurfaceMuted,
-            style = MaterialTheme.typography.labelMedium,
+            color = FinanceTheme.colors.mutedText,
+            style = MaterialTheme.typography.labelSmall,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -421,146 +531,96 @@ private fun RowScope.HeroKpiCell(
     }
 }
 
+@Composable
+private fun MonthTotalDivider() {
+    VerticalDivider(
+        modifier = Modifier
+            .height(32.dp)
+            .padding(horizontal = 8.dp),
+        color = FinanceTheme.colors.cardBorder,
+    )
+}
+
 // ---------------------------------------------------------------------------
-// Active trip quick-link card
+// Contextual items
 // ---------------------------------------------------------------------------
 
 @Composable
-private fun ActiveTripCard(
+private fun LowBalanceBanner(account: AccountSummary) {
+    val threshold = account.lowBalanceThresholdCents ?: return
+    InlineBanner(
+        kind = BannerKind.Alert,
+        text = stringResource(
+            R.string.dashboard_low_balance_banner,
+            account.name,
+            formatEuroCents(account.currentBalanceCents),
+            formatEuroCents(threshold),
+        ),
+    )
+}
+
+/** Compact link to the trip that is running today, keeping both of its existing entry points. */
+@Composable
+private fun ActiveTripRow(
     trip: TripSummary,
     onViewTrip: () -> Unit,
     onAddMovement: () -> Unit,
 ) {
     FinanceCard(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+        Row(
+            modifier = Modifier.padding(start = 12.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(onClick = onViewTrip)
+                    .heightIn(min = 44.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 IconChip(
                     icon = trip.type.icon(),
                     contentDescription = null,
                     color = categoryColor(trip.color),
-                    size = 40.dp,
+                    size = 34.dp,
                 )
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = stringResource(R.string.dashboard_active_trip_title),
                         color = FinanceTheme.colors.mutedText,
-                        style = MaterialTheme.typography.labelMedium,
+                        style = MaterialTheme.typography.labelSmall,
                     )
                     Text(
                         text = trip.name,
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleSmall,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
                 MoneyText(
                     cents = trip.totalActualCents,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleSmall,
                 )
             }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                TextButton(onClick = onViewTrip, modifier = Modifier.weight(1f)) {
-                    Text(text = stringResource(R.string.dashboard_active_trip_view))
-                }
-                Button(onClick = onAddMovement, modifier = Modifier.weight(1f)) {
-                    Text(text = stringResource(R.string.dashboard_active_trip_add_movement))
-                }
-            }
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Account 2-column grid
-// ---------------------------------------------------------------------------
-
-@Composable
-private fun AccountGrid(
-    accounts: List<AccountSummary>,
-    onAccountAnalysis: (AccountSummary) -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        accounts.chunked(2).forEach { pair ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                pair.forEach { account ->
-                    AccountGridCell(
-                        account = account,
-                        onClick = { onAccountAnalysis(account) },
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-                if (pair.size == 1) Spacer(modifier = Modifier.weight(1f))
-            }
-        }
-    }
-}
-
-@Composable
-private fun AccountGridCell(
-    account: AccountSummary,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val accountColor = categoryColor(account.color)
-    FinanceCard(modifier = modifier.clickable(onClick = onClick)) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                IconChip(
-                    icon = if (account.icon != null) accountIcon(account.icon)
-                           else accountTypeIcon(account.type),
-                    contentDescription = null,
-                    color = accountColor,
-                    size = 28.dp,
+            IconButton(onClick = onAddMovement) {
+                Icon(
+                    imageVector = Icons.Outlined.Add,
+                    contentDescription = stringResource(R.string.dashboard_active_trip_add_movement),
+                    tint = MaterialTheme.colorScheme.primary,
                 )
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = account.name,
-                        style = MaterialTheme.typography.titleSmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = account.type.label(),
-                        color = FinanceTheme.colors.mutedText,
-                        style = MaterialTheme.typography.labelSmall,
-                    )
-                }
             }
-            MoneyText(
-                cents = account.currentBalanceCents,
-                color = if (account.currentBalanceCents < 0) FinanceTheme.colors.debt
-                        else MaterialTheme.colorScheme.onSurface,
-                style = MaterialTheme.typography.titleSmall,
-                signed = account.currentBalanceCents < 0,
-            )
         }
     }
 }
 
 // ---------------------------------------------------------------------------
-// Category section with toggle
+// Category breakdown — an open section, not a card
 // ---------------------------------------------------------------------------
 
 @Composable
-private fun CategorySection(
+private fun MonthCategorySection(
     state: DashboardUiState,
     onCategoryModeChanged: (CategoryDisplayMode) -> Unit,
     onDrillDown: (MovementFilters) -> Unit,
@@ -568,29 +628,49 @@ private fun CategorySection(
     val totalCents = when (state.categoryMode) {
         CategoryDisplayMode.EXPENSES -> state.totals.actualExpenseCents
         CategoryDisplayMode.INCOME -> state.totals.actualIncomeCents
-    }.coerceAtLeast(1L)
-
-    val displayCategories = when (state.categoryMode) {
-        CategoryDisplayMode.EXPENSES ->
-            state.categories
-                .filter { it.expenseCents > 0 }
-                .sortedByDescending { it.expenseCents }
-        CategoryDisplayMode.INCOME ->
-            state.categories
-                .filter { it.incomeCents > 0 }
-                .sortedByDescending { it.incomeCents }
     }
+    val totalLabel = when (state.categoryMode) {
+        CategoryDisplayMode.EXPENSES -> stringResource(R.string.dashboard_summary_expense)
+        CategoryDisplayMode.INCOME -> stringResource(R.string.dashboard_categories_income)
+    }
+    val slices = categorySlices(
+        categories = state.categories,
+        mode = state.categoryMode,
+        totalCents = totalCents,
+        noCategoryLabel = stringResource(R.string.common_no_category),
+        aggregateLabel = stringResource(R.string.analysis_other),
+    )
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        SectionHeader(title = stringResource(R.string.dashboard_categories_title))
+
         Row(
             modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(
-                text = stringResource(R.string.dashboard_category_breakdown_title),
-                style = MaterialTheme.typography.titleSmall,
+            Column(
                 modifier = Modifier.weight(1f),
-            )
+                verticalArrangement = Arrangement.spacedBy(1.dp),
+            ) {
+                Text(
+                    text = totalLabel,
+                    color = FinanceTheme.colors.mutedText,
+                    style = MaterialTheme.typography.labelMedium,
+                )
+                MoneyText(
+                    cents = totalCents,
+                    color = if (state.categoryMode == CategoryDisplayMode.INCOME) {
+                        FinanceTheme.colors.income
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
+                    style = MaterialTheme.typography.headlineSmall,
+                )
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 FinanceFilterChip(
                     selected = state.categoryMode == CategoryDisplayMode.EXPENSES,
@@ -601,112 +681,184 @@ private fun CategorySection(
                     selected = state.categoryMode == CategoryDisplayMode.INCOME,
                     label = stringResource(R.string.dashboard_categories_income),
                     onClick = { onCategoryModeChanged(CategoryDisplayMode.INCOME) },
+                    selectedColor = FinanceTheme.colors.income,
                 )
             }
         }
 
-        if (displayCategories.isEmpty()) {
+        if (slices.isEmpty()) {
             Text(
                 text = stringResource(R.string.dashboard_no_data),
                 color = FinanceTheme.colors.mutedText,
                 style = MaterialTheme.typography.bodyMedium,
             )
         } else {
-            displayCategories.forEach { category ->
-                CategoryBreakdownRow(
-                    category = category,
-                    mode = state.categoryMode,
-                    totalCents = totalCents,
-                    onClick = {
-                        onDrillDown(
-                            if (state.categoryMode == CategoryDisplayMode.EXPENSES) {
-                                state.month.actualPeriodFilters(
-                                    type = MovementType.EXPENSE,
-                                    categoryId = category.categoryId,
-                                    uncategorizedOnly = category.categoryId == null,
+            CategoryDistributionBar(
+                slices = slices,
+                totalLabel = totalLabel,
+                totalCents = totalCents,
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                slices.forEach { slice ->
+                    CategoryLegendRow(
+                        slice = slice,
+                        onClick = if (slice.categoryId != null || slice.isUncategorized) {
+                            {
+                                onDrillDown(
+                                    state.month.actualPeriodFilters(
+                                        type = if (state.categoryMode == CategoryDisplayMode.EXPENSES) {
+                                            MovementType.EXPENSE
+                                        } else {
+                                            MovementType.INCOME
+                                        },
+                                        categoryId = slice.categoryId,
+                                        uncategorizedOnly = slice.isUncategorized,
+                                    ),
                                 )
-                            } else {
-                                state.month.actualPeriodFilters(
-                                    type = MovementType.INCOME,
-                                    categoryId = category.categoryId,
-                                    uncategorizedOnly = category.categoryId == null,
-                                )
-                            },
-                        )
-                    },
-                )
+                            }
+                        } else {
+                            null
+                        },
+                    )
+                }
             }
         }
     }
 }
 
-@Composable
-private fun CategoryBreakdownRow(
-    category: AnalysisCategoryTotal,
+/** One ranked category in the compact monthly breakdown. */
+private data class CategorySlice(
+    val label: String,
+    val color: Color,
+    val icon: ImageVector,
+    val amountCents: Long,
+    val fraction: Float,
+    val categoryId: String?,
+    val isUncategorized: Boolean,
+)
+
+private fun categorySlices(
+    categories: List<AnalysisCategoryTotal>,
     mode: CategoryDisplayMode,
     totalCents: Long,
-    onClick: () -> Unit,
-) {
-    val color = categoryColor(category.categoryColor)
-    val amount = if (mode == CategoryDisplayMode.EXPENSES) category.expenseCents else category.incomeCents
-    val displayAmount = if (mode == CategoryDisplayMode.EXPENSES) -amount else amount
-    val fraction = (amount.toFloat() / totalCents.toFloat()).coerceIn(0f, 1f)
-    val pctText = formatPercentLabel(fraction)
-    val progressAccessibility = stringResource(
-        R.string.dashboard_category_progress_accessibility,
-        category.categoryName ?: stringResource(R.string.common_no_category),
-        pctText,
-    )
+    noCategoryLabel: String,
+    aggregateLabel: String,
+): List<CategorySlice> {
+    fun amountOf(row: AnalysisCategoryTotal): Long =
+        if (mode == CategoryDisplayMode.EXPENSES) row.expenseCents else row.incomeCents
 
-    Column(
+    val denominator = totalCents.coerceAtLeast(1L)
+    fun fractionOf(amount: Long): Float =
+        (amount.toFloat() / denominator.toFloat()).coerceIn(0f, 1f)
+
+    val ranked = categories
+        .filter { amountOf(it) > 0L }
+        .sortedByDescending { amountOf(it) }
+    if (ranked.isEmpty()) return emptyList()
+
+    val named = ranked.take(DASHBOARD_NAMED_CATEGORIES).map { row ->
+        val amount = amountOf(row)
+        CategorySlice(
+            label = row.categoryName ?: noCategoryLabel,
+            color = categoryColor(row.categoryColor),
+            icon = categoryIcon(row.categoryIcon),
+            amountCents = amount,
+            fraction = fractionOf(amount),
+            categoryId = row.categoryId,
+            isUncategorized = row.categoryId == null,
+        )
+    }
+    val rest = ranked.drop(DASHBOARD_NAMED_CATEGORIES)
+    if (rest.isEmpty()) return named
+
+    val restAmount = rest.sumOf { amountOf(it) }
+    return named + CategorySlice(
+        label = aggregateLabel,
+        color = categoryColor(null),
+        icon = categoryIcon(null),
+        amountCents = restAmount,
+        fraction = fractionOf(restAmount),
+        categoryId = null,
+        isUncategorized = false,
+    )
+}
+
+/** Bold visual anchor: a thick, rounded segmented bar; the rows below carry the precise breakdown. */
+@Composable
+private fun CategoryDistributionBar(
+    slices: List<CategorySlice>,
+    totalLabel: String,
+    totalCents: Long,
+) {
+    val accessibility = stringResource(
+        R.string.dashboard_category_donut_accessibility,
+        totalLabel,
+        formatEuroCents(totalCents),
+    )
+    Canvas(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 7.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+            .height(14.dp)
+            .clearAndSetSemantics { contentDescription = accessibility },
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconChip(
-                icon = categoryIcon(category.categoryIcon),
-                contentDescription = null,
-                color = color,
-                size = 36.dp,
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            Text(
-                text = category.categoryName ?: stringResource(R.string.common_no_category),
-                modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.titleSmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            Column(horizontalAlignment = Alignment.End) {
-                MoneyText(
-                    cents = displayAmount,
-                    color = if (mode == CategoryDisplayMode.INCOME) FinanceTheme.colors.income
-                            else MaterialTheme.colorScheme.onSurface,
-                    signed = mode == CategoryDisplayMode.INCOME,
-                )
-                Text(
-                    text = pctText,
-                    color = FinanceTheme.colors.mutedText,
-                    style = MaterialTheme.typography.labelSmall,
-                    textAlign = TextAlign.End,
+        val gap = 3.dp.toPx()
+        val radius = CornerRadius(size.height / 2f, size.height / 2f)
+        var startX = 0f
+        slices.forEachIndexed { index, slice ->
+            val rawWidth = size.width * slice.fraction
+            val isLast = index == slices.lastIndex
+            val segmentWidth = if (isLast) size.width - startX else (rawWidth - gap)
+            if (segmentWidth > 0f) {
+                drawRoundRect(
+                    color = slice.color,
+                    topLeft = Offset(startX, 0f),
+                    size = Size(segmentWidth.coerceAtLeast(size.height), size.height),
+                    cornerRadius = radius,
                 )
             }
+            startX += rawWidth
         }
-        LinearProgressIndicator(
-            progress = { fraction },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(5.dp)
-                .semantics {
-                    contentDescription = progressAccessibility
-                },
-            color = color,
-            trackColor = MaterialTheme.colorScheme.surfaceVariant,
-            drawStopIndicator = {},
+    }
+}
+
+@Composable
+private fun CategoryLegendRow(
+    slice: CategorySlice,
+    onClick: (() -> Unit)?,
+) {
+    val percentText = formatPercentLabel(slice.fraction)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .heightIn(min = 36.dp)
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        IconChip(
+            icon = slice.icon,
+            contentDescription = null,
+            color = slice.color,
+            size = 20.dp,
+        )
+        Text(
+            text = slice.label,
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        MoneyText(
+            cents = slice.amountCents,
+            style = MaterialTheme.typography.labelLarge,
+        )
+        Text(
+            text = percentText,
+            color = FinanceTheme.colors.mutedText,
+            style = MaterialTheme.typography.labelSmall,
+            textAlign = TextAlign.End,
+            modifier = Modifier.width(38.dp),
         )
     }
 }
@@ -714,6 +866,9 @@ private fun CategoryBreakdownRow(
 // ---------------------------------------------------------------------------
 // Extension helpers
 // ---------------------------------------------------------------------------
+
+private fun accountChipIcon(account: AccountSummary): ImageVector =
+    if (account.icon != null) accountIcon(account.icon) else accountTypeIcon(account.type)
 
 private fun YearMonth.actualPeriodFilters(
     type: MovementType? = null,
