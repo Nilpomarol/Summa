@@ -7,7 +7,7 @@ import java.time.temporal.ChronoUnit
 import kotlin.math.abs
 
 /**
- * A single ledger movement projected for pattern-detection purposes (spec §3.10). [type] is
+ * A single ledger movement projected for pattern-detection purposes. [type] is
  * expected to already be [MovementType.EXPENSE] or [MovementType.INCOME] — the caller (movement
  * repository -> ViewModel mapping) is responsible for that filter, since transfers need a
  * destination-account dimension this detector does not track (v1 scope).
@@ -67,9 +67,8 @@ data class DetectedRecurringCandidate(
 )
 
 /**
- * Detects likely recurring expense/income patterns from ledger history (spec §3.10: "Pattern
- * detection scans history and proposes likely recurring items ... which the user can then confirm
- * as templates"). Pure, stateless, and read-only — it only ever proposes candidates; nothing is
+ * Detects likely recurring expense/income patterns from ledger history for the user to confirm as
+ * templates. Pure, stateless, and read-only — it only ever proposes candidates; nothing is
  * created or updated until the caller writes an accepted candidate through the normal
  * `TemplateRepository.create`/`update` path.
  */
@@ -209,7 +208,7 @@ object RecurringPatternDetector {
      * fortnightly), then checks each occurrence's distance from that anchor. Unlike comparing
      * consecutive gaps against a fixed day-count band, this tolerates a billing date that drifts by
      * a day or two (weekends, bank processing) without corrupting multiple gaps at once — the
-     * documented limitation this replaces (docs/13-recurring-refunds-budgets-ui.md).
+     * documented limitation this replaces (docs/product.md).
      */
     private fun isAnchoredSeries(frequency: RecurrenceFrequency, dates: List<LocalDate>): Boolean =
         when (frequency) {
@@ -305,6 +304,6 @@ object RecurringPatternDetector {
      * logic rather than reimplementing month-end clamping here. */
     private fun projectNextDue(frequency: RecurrenceFrequency, dayOfMonth: Int?, lastDate: LocalDate): LocalDate {
         val rule = RecurrenceRule(frequency = frequency, dayOfMonth = dayOfMonth)
-        return RecurringAdvancer.advance(rule, cursor = lastDate, today = lastDate).newCursor
+        return RecurringAdvancer.nextOccurrence(rule, lastDate)
     }
 }

@@ -8,7 +8,7 @@ import org.junit.Test
 /**
  * Correctness of the core analysis queries over a fixed multi-month/multi-year dataset:
  * month and year bucketing, savings-rate basis points, and the two-leg netting of a transfer
- * in account-flow-over-time. Single-month daily aggregates and the P2-8 widgets are covered by
+ * in account-flow-over-time. Single-month daily aggregates and the additional widgets are covered by
  * the other analysis tests.
  */
 class AnalysisQueriesRepositoryTest {

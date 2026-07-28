@@ -2,7 +2,6 @@ package com.gestorfinances.app.ui.analysis.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -13,7 +12,6 @@ import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.R
 import com.gestorfinances.app.ui.analysis.AnalysisUiState
 import com.gestorfinances.app.ui.analysis.currentDisplayDivisor
-import com.gestorfinances.app.ui.analysis.displayCents
 import com.gestorfinances.app.ui.analysis.formatForScope
 import com.gestorfinances.app.ui.analysis.incomeExpensePoints
 import com.gestorfinances.app.ui.analysis.rowKey
@@ -22,7 +20,6 @@ import com.gestorfinances.app.ui.common.IncomeExpenseChart
 import com.gestorfinances.app.ui.common.chartBalanceLabel
 import com.gestorfinances.app.ui.common.chartTrendLabel
 import com.gestorfinances.app.ui.common.formatEuroCents
-import com.gestorfinances.app.ui.theme.FinanceTheme
 import kotlin.math.abs
 
 private const val TOP_CATEGORY_PREVIEW = 5

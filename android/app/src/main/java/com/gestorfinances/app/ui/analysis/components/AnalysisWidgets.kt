@@ -63,22 +63,21 @@ import com.gestorfinances.app.ui.common.TrendLineChart
 import com.gestorfinances.app.ui.common.TrendSeries
 import com.gestorfinances.app.ui.common.categoryIcon
 import com.gestorfinances.app.ui.common.formatBasisPoints
+import com.gestorfinances.app.ui.common.formatCompactDate
 import com.gestorfinances.app.ui.common.formatEuroCents
-import com.gestorfinances.app.ui.common.formatLongDate
 import com.gestorfinances.app.ui.common.formatMonth
 import com.gestorfinances.app.ui.common.formatPercentLabel
 import com.gestorfinances.app.ui.common.formatWeekdayDate
 import com.gestorfinances.app.ui.common.chartTrendLabel
 import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.categoryColor
-import java.time.LocalDate
 import java.time.YearMonth
 import kotlin.math.abs
 
 const val MAX_TREND_SERIES = 4
 const val MAX_RECURRING_COST_ITEMS = 3
 
-/** A category (or trip) row: icon, name, net amount, and a weight bar (design §6). */
+/** A category (or trip) row: icon, name, net amount, and a weight bar (design baseline). */
 @Composable
 internal fun CategoryBreakdownRow(
     category: AnalysisCategoryTotal,
@@ -332,8 +331,8 @@ internal fun EmptyAnalysisCard() {
 /**
  * Històric tab hero: "how financially safe am I?" — days of runway the current net worth would
  * cover at the scope's average daily expense, plus the average savings rate for the same scope.
- * Stronger visual treatment than regular widgets (dark [FinanceTheme.colors.heroSurface], design
- * §7) so it reads as the tab's headline, not another chart card.
+ * Stronger visual treatment than regular widgets (dark [FinanceTheme.colors.heroSurface]) so it
+ * reads as the tab's headline, not another chart card.
  */
 @Composable
 internal fun BufferHeroCard(
@@ -464,9 +463,9 @@ internal fun SavingsRateTrendWidget(buckets: List<AnalysisIncomeExpenseBucket>) 
 /** Short display label for an `analysisIncomeVsExpense` bucket string ("YYYY-MM-DD"/"YYYY-MM"/"YYYY"). */
 private fun formatBucketLabel(bucket: String): String =
     when (bucket.length) {
-        10 -> runCatching { LocalDate.parse(bucket).dayOfMonth.toString() }.getOrDefault(bucket)
-        7 -> runCatching { formatMonth(YearMonth.parse(bucket)) }.getOrDefault(bucket)
-        else -> bucket
+        10 -> runCatching { formatCompactDate(bucket) }.getOrDefault("—")
+        7 -> runCatching { formatMonth(YearMonth.parse(bucket)) }.getOrDefault("—")
+        else -> "—"
     }
 
 /** Històric tab: spending heatmap wrapped in the same section-header + card shell as the other widgets. */
@@ -632,7 +631,7 @@ internal fun CategoryTrendsWidget(trends: List<AnalysisCategoryTrendPoint>) {
 
 /**
  * "Cost dels periòdics" — the monthly-equivalent cost of active fixed recurring templates.
- * The header carries the total (design §6 trailing slot); each row below is sized by a magnitude
+ * The header carries the total (design baseline trailing slot); each row below is sized by a magnitude
  * bar proportional to its share of that total (bar length = the percentage shown), so the biggest
  * recurring commitments read visually rather than as a plain list of numbers.
  */
@@ -697,7 +696,7 @@ private fun RecurringCostItemRow(item: RecurringCostItem, totalCents: Long) {
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                val nextDueText = stringResource(R.string.recurring_next_due, formatLongDate(item.nextDueDate))
+                val nextDueText = stringResource(R.string.recurring_next_due, formatCompactDate(item.nextDueDate))
                 val subtitle = item.categoryName?.takeIf { it != title }?.let { category ->
                     "$category · $nextDueText"
                 } ?: nextDueText

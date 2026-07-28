@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -45,7 +44,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountSummary
-import com.gestorfinances.app.data.repository.CategoryKind
 import com.gestorfinances.app.data.repository.CategoryRecord
 import com.gestorfinances.app.data.repository.MovementSplitDraft
 import com.gestorfinances.app.data.repository.MovementSummary
@@ -54,6 +52,7 @@ import com.gestorfinances.app.data.repository.PersonSummary
 import com.gestorfinances.app.data.repository.RefundSummary
 import com.gestorfinances.app.data.repository.SettlementDirection
 import com.gestorfinances.app.data.repository.SplitParticipantKind
+import com.gestorfinances.app.data.repository.supports
 import com.gestorfinances.app.ui.common.BannerKind
 import com.gestorfinances.app.ui.common.ChipFlowSection
 import com.gestorfinances.app.ui.common.DestructiveTextButton
@@ -67,7 +66,7 @@ import com.gestorfinances.app.ui.common.accountIcon
 import com.gestorfinances.app.ui.common.categoryIcon
 import com.gestorfinances.app.ui.common.chipVisual
 import com.gestorfinances.app.ui.common.formatEuroCents
-import com.gestorfinances.app.ui.common.formatLongDate
+import com.gestorfinances.app.ui.common.formatExpandedDate
 import com.gestorfinances.app.ui.common.movementTitle
 import com.gestorfinances.app.ui.common.parseEuroCents
 import com.gestorfinances.app.ui.common.scrollToWhen
@@ -167,7 +166,6 @@ fun MovementDetailScreen(
         )
     }
 }
-
 @Composable
 private fun MovementDetailContent(
     movement: MovementSummary,
@@ -232,7 +230,7 @@ private fun MovementDetailContent(
                     icon = Icons.Outlined.CalendarMonth,
                     iconColor = visual.second,
                     label = stringResource(R.string.movement_field_date),
-                    value = formatLongDate(movement.date)
+                    value = formatExpandedDate(movement.date)
                 )
             )
 
@@ -413,7 +411,7 @@ private fun MovementDetailContent(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Text(
-                                text = formatLongDate(refund.date),
+                                text = formatExpandedDate(refund.date),
                                 modifier = Modifier.weight(1f),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -465,8 +463,8 @@ private fun MovementDetailContent(
             }
         }
         if (!canEdit) {
-            // Audit U11/`docs/17` WP6a: explain why Edit is absent instead of leaving the user to
-            // wonder -- settlements/refunds carry no editable fields of their own (§WP6b, deferred).
+            // Product rule: explain why Edit is absent instead of leaving the user to
+            // wonder -- settlements/refunds carry no editable fields of their own.
             Text(
                 text = stringResource(R.string.movement_detail_no_edit_hint),
                 style = MaterialTheme.typography.bodySmall,
@@ -510,7 +508,7 @@ private fun RefundFormContent(
             style = MaterialTheme.typography.bodyMedium,
         )
         // Top-of-form text is reserved for save/repository failures -- field-level validation
-        // errors render next to the offending control instead (audit U8, `docs/17` WP2).
+        // errors render next to the offending control instead (field-level validation).
         form.errorMessage?.let {
             InlineBanner(kind = BannerKind.Error, text = it)
         }
@@ -700,10 +698,3 @@ private fun SplitBreakdownCard(
         }
     }
 }
-
-private fun CategoryRecord.supports(type: MovementType): Boolean =
-    when (type) {
-        MovementType.EXPENSE -> kind == CategoryKind.EXPENSE || kind == CategoryKind.BOTH
-        MovementType.INCOME -> kind == CategoryKind.INCOME || kind == CategoryKind.BOTH
-        else -> false
-    }

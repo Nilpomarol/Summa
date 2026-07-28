@@ -297,7 +297,7 @@ class RecurringPatternDetectorTest {
         assertEquals(1, only.dayOfMonth)
     }
 
-    // Regression for the documented limitation (docs/13-recurring-refunds-budgets-ui.md): a
+    // Regression for the documented limitation (docs/product.md): a
     // subscription whose billing date drifts by 1-2 days (weekends, bank processing) used to be
     // able to push two or more *neighbor* gaps outside the fixed day-count band at once and get
     // silently dropped. Anchor-based validation checks each occurrence's own distance from the

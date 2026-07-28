@@ -57,13 +57,13 @@ internal class SelectOption(
 )
 
 /**
- * Label-above bordered field shell (design §Fields): hairline `cardBorder`, r2 corners, 44dp
+ * Label-above bordered field shell: hairline `cardBorder`, r2 corners, 44dp
  * min height. Turns to a 1.5dp indigo border when [focused]. The label slot is omitted when
  * [label] is blank so the frame can double as a bare action control. When [isError] is set the
  * border turns to the theme's error color (taking priority over [focused]) and, if
  * [supportingText] is non-null, a caption line renders below the frame — mirroring
  * `OutlinedTextField`'s `isError`/`supportingText` for the non-text-field form controls
- * (`FormSelect`, `FormDatePicker`) that wrap this frame (audit U8, `docs/17` WP2).
+ * (`FormSelect`, `FormDatePicker`) that wrap this frame (field-level validation).
  */
 @Composable
 internal fun FieldFrame(
@@ -212,7 +212,7 @@ internal fun FormSelect(
     }
 }
 
-/** Round monogram avatar (design §Person row): tinted disc + colored initial. */
+/** Round monogram avatar: tinted disc with a colored initial. */
 @Composable
 internal fun PersonMonogram(
     label: String,

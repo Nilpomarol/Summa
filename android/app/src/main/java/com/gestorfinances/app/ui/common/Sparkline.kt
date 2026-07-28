@@ -15,7 +15,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
- * A tiny axis-less trend line for inline use inside list rows (design §6 sparkline).
+ * A tiny axis-less trend line for inline use inside list rows (design baseline sparkline).
  * Values are plotted left→right and normalised to the component height.
  */
 @Composable

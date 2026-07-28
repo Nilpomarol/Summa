@@ -82,7 +82,7 @@ internal fun ComparativaTab(
     onResetComparison: () -> Unit,
 ) {
     val data = state.comparativa
-    // UI-only toggle (design §6.3) — both expenseCents and incomeCents are already in
+    // UI-only toggle (design baseline) — both expenseCents and incomeCents are already in
     // AnalysisCategoryTotal, so no ViewModel/reload is needed to switch it.
     var categoryMode by remember { mutableStateOf(CategoryDeltaMode.EXPENSE) }
     // Computed once here (composable context) rather than inside the item {} blocks that need
@@ -340,7 +340,7 @@ private fun waterfallSteps(
     }
 }
 
-/** Current value large, previous small/muted, delta chip with abs + % change (design §1 edge-case math). */
+/** Current value large, previous small/muted, delta chip with abs + % change (design baseline edge-case math). */
 @Composable
 private fun ComparativeKpiCard(
     label: String,
@@ -505,7 +505,7 @@ private fun DeltaPill(deltaCents: Long, percentText: String, color: Color) {
     }
 }
 
-/** delta*100/previous (integer division); previous==0 → New; current==0 && previous>0 → Eliminated (design §1). */
+/** delta*100/previous (integer division); previous==0 → New; current==0 && previous>0 → Eliminated (design baseline). */
 internal sealed class PercentChange {
     internal data object New : PercentChange()
     internal data object Eliminated : PercentChange()

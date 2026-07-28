@@ -1,6 +1,6 @@
 {
   "rule": "duplicate_detection",
-  "description": "v1 heuristic (tunable, see 05-golden-tests.md): candidate is a likely duplicate of existing iff same account_id AND equal amount_cents AND |date diff| <= 1 day AND normalized name equal (lowercase, trim, collapse whitespace). Flags only, never blocks (spec §4.6).",
+  "description": "A candidate is a likely duplicate of an existing movement iff account_id and amount_cents match, the dates differ by at most one day, and normalized names match (lowercase, trim, collapse whitespace). The result warns and never blocks.",
   "params": { "amount_tolerance_cents": 0, "date_window_days": 1, "name_match": "normalized_equal" },
   "cases": [
     {

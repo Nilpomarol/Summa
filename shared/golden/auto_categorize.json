@@ -1,6 +1,6 @@
 {
   "rule": "auto_categorize",
-  "description": "Pick the winning rule for a movement: among active rules whose conditions all match, highest priority wins; ties broken by most recent created_at (spec §3.15, §4.4). Text matched case-insensitively against name + ' ' + payee.",
+  "description": "Pick the winning rule for a movement: among active rules whose conditions all match, highest priority wins; ties are broken by most recent created_at. Text is matched case-insensitively against name + ' ' + payee.",
   "cases": [
     {
       "name": "tie on priority -> newer rule wins",

@@ -41,7 +41,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.R
-import com.gestorfinances.app.ui.analysis.AnalysisNatureFilter
 import com.gestorfinances.app.ui.analysis.AnalysisScope
 import com.gestorfinances.app.ui.analysis.AnalysisUiState
 import com.gestorfinances.app.ui.analysis.AnalysisValueMode
@@ -52,7 +51,7 @@ import com.gestorfinances.app.ui.common.BannerKind
 import com.gestorfinances.app.ui.common.FilterSelectorField
 import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.TopBarIconButton
-import com.gestorfinances.app.ui.common.formatLongDate
+import com.gestorfinances.app.ui.common.formatExpandedDate
 import com.gestorfinances.app.ui.common.formatMonthYear
 import com.gestorfinances.app.ui.theme.FinanceTheme
 import java.time.Instant
@@ -540,7 +539,7 @@ private fun DateTrigger(
     val parsed = runCatching { LocalDate.parse(iso) }.getOrNull()
     FilterSelectorField(
         label = label,
-        value = parsed?.let { formatLongDate(it.toString()) } ?: iso.ifBlank { "—" },
+        value = parsed?.let { formatExpandedDate(it.toString()) } ?: "—",
         onClick = { showDialog = true },
         modifier = modifier,
     )

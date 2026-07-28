@@ -3,14 +3,14 @@
 
 -- Gestor finances v3 → v4 migration.
 -- Adds v_trip_actual_total (added to SharedSchema.sq's sharedViewFiles list alongside the
--- P5R-7 trips/tags work; not present in v1-v3 databases since Schema.create() at that time
+-- trip-analysis work; not present in v1-v3 databases since Schema.create() at that time
 -- predated this view). Mirrors the 1.sqm precedent (v_movement_summary) — a view referenced
 -- by app queries (Trips.sq's activeTrips/tripById/tripActiveOn) must be created by a migration
 -- step for existing databases, not just wired into the fresh-install sharedViewFiles list.
 --
 -- Also recreates v_actual_expense with its now-current shape (tag_id exposed on every branch,
--- fixing F7 — see docs/16-android-audit-findings.md). v_actual_expense has existed since the very
--- first shared-schema commit (P0A-3, before schema_version even existed) purely via
+-- exposing tag_id consistently on every branch. v_actual_expense has existed since the very
+-- first shared-schema commit (before schema_version existed) purely via
 -- sharedViewFiles, so ANY database that was ever fresh-created (Schema.create()) before this
 -- edit — at schema v1, v2, or v3 — has an on-disk copy of the view frozen at whatever
 -- shared/queries/v_actual_expense.sql said at install time, i.e. without tag_id. No earlier

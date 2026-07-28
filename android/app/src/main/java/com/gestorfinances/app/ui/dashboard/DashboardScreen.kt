@@ -2,7 +2,6 @@ package com.gestorfinances.app.ui.dashboard
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -16,14 +15,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Button
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -33,9 +27,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
@@ -51,7 +42,6 @@ import com.gestorfinances.app.data.repository.AnalysisCategoryTotal
 import com.gestorfinances.app.data.repository.MovementSummary
 import com.gestorfinances.app.data.repository.MovementType
 import com.gestorfinances.app.data.repository.TripSummary
-import com.gestorfinances.app.data.repository.TripType
 import com.gestorfinances.app.data.repository.icon
 import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.FinanceFilterChip
@@ -81,6 +71,7 @@ fun DashboardScreen(
     onSettings: () -> Unit,
     onDrillDown: (MovementFilters) -> Unit,
     onMovementDetail: (MovementSummary) -> Unit,
+    onAccountAnalysis: (AccountSummary) -> Unit,
     onViewTrip: (TripSummary) -> Unit,
     onAddTripMovement: (TripSummary) -> Unit,
     modifier: Modifier = Modifier,
@@ -96,7 +87,7 @@ fun DashboardScreen(
         onSettings = onSettings,
         onDrillDown = onDrillDown,
         onMovementDetail = onMovementDetail,
-        onHeroAccountSelected = viewModel::onHeroAccountSelected,
+        onAccountAnalysis = onAccountAnalysis,
         onCategoryModeChanged = viewModel::onCategoryModeChanged,
         onViewTrip = onViewTrip,
         onAddTripMovement = onAddTripMovement,
@@ -110,7 +101,7 @@ private fun DashboardContent(
     onSettings: () -> Unit,
     onDrillDown: (MovementFilters) -> Unit,
     onMovementDetail: (MovementSummary) -> Unit,
-    onHeroAccountSelected: (String?) -> Unit,
+    onAccountAnalysis: (AccountSummary) -> Unit,
     onCategoryModeChanged: (CategoryDisplayMode) -> Unit,
     onViewTrip: (TripSummary) -> Unit,
     onAddTripMovement: (TripSummary) -> Unit,
@@ -131,7 +122,6 @@ private fun DashboardContent(
         item {
             MainAccountCard(
                 state = state,
-                onAccountSelected = onHeroAccountSelected,
                 onDrillDown = onDrillDown,
             )
         }
@@ -180,7 +170,7 @@ private fun DashboardContent(
             }
         } else {
             item {
-                AccountGrid(accounts = state.accounts, onDrillDown = onDrillDown)
+                AccountGrid(accounts = state.accounts, onAccountAnalysis = onAccountAnalysis)
             }
         }
 
@@ -250,20 +240,14 @@ private fun DashboardHeader(
 }
 
 // ---------------------------------------------------------------------------
-// Main account + KPI card (dark hero)
+// Aggregate monthly/portfolio summary (dark hero)
 // ---------------------------------------------------------------------------
 
 @Composable
 private fun MainAccountCard(
     state: DashboardUiState,
-    onAccountSelected: (String?) -> Unit,
     onDrillDown: (MovementFilters) -> Unit,
 ) {
-    // Resolve the headline account: explicit selection → default account → first account.
-    val heroAccount = state.accounts.firstOrNull { it.id == state.selectedHeroAccountId }
-        ?: state.accounts.firstOrNull { it.isDefault }
-        ?: state.accounts.firstOrNull()
-
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
@@ -271,95 +255,40 @@ private fun MainAccountCard(
         contentColor = FinanceTheme.colors.heroOnSurface,
     ) {
         Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 20.dp)) {
-            // Label row: account icon + name (or net worth fallback) + switch menu top-right
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (heroAccount != null) {
-                    IconChip(
-                        icon = if (heroAccount.icon != null) accountIcon(heroAccount.icon)
-                               else accountTypeIcon(heroAccount.type),
-                        contentDescription = null,
-                        color = categoryColor(heroAccount.color),
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                }
                 Text(
-                    text = heroAccount?.name ?: stringResource(R.string.dashboard_net_worth),
+                    text = stringResource(R.string.dashboard_hero_title),
                     style = MaterialTheme.typography.labelMedium,
                     color = FinanceTheme.colors.heroOnSurfaceMuted,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
-                if (state.accounts.isNotEmpty()) {
-                    AccountSwitchMenu(
-                        accounts = state.accounts,
-                        onSelect = onAccountSelected,
-                    )
-                }
             }
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            // Big headline figure
-            val balanceCents = heroAccount?.currentBalanceCents ?: state.totals.netWorthCents
-            val balanceModifier = if (heroAccount != null) {
-                Modifier.clickable {
-                    onDrillDown(
-                        MovementFilters(
-                            accountId = heroAccount.id,
-                            sourceMode = MovementSourceMode.FLOW,
-                        ),
-                    )
-                }
-            } else {
-                Modifier
-            }
-            Box(modifier = balanceModifier) {
-                MoneyText(
-                    cents = balanceCents,
-                    color = if (balanceCents < 0) FinanceTheme.colors.debt
-                            else FinanceTheme.colors.heroOnSurface,
-                    style = MaterialTheme.typography.displayMedium.copy(
-                        fontSize = 40.sp,
-                        lineHeight = 46.sp,
-                    ),
-                )
-            }
+            Text(
+                text = stringResource(R.string.dashboard_hero_net_worth_label),
+                color = FinanceTheme.colors.heroOnSurfaceMuted,
+                style = MaterialTheme.typography.labelSmall,
+            )
+            MoneyText(
+                cents = state.totals.netWorthCents,
+                color = if (state.totals.netWorthCents < 0) FinanceTheme.colors.debt
+                        else FinanceTheme.colors.heroOnSurface,
+                style = MaterialTheme.typography.displayMedium.copy(
+                    fontSize = 40.sp,
+                    lineHeight = 46.sp,
+                ),
+            )
 
             Spacer(modifier = Modifier.height(18.dp))
 
             HeroKpiBlock(state = state, onDrillDown = onDrillDown)
-        }
-    }
-}
-
-@Composable
-private fun AccountSwitchMenu(
-    accounts: List<AccountSummary>,
-    onSelect: (String?) -> Unit,
-) {
-    var expanded by remember { mutableStateOf(false) }
-    Box {
-        IconButton(onClick = { expanded = true }) {
-            Icon(
-                imageVector = Icons.Outlined.MoreVert,
-                contentDescription = stringResource(R.string.common_more_options),
-                tint = FinanceTheme.colors.heroOnSurfaceMuted,
-            )
-        }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            accounts.forEach { account ->
-                DropdownMenuItem(
-                    text = { Text(account.name) },
-                    onClick = {
-                        expanded = false
-                        onSelect(account.id)
-                    },
-                )
-            }
         }
     }
 }
@@ -371,7 +300,6 @@ private fun HeroKpiBlock(
 ) {
     val income = state.totals.actualIncomeCents
     val expense = state.totals.actualExpenseCents
-    val netWorth = state.totals.netWorthCents
     val flux = state.totals.netActualCents
     val incomeColor = FinanceTheme.colors.income
     val savingsProgress = if (income > 0) {
@@ -384,7 +312,7 @@ private fun HeroKpiBlock(
     )
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        // Row 1: income | expenses | patrimoni
+        // Row 1: income | expenses. Portfolio net worth is the hero headline above.
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -407,18 +335,6 @@ private fun HeroKpiBlock(
                 MoneyText(
                     cents = -expense,
                     color = FinanceTheme.colors.debt,
-                    style = MaterialTheme.typography.titleMedium,
-                )
-            }
-            HeroKpiCell(
-                label = stringResource(R.string.dashboard_net_worth),
-                alignEnd = true,
-                onClick = null,
-            ) {
-                MoneyText(
-                    cents = netWorth,
-                    color = if (netWorth < 0) FinanceTheme.colors.debt
-                            else FinanceTheme.colors.heroOnSurface,
                     style = MaterialTheme.typography.titleMedium,
                 )
             }
@@ -485,14 +401,13 @@ private fun HeroKpiBlock(
 private fun RowScope.HeroKpiCell(
     label: String,
     onClick: (() -> Unit)?,
-    alignEnd: Boolean = false,
     value: @Composable () -> Unit,
 ) {
     Column(
         modifier = Modifier
             .weight(1f)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
-        horizontalAlignment = if (alignEnd) Alignment.End else Alignment.Start,
+        horizontalAlignment = Alignment.Start,
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Text(
@@ -571,7 +486,7 @@ private fun ActiveTripCard(
 @Composable
 private fun AccountGrid(
     accounts: List<AccountSummary>,
-    onDrillDown: (MovementFilters) -> Unit,
+    onAccountAnalysis: (AccountSummary) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         accounts.chunked(2).forEach { pair ->
@@ -582,14 +497,7 @@ private fun AccountGrid(
                 pair.forEach { account ->
                     AccountGridCell(
                         account = account,
-                        onClick = {
-                            onDrillDown(
-                                MovementFilters(
-                                    accountId = account.id,
-                                    sourceMode = MovementSourceMode.FLOW,
-                                ),
-                            )
-                        },
+                        onClick = { onAccountAnalysis(account) },
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -817,13 +725,6 @@ private fun YearMonth.actualPeriodFilters(
         categoryId = categoryId,
         uncategorizedOnly = uncategorizedOnly,
         sourceMode = MovementSourceMode.ACTUAL,
-        dateFrom = atDay(1).toString(),
-        dateTo = atEndOfMonth().toString(),
-    )
-
-private fun YearMonth.flowPeriodFilters(): MovementFilters =
-    MovementFilters(
-        sourceMode = MovementSourceMode.FLOW,
         dateFrom = atDay(1).toString(),
         dateTo = atEndOfMonth().toString(),
     )

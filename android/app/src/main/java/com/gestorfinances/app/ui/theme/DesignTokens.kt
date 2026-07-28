@@ -12,7 +12,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 // Raw design tokens, mirrored verbatim from shared/design/tokens/design-tokens.json
-// (docs/08-design-system.md). Screens must consume semantic names (see FinanceColors)
+// (docs/design.md). Screens must consume semantic names (see FinanceColors)
 // or MaterialTheme, never these raw values.
 internal object TokenColor {
     // Neutrals — light
@@ -103,7 +103,7 @@ private fun interfaceTextStyle(
     letterSpacing = 0.sp,
 )
 
-/** Render any style as a ledger figure: IBM Plex Mono + tabular numerals (design §3). */
+/** Render any style as a ledger figure: IBM Plex Mono + tabular numerals (design baseline). */
 internal fun TextStyle.asFigures(): TextStyle =
     copy(fontFamily = LedgerMonoFontFamily, fontFeatureSettings = "tnum")
 

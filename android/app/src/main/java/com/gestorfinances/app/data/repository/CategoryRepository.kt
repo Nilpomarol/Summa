@@ -39,6 +39,19 @@ data class CategoryRecord(
     val archivedAt: String?,
 )
 
+val CategoryRecord.supportsExpense: Boolean
+    get() = kind == CategoryKind.EXPENSE || kind == CategoryKind.BOTH
+
+val CategoryRecord.supportsIncome: Boolean
+    get() = kind == CategoryKind.INCOME || kind == CategoryKind.BOTH
+
+fun CategoryRecord.supports(type: MovementType): Boolean =
+    when (type) {
+        MovementType.EXPENSE, MovementType.EXTERNAL_EXPENSE -> supportsExpense
+        MovementType.INCOME -> supportsIncome
+        MovementType.TRANSFER, MovementType.SETTLEMENT, MovementType.REFUND -> false
+    }
+
 data class CategoryDraft(
     val id: String,
     val name: String,

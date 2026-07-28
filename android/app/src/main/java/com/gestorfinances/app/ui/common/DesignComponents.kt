@@ -38,7 +38,6 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -56,7 +55,6 @@ import com.gestorfinances.app.data.repository.BudgetStatus
 import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.TokenColor
 import com.gestorfinances.app.ui.theme.categoryTint
-import java.time.LocalDate
 
 private val PillShape = RoundedCornerShape(percent = 50)
 
@@ -107,7 +105,7 @@ fun FinanceSwitch(
     )
 }
 
-/** Rounded-square icon chip with a soft tint background (design §2.5 category identity). */
+/** Rounded-square icon chip with a soft tint background (design baseline category identity). */
 @Composable
 fun IconChip(
     icon: ImageVector,
@@ -182,7 +180,7 @@ fun SectionHeader(
 
 /**
  * Back-button + optional title header, the first row of a full-page screen converted from a
- * bottom sheet (design §8). [trailing] covers variants that carry extra content next to the
+ * bottom sheet (design baseline). [trailing] covers variants that carry extra content next to the
  * title (e.g. a save/analysis action); screens whose header needs more than a single title line
  * (an icon chip, a multi-line block) compose their own header instead of using this.
  */
@@ -280,7 +278,7 @@ fun ChipFlowSection(
     }
 }
 
-/** Filter chip (design §6): active = ink fill + white; inactive = bordered, muted. */
+/** Filter chip (design baseline): active = ink fill + white; inactive = bordered, muted. */
 @Composable
 fun FinanceFilterChip(
     selected: Boolean,
@@ -376,7 +374,7 @@ fun FilterSelectorField(
     }
 }
 
-/** Segmented control (design §6): N100 track, selected segment = white fill + e1 shadow. */
+/** Segmented control (design baseline): N100 track, selected segment = white fill + e1 shadow. */
 @Composable
 fun <T> SegmentedControl(
     options: List<T>,
@@ -428,7 +426,7 @@ fun <T> SegmentedControl(
 
 /**
  * Labeled segmented control with a bordered track and an indigo-tint active segment
- * (design §2.3 — indigo carries active state). A calmer, flatter alternative to
+ * (design baseline — indigo carries active state). A calmer, flatter alternative to
  * [SegmentedControl] for form selectors: hairline-bordered container, the selected segment
  * filled with the indigo tint and ink-pressed label, the rest transparent and muted.
  */
@@ -494,7 +492,7 @@ fun <T> LabeledSegmentedControl(
     }
 }
 
-/** Primary action button (design §6): indigo fill, white label, r2. */
+/** Primary action button (design baseline): indigo fill, white label, r2. */
 @Composable
 fun PrimaryButton(
     text: String,
@@ -538,7 +536,7 @@ fun DestructiveTextButton(
     }
 }
 
-/** Bordered icon button for top-bar actions (design §6); 44dp touch target (design §10). */
+/** Bordered icon button for top-bar actions (design baseline); 44dp touch target (design baseline). */
 @Composable
 fun TopBarIconButton(
     icon: ImageVector,
@@ -568,7 +566,7 @@ fun TopBarIconButton(
 
 enum class BannerKind { Info, Alert, Error }
 
-/** Inline banner for non-blocking notices (design §6 — never block, warn). */
+/** Inline banner for non-blocking notices (design baseline — never block, warn). */
 @Composable
 fun InlineBanner(
     kind: BannerKind,
@@ -600,29 +598,6 @@ fun InlineBanner(
             )
         }
     }
-}
-
-/** Uppercase Catalan date group label with Avui/Ahir prefixes (movements list). */
-@Composable
-fun DateGroupHeader(
-    iso: String,
-    modifier: Modifier = Modifier,
-) {
-    val today = remember { LocalDate.now() }
-    val date = parseIsoDateOrNull(iso)
-    val formatted = formatLongDate(iso)
-    val label = when (date) {
-        null -> iso
-        today -> "${stringResource(R.string.date_today)} · $formatted"
-        today.minusDays(1) -> "${stringResource(R.string.date_yesterday)} · $formatted"
-        else -> formatted
-    }
-    Text(
-        text = label.uppercase(),
-        modifier = modifier.padding(top = 8.dp, bottom = 2.dp),
-        style = MaterialTheme.typography.labelMedium,
-        color = FinanceTheme.colors.mutedText,
-    )
 }
 
 private data class BannerPalette(
@@ -716,7 +691,7 @@ fun FilterSelectorField(
     }
 }
 
-/** Thin rounded progress track used for budget evaluation (§4.6). Shared by Budgets and any
+/** Thin rounded progress track used for budget evaluation. Shared by Budgets and any
  * surface (e.g. category detail) that embeds a budget's progress against its limit. */
 @Composable
 fun BudgetProgressBar(

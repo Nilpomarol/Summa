@@ -1,5 +1,5 @@
 -- Gestor finances shared SQLite schema.
--- Source of truth: docs/04-data-model.md.
+-- Source of truth: docs/data-contract.md.
 
 PRAGMA foreign_keys = ON;
 PRAGMA journal_mode = WAL;

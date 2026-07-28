@@ -427,7 +427,7 @@ class RecurringViewModelTest {
         }
     }
 
-    // Regression (spec-guardian stabilization audit, P5R-15): unlike the pattern-detection confirm
+    // Regression: unlike the pattern-detection confirm
     // path (toTemplateDraft(existing), above), the manual Edit-template form has no split_config
     // field of its own -- onSaveClicked used to always pass splitConfig = null, and
     // TemplateRepository.update is a full-row overwrite, so saving an unrelated edit (e.g. the

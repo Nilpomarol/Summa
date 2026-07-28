@@ -60,12 +60,10 @@ import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountSummary
 import com.gestorfinances.app.data.repository.BudgetEvaluation
 import com.gestorfinances.app.data.repository.MovementSummary
-import com.gestorfinances.app.data.repository.TripCategoryActual
 import com.gestorfinances.app.data.repository.TripDailyActual
 import com.gestorfinances.app.data.repository.TripDayCategoryActual
 import com.gestorfinances.app.data.repository.TripStatus
 import com.gestorfinances.app.data.repository.TripSummary
-import com.gestorfinances.app.data.repository.TripTagActual
 import com.gestorfinances.app.data.repository.TripType
 import com.gestorfinances.app.data.repository.dayCount
 import com.gestorfinances.app.data.repository.effectiveColor
@@ -96,6 +94,8 @@ import com.gestorfinances.app.ui.common.SegmentedControl
 import com.gestorfinances.app.ui.common.BannerKind
 import com.gestorfinances.app.ui.common.color
 import com.gestorfinances.app.ui.common.formatEuroCents
+import com.gestorfinances.app.ui.common.formatCompactDate
+import com.gestorfinances.app.ui.common.formatExpandedDate
 import com.gestorfinances.app.ui.common.formatPercentLabel
 import com.gestorfinances.app.ui.common.formatWeekdayDate
 import com.gestorfinances.app.ui.common.chartBalanceLabel
@@ -378,14 +378,14 @@ private fun TripRowMenu(
 }
 
 /**
- * Trip detail as a full page (docs/15 §Phase 5R, promoted from the former `AlertDialog`). Reads
+ * Trip detail as a full page, promoted from the former `AlertDialog`. Reads
  * [TripsViewModel]'s `detail` state directly — the caller is responsible for having triggered a
  * load (`onDetailClicked`/`onDetailOpened`) before navigating here. Also hosts the edit form and
  * archive confirmation reachable from the header's overflow menu (there is no dialog button row
  * to host them on a full page, unlike the former `AlertDialog`); the page stays visible
  * underneath both, and archiving navigates back since the trip stops existing in the active list.
  *
- * Content is four tabs mirroring Anàlisi's own `TabRow` (docs/14 §4): Resum (hero + budget +
+ * Content is four tabs mirroring Anàlisi's own `TabRow`: Resum (hero + budget +
  * cumulative chart) · Desglossament (category/tag percent-bar rows) · Dia a dia (display-only
  * per-day category rollup cards) · Moviments (the full day-grouped scoped ledger). Adding a
  * movement is a local action — it pre-fills this trip while the page is open (MainActivity).
@@ -716,8 +716,7 @@ private fun dayLabel(ordinal: Long?, date: String): String {
     }
 }
 
-/** Dia a dia tab: display-only per-day cards with category rollup lines (Aggregate Interaction
- * Contract, docs/11 §6 — day aggregates never navigate). */
+/** Dia a dia tab: display-only per-day cards with category rollup lines; aggregates never navigate. */
 @Composable
 private fun TripDaysTab(detail: TripDetailState) {
     val groups = buildDayGroups(detail.trip, detail.dailyActual, detail.dayCategoryActual) { it.date }
@@ -886,7 +885,7 @@ private enum class TripBreakdownDimension {
 
 /**
  * Hero card: total actual spend as the single headline number, with avg/day and account outflow
- * folded into one muted secondary line, plus the exclude-one-time toggle (docs/14 §4).
+ * folded into one muted secondary line, plus the exclude-one-time toggle.
  */
 @Composable
 private fun TripHeroSection(
@@ -949,7 +948,7 @@ private fun TripHeroSection(
  * Budget block on the Resum tab. With an active TRIP-scope budget: a progress card, tappable to
  * edit it on the Budgets surface. Without one: a "Defineix pressupost" secondary button opening
  * that same surface. The bar always reflects total actual spend — it deliberately ignores the
- * exclude-one-time toggle (docs/14 §7).
+ * exclude-one-time toggle.
  */
 @Composable
 private fun TripBudgetSection(
@@ -1028,7 +1027,7 @@ internal fun tripDailyChartState(
 }
 
 /**
- * Cumulative daily spend (design §6 charts are always cumulative, e.g. Analysis's own
+ * Cumulative daily spend (design baseline charts are always cumulative, e.g. Analysis's own
  * `IncomeExpenseChart` use — no separate "daily bars" mode, matching that established pattern).
  */
 @Composable
@@ -1075,7 +1074,7 @@ private fun TripDailySection(actualCents: Long, items: List<TripDailyActual>) {
 
 /**
  * Desglossament tab: one composition list with a category/tag dimension switch plus the
- * Totals/Mitjana-per-dia mode toggle (docs/14 §4), so only one row list is on screen at a time.
+ * Totals/Mitjana-per-dia mode toggle, so only one row list is on screen at a time.
  * Tag management lives here — where the tags are — as a trailing action on the tag dimension.
  */
 @Composable
@@ -1095,7 +1094,7 @@ private fun TripBreakdownTab(
                 color = categoryColor(item.categoryColor),
                 label = item.categoryName ?: stringResource(R.string.common_no_category),
                 actualCents = item.actualCents,
-                displayCents = item.displayCents(mode, days),
+                displayCents = breakdownDisplayCents(item.actualCents, mode, days),
             )
         }
         TripBreakdownDimension.TAG -> detail.tagActual.map { item ->
@@ -1105,7 +1104,7 @@ private fun TripBreakdownTab(
                 color = categoryColor(tag?.effectiveColor() ?: item.tagColor),
                 label = item.tagName ?: stringResource(R.string.trip_analysis_untagged),
                 actualCents = item.actualCents,
-                displayCents = item.displayCents(mode, days),
+                displayCents = breakdownDisplayCents(item.actualCents, mode, days),
             )
         }
     }
@@ -1352,23 +1351,26 @@ private fun TripFormScreen(
     }
 }
 
-/** Muted meta line under the detail page title: date range · day count · status. */
+/** Muted meta line under the detail page title: expanded date range · day count · status. */
 @Composable
 private fun TripSummary.detailMetaLine(days: Long): String =
     listOfNotNull(
-        dateRange(),
+        dateRange(expanded = true),
         days.takeIf { it > 0L }?.let { stringResource(R.string.trip_detail_days_count, it) },
         status.label(),
     ).joinToString(" · ")
 
 @Composable
-private fun TripSummary.dateRange(): String? =
-    when {
-        startDate != null && endDate != null -> stringResource(R.string.trip_date_range, startDate, endDate)
-        startDate != null -> stringResource(R.string.trip_date_ongoing, startDate)
-        endDate != null -> endDate
+private fun TripSummary.dateRange(expanded: Boolean = false): String? {
+    val formatDate: (String) -> String = if (expanded) ::formatExpandedDate else ::formatCompactDate
+    return when {
+        startDate != null && endDate != null ->
+            stringResource(R.string.trip_date_range, formatDate(startDate), formatDate(endDate))
+        startDate != null -> stringResource(R.string.trip_date_ongoing, formatDate(startDate))
+        endDate != null -> formatDate(endDate)
         else -> null
     }
+}
 
 @Composable
 private fun TripStatus.label(): String =
@@ -1424,19 +1426,11 @@ private fun formatDayLabel(date: String): String =
     try {
         LocalDate.parse(date).dayOfMonth.toString()
     } catch (_: DateTimeParseException) {
-        date
+        "—"
     }
 
-private fun TripCategoryActual.displayCents(
-    mode: TripBreakdownMode,
-    days: Long,
-): Long =
-    when (mode) {
-        TripBreakdownMode.TOTAL -> actualCents
-        TripBreakdownMode.AVG_DAY -> averageCents(actualCents, days)
-    }
-
-private fun TripTagActual.displayCents(
+private fun breakdownDisplayCents(
+    actualCents: Long,
     mode: TripBreakdownMode,
     days: Long,
 ): Long =

@@ -5,7 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Reference test for the multi-write atomicity pattern (audit M5).
+ * Reference test for the multi-write atomicity pattern (multi-write atomicity).
  *
  * `MovementRepository.create` wraps the movement insert and its split-line
  * inserts in a single SQLDelight transaction. We prove atomicity by making the

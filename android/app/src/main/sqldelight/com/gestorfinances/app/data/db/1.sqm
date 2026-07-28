@@ -2,7 +2,7 @@
 -- Do not edit directly; edit the shared SQL file instead.
 
 -- Gestor finances v1 → v2 migration.
--- Adds splits.tag_id so external (§2.6) splits can carry a trip tag like movement-backed rows.
+-- Adds splits.tag_id so external (external-payer) splits can carry a trip tag like movement-backed rows.
 -- The CHECK (tag_id IS NULL OR trip_id IS NOT NULL) is enforced in the fresh-install schema
 -- (shared/schema/schema.sql) and at the app layer; SQLite ADD COLUMN cannot introduce it here.
 -- Also creates v_movement_summary (added to SharedSchema.sq alongside this migration; not present

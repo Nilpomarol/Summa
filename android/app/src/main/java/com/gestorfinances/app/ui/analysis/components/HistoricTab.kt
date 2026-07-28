@@ -13,8 +13,8 @@ import com.gestorfinances.app.ui.analysis.formatForScope
 import com.gestorfinances.app.ui.analysis.heatmapCellsFor
 
 /**
- * Financial history dashboard. Ordered as a narrative, not a list of unrelated charts (design
- * §5): first "how safe am I" (buffer hero), then "how has my position evolved" (net worth), then
+ * Financial history dashboard. Ordered as a narrative, not a list of unrelated charts: first
+ * "how safe am I" (buffer hero), then "how has my position evolved" (net worth), then
  * "am I saving more or less" (savings rate), then behavioral detail (heatmap, weekday, category
  * trends).
  */

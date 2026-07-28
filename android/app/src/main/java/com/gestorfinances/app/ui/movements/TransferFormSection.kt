@@ -15,7 +15,7 @@ import com.gestorfinances.app.ui.common.scrollToWhen
 /**
  * The TRANSFER body: origin + destination account row. Optional recurrence/details are disclosed
  * by [FormOptionalSection].
- * Transfers are never categorized or shared (spec §3.5).
+ * Transfers are never categorized or shared (product rule).
  */
 @Composable
 internal fun TransferFormSection(

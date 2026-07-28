@@ -1,6 +1,6 @@
 {
   "version": "0.1.0",
-  "source": "docs/08-design-system.md",
+  "source": "docs/design.md",
   "description": "Shared design tokens for the Android and Windows finance apps. Values are intentionally platform-neutral.",
   "colors": {
     "neutral": {

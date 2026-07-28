@@ -59,7 +59,7 @@ data class BudgetSummary(
         }
 }
 
-/** A budget paired with its evaluated actual spend for a period (§4.5). */
+/** A budget paired with its evaluated actual spend for a period. */
 data class BudgetEvaluation(
     val budget: BudgetSummary,
     val actualCents: Long,
@@ -85,7 +85,7 @@ class BudgetRepository(
     fun getActive(id: String): BudgetSummary? =
         queries.budgetById(id, ::mapBudgetSummary).executeAsOneOrNull()
 
-    /** Sum of actual expenses (§4.2, refunds netted) for a category over [fromDate, toDate]. */
+    /** Sum of actual expenses, with refunds netted, for a category over [fromDate, toDate]. */
     fun actualForCategory(
         categoryId: String,
         fromDate: String,
@@ -97,7 +97,7 @@ class BudgetRepository(
             to_date = toDate,
         ).executeAsOne()
 
-    /** Sum of actual expenses (§4.2, refunds netted) for a trip over [fromDate, toDate]. */
+    /** Sum of actual expenses, with refunds netted, for a trip over [fromDate, toDate]. */
     fun actualForTrip(
         tripId: String,
         fromDate: String,
@@ -176,7 +176,7 @@ private fun BudgetRepository.actualForBudget(
             fromDate = budget.effectiveFromDate(fromDate),
             toDate = toDate,
         )
-        // TRIP-scope budgets are one-off (§4.5): they track a trip's whole life, not the
+        // TRIP-scope budgets are one-off: they track a trip's whole life, not the
         // caller-supplied period. Evaluate them fully unbounded, matching how
         // TripAnalysisRepository's trip-scoped queries filter by trip_id alone with no date
         // bound — so advance-booking spend recorded before the trip's own start_date (or

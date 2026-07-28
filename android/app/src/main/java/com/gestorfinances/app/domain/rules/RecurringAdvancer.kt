@@ -35,7 +35,7 @@ object RecurringAdvancer {
     /**
      * Defensive ceiling on due-date generation. A correctly configured template never comes close
      * to this (even daily-custom over decades is in the low thousands); tripping it means
-     * `nextDate` failed to advance the cursor, and we'd rather fail loudly than hang the caller.
+     * `nextOccurrence` failed to advance the cursor, and we'd rather fail loudly than hang the caller.
      */
     private const val MAX_OCCURRENCES = 10_000
 
@@ -49,16 +49,16 @@ object RecurringAdvancer {
 
         while (!next.isAfter(today)) {
             require(dueDates.size < MAX_OCCURRENCES) {
-                "RecurringAdvancer.advance exceeded $MAX_OCCURRENCES occurrences; nextDate is not advancing the cursor."
+                "RecurringAdvancer.advance exceeded $MAX_OCCURRENCES occurrences; nextOccurrence is not advancing the cursor."
             }
             dueDates += next
-            next = nextDate(rule, next)
+            next = nextOccurrence(rule, next)
         }
 
         return RecurrenceAdvance(dueDates = dueDates, newCursor = next)
     }
 
-    private fun nextDate(rule: RecurrenceRule, current: LocalDate): LocalDate =
+    fun nextOccurrence(rule: RecurrenceRule, current: LocalDate): LocalDate =
         when (rule.frequency) {
             RecurrenceFrequency.WEEKLY -> current.plusDays(7)
             RecurrenceFrequency.FORTNIGHTLY -> current.plusDays(14)
@@ -96,7 +96,7 @@ object RecurringAdvancer {
      * with no skip interleaved. Used to decide whether "undoing" that occurrence can safely roll
      * the cursor back to [occurrenceDate] itself. */
     fun isImmediatePriorOccurrence(rule: RecurrenceRule, occurrenceDate: LocalDate, nextDueDate: LocalDate): Boolean =
-        advance(rule, cursor = occurrenceDate, today = occurrenceDate).newCursor == nextDueDate
+        nextOccurrence(rule, occurrenceDate) == nextDueDate
 }
 
 internal fun TemplateSummary.toRecurrenceRule(): RecurrenceRule =

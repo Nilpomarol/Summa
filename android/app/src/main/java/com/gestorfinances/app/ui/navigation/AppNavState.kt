@@ -14,7 +14,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import com.gestorfinances.app.R
 import com.gestorfinances.app.ui.management.ManagementDestination
 
-/** The four bottom-bar destinations (docs/07 §1). */
+/** The four bottom-bar destinations. */
 enum class TopLevelSection(
     @StringRes val labelRes: Int,
     val selectedIcon: ImageVector,
@@ -26,7 +26,7 @@ enum class TopLevelSection(
     MANAGEMENT(R.string.nav_management, Icons.Filled.Tune, Icons.Outlined.Tune),
 }
 
-/** The route/chrome choices used by the app shell (docs/18 WP1.2). */
+/** The route/chrome choices used by the app shell. */
 enum class RouteChrome(
     val showsGlobalNavigation: Boolean,
 ) {
@@ -89,14 +89,14 @@ sealed interface AppOverlay {
  * The whole shell navigation as a single value: the selected bottom-bar [section], the optional
  * Gestió child page, and an optional [overlay] on top. This replaces the previous set of
  * overlapping boolean flags (`showBudgets`/`showTags` + context ids); Back is the pure [back]
- * reducer that encodes the documented behaviour (docs/07 §1).
+ * reducer that encodes the shell behaviour.
  */
 data class AppNavState(
     val section: TopLevelSection,
     val managementDestination: ManagementDestination? = null,
     val overlay: AppOverlay? = null,
 ) {
-    /** Route/chrome matrix used by the shell (docs/18 WP1.2). */
+    /** Route/chrome matrix used by the shell. */
     val routeChrome: RouteChrome
         get() = when {
             overlay != null -> RouteChrome.FOCUSED_PAGE

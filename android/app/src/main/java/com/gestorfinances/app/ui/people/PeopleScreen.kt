@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -25,7 +24,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Handshake
@@ -86,7 +84,7 @@ import com.gestorfinances.app.ui.common.PageHeaderRow
 import com.gestorfinances.app.ui.common.PrimaryButton
 import com.gestorfinances.app.ui.common.doneKeyboardActions
 import com.gestorfinances.app.ui.common.formatEuroCents
-import com.gestorfinances.app.ui.common.formatSlashDate
+import com.gestorfinances.app.ui.common.formatCompactDate
 import com.gestorfinances.app.ui.common.nextFieldKeyboardActions
 import com.gestorfinances.app.ui.common.parseEuroCents
 import com.gestorfinances.app.ui.common.scrollToWhen
@@ -692,7 +690,7 @@ private fun PersonDebtMessage.toClipboardText(personName: String): String {
 
     val lines = mutableListOf<String>()
     items.forEach { item ->
-        lines += "- ${formatSlashDate(item.date)} ${item.displayTitle(personName)}: " +
+        lines += "- ${formatCompactDate(item.date)} ${item.displayTitle(personName)}: " +
             formatEuroCents(kotlin.math.abs(item.effectCents))
     }
     carryForwardCents?.let { carryForward ->

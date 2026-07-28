@@ -7,7 +7,7 @@
 -- user_share_cents (still sl.owed_amount_cents) is unchanged and keeps representing the user's
 -- own portion for every row type. Today userShareCents == totalAmountCents is enforced by the
 -- write path (SplitRepository.createExternalPaidByPerson/replaceExternalSplit, v1 single-debtor
--- simplification — see docs/16-android-audit-findings.md finding O5), so this is a semantic fix
+-- simplification), so this is a semantic fix
 -- with no observable value change yet, but it stops amount_cents from silently breaking if
 -- multi-participant debt splitting is ever added.
 

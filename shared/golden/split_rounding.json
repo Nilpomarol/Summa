@@ -1,6 +1,6 @@
 {
   "rule": "split_rounding",
-  "description": "Split a total into absolute cents per participant. Remainder cent(s) go to the payer (spec §3.7, §2.4). 'participants' is ordered; 'payer_index' identifies who absorbs the remainder.",
+  "description": "Split a total into absolute cents per participant. Remainder cents go to the payer. 'participants' is ordered; 'payer_index' identifies who absorbs the remainder.",
   "cases": [
     {
       "name": "equal / divides evenly",

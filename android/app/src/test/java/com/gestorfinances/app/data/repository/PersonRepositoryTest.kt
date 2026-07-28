@@ -120,7 +120,7 @@ class PersonRepositoryTest {
     @Test
     fun debtBalanceGoldenScenarioHoldsThroughRepositories() {
         // Mirrors shared/golden/debt_balance.json through the real SQLDelight-backed
-        // repositories: a user-fronted split, a §2.6 external split, and a settlement.
+        // repositories: a user-fronted split, a external-payer external split, and a settlement.
         freshStore().use { store ->
             store.accounts.create(
                 AccountDraft(
@@ -166,7 +166,7 @@ class PersonRepositoryTest {
                 createdAt = NOW,
             )
 
-            // The user owes pB 1500 from a §2.6 external split.
+            // The user owes pB 1500 from a external-payer external split.
             store.splits.createExternalPaidByPerson(
                 ExternalSplitDraft(
                     id = "s2",

@@ -29,7 +29,7 @@ import kotlinx.coroutines.flow.asStateFlow
 class AppContainer(context: Context) {
     private val appContext = context.applicationContext
 
-    // No-op until Phase 7 wires the real sync/token protocol (docs/02-synchronization.md);
+    // No-op until the real sync/token protocol is implemented (docs/architecture.md);
     // always reports this device as the writer.
     private val _deviceAccessState = MutableStateFlow<DeviceAccessState>(DeviceAccessState.Writer)
     val deviceAccessState: StateFlow<DeviceAccessState> = _deviceAccessState.asStateFlow()

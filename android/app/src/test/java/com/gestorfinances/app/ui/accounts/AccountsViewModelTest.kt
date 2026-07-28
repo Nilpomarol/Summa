@@ -19,7 +19,7 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * Smoke coverage for the account form's field-level validation (audit U8, `docs/17` WP2) --
+ * Smoke coverage for the account form's field-level validation (field-level validation) --
  * asserts `(errorRes, errorField)` for each validation branch this form can hit.
  */
 @OptIn(ExperimentalCoroutinesApi::class)

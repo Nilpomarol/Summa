@@ -4,7 +4,7 @@ import java.time.LocalDate
 import org.junit.Test
 
 /**
- * Regression test for audit finding F3: `RecurringAdvancer.advance`'s while-loop had no upper
+ * Regression test: `RecurringAdvancer.advance`'s while-loop had no upper
  * bound. A template whose cursor is decades stale (e.g. a daily custom recurrence never
  * confirmed) would previously accumulate an unbounded list on the IO dispatcher; now it fails
  * fast instead.
@@ -38,6 +38,15 @@ class RecurringAdvancerTest {
         )
 
         assert(result.dueDates.size == 6) { "expected 6 monthly occurrences, got ${result.dueDates.size}" }
+    }
+
+    @Test
+    fun `nextOccurrence preserves the monthly anchor across a short month`() {
+        val rule = RecurrenceRule(frequency = RecurrenceFrequency.MONTHLY, dayOfMonth = 31)
+
+        val result = RecurringAdvancer.nextOccurrence(rule, LocalDate.of(2026, 1, 31))
+
+        assert(result == LocalDate.of(2026, 2, 28)) { "expected February month-end, got $result" }
     }
 
     @Test

@@ -10,9 +10,9 @@ import com.gestorfinances.app.data.repository.BudgetPeriod
 import com.gestorfinances.app.data.repository.BudgetRepository
 import com.gestorfinances.app.data.repository.BudgetScope
 import com.gestorfinances.app.data.repository.BudgetSummary
-import com.gestorfinances.app.data.repository.CategoryKind
 import com.gestorfinances.app.data.repository.CategoryRecord
 import com.gestorfinances.app.data.repository.CategoryRepository
+import com.gestorfinances.app.data.repository.supportsExpense
 import com.gestorfinances.app.data.repository.TripRepository
 import com.gestorfinances.app.data.repository.TripSummary
 import com.gestorfinances.app.notifications.NotificationRefresher
@@ -247,7 +247,7 @@ data class BudgetsUiState(
     val archiveCandidate: BudgetSummary? = null,
 )
 
-/** Identifies which field a budget-form validation error belongs to (audit U8, `docs/17` WP2). */
+/** Identifies which field a budget-form validation error belongs to (field-level validation). */
 enum class BudgetFormField {
     CATEGORY,
     TRIP,
@@ -275,8 +275,6 @@ private data class LoadedBudgetData(
     val trips: List<TripSummary>,
 )
 
-private val CategoryRecord.supportsExpense: Boolean
-    get() = kind == CategoryKind.EXPENSE || kind == CategoryKind.BOTH
 
 private fun BudgetSummary.toFormState(): BudgetFormState =
     BudgetFormState(

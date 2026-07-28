@@ -1,7 +1,6 @@
 package com.gestorfinances.app.ui.movements
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,7 +22,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Search
@@ -34,7 +32,6 @@ import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.RestartAlt
-import androidx.compose.material3.Button
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -64,17 +61,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountSummary
-import com.gestorfinances.app.data.repository.CategoryKind
 import com.gestorfinances.app.data.repository.CategoryNature
 import com.gestorfinances.app.data.repository.CategoryRecord
 import com.gestorfinances.app.data.repository.MovementSummary
 import com.gestorfinances.app.data.repository.MovementType
-import com.gestorfinances.app.data.repository.SettlementDirection
 import com.gestorfinances.app.data.repository.TagSummary
 import com.gestorfinances.app.data.repository.TripSummary
 import com.gestorfinances.app.ui.common.BannerKind
@@ -82,14 +76,9 @@ import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.FinanceFilterChip
 import com.gestorfinances.app.ui.common.IconChip
 import com.gestorfinances.app.ui.common.InlineBanner
-import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.MovementListItem
 import com.gestorfinances.app.ui.common.PrimaryButton
-import com.gestorfinances.app.ui.common.chipVisual
-import com.gestorfinances.app.ui.common.contextLine
-import com.gestorfinances.app.ui.common.movementTitle
 import com.gestorfinances.app.ui.common.label
-import com.gestorfinances.app.ui.common.signedAmountCents
 import com.gestorfinances.app.ui.common.SectionHeader
 import com.gestorfinances.app.ui.common.TopBarIconButton
 import androidx.compose.foundation.background
@@ -97,15 +86,14 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.height
 import com.gestorfinances.app.ui.common.FilterSelectorField
 import com.gestorfinances.app.ui.common.categoryIcon
+import com.gestorfinances.app.ui.common.formatCompactDate
 import com.gestorfinances.app.ui.common.formatMonthYear
 import com.gestorfinances.app.ui.theme.FinanceTheme
-import com.gestorfinances.app.ui.theme.amountColor
 import com.gestorfinances.app.ui.theme.categoryColor
 import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
 
 @Composable
 fun MovementsScreen(
@@ -736,13 +724,6 @@ private fun MovementType.filterLabel(): String =
         MovementType.EXTERNAL_EXPENSE -> stringResource(R.string.movement_type_external)
     }
 
-private fun CategoryRecord.supports(type: MovementType): Boolean =
-    when (type) {
-        MovementType.EXPENSE -> kind == CategoryKind.EXPENSE || kind == CategoryKind.BOTH
-        MovementType.INCOME -> kind == CategoryKind.INCOME || kind == CategoryKind.BOTH
-        else -> false
-    }
-
 private val phaseOneTypes = listOf(
     MovementType.EXPENSE,
     MovementType.INCOME,
@@ -763,14 +744,14 @@ private fun MovementFilters.formattedPeriod(): String {
         if (start.dayOfMonth == 1 && end == start.plusMonths(1).minusDays(1)) {
             return formatMonthYear(YearMonth.of(start.year, start.monthValue))
         }
-        return "${start.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))} - ${end.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))}"
+        return "${formatCompactDate(start)} - ${formatCompactDate(end)}"
     }
     
     if (start != null) {
-        return "Des de ${start.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))}"
+        return "Des de ${formatCompactDate(start)}"
     }
     if (end != null) {
-        return "Fins a ${end.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))}"
+        return "Fins a ${formatCompactDate(end)}"
     }
     
     return "Tots"
@@ -1346,9 +1327,7 @@ private fun PeriodFilterSheet(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 val displayFrom = remember(dateFrom, dateFromPlaceholder) {
-                    runCatching {
-                        LocalDate.parse(dateFrom).format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
-                    }.getOrDefault(dateFrom.ifBlank { dateFromPlaceholder })
+                    if (dateFrom.isBlank()) dateFromPlaceholder else formatCompactDate(dateFrom)
                 }
                 Surface(
                     onClick = { showFromDatePicker = true },
@@ -1380,9 +1359,7 @@ private fun PeriodFilterSheet(
                 }
                 
                 val displayTo = remember(dateTo, dateToPlaceholder) {
-                    runCatching {
-                        LocalDate.parse(dateTo).format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
-                    }.getOrDefault(dateTo.ifBlank { dateToPlaceholder })
+                    if (dateTo.isBlank()) dateToPlaceholder else formatCompactDate(dateTo)
                 }
                 Surface(
                     onClick = { showToDatePicker = true },
