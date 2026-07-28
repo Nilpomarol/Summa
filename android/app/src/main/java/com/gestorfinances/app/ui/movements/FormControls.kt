@@ -4,25 +4,20 @@ package com.gestorfinances.app.ui.movements
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.ExpandMore
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
@@ -42,6 +37,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.gestorfinances.app.ui.common.AppDropdownMenuItem
+import com.gestorfinances.app.ui.common.AppDropdownSectionHeader
 import com.gestorfinances.app.ui.theme.FinanceTheme
 
 /**
@@ -118,45 +115,6 @@ internal fun FieldFrame(
 }
 
 /**
- * Collapsed one-line summary that reveals a hidden control group when tapped. Reuses [FieldFrame]
- * so it reads as a normal form field, with a chevron affordance. Used to keep default-valued
- * groups (e.g. an expense's "Jo · Personal") out of the primary flow until the user opts in.
- */
-@Composable
-internal fun FormSummaryRow(
-    label: String,
-    value: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    FieldFrame(
-        label = label,
-        focused = false,
-        modifier = modifier,
-        surfaceModifier = Modifier.clickable(
-            indication = null,
-            interactionSource = remember { MutableInteractionSource() },
-            onClick = onClick,
-        ),
-    ) {
-        Text(
-            text = value,
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Icon(
-            imageVector = Icons.Outlined.ExpandMore,
-            contentDescription = null,
-            tint = FinanceTheme.colors.mutedText,
-            modifier = Modifier.size(20.dp),
-        )
-    }
-}
-
-/**
  * Design-system select: a [FieldFrame] anchor (not a stock text field) with a popup of
  * [options]. The selected option is check-marked; the chevron rotates while open. A `null`
  * selection shows [placeholder] in muted text, so the control also works as an action picker.
@@ -212,42 +170,32 @@ internal fun FormSelect(
         ExposedDropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
+            shape = RoundedCornerShape(16.dp),
+            containerColor = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(1.dp, FinanceTheme.colors.cardBorder),
+            shadowElevation = 8.dp,
         ) {
             options.forEach { option ->
-                DropdownMenuItem(
-                    enabled = option.enabled,
-                    text = {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        ) {
-                            if (option.indented) Spacer(modifier = Modifier.size(20.dp))
-                            option.leading?.invoke()
+                if (!option.enabled) {
+                    AppDropdownSectionHeader(text = option.label)
+                } else {
+                    AppDropdownMenuItem(
+                        text = {
                             Text(
                                 text = option.label,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
-                        }
-                    },
-                    trailingIcon = if (option.id == selectedId && option.enabled) {
-                        {
-                            Icon(
-                                imageVector = Icons.Outlined.Check,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(18.dp),
-                            )
-                        }
-                    } else {
-                        null
-                    },
-                    onClick = {
-                        onSelect(option.id)
-                        expanded = false
-                    },
-                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
-                )
+                        },
+                        onClick = {
+                            onSelect(option.id)
+                            expanded = false
+                        },
+                        leadingIcon = option.leading,
+                        selected = option.id == selectedId,
+                        indented = option.indented,
+                    )
+                }
             }
         }
     }

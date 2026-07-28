@@ -21,8 +21,8 @@ import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import com.gestorfinances.app.ui.common.AppDropdownMenu
+import com.gestorfinances.app.ui.common.AppDropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -134,13 +134,14 @@ private fun ScopeSelector(
             onClick = { expanded = true },
             modifier = Modifier.fillMaxWidth(),
         )
-        DropdownMenu(
+        AppDropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
         ) {
             AnalysisScope.entries.forEach { option ->
-                DropdownMenuItem(
+                AppDropdownMenuItem(
                     text = { Text(text = stringResource(option.labelRes())) },
+                    selected = option == scope,
                     onClick = {
                         expanded = false
                         onScopeSelected(option)
@@ -165,13 +166,14 @@ private fun ValueModeSelector(
             onClick = { expanded = true },
             modifier = Modifier.fillMaxWidth(),
         )
-        DropdownMenu(
+        AppDropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
         ) {
             AnalysisValueMode.entries.forEach { option ->
-                DropdownMenuItem(
+                AppDropdownMenuItem(
                     text = { Text(text = stringResource(option.labelRes())) },
+                    selected = option == valueMode,
                     onClick = {
                         expanded = false
                         onValueModeSelected(option)
@@ -292,7 +294,7 @@ private fun ComparisonMonthRow(
                 onClick = { showPicker = true },
                 modifier = Modifier.fillMaxWidth(),
             )
-            DropdownMenu(expanded = showPicker, onDismissRequest = { showPicker = false }) {
+            AppDropdownMenu(expanded = showPicker, onDismissRequest = { showPicker = false }) {
                 MonthPickerContent(
                     initial = state.comparisonMonth,
                     onSelect = { onComparisonMonthSelected(it); showPicker = false },
@@ -325,7 +327,7 @@ private fun ComparisonYearRow(
                 onClick = { showPicker = true },
                 modifier = Modifier.fillMaxWidth(),
             )
-            DropdownMenu(expanded = showPicker, onDismissRequest = { showPicker = false }) {
+            AppDropdownMenu(expanded = showPicker, onDismissRequest = { showPicker = false }) {
                 YearPickerContent(
                     initial = state.comparisonYear,
                     onSelect = { onComparisonYearSelected(it); showPicker = false },
@@ -418,7 +420,7 @@ private fun SteppedPeriod(
                     modifier = Modifier.size(16.dp),
                 )
             }
-            DropdownMenu(expanded = showPicker, onDismissRequest = { showPicker = false }) {
+            AppDropdownMenu(expanded = showPicker, onDismissRequest = { showPicker = false }) {
                 if (state.scope == AnalysisScope.MONTH) {
                     MonthPickerContent(
                         initial = state.month,

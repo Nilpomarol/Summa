@@ -36,8 +36,8 @@ import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import com.gestorfinances.app.ui.common.AppDropdownMenu
+import com.gestorfinances.app.ui.common.AppDropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.MaterialTheme
@@ -660,12 +660,12 @@ private fun CategoryMenuDropdown(
                 modifier = Modifier.size(20.dp),
             )
         }
-        DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-            DropdownMenuItem(
+        AppDropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+            AppDropdownMenuItem(
                 text = { Text(stringResource(R.string.common_edit)) },
                 onClick = { menuExpanded = false; onEdit() },
             )
-            DropdownMenuItem(
+            AppDropdownMenuItem(
                 text = {
                     Text(
                         text = stringResource(R.string.common_archive),

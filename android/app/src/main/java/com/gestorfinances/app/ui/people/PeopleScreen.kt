@@ -29,8 +29,8 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Handshake
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import com.gestorfinances.app.ui.common.AppDropdownMenu
+import com.gestorfinances.app.ui.common.AppDropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -759,16 +759,16 @@ private fun PersonRowMenu(
                 tint = FinanceTheme.colors.mutedText,
             )
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            DropdownMenuItem(
+        AppDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            AppDropdownMenuItem(
                 text = { Text(stringResource(R.string.person_action_external_split)) },
                 onClick = { expanded = false; onExternalSplit() },
             )
-            DropdownMenuItem(
+            AppDropdownMenuItem(
                 text = { Text(stringResource(R.string.common_edit)) },
                 onClick = { expanded = false; onEdit() },
             )
-            DropdownMenuItem(
+            AppDropdownMenuItem(
                 text = {
                     Text(
                         text = stringResource(R.string.common_archive),
