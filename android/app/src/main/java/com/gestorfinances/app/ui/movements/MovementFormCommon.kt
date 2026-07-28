@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.Icons
@@ -45,8 +46,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.R
@@ -70,6 +73,7 @@ import com.gestorfinances.app.ui.common.formatCompactDate
 import com.gestorfinances.app.ui.common.scrollToWhen
 import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.amountColor
+import com.gestorfinances.app.ui.theme.asFigures
 import com.gestorfinances.app.ui.theme.categoryColor
 import java.time.Instant
 import java.time.LocalDate
@@ -82,13 +86,16 @@ import java.time.ZoneOffset
 internal fun MovementTypeSelector(
     selected: MovementType,
     onSelect: (MovementType) -> Unit,
+    showLabel: Boolean = true,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            text = stringResource(R.string.movement_field_type),
-            style = MaterialTheme.typography.labelMedium,
-            color = FinanceTheme.colors.mutedText,
-        )
+        if (showLabel) {
+            Text(
+                text = stringResource(R.string.movement_field_type),
+                style = MaterialTheme.typography.labelMedium,
+                color = FinanceTheme.colors.mutedText,
+            )
+        }
         Surface(
             shape = MaterialTheme.shapes.small,
             color = MaterialTheme.colorScheme.surface,
@@ -609,6 +616,92 @@ internal fun RecurrenceFrequency.cadenceLabel(): String = when (this) {
 
 internal fun TagSummary.supportsTrip(trip: TripSummary?): Boolean =
     trip != null && (this.tripId == trip.id || (this.tripId == null && (this.tripType == null || this.tripType == trip.type)))
+
+/**
+ * Editable hero amount for the movement form: icon chip + title + a large in-place euro input.
+ * This replaces the former read-only preview plus a separate full-width "Import" field so the
+ * amount is entered once, as the visual focal point. [isError]/[supportingText] mirror the
+ * `OutlinedTextField` contract the old field used (amount validation). The read-only
+ * [MovementSheetHeader] stays for the movement detail screen.
+ */
+@Composable
+internal fun MovementAmountHeader(
+    title: String,
+    amount: String,
+    onAmountChange: (String) -> Unit,
+    type: MovementType,
+    icon: ImageVector,
+    iconColor: Color,
+    modifier: Modifier = Modifier,
+    isError: Boolean = false,
+    supportingText: String? = null,
+    amountColor: Color = FinanceTheme.colors.amountColor(type),
+) {
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconChip(icon = icon, contentDescription = null, color = iconColor, size = 48.dp)
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                val figureStyle = MaterialTheme.typography.headlineMedium.asFigures()
+                BasicTextField(
+                    value = amount,
+                    onValueChange = onAmountChange,
+                    singleLine = true,
+                    textStyle = figureStyle.copy(color = amountColor),
+                    cursorBrush = SolidColor(amountColor),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Decimal,
+                        imeAction = ImeAction.Done,
+                    ),
+                    keyboardActions = doneKeyboardActions(),
+                    modifier = Modifier.fillMaxWidth(),
+                    decorationBox = { innerTextField ->
+                        Row(verticalAlignment = Alignment.Bottom) {
+                            Text(text = "€", style = figureStyle, color = amountColor)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Box(modifier = Modifier.weight(1f)) {
+                                if (amount.isEmpty()) {
+                                    Text(
+                                        text = "0,00",
+                                        style = figureStyle,
+                                        color = FinanceTheme.colors.mutedText,
+                                    )
+                                }
+                                innerTextField()
+                            }
+                        }
+                    },
+                )
+                HorizontalDivider(
+                    thickness = 1.5.dp,
+                    color = if (isError) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    },
+                )
+            }
+        }
+        if (isError && !supportingText.isNullOrEmpty()) {
+            Text(
+                text = supportingText,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(start = 64.dp),
+            )
+        }
+    }
+}
 
 @Composable
 internal fun MovementSheetHeader(

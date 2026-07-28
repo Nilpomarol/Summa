@@ -1284,6 +1284,7 @@ data class MovementFormState(
     val templateStatus: TemplateStatus? = null,
     val showOptional: Boolean = false,
     val showAdvanced: Boolean = false,
+    /** Stable UI disclosure for the expense payer/beneficiary controls. */
     /** Read-only auto-categorization hint (category suggestion); never applied without the user tapping it. */
     val suggestedCategoryId: String? = null,
 ) {

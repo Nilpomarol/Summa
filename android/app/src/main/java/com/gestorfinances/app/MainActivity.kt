@@ -70,6 +70,7 @@ import com.gestorfinances.app.ui.management.ManagementDestination
 import com.gestorfinances.app.ui.management.ManagementScreen
 import com.gestorfinances.app.ui.movements.MovementDetailScreen
 import com.gestorfinances.app.ui.movements.MovementFilters
+import com.gestorfinances.app.ui.movements.MovementFormState
 import com.gestorfinances.app.ui.movements.MovementFormScreen
 import com.gestorfinances.app.ui.movements.MovementsScreen
 import com.gestorfinances.app.ui.movements.MovementsViewModel
@@ -469,7 +470,11 @@ private fun LedgerShell(
         }
     }
 
-    BackHandler(enabled = nav.canNavigateBack) { nav = nav.back() }
+    // Material's modal sheet owns Back while the movement form is visible so it can animate
+    // closed before the navigation state changes.
+    BackHandler(enabled = nav.canNavigateBack && nav.overlay !is AppOverlay.MovementForm) {
+        nav = nav.back()
+    }
 
     LaunchedEffect(notificationDestination) {
         when (notificationDestination) {
@@ -521,8 +526,8 @@ private fun LedgerShell(
     val openExternalExpenseForm: (PersonSummary) -> Unit = { person ->
         peopleViewModel.onPersonDetailDismissed()
         movementsViewModel.onAddClicked(tripId = null, debtPayerPersonId = person.id)
-        // Stay on the current tab instead of switching to Moviments — the form now renders as its
-        // own overlay page (AppOverlay.MovementForm) regardless of which section is selected.
+        // Stay on the current tab instead of switching to Moviments; the modal form can be shown
+        // above any section while keeping that page visible underneath.
         nav = nav.copy(overlay = AppOverlay.MovementForm(debtPayerPersonId = person.id))
     }
 
@@ -549,7 +554,14 @@ private fun LedgerShell(
             )
         },
     ) { innerPadding ->
-        when (val overlay = nav.overlay) {
+        val movementFormOverlay = nav.overlay as? AppOverlay.MovementForm
+        val pageOverlay = if (movementFormOverlay != null) {
+            movementFormOverlay.returnTo
+        } else {
+            nav.overlay
+        }
+
+        when (val overlay = pageOverlay) {
             is AppOverlay.Tags -> {
                 TagsScreen(
                     viewModel = tagsViewModel,
@@ -559,7 +571,7 @@ private fun LedgerShell(
                         .fillMaxSize()
                         .padding(innerPadding),
                 )
-                return@Scaffold
+                if (movementFormOverlay == null) return@Scaffold
             }
             is AppOverlay.Budgets -> {
                 BudgetsScreen(
@@ -570,7 +582,7 @@ private fun LedgerShell(
                         .fillMaxSize()
                         .padding(innerPadding),
                 )
-                return@Scaffold
+                if (movementFormOverlay == null) return@Scaffold
             }
             is AppOverlay.TripDetail -> {
                 LaunchedEffect(overlay.tripId) {
@@ -596,61 +608,9 @@ private fun LedgerShell(
                         .fillMaxSize()
                         .padding(innerPadding),
                 )
-                return@Scaffold
+                if (movementFormOverlay == null) return@Scaffold
             }
-            is AppOverlay.MovementForm -> {
-                // Unlike TripDetail (whose LaunchedEffect triggers the load), the ViewModel call
-                // that seeds `movementsState.form` already ran at the trigger site (openMovementForm
-                // / openExternalExpenseForm) before this overlay was set — this branch just renders
-                // whatever's there. `hasShownForm` distinguishes "not loaded yet" (form still null on
-                // the very first frame) from "was open, now saved/dismissed" so only the latter pops
-                // the overlay automatically.
-                var hasShownForm by remember(overlay) { mutableStateOf(false) }
-                LaunchedEffect(movementsState.form) {
-                    if (movementsState.form != null) {
-                        hasShownForm = true
-                    } else if (hasShownForm) {
-                        nav = nav.back()
-                    }
-                }
-                movementsState.form?.let { form ->
-                    MovementFormScreen(
-                        form = form,
-                        accounts = movementsState.accounts,
-                        categories = movementsState.categories,
-                        people = movementsState.people,
-                        trips = movementsState.trips,
-                        tags = movementsState.tags,
-                        onFormChange = movementsViewModel::onFormChanged,
-                        onTripSelected = movementsViewModel::onTripSelected,
-                        onTagSelected = movementsViewModel::onTagSelected,
-                        onSharedToggled = movementsViewModel::onSharedToggled,
-                        onSplitEditorChange = movementsViewModel::onSplitEditorChanged,
-                        onSettlementToggled = movementsViewModel::onSettlementToggled,
-                        onSettlementPersonSelected = movementsViewModel::onSettlementPersonSelected,
-                        onOtherPersonSelected = movementsViewModel::onOtherPersonSelected,
-                        onRecurringToggled = movementsViewModel::onRecurringToggled,
-                        onRecurringFrequencyChanged = movementsViewModel::onRecurringFrequencyChanged,
-                        onOptionalToggled = movementsViewModel::onOptionalToggled,
-                        onAdvancedToggled = movementsViewModel::onAdvancedToggled,
-                        onCreatePersonInSplit = movementsViewModel::onCreatePersonInSplit,
-                        onBack = {
-                            movementsViewModel.onFormDismissed()
-                            nav = nav.back()
-                        },
-                        onSave = movementsViewModel::onSaveClicked,
-                        onOverride = movementsViewModel::onDuplicateOverrideClicked,
-                        onDataLossOverride = movementsViewModel::onDataLossOverrideClicked,
-                        onRecurrenceStopEnd = movementsViewModel::onRecurrenceStopEndClicked,
-                        onRecurrenceStopUnlink = movementsViewModel::onRecurrenceStopUnlinkClicked,
-                        onWarningDismissed = movementsViewModel::onWarningDismissed,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(innerPadding),
-                    )
-                }
-                return@Scaffold
-            }
+            is AppOverlay.MovementForm -> Unit
             is AppOverlay.MovementDetail -> {
                 MovementDetailScreen(
                     viewModel = movementsViewModel,
@@ -668,11 +628,11 @@ private fun LedgerShell(
                         .fillMaxSize()
                         .padding(innerPadding),
                 )
-                return@Scaffold
+                if (movementFormOverlay == null) return@Scaffold
             }
             null -> Unit
         }
-        when (nav.section) {
+        if (pageOverlay == null) when (nav.section) {
             TopLevelSection.DASHBOARD -> DashboardScreen(
                 viewModel = dashboardViewModel,
                 onDrillDown = openMovements,
@@ -779,6 +739,50 @@ private fun LedgerShell(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),
+                )
+            }
+        }
+
+        movementFormOverlay?.let { overlay ->
+            // Keep the last form snapshot alive after a successful write. The ViewModel clears
+            // its form immediately; retaining the rendered content lets the sheet finish its
+            // hide animation before this overlay is removed.
+            var retainedForm by remember(overlay) { mutableStateOf<MovementFormState?>(null) }
+            LaunchedEffect(movementsState.form) {
+                movementsState.form?.let { retainedForm = it }
+            }
+            (movementsState.form ?: retainedForm)?.let { form ->
+                MovementFormScreen(
+                    form = form,
+                    accounts = movementsState.accounts,
+                    categories = movementsState.categories,
+                    people = movementsState.people,
+                    trips = movementsState.trips,
+                    tags = movementsState.tags,
+                    onFormChange = movementsViewModel::onFormChanged,
+                    onTripSelected = movementsViewModel::onTripSelected,
+                    onTagSelected = movementsViewModel::onTagSelected,
+                    onSharedToggled = movementsViewModel::onSharedToggled,
+                    onSplitEditorChange = movementsViewModel::onSplitEditorChanged,
+                    onSettlementToggled = movementsViewModel::onSettlementToggled,
+                    onSettlementPersonSelected = movementsViewModel::onSettlementPersonSelected,
+                    onOtherPersonSelected = movementsViewModel::onOtherPersonSelected,
+                    onRecurringToggled = movementsViewModel::onRecurringToggled,
+                    onRecurringFrequencyChanged = movementsViewModel::onRecurringFrequencyChanged,
+                    onOptionalToggled = movementsViewModel::onOptionalToggled,
+                    onAdvancedToggled = movementsViewModel::onAdvancedToggled,
+                    onCreatePersonInSplit = movementsViewModel::onCreatePersonInSplit,
+                    onDismiss = {
+                        movementsViewModel.onFormDismissed()
+                        nav = nav.back()
+                    },
+                    onSave = movementsViewModel::onSaveClicked,
+                    onOverride = movementsViewModel::onDuplicateOverrideClicked,
+                    onDataLossOverride = movementsViewModel::onDataLossOverrideClicked,
+                    onRecurrenceStopEnd = movementsViewModel::onRecurrenceStopEndClicked,
+                    onRecurrenceStopUnlink = movementsViewModel::onRecurrenceStopUnlinkClicked,
+                    onWarningDismissed = movementsViewModel::onWarningDismissed,
+                    dismissRequested = movementsState.form == null,
                 )
             }
         }

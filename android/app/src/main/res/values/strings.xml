@@ -216,6 +216,10 @@
     <!-- Movements -->
     <string name="movement_list_title">Moviments</string>
     <string name="movement_list_add">Nou moviment</string>
+    <string name="movement_form_new_expense">Nova despesa</string>
+    <string name="movement_form_new_income">Nou ingrés</string>
+    <string name="movement_form_new_transfer">Nova transferència</string>
+    <string name="movement_form_edit">Edita moviment</string>
     <string name="movement_loading">Carregant moviments...</string>
     <string name="movement_empty_title">Encara no hi ha moviments</string>
     <string name="movement_empty_body">Afegeix una despesa, un ingrés o una transferència.</string>
@@ -835,6 +839,9 @@
     <!-- Trip budgets -->
     <string name="budget_scope_category">Categoria</string>
     <string name="budget_scope_trip">Viatge</string>
+
+    <!-- Shared sheets -->
+    <string name="sheet_close_from_handle">Tanca el full</string>
 
     <!-- Debug / Testing -->
     <string name="settings_debug_title">Depuració i proves</string>
