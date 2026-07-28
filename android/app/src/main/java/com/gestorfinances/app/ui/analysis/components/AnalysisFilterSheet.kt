@@ -22,8 +22,8 @@ import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import com.gestorfinances.app.ui.common.AppDropdownMenu
+import com.gestorfinances.app.ui.common.AppDropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -131,14 +131,14 @@ internal fun AnalysisFilterSheet(
                             onClear = onClearAccountFilter,
                             modifier = Modifier.fillMaxWidth(),
                         )
-                        DropdownMenu(
+                        AppDropdownMenu(
                             expanded = accountExpanded,
                             onDismissRequest = { accountExpanded = false },
                             modifier = Modifier.heightIn(max = 360.dp),
                         ) {
                             // Option: All
                             val isAllSelected = state.filterAccountId == null
-                            DropdownMenuItem(
+                            AppDropdownMenuItem(
                                 text = {
                                     Text(
                                         text = stringResource(R.string.analysis_filter_account_all),
@@ -171,7 +171,7 @@ internal fun AnalysisFilterSheet(
                             // Option: Specific Accounts
                             state.accountOptions.forEach { account ->
                                 val isSelected = state.filterAccountId == account.id
-                                DropdownMenuItem(
+                                AppDropdownMenuItem(
                                     text = {
                                         Text(
                                             text = account.name,
@@ -233,14 +233,14 @@ internal fun AnalysisFilterSheet(
                             onClear = onClearCategoryFilter,
                             modifier = Modifier.fillMaxWidth(),
                         )
-                        DropdownMenu(
+                        AppDropdownMenu(
                             expanded = categoryExpanded,
                             onDismissRequest = { categoryExpanded = false },
                             modifier = Modifier.heightIn(max = 360.dp),
                         ) {
                             // Option: All
                             val isAllSelected = state.filterCategoryId == null
-                            DropdownMenuItem(
+                            AppDropdownMenuItem(
                                 text = {
                                     Text(
                                         text = stringResource(R.string.analysis_filter_category_all),
@@ -273,7 +273,7 @@ internal fun AnalysisFilterSheet(
                             // Option: Specific Categories
                             state.categoryOptions.forEach { category ->
                                 val isSelected = state.filterCategoryId == category.id
-                                DropdownMenuItem(
+                                AppDropdownMenuItem(
                                     text = {
                                         Text(
                                             text = category.name,

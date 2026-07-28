@@ -29,8 +29,8 @@ import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import com.gestorfinances.app.ui.common.AppDropdownMenu
+import com.gestorfinances.app.ui.common.AppDropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -471,28 +471,28 @@ private fun TemplateRowMenu(
                 tint = FinanceTheme.colors.mutedText,
             )
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            DropdownMenuItem(
+        AppDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            AppDropdownMenuItem(
                 text = { Text(stringResource(R.string.common_edit)) },
                 onClick = { expanded = false; onEdit() },
             )
             when (status) {
-                TemplateStatus.ACTIVE -> DropdownMenuItem(
+                TemplateStatus.ACTIVE -> AppDropdownMenuItem(
                     text = { Text(stringResource(R.string.recurring_action_pause)) },
                     onClick = { expanded = false; onPause() },
                 )
-                TemplateStatus.PAUSED, TemplateStatus.ENDED -> DropdownMenuItem(
+                TemplateStatus.PAUSED, TemplateStatus.ENDED -> AppDropdownMenuItem(
                     text = { Text(stringResource(R.string.recurring_action_resume)) },
                     onClick = { expanded = false; onResume() },
                 )
             }
             if (status != TemplateStatus.ENDED) {
-                DropdownMenuItem(
+                AppDropdownMenuItem(
                     text = { Text(stringResource(R.string.recurring_action_end)) },
                     onClick = { expanded = false; onEnd() },
                 )
             }
-            DropdownMenuItem(
+            AppDropdownMenuItem(
                 text = {
                     Text(
                         text = stringResource(R.string.common_archive),
