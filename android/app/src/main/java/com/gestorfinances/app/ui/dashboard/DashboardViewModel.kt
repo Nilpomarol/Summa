@@ -46,9 +46,15 @@ class DashboardViewModel(
         _state.value = _state.value.copy(categoryMode = mode)
     }
 
+    /** Picks which account's balance leads the summary. Presentation only — no data is reloaded. */
+    fun onAccountSelected(accountId: String) {
+        _state.value = _state.value.copy(selectedAccountId = accountId)
+    }
+
     fun refresh() {
         viewModelScope.launch {
-            _state.value = _state.value.copy(isLoading = true, errorMessage = null)
+            val previous = _state.value
+            _state.value = previous.copy(isLoading = true, errorMessage = null)
             val result = withContext(ioDispatcher) {
                 runCatching {
                     val today = todayProvider()
@@ -64,16 +70,16 @@ class DashboardViewModel(
                         categories = analysisRepository.actualByCategory(
                             fromDate = fromDate.toString(),
                             toDate = toDate.toString(),
-                        ).rollUpToParents(categoryRepository.listActive().associateBy { it.id }).take(6),
+                        ).rollUpToParents(categoryRepository.listActive().associateBy { it.id }),
                         accounts = accountRepository.listActive(),
-                        latestMovements = movementRepository.listActive().take(5),
+                        latestMovements = movementRepository.listActive().take(LATEST_MOVEMENTS),
                         activeTrip = tripRepository.activeToday(today.toString()),
                     )
                 }
             }
             _state.value = result.fold(
                 onSuccess = {
-                    DashboardUiState(
+                    previous.copy(
                         month = it.month,
                         totals = it.totals,
                         categories = it.categories,
@@ -81,6 +87,7 @@ class DashboardViewModel(
                         latestMovements = it.latestMovements,
                         activeTrip = it.activeTrip,
                         isLoading = false,
+                        errorMessage = null,
                     )
                 },
                 onFailure = {
@@ -128,15 +135,34 @@ data class DashboardUiState(
     ),
     val categories: List<AnalysisCategoryTotal> = emptyList(),
     val accounts: List<AccountSummary> = emptyList(),
+    val selectedAccountId: String? = null,
     val latestMovements: List<MovementSummary> = emptyList(),
     val activeTrip: TripSummary? = null,
     val categoryMode: CategoryDisplayMode = CategoryDisplayMode.EXPENSES,
     val isLoading: Boolean = true,
     val errorMessage: String? = null,
 ) {
-    val hasMonthActivity: Boolean
-        get() = totals.actualIncomeCents != 0L || totals.actualExpenseCents != 0L
+    /**
+     * Account whose current balance leads the summary: the one the user picked, otherwise the
+     * default account, otherwise the first active one.
+     */
+    val mainAccount: AccountSummary?
+        get() = accounts.firstOrNull { it.id == selectedAccountId }
+            ?: accounts.firstOrNull { it.isDefault }
+            ?: accounts.firstOrNull()
+
+    /**
+     * First active account already below its own low-balance threshold, if any. Uses the same
+     * condition as the low-balance notification rule; the dashboard only surfaces it.
+     */
+    val lowBalanceAccount: AccountSummary?
+        get() = accounts.firstOrNull { account ->
+            val threshold = account.lowBalanceThresholdCents ?: return@firstOrNull false
+            account.currentBalanceCents < threshold
+        }
 }
+
+private const val LATEST_MOVEMENTS = 5
 
 private data class DashboardLoadedData(
     val month: YearMonth,

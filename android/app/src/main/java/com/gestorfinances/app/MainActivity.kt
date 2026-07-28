@@ -675,9 +675,6 @@ private fun LedgerShell(
         when (nav.section) {
             TopLevelSection.DASHBOARD -> DashboardScreen(
                 viewModel = dashboardViewModel,
-                onNewMovement = { openMovementForm() },
-                onViewAnalysis = { showTopLevel(TopLevelSection.ANALYSIS) },
-                onSettings = { showManagement(ManagementDestination.SETTINGS) },
                 onDrillDown = openMovements,
                 onMovementDetail = openMovementDetail,
                 onAccountAnalysis = { account ->
