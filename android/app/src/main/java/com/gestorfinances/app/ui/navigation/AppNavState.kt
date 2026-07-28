@@ -49,7 +49,7 @@ enum class RouteChrome(
 sealed interface AppOverlay {
     val tripId: String?
 
-    /** Optional focused page to reveal when this overlay is dismissed. */
+    /** Optional page to keep underneath and reveal when this overlay is dismissed. */
     val returnTo: AppOverlay?
         get() = null
 
@@ -67,8 +67,8 @@ sealed interface AppOverlay {
 
     /**
      * Movement create/edit, reachable from any screen (Dashboard FAB, Trip Detail's "new
-     * movement", a person's debt-payment action, Movements itself) — previously rendered by a
-     * global `MovementDialogHost` regardless of `section`; now a page like the others here.
+     * movement", a person's debt-payment action, Movements itself). This is navigation state for
+     * a modal sheet; unlike focused pages, it preserves the page and its chrome underneath.
      */
     data class MovementForm(
         override val tripId: String? = null,
@@ -96,10 +96,10 @@ data class AppNavState(
     val managementDestination: ManagementDestination? = null,
     val overlay: AppOverlay? = null,
 ) {
-    /** Route/chrome matrix used by the shell. */
+    /** Route/chrome matrix used by the shell. Modal forms preserve the page underneath. */
     val routeChrome: RouteChrome
         get() = when {
-            overlay != null -> RouteChrome.FOCUSED_PAGE
+            overlay != null && overlay !is AppOverlay.MovementForm -> RouteChrome.FOCUSED_PAGE
             section == TopLevelSection.MANAGEMENT && managementDestination != null ->
                 RouteChrome.MANAGEMENT_CHILD_BOTTOM_NAV
             else -> RouteChrome.ROOT_BOTTOM_NAV

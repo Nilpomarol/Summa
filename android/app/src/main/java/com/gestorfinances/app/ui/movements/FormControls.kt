@@ -4,6 +4,8 @@ package com.gestorfinances.app.ui.movements
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -112,6 +114,45 @@ internal fun FieldFrame(
                 color = MaterialTheme.colorScheme.error,
             )
         }
+    }
+}
+
+/**
+ * Collapsed one-line summary that reveals a hidden control group when tapped. Reuses [FieldFrame]
+ * so it reads as a normal form field, with a chevron affordance. Used to keep default-valued
+ * groups (e.g. an expense's "Jo · Personal") out of the primary flow until the user opts in.
+ */
+@Composable
+internal fun FormSummaryRow(
+    label: String,
+    value: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    FieldFrame(
+        label = label,
+        focused = false,
+        modifier = modifier,
+        surfaceModifier = Modifier.clickable(
+            indication = null,
+            interactionSource = remember { MutableInteractionSource() },
+            onClick = onClick,
+        ),
+    ) {
+        Text(
+            text = value,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Icon(
+            imageVector = Icons.Outlined.ExpandMore,
+            contentDescription = null,
+            tint = FinanceTheme.colors.mutedText,
+            modifier = Modifier.size(20.dp),
+        )
     }
 }
 

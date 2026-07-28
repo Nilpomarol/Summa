@@ -3,9 +3,7 @@ package com.gestorfinances.app.ui.movements
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -13,19 +11,15 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.runtime.remember
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountSummary
 import com.gestorfinances.app.data.repository.CategoryRecord
@@ -35,18 +29,15 @@ import com.gestorfinances.app.data.repository.TagSummary
 import com.gestorfinances.app.data.repository.TripSummary
 import com.gestorfinances.app.domain.rules.RecurrenceFrequency
 import com.gestorfinances.app.ui.common.BannerKind
+import com.gestorfinances.app.ui.common.AppModalBottomSheet
 import com.gestorfinances.app.ui.common.FinanceFilterChip
 import com.gestorfinances.app.ui.common.InlineBanner
-import com.gestorfinances.app.ui.common.PageHeaderRow
 import com.gestorfinances.app.ui.common.PrimaryButton
 import com.gestorfinances.app.ui.common.categoryIcon
-import com.gestorfinances.app.ui.common.doneKeyboardActions
 import com.gestorfinances.app.ui.common.movementTypeIcon
 import com.gestorfinances.app.ui.common.nextFieldKeyboardActions
-import com.gestorfinances.app.ui.common.parseEuroCents
 import com.gestorfinances.app.ui.common.scrollToWhen
 import com.gestorfinances.app.ui.theme.FinanceTheme
-import com.gestorfinances.app.ui.theme.amountColor
 import com.gestorfinances.app.ui.theme.categoryColor
 
 @Composable
@@ -70,48 +61,39 @@ fun MovementFormScreen(
     onOptionalToggled: () -> Unit,
     onAdvancedToggled: () -> Unit,
     onCreatePersonInSplit: (String) -> Unit,
-    onBack: () -> Unit,
+    onDismiss: () -> Unit,
     onSave: () -> Unit,
     onOverride: () -> Unit,
     onDataLossOverride: () -> Unit,
     onRecurrenceStopEnd: () -> Unit,
     onRecurrenceStopUnlink: () -> Unit,
     onWarningDismissed: () -> Unit,
+    dismissRequested: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
-    val typeColor = FinanceTheme.colors.amountColor(form.type)
-
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        bottomBar = {
-            MovementSaveBar(
-                form = form,
-                onSave = onSave,
-                onOverride = onOverride,
-                onDataLossOverride = onDataLossOverride,
-                onRecurrenceStopEnd = onRecurrenceStopEnd,
-                onRecurrenceStopUnlink = onRecurrenceStopUnlink,
-                onWarningDismissed = onWarningDismissed,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .imePadding()
-                    .navigationBarsPadding(),
-            )
-        },
-    ) { contentPadding ->
+    AppModalBottomSheet(
+        onDismissRequest = onDismiss,
+        modifier = modifier,
+        dismissRequested = dismissRequested,
+        minHeightFraction = MovementSheetMinHeightFraction,
+        maxHeightFraction = MovementSheetMaxHeightFraction,
+        dismissFromDragHandleOnly = true,
+    ) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(contentPadding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
+                .fillMaxWidth()
+                .weight(1f)
+                .navigationBarsPadding()
                 .padding(bottom = 24.dp),
+        ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-        PageHeaderRow(onBack = onBack)
-
         val selectedCategory = remember(form.categoryId, categories) {
             categories.firstOrNull { it.id == form.categoryId }
         }
@@ -140,27 +122,16 @@ fun MovementFormScreen(
             }
         }
 
-        val amountCents = remember(form.amount) {
-            parseEuroCents(form.amount, allowNegative = false) ?: 0L
-        }
-
         val titleText = when {
             form.isNew -> when (form.type) {
-                MovementType.EXPENSE -> "Nova despesa"
-                MovementType.INCOME -> "Nou ingrés"
-                MovementType.TRANSFER -> "Nova transferència"
-                else -> "Nou moviment"
+                MovementType.EXPENSE -> stringResource(R.string.movement_form_new_expense)
+                MovementType.INCOME -> stringResource(R.string.movement_form_new_income)
+                MovementType.TRANSFER -> stringResource(R.string.movement_form_new_transfer)
+                else -> stringResource(R.string.movement_list_add)
             }
-            else -> form.name.ifBlank { "Edita moviment" }
+            else -> form.name.ifBlank { stringResource(R.string.movement_form_edit) }
         }
-
-        MovementSheetHeader(
-            title = titleText,
-            amountCents = amountCents,
-            type = form.type,
-            icon = icon,
-            iconColor = iconColor,
-        )
+        val amountError = form.errorField == MovementFormField.AMOUNT
 
         // Top-of-form text is reserved for save/repository failures (errorMessage) -- field-level
         // validation errors (errorRes) render next to the offending control, while duplicate and
@@ -173,10 +144,34 @@ fun MovementFormScreen(
             )
         }
 
+        // Type row leads (no redundant "Tipus" label -- the hero title already names the type),
+        // then the amount is entered in place as the hero figure, replacing the former read-only
+        // preview plus a separate "Import" field.
         MovementTypeSelector(
             selected = form.type,
             onSelect = { onFormChange(form.copy(type = it)) },
+            showLabel = false,
         )
+
+        MovementAmountHeader(
+            title = titleText,
+            amount = form.amount,
+            onAmountChange = { onFormChange(form.copy(amount = it, errorRes = null, errorField = null)) },
+            type = form.type,
+            icon = icon,
+            iconColor = iconColor,
+            isError = amountError,
+            supportingText = if (amountError && form.errorRes != null) stringResource(form.errorRes) else null,
+            modifier = Modifier.scrollToWhen(amountError),
+        )
+        // Type 4 (Debt): the amount is what the user owes — surface that affordance.
+        if (form.type == MovementType.EXPENSE && form.expenseKind == ExpenseKind.DEBT) {
+            Text(
+                text = stringResource(R.string.movement_debt_amount_help),
+                color = FinanceTheme.colors.mutedText,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
 
         // Concepte
         OutlinedTextField(
@@ -189,35 +184,6 @@ fun MovementFormScreen(
             keyboardActions = nextFieldKeyboardActions(),
             modifier = Modifier.fillMaxWidth(),
         )
-
-        // Import
-        val amountError = form.errorField == MovementFormField.AMOUNT
-        OutlinedTextField(
-            value = form.amount,
-            onValueChange = { onFormChange(form.copy(amount = it, errorRes = null, errorField = null)) },
-            label = { Text(stringResource(R.string.movement_field_amount)) },
-            prefix = { Text(text = "€", color = typeColor) },
-            textStyle = MaterialTheme.typography.titleLarge.copy(color = typeColor),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
-            keyboardActions = doneKeyboardActions(),
-            singleLine = true,
-            isError = amountError,
-            supportingText = if (amountError && form.errorRes != null) {
-                { Text(stringResource(form.errorRes)) }
-            } else null,
-            shape = MaterialTheme.shapes.small,
-            modifier = Modifier
-                .fillMaxWidth()
-                .scrollToWhen(amountError),
-        )
-        // Type 4 (Debt): the amount is what the user owes — surface that affordance.
-        if (form.type == MovementType.EXPENSE && form.expenseKind == ExpenseKind.DEBT) {
-            Text(
-                text = stringResource(R.string.movement_debt_amount_help),
-                color = FinanceTheme.colors.mutedText,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
 
         // Row: Date & Category (transfers have no category — date spans full width)
         val dateError = form.errorField == MovementFormField.DATE
@@ -319,16 +285,29 @@ fun MovementFormScreen(
             onAdvancedToggled = onAdvancedToggled,
         )
         }
+        MovementSaveActions(
+            form = form,
+            onSave = onSave,
+            onOverride = onOverride,
+            onDataLossOverride = onDataLossOverride,
+            onRecurrenceStopEnd = onRecurrenceStopEnd,
+            onRecurrenceStopUnlink = onRecurrenceStopUnlink,
+            onWarningDismissed = onWarningDismissed,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(top = 16.dp),
+        )
+        }
     }
 }
 
-/**
- * The save action is part of the focused page chrome, not the scrolling form. Keeping this as a
- * Scaffold bottom bar reserves its measured height and applies IME/navigation insets, so the
- * action remains reachable while the keyboard is open without adding a second save path.
- */
+private const val MovementSheetMinHeightFraction = 0.765f
+private const val MovementSheetMaxHeightFraction = 0.80f
+
+/** Save warnings and actions stay visible below the independently scrolling form body. */
 @Composable
-private fun MovementSaveBar(
+private fun MovementSaveActions(
     form: MovementFormState,
     onSave: () -> Unit,
     onOverride: () -> Unit,
@@ -347,44 +326,37 @@ private fun MovementSaveBar(
         null -> stringResource(R.string.movement_duplicate_warning)
     }
 
-    Surface(
+    Column(
         modifier = modifier,
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 2.dp,
-        shadowElevation = 4.dp,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            if (hasWarning) {
-                InlineBanner(kind = BannerKind.Alert, text = warningText)
-                TextButton(onClick = onWarningDismissed, modifier = Modifier.fillMaxWidth()) {
-                    Text(text = stringResource(R.string.common_review))
-                }
+        if (hasWarning) {
+            InlineBanner(kind = BannerKind.Alert, text = warningText)
+            TextButton(onClick = onWarningDismissed, modifier = Modifier.fillMaxWidth()) {
+                Text(text = stringResource(R.string.common_review))
             }
+        }
 
-            PrimaryButton(
-                text = when {
-                    isRecurrenceStop -> stringResource(R.string.movement_recurring_stop_end)
-                    hasWarning -> stringResource(R.string.movement_duplicate_override)
-                    form.isNew -> stringResource(R.string.movement_save_new)
-                    else -> stringResource(R.string.movement_save_changes)
-                },
-                onClick = when {
-                    isRecurrenceStop -> onRecurrenceStopEnd
-                    form.pendingDataLossWarning != null -> onDataLossOverride
-                    form.duplicateWarning -> onOverride
-                    else -> onSave
-                },
-                modifier = Modifier.fillMaxWidth(),
-            )
-            // Third choice for the recurring-stop warning (recurrence consistency): the old
-            // "just detach" behavior remains alongside the default end-template action.
-            if (isRecurrenceStop) {
-                TextButton(onClick = onRecurrenceStopUnlink, modifier = Modifier.fillMaxWidth()) {
-                    Text(text = stringResource(R.string.movement_recurring_stop_unlink))
-                }
+        PrimaryButton(
+            text = when {
+                isRecurrenceStop -> stringResource(R.string.movement_recurring_stop_end)
+                hasWarning -> stringResource(R.string.movement_duplicate_override)
+                form.isNew -> stringResource(R.string.movement_save_new)
+                else -> stringResource(R.string.movement_save_changes)
+            },
+            onClick = when {
+                isRecurrenceStop -> onRecurrenceStopEnd
+                form.pendingDataLossWarning != null -> onDataLossOverride
+                form.duplicateWarning -> onOverride
+                else -> onSave
+            },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        // Third choice for the recurring-stop warning (recurrence consistency): the old
+        // "just detach" behavior remains alongside the default end-template action.
+        if (isRecurrenceStop) {
+            TextButton(onClick = onRecurrenceStopUnlink, modifier = Modifier.fillMaxWidth()) {
+                Text(text = stringResource(R.string.movement_recurring_stop_unlink))
             }
         }
     }

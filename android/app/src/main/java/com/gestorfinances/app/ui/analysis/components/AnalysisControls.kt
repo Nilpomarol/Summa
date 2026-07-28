@@ -50,6 +50,7 @@ import com.gestorfinances.app.ui.analysis.labelRes
 import com.gestorfinances.app.ui.common.BannerKind
 import com.gestorfinances.app.ui.common.FilterSelectorField
 import com.gestorfinances.app.ui.common.InlineBanner
+import com.gestorfinances.app.ui.common.MonthPickerContent
 import com.gestorfinances.app.ui.common.TopBarIconButton
 import com.gestorfinances.app.ui.common.formatExpandedDate
 import com.gestorfinances.app.ui.common.formatMonthYear
@@ -437,51 +438,6 @@ private fun SteppedPeriod(
                 contentDescription = stringResource(R.string.common_next),
                 modifier = Modifier.size(20.dp),
             )
-        }
-    }
-}
-
-@Composable
-private fun MonthPickerContent(
-    initial: YearMonth,
-    onSelect: (YearMonth) -> Unit,
-) {
-    var displayYear by remember { mutableStateOf(initial.year) }
-    val monthLabels = androidx.compose.ui.res.stringArrayResource(R.array.analysis_month_short)
-    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { displayYear-- }) {
-                Icon(Icons.AutoMirrored.Outlined.KeyboardArrowLeft, contentDescription = stringResource(R.string.common_back))
-            }
-            Text(
-                text = displayYear.toString(),
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.weight(1f),
-            )
-            IconButton(onClick = { displayYear++ }) {
-                Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, contentDescription = stringResource(R.string.common_next))
-            }
-        }
-        for (row in 0 until 4) {
-            Row {
-                for (col in 0 until 3) {
-                    val monthIndex = row * 3 + col + 1
-                    val month = YearMonth.of(displayYear, monthIndex)
-                    val selected = month == initial
-                    TextButton(
-                        onClick = { onSelect(month) },
-                        modifier = Modifier.width(72.dp),
-                    ) {
-                        Text(
-                            text = monthLabels.getOrElse(monthIndex - 1) { monthIndex.toString() },
-                            color = if (selected) MaterialTheme.colorScheme.onSurface else FinanceTheme.colors.mutedText,
-                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-            }
         }
     }
 }

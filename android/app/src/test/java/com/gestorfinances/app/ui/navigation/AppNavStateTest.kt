@@ -49,13 +49,26 @@ class AppNavStateTest {
         listOf(
             AppOverlay.TripDetail(tripId = "mallorca"),
             AppOverlay.MovementDetail(movementId = "movement-1"),
-            AppOverlay.MovementForm(),
             AppOverlay.Tags(tripId = "mallorca"),
             AppOverlay.Budgets(tripId = "mallorca"),
         ).forEach { overlay ->
             assertEquals(RouteChrome.FOCUSED_PAGE, root.copy(overlay = overlay).routeChrome)
             check(!root.copy(overlay = overlay).routeChrome.showsGlobalNavigation)
         }
+    }
+
+    @Test
+    fun `movement form preserves the underlying page chrome`() {
+        assertEquals(
+            RouteChrome.ROOT_BOTTOM_NAV,
+            AppNavState.Home.copy(overlay = AppOverlay.MovementForm()).routeChrome,
+        )
+        assertEquals(
+            RouteChrome.MANAGEMENT_CHILD_BOTTOM_NAV,
+            AppNavState.management(ManagementDestination.EVENTS)
+                .copy(overlay = AppOverlay.MovementForm())
+                .routeChrome,
+        )
     }
 
     @Test

@@ -64,6 +64,10 @@ Until deliberately changed for a specific redesign decision:
 - empty, loading, error, disabled, and read-only states are explicit;
 - layouts support narrow Android widths, text scaling, TalkBack, and dark surfaces;
 - destructive confirmation may use a dialog; compact editing generally prefers a sheet or focused page;
+- modal sheets use the shared Android sheet contract: one content-sized expanded state with
+  optional screen-relative height bounds; long forms scroll their body while keeping the primary action
+  reachable, with standard safe-area and keyboard handling, token-aligned shape and scrim, and
+  animated dismissal before backing state or navigation is removed;
 - mobile and desktop share product language but use platform-appropriate layouts.
 
 ## Working method

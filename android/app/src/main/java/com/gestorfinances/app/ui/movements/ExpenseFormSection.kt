@@ -36,6 +36,11 @@ internal fun ExpenseFormSection(
 ) {
     val sharedEnabled = form.splitEditor != null || (form.existingSplit && !form.removeExistingSplit)
 
+    val personError = form.errorField == MovementFormField.PERSON
+    val personErrorText = if (personError && form.errorRes != null) stringResource(form.errorRes) else null
+    val accountError = form.errorField == MovementFormField.ACCOUNT
+    val accountErrorText = if (accountError && form.errorRes != null) stringResource(form.errorRes) else null
+
     // Level 1: Qui ha pagat?
     LabeledSegmentedControl(
         label = stringResource(R.string.movement_whopaid_title),
@@ -53,8 +58,6 @@ internal fun ExpenseFormSection(
             }
         },
     )
-    val personError = form.errorField == MovementFormField.PERSON
-    val personErrorText = if (personError && form.errorRes != null) stringResource(form.errorRes) else null
     if (form.expenseKind == ExpenseKind.DEBT) {
         // Una altra persona paid: payer person picker
         FormSelect(
@@ -80,7 +83,6 @@ internal fun ExpenseFormSection(
         )
     } else {
         // Jo paid: account + level 2
-        val accountError = form.errorField == MovementFormField.ACCOUNT
         AccountSelect(
             label = stringResource(R.string.movement_field_account),
             selectedId = form.accountId,
@@ -90,7 +92,7 @@ internal fun ExpenseFormSection(
                 .fillMaxWidth()
                 .scrollToWhen(accountError),
             isError = accountError,
-            supportingText = if (accountError && form.errorRes != null) stringResource(form.errorRes) else null,
+            supportingText = accountErrorText,
         )
         // Level 2: Per a qui?
         LabeledSegmentedControl(
