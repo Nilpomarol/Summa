@@ -49,6 +49,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -285,7 +286,7 @@ private fun DashboardHeroCard(
     FinanceCard(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             val account = state.mainAccount
 
@@ -315,11 +316,6 @@ private fun DashboardHeroCard(
                 )
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        text = stringResource(R.string.dashboard_available_balance_label),
-                        color = FinanceTheme.colors.mutedText,
-                        style = MaterialTheme.typography.labelMedium,
-                    )
                     AvailableBalance(
                         account = account,
                         onAccountAnalysis = { onAccountAnalysis(account) },
@@ -469,7 +465,7 @@ private fun AvailableBalance(
     }
 }
 
-/** Income, actual expense, and savings for the selected month, in one quiet three-column row. */
+/** Income, actual expense, and net flow for the selected month, in one quiet three-column row. */
 @Composable
 private fun MonthTotalsRow(
     state: DashboardUiState,
@@ -487,7 +483,7 @@ private fun MonthTotalsRow(
             MoneyText(
                 cents = totals.actualIncomeCents,
                 color = FinanceTheme.colors.income,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
                 signed = true,
             )
         }
@@ -499,12 +495,12 @@ private fun MonthTotalsRow(
             MoneyText(
                 cents = totals.actualExpenseCents,
                 color = MaterialTheme.colorScheme.onBackground,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
             )
         }
         MonthTotalDivider()
         MonthTotalCell(
-            label = stringResource(R.string.dashboard_savings_short),
+            label = stringResource(R.string.dashboard_flow_short),
             onClick = null,
         ) {
             MoneyText(
@@ -514,7 +510,7 @@ private fun MonthTotalsRow(
                 } else {
                     FinanceTheme.colors.income
                 },
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
                 signed = true,
             )
         }
@@ -538,7 +534,7 @@ private fun RowScope.MonthTotalCell(
         Text(
             text = label,
             color = FinanceTheme.colors.mutedText,
-            style = MaterialTheme.typography.labelSmall,
+            style = MaterialTheme.typography.labelMedium,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
