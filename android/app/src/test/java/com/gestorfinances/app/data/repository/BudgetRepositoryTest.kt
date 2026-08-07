@@ -2,11 +2,91 @@ package com.gestorfinances.app.data.repository
 
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import com.gestorfinances.app.data.db.GestorDatabase
+import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BudgetRepositoryTest {
+    @Test
+    fun overallMonthlyBudgetUsesAllCanonicalActualExpense() {
+        freshStore().use { store ->
+            seedAccountAndCategory(store)
+            store.budgets.create(
+                BudgetDraft(
+                    id = "overall",
+                    categoryId = null,
+                    limitAmountCents = 20_000,
+                    alertThresholdPercent = null,
+                    startDate = null,
+                    scope = BudgetScope.OVERALL_MONTH,
+                    period = BudgetPeriod.MONTHLY,
+                ),
+                createdAt = NOW,
+            )
+            store.movements.create(expense("food", 7_000), createdAt = NOW)
+
+            val evaluation = store.budgets.evaluateAll(FROM, TO).single()
+            assertEquals(BudgetScope.OVERALL_MONTH, evaluation.budget.scope)
+            assertEquals(7_000L, evaluation.actualCents)
+        }
+    }
+
+    @Test
+    fun yearlyCategoryBudgetEvaluatesFromTheStartOfTheReferenceYear() {
+        freshStore().use { store ->
+            seedAccountAndCategory(store)
+            store.budgets.create(
+                BudgetDraft(
+                    id = "food-yearly",
+                    categoryId = "food",
+                    limitAmountCents = 100_000,
+                    alertThresholdPercent = null,
+                    startDate = null,
+                    period = BudgetPeriod.YEARLY,
+                ),
+                createdAt = NOW,
+            )
+            store.movements.create(expense("jan", 2_000).copy(date = "2026-01-20"), createdAt = NOW)
+            store.movements.create(expense("mar", 3_000), createdAt = NOW)
+
+            assertEquals(5_000L, store.budgets.evaluateAll(FROM, TO).single().actualCents)
+        }
+    }
+
+    @Test
+    fun monthlyProjectionUsesRecentVariableSpendWhenHistoryExists() {
+        freshStore().use { store ->
+            seedAccountAndCategory(store)
+            store.budgets.create(
+                BudgetDraft(
+                    id = "overall",
+                    categoryId = null,
+                    limitAmountCents = 20_000,
+                    alertThresholdPercent = null,
+                    startDate = null,
+                    scope = BudgetScope.OVERALL_MONTH,
+                    period = BudgetPeriod.MONTHLY,
+                ),
+                createdAt = NOW,
+            )
+            store.movements.create(expense("jan", 300).copy(date = "2026-01-10"), createdAt = NOW)
+            store.movements.create(expense("feb", 300).copy(date = "2026-02-10"), createdAt = NOW)
+            store.movements.create(expense("mar", 300).copy(date = "2026-03-10"), createdAt = NOW)
+            store.movements.create(expense("apr", 1_000).copy(date = "2026-04-10"), createdAt = NOW)
+
+            val projection = store.budgets.currentMonthProjections(
+                today = LocalDate.parse("2026-04-15"),
+                templates = emptyList(),
+                categoryParentById = mapOf("food" to null),
+            ).single()
+            assertTrue(projection.hasBehaviourEstimate)
+            assertEquals(150L, projection.estimatedVariableCents)
+            assertEquals(1_150L, projection.forecastCents)
+        }
+    }
+
     @Test
     fun evaluationReflectsActualSpendAndStatusBands() {
         freshStore().use { store ->

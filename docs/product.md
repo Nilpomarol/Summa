@@ -15,7 +15,7 @@ The Android application currently supports:
 - expenses, income, transfers, refunds, and settlements in one movement ledger;
 - people, shared expenses, user/participant shares, expenses paid by somebody else, and derived debts;
 - recurring templates, due-instance confirmation, skipping, and recurrence suggestions;
-- category- or trip-scoped budgets with warning thresholds;
+- central overall-month and category monthly/yearly budgets with forecasted spending, plus independent trip budgets;
 - trips, trip types, scoped tags, trip budgets, and trip analysis;
 - dashboard and multi-period analysis using canonical derived data;
 - duplicate warnings and category suggestions;
@@ -63,7 +63,7 @@ Templates describe future occurrences; confirmed occurrences become real movemen
 
 ### Budgets
 
-Budgets evaluate actual expense for a category or trip over their active period. Crossing a threshold changes status and warning presentation; it does not prevent spending.
+Budgets evaluate actual expense over their active period: an optional overall monthly target, category monthly/yearly limits, and independent trip limits. Current-month views pair actuals with an explainable forecast. Crossing a threshold changes status and warning presentation; it does not prevent spending.
 
 ### Trips and tags
 

@@ -284,6 +284,8 @@ private fun LedgerShell(
                 movementRepository = appContainer.movementRepository,
                 tripRepository = appContainer.tripRepository,
                 categoryRepository = appContainer.categoryRepository,
+                budgetRepository = appContainer.budgetRepository,
+                templateRepository = appContainer.templateRepository,
             ),
         )[DashboardViewModel::class.java]
     }
@@ -348,6 +350,7 @@ private fun LedgerShell(
                 budgetRepository = appContainer.budgetRepository,
                 categoryRepository = appContainer.categoryRepository,
                 tripRepository = appContainer.tripRepository,
+                templateRepository = appContainer.templateRepository,
                 notificationRefresher = appContainer.notificationCoordinator,
             ),
         )[BudgetsViewModel::class.java]
@@ -643,6 +646,7 @@ private fun LedgerShell(
                 },
                 onViewTrip = { trip -> nav = nav.copy(overlay = AppOverlay.TripDetail(tripId = trip.id)) },
                 onAddTripMovement = { trip -> openMovementForm(trip.id) },
+                onViewBudgets = { showManagement(ManagementDestination.BUDGETS) },
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),

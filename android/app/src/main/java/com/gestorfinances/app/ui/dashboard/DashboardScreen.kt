@@ -61,6 +61,7 @@ import com.gestorfinances.app.data.repository.MovementType
 import com.gestorfinances.app.data.repository.TripSummary
 import com.gestorfinances.app.data.repository.icon
 import com.gestorfinances.app.ui.common.BannerKind
+import com.gestorfinances.app.ui.common.BudgetForecastCard
 import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.FinanceFilterChip
 import com.gestorfinances.app.ui.common.IconChip
@@ -91,6 +92,7 @@ fun DashboardScreen(
     onAccountAnalysis: (AccountSummary) -> Unit,
     onViewTrip: (TripSummary) -> Unit,
     onAddTripMovement: (TripSummary) -> Unit,
+    onViewBudgets: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsState()
@@ -108,6 +110,7 @@ fun DashboardScreen(
         onCategoryModeChanged = viewModel::onCategoryModeChanged,
         onViewTrip = onViewTrip,
         onAddTripMovement = onAddTripMovement,
+        onViewBudgets = onViewBudgets,
         modifier = modifier,
     )
 }
@@ -122,6 +125,7 @@ private fun DashboardContent(
     onCategoryModeChanged: (CategoryDisplayMode) -> Unit,
     onViewTrip: (TripSummary) -> Unit,
     onAddTripMovement: (TripSummary) -> Unit,
+    onViewBudgets: () -> Unit,
     modifier: Modifier,
 ) {
     LazyColumn(
@@ -159,6 +163,17 @@ private fun DashboardContent(
                 onAccountAnalysis = onAccountAnalysis,
                 onDrillDown = onDrillDown,
             )
+        }
+
+        state.overallBudgetProjection?.let { projection ->
+            item {
+                BudgetForecastCard(
+                    title = stringResource(R.string.dashboard_budget_title),
+                    projection = projection,
+                    exceptions = state.budgetExceptions,
+                    onClick = onViewBudgets,
+                )
+            }
         }
 
         // Attention item: rendered only when the loaded state already exposes the condition.

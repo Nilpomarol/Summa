@@ -6,6 +6,7 @@ import com.gestorfinances.app.data.repository.AccountDraft
 import com.gestorfinances.app.data.repository.AccountRepository
 import com.gestorfinances.app.data.repository.AccountType
 import com.gestorfinances.app.data.repository.AnalysisRepository
+import com.gestorfinances.app.data.repository.BudgetRepository
 import com.gestorfinances.app.data.repository.CategoryDraft
 import com.gestorfinances.app.data.repository.CategoryKind
 import com.gestorfinances.app.data.repository.CategoryNature
@@ -14,6 +15,7 @@ import com.gestorfinances.app.data.repository.MovementDraft
 import com.gestorfinances.app.data.repository.MovementRepository
 import com.gestorfinances.app.data.repository.MovementType
 import com.gestorfinances.app.data.repository.TripRepository
+import com.gestorfinances.app.data.repository.TemplateRepository
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.Dispatchers
@@ -129,6 +131,8 @@ class DashboardViewModelTest {
             movementRepository = store.movements,
             tripRepository = store.trips,
             categoryRepository = store.categories,
+            budgetRepository = store.budgets,
+            templateRepository = store.templates,
             todayProvider = { LocalDate.parse("2026-07-15") },
             ioDispatcher = dispatcher,
         )
@@ -145,6 +149,8 @@ class DashboardViewModelTest {
             movements = MovementRepository(database.movementsQueries, database.splitsQueries),
             trips = TripRepository(database.tripsQueries),
             categories = CategoryRepository(database.categoriesQueries),
+            budgets = BudgetRepository(database.budgetsQueries),
+            templates = TemplateRepository(database.templatesQueries),
         )
     }
 
@@ -155,6 +161,8 @@ class DashboardViewModelTest {
         val movements: MovementRepository,
         val trips: TripRepository,
         val categories: CategoryRepository,
+        val budgets: BudgetRepository,
+        val templates: TemplateRepository,
     ) : AutoCloseable {
         /** Two healthy accounts; the second one is the default so ordering cannot fake the pick. */
         fun seedAccounts() {

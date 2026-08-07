@@ -9,10 +9,14 @@ import com.gestorfinances.app.data.repository.AnalysisCategoryTotal
 import com.gestorfinances.app.data.repository.AnalysisPeriodTotals
 import com.gestorfinances.app.data.repository.AnalysisRepository
 import com.gestorfinances.app.data.repository.CategoryRepository
+import com.gestorfinances.app.data.repository.BudgetProjection
+import com.gestorfinances.app.data.repository.BudgetRepository
+import com.gestorfinances.app.data.repository.BudgetScope
 import com.gestorfinances.app.data.repository.MovementRepository
 import com.gestorfinances.app.data.repository.MovementSummary
 import com.gestorfinances.app.data.repository.TripRepository
 import com.gestorfinances.app.data.repository.TripSummary
+import com.gestorfinances.app.data.repository.TemplateRepository
 import com.gestorfinances.app.ui.common.rollUpToParents
 import java.time.LocalDate
 import java.time.YearMonth
@@ -32,6 +36,8 @@ class DashboardViewModel(
     private val movementRepository: MovementRepository,
     private val tripRepository: TripRepository,
     private val categoryRepository: CategoryRepository,
+    private val budgetRepository: BudgetRepository,
+    private val templateRepository: TemplateRepository,
     private val todayProvider: () -> LocalDate = { LocalDate.now() },
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
@@ -61,6 +67,12 @@ class DashboardViewModel(
                     val month = YearMonth.from(today)
                     val fromDate = month.atDay(1)
                     val toDate = month.plusMonths(1).atDay(1)
+                    val categoryRecords = categoryRepository.listActive()
+                    val budgetProjections = budgetRepository.currentMonthProjections(
+                        today = today,
+                        templates = templateRepository.listActive(),
+                        categoryParentById = categoryRecords.associate { it.id to it.parentId },
+                    )
                     DashboardLoadedData(
                         month = month,
                         totals = analysisRepository.periodTotals(
@@ -70,10 +82,20 @@ class DashboardViewModel(
                         categories = analysisRepository.actualByCategory(
                             fromDate = fromDate.toString(),
                             toDate = toDate.toString(),
-                        ).rollUpToParents(categoryRepository.listActive().associateBy { it.id }),
+                        ).rollUpToParents(categoryRecords.associateBy { it.id }),
                         accounts = accountRepository.listActive(),
                         latestMovements = movementRepository.listActive().take(LATEST_MOVEMENTS),
                         activeTrip = tripRepository.activeToday(today.toString()),
+                        overallBudgetProjection = budgetProjections.firstOrNull {
+                            it.evaluation.budget.scope == BudgetScope.OVERALL_MONTH
+                        },
+                        budgetExceptions = budgetProjections
+                            .filter { projection ->
+                                projection.evaluation.budget.scope == BudgetScope.CATEGORY &&
+                                    projection.status != com.gestorfinances.app.data.repository.BudgetForecastStatus.ON_TRACK
+                            }
+                            .sortedBy { it.remainingForecastCents }
+                            .take(DASHBOARD_BUDGET_EXCEPTIONS),
                     )
                 }
             }
@@ -86,6 +108,8 @@ class DashboardViewModel(
                         accounts = it.accounts,
                         latestMovements = it.latestMovements,
                         activeTrip = it.activeTrip,
+                        overallBudgetProjection = it.overallBudgetProjection,
+                        budgetExceptions = it.budgetExceptions,
                         isLoading = false,
                         errorMessage = null,
                     )
@@ -106,6 +130,8 @@ class DashboardViewModel(
         private val movementRepository: MovementRepository,
         private val tripRepository: TripRepository,
         private val categoryRepository: CategoryRepository,
+        private val budgetRepository: BudgetRepository,
+        private val templateRepository: TemplateRepository,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -116,6 +142,8 @@ class DashboardViewModel(
                     movementRepository = movementRepository,
                     tripRepository = tripRepository,
                     categoryRepository = categoryRepository,
+                    budgetRepository = budgetRepository,
+                    templateRepository = templateRepository,
                 ) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
@@ -138,6 +166,8 @@ data class DashboardUiState(
     val selectedAccountId: String? = null,
     val latestMovements: List<MovementSummary> = emptyList(),
     val activeTrip: TripSummary? = null,
+    val overallBudgetProjection: BudgetProjection? = null,
+    val budgetExceptions: List<BudgetProjection> = emptyList(),
     val categoryMode: CategoryDisplayMode = CategoryDisplayMode.EXPENSES,
     val isLoading: Boolean = true,
     val errorMessage: String? = null,
@@ -163,6 +193,7 @@ data class DashboardUiState(
 }
 
 private const val LATEST_MOVEMENTS = 5
+private const val DASHBOARD_BUDGET_EXCEPTIONS = 3
 
 private data class DashboardLoadedData(
     val month: YearMonth,
@@ -171,4 +202,6 @@ private data class DashboardLoadedData(
     val accounts: List<AccountSummary>,
     val latestMovements: List<MovementSummary>,
     val activeTrip: TripSummary?,
+    val overallBudgetProjection: BudgetProjection?,
+    val budgetExceptions: List<BudgetProjection>,
 )

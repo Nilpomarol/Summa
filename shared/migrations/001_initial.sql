@@ -139,7 +139,7 @@ CREATE TABLE budgets (
     scope                   TEXT    NOT NULL CHECK (scope IN ('category','overall_month','trip')),
     category_id             TEXT    REFERENCES categories(id),
     trip_id                 TEXT    REFERENCES trips(id),
-    period                  TEXT    NOT NULL CHECK (period IN ('monthly','one_off')),
+    period                  TEXT    NOT NULL CHECK (period IN ('monthly','yearly','one_off')),
     limit_amount_cents      INTEGER NOT NULL CHECK (limit_amount_cents > 0),
     start_date              TEXT,
     alert_threshold_percent INTEGER CHECK (alert_threshold_percent BETWEEN 1 AND 100),
@@ -151,6 +151,11 @@ CREATE TABLE budgets (
         (scope='category'      AND category_id IS NOT NULL AND trip_id IS NULL) OR
         (scope='trip'          AND trip_id     IS NOT NULL AND category_id IS NULL) OR
         (scope='overall_month' AND category_id IS NULL     AND trip_id IS NULL)
+    ),
+    CHECK (
+        (scope='category' AND period IN ('monthly','yearly')) OR
+        (scope='trip' AND period = 'one_off') OR
+        (scope='overall_month' AND period = 'monthly')
     )
 );
 
@@ -322,5 +327,5 @@ CREATE UNIQUE INDEX idx_split_lines_one_person
     WHERE participant_kind = 'person' AND archived_at IS NULL;
 
 INSERT INTO meta (key, value) VALUES
-    ('schema_version', '5'),
+    ('schema_version', '6'),
     ('snapshot_version', '0');

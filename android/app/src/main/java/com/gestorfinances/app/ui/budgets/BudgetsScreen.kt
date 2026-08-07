@@ -22,6 +22,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.ChevronLeft
+import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material3.AlertDialog
 import com.gestorfinances.app.ui.common.AppDropdownMenu
 import com.gestorfinances.app.ui.common.AppDropdownMenuItem
@@ -46,12 +48,15 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.BudgetEvaluation
+import com.gestorfinances.app.data.repository.BudgetPeriod
+import com.gestorfinances.app.data.repository.BudgetProjection
 import com.gestorfinances.app.data.repository.BudgetScope
 import com.gestorfinances.app.data.repository.BudgetSummary
 import com.gestorfinances.app.data.repository.CategoryRecord
 import com.gestorfinances.app.data.repository.TripSummary
 import com.gestorfinances.app.ui.common.BannerKind
 import com.gestorfinances.app.ui.common.BudgetProgressBar
+import com.gestorfinances.app.ui.common.BudgetForecastCard
 import com.gestorfinances.app.ui.common.PageHeaderRow
 import com.gestorfinances.app.ui.common.color
 import com.gestorfinances.app.ui.common.label
@@ -62,9 +67,11 @@ import com.gestorfinances.app.ui.common.IconChip
 import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.NeutralPill
 import com.gestorfinances.app.ui.common.PrimaryButton
+import com.gestorfinances.app.ui.common.SectionHeader
 import com.gestorfinances.app.ui.common.SegmentedControl
 import com.gestorfinances.app.ui.common.categoryIcon
 import com.gestorfinances.app.ui.common.formatEuroCents
+import com.gestorfinances.app.ui.common.formatMonthYear
 import com.gestorfinances.app.ui.common.inPickerHierarchyOrder
 import com.gestorfinances.app.ui.common.scrollToWhen
 import com.gestorfinances.app.ui.movements.FormDatePicker
@@ -72,6 +79,7 @@ import com.gestorfinances.app.ui.movements.FormSelect
 import com.gestorfinances.app.ui.movements.SelectOption
 import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.categoryColor
+import java.time.YearMonth
 
 @Composable
 fun BudgetsScreen(
@@ -104,6 +112,9 @@ fun BudgetsScreen(
             modifier = modifier,
             onBack = onBack,
             onAdd = { viewModel.onAddClicked() },
+            onAddOverall = viewModel::onAddOverallClicked,
+            onPreviousMonth = viewModel::onPreviousMonthClicked,
+            onNextMonth = viewModel::onNextMonthClicked,
             onEdit = viewModel::onEditClicked,
             onDelete = viewModel::onDeleteClicked,
         )
@@ -134,6 +145,9 @@ private fun BudgetsContent(
     modifier: Modifier,
     onBack: () -> Unit,
     onAdd: () -> Unit,
+    onAddOverall: () -> Unit,
+    onPreviousMonth: () -> Unit,
+    onNextMonth: () -> Unit,
     onEdit: (BudgetSummary) -> Unit,
     onDelete: (BudgetSummary) -> Unit,
 ) {
@@ -158,29 +172,123 @@ private fun BudgetsContent(
             }
         }
 
+        item {
+            BudgetMonthSelector(
+                month = state.selectedMonth,
+                canMoveForward = state.selectedMonth < YearMonth.now(),
+                onPrevious = onPreviousMonth,
+                onNext = onNextMonth,
+            )
+        }
+
         state.errorMessage?.let { message ->
             item {
                 InlineBanner(kind = BannerKind.Error, text = message)
             }
         }
 
-        if (!state.isLoading && state.evaluations.isEmpty()) {
-            item { EmptyBudgetsCard(onAdd = onAdd) }
-        } else {
-            items(items = state.evaluations, key = { it.budget.id }) { evaluation ->
+        val projectionsById = state.projections.associateBy { it.evaluation.budget.id }
+        val overall = state.projections.firstOrNull {
+            it.evaluation.budget.scope == BudgetScope.OVERALL_MONTH
+        }
+        val overallEvaluation = state.evaluations.firstOrNull {
+            it.budget.scope == BudgetScope.OVERALL_MONTH
+        }
+        val monthlyCategories = state.evaluations.filter {
+            it.budget.scope == BudgetScope.CATEGORY && it.budget.period == BudgetPeriod.MONTHLY
+        }
+        val yearlyCategories = state.evaluations.filter {
+            it.budget.scope == BudgetScope.CATEGORY && it.budget.period == BudgetPeriod.YEARLY
+        }
+        val tripBudgets = state.evaluations.filter { it.budget.scope == BudgetScope.TRIP }
+
+        if (overall != null) {
+            item {
+                BudgetForecastCard(
+                    title = stringResource(R.string.budget_current_month),
+                    projection = overall,
+                    showBreakdown = state.selectedMonth == YearMonth.now(),
+                )
+            }
+        } else if (overallEvaluation != null) {
+            item {
+                BudgetRow(
+                    evaluation = overallEvaluation,
+                    title = stringResource(R.string.budget_current_month),
+                    onEdit = { onEdit(overallEvaluation.budget) },
+                    onDelete = { onDelete(overallEvaluation.budget) },
+                )
+            }
+        } else if (!state.isLoading && state.selectedMonth == YearMonth.now()) {
+            item { OverallBudgetEmptyCard(onAddOverall = onAddOverall) }
+        }
+
+        if (monthlyCategories.isNotEmpty()) {
+            item { SectionHeader(title = stringResource(R.string.budget_monthly_categories)) }
+            items(items = monthlyCategories, key = { it.budget.id }) { evaluation ->
+                BudgetRow(
+                    evaluation = evaluation,
+                    projection = projectionsById[evaluation.budget.id],
+                    onEdit = { onEdit(evaluation.budget) },
+                    onDelete = { onDelete(evaluation.budget) },
+                )
+            }
+        }
+
+        if (yearlyCategories.isNotEmpty()) {
+            item { SectionHeader(title = stringResource(R.string.budget_yearly_categories)) }
+            items(items = yearlyCategories, key = { it.budget.id }) { evaluation ->
                 BudgetRow(
                     evaluation = evaluation,
                     onEdit = { onEdit(evaluation.budget) },
                     onDelete = { onDelete(evaluation.budget) },
                 )
             }
-            item {
-                PrimaryButton(
-                    text = stringResource(R.string.budget_list_add),
-                    onClick = onAdd,
-                    modifier = Modifier.fillMaxWidth(),
+        }
+
+        if (state.contextTripId != null && tripBudgets.isNotEmpty()) {
+            item { SectionHeader(title = stringResource(R.string.budget_trip_section)) }
+            items(items = tripBudgets, key = { it.budget.id }) { evaluation ->
+                BudgetRow(
+                    evaluation = evaluation,
+                    onEdit = { onEdit(evaluation.budget) },
+                    onDelete = { onDelete(evaluation.budget) },
                 )
             }
+        }
+
+        if (!state.isLoading && overallEvaluation == null && monthlyCategories.isEmpty() && yearlyCategories.isEmpty() && tripBudgets.isEmpty()) {
+            item { EmptyBudgetsCard(onAdd = onAdd) }
+        }
+
+        item {
+            PrimaryButton(
+                text = stringResource(R.string.budget_list_add),
+                onClick = onAdd,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+@Composable
+private fun BudgetMonthSelector(
+    month: YearMonth,
+    canMoveForward: Boolean,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        IconButton(onClick = onPrevious) {
+            Icon(Icons.Outlined.ChevronLeft, stringResource(R.string.budget_previous_month))
+        }
+        Text(text = formatMonthYear(month), style = MaterialTheme.typography.titleSmall)
+        IconButton(onClick = onNext, enabled = canMoveForward) {
+            Icon(Icons.Outlined.ChevronRight, stringResource(R.string.budget_next_month))
         }
     }
 }
@@ -188,6 +296,8 @@ private fun BudgetsContent(
 @Composable
 private fun BudgetRow(
     evaluation: BudgetEvaluation,
+    projection: BudgetProjection? = null,
+    title: String? = null,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -199,13 +309,20 @@ private fun BudgetRow(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = evaluation.budget.displayName
+                    text = title ?: evaluation.budget.displayName
                         ?: stringResource(R.string.common_no_category),
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.titleSmall,
                 )
                 NeutralPill(text = evaluation.status.label())
                 BudgetRowMenu(onEdit = onEdit, onDelete = onDelete)
+            }
+            projection?.let {
+                Text(
+                    text = stringResource(R.string.budget_forecast_amount, formatEuroCents(it.forecastCents)),
+                    color = FinanceTheme.colors.mutedText,
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
             BudgetProgressBar(
                 fraction = evaluation.progressFraction(),
@@ -232,6 +349,30 @@ private fun BudgetRow(
                     style = MaterialTheme.typography.labelMedium,
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun OverallBudgetEmptyCard(onAddOverall: () -> Unit) {
+    FinanceCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.budget_overall_empty_title),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Text(
+                text = stringResource(R.string.budget_overall_empty_body),
+                color = FinanceTheme.colors.mutedText,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            PrimaryButton(
+                text = stringResource(R.string.budget_add_overall),
+                onClick = onAddOverall,
+            )
         }
     }
 }
@@ -326,17 +467,38 @@ private fun BudgetFormScreen(
             label = { it.label() },
             onSelect = { scope ->
                 onFormChange(
-                    form.copy(
-                        scope = scope,
-                        categoryId = if (scope == BudgetScope.CATEGORY) form.categoryId else null,
-                        tripId = if (scope == BudgetScope.TRIP) form.tripId else null,
-                    ),
+                    when (scope) {
+                        BudgetScope.OVERALL_MONTH -> form.copy(
+                            scope = scope,
+                            period = BudgetPeriod.MONTHLY,
+                            categoryId = null,
+                            tripId = null,
+                        )
+                        BudgetScope.CATEGORY -> form.copy(
+                            scope = scope,
+                            period = form.period.takeIf { it == BudgetPeriod.YEARLY } ?: BudgetPeriod.MONTHLY,
+                            tripId = null,
+                        )
+                        BudgetScope.TRIP -> form.copy(
+                            scope = scope,
+                            period = BudgetPeriod.ONE_OFF,
+                            categoryId = null,
+                        )
+                    },
                 )
             },
         )
         val categoryError = form.errorField == BudgetFormField.CATEGORY
         val tripError = form.errorField == BudgetFormField.TRIP
-        if (form.scope == BudgetScope.CATEGORY) {
+        when (form.scope) {
+            BudgetScope.OVERALL_MONTH -> {
+                Text(
+                    text = stringResource(R.string.budget_overall_form_hint),
+                    color = FinanceTheme.colors.mutedText,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            BudgetScope.CATEGORY -> {
             FormSelect(
                 label = stringResource(R.string.budget_field_category),
                 // A container (parent with children) stays selectable here — budgeting it rolls up
@@ -364,7 +526,14 @@ private fun BudgetFormScreen(
                     stringResource(form.errorRes)
                 } else null,
             )
-        } else {
+            SegmentedControl(
+                options = listOf(BudgetPeriod.MONTHLY, BudgetPeriod.YEARLY),
+                selected = form.period,
+                label = { it.label() },
+                onSelect = { period -> onFormChange(form.copy(period = period)) },
+            )
+        }
+            BudgetScope.TRIP -> {
             FormSelect(
                 label = stringResource(R.string.budget_field_trip),
                 options = trips.map { trip ->
@@ -397,6 +566,7 @@ private fun BudgetFormScreen(
                     stringResource(form.errorRes)
                 } else null,
             )
+            }
         }
         val limitError = form.errorField == BudgetFormField.LIMIT
         OutlinedTextField(
@@ -472,7 +642,18 @@ private fun BudgetFormScreen(
 private fun BudgetScope.label(): String =
     stringResource(
         when (this) {
+            BudgetScope.OVERALL_MONTH -> R.string.budget_scope_overall_month
             BudgetScope.CATEGORY -> R.string.budget_scope_category
             BudgetScope.TRIP -> R.string.budget_scope_trip
+        },
+    )
+
+@Composable
+private fun BudgetPeriod.label(): String =
+    stringResource(
+        when (this) {
+            BudgetPeriod.MONTHLY -> R.string.budget_period_monthly
+            BudgetPeriod.YEARLY -> R.string.budget_period_yearly
+            BudgetPeriod.ONE_OFF -> R.string.budget_period_one_off
         },
     )
