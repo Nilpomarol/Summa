@@ -361,6 +361,7 @@
     <string name="dashboard_budget_title">Pressupost d’aquest mes</string>
     <string name="dashboard_net_flow">Flux net</string>
     <string name="dashboard_savings_short">Estalvi</string>
+    <string name="dashboard_flow_short">Flux</string>
     <string name="dashboard_savings_rate_unavailable">No disponible</string>
     <string name="dashboard_month_selector_accessibility">Mes: %1$s. Toca per canviar de mes.</string>
     <string name="dashboard_account_selector_accessibility">Compte principal: %1$s. Toca per canviar de compte.</string>

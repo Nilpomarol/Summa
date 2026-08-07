@@ -25,6 +25,7 @@ import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.BudgetForecastStatus
 import com.gestorfinances.app.data.repository.BudgetProjection
 import com.gestorfinances.app.ui.theme.FinanceTheme
+import com.gestorfinances.app.ui.theme.categoryColor
 
 /** Shared current-month budget card for the Dashboard and the Budget page. */
 @Composable
@@ -255,7 +256,14 @@ private fun BudgetForecastExceptionRow(projection: BudgetProjection) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        IconChip(
+            icon = categoryIcon(projection.evaluation.budget.categoryIcon),
+            contentDescription = null,
+            color = categoryColor(projection.evaluation.budget.categoryColor),
+            size = 28.dp,
+        )
         Text(
             text = name,
             modifier = Modifier.weight(1f),
