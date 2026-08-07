@@ -1,13 +1,29 @@
 package com.gestorfinances.app.ui.movements
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Done
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountSummary
@@ -16,6 +32,7 @@ import com.gestorfinances.app.ui.common.BannerKind
 import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.LabeledSegmentedControl
 import com.gestorfinances.app.ui.common.scrollToWhen
+import com.gestorfinances.app.ui.theme.FinanceTheme
 
 /**
  * The compact EXPENSE body. Payer and account/person share one row; sharing and claims are
@@ -46,6 +63,7 @@ internal fun ExpenseFormSection(
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.Bottom,
     ) {
         if (form.expenseKind == ExpenseKind.DEBT) {
             FormSelect(
@@ -55,7 +73,7 @@ internal fun ExpenseFormSection(
                 }) },
                 selectedId = form.forOtherPersonId,
                 onSelect = onOtherPersonSelected,
-                modifier = Modifier.weight(1.3f).scrollToWhen(personError),
+                modifier = Modifier.weight(1f).scrollToWhen(personError),
                 isError = personError,
                 supportingText = personErrorText,
             )
@@ -65,26 +83,65 @@ internal fun ExpenseFormSection(
                 selectedId = form.accountId,
                 accounts = accounts,
                 onSelect = { onFormChange(form.copy(accountId = it)) },
-                modifier = Modifier.weight(1.3f).scrollToWhen(accountError),
+                modifier = Modifier.weight(1f).scrollToWhen(accountError),
                 isError = accountError,
                 supportingText = accountErrorText,
             )
         }
-        Column(
+        val paidByMe = form.expenseKind != ExpenseKind.DEBT
+        val payerControlShape = MaterialTheme.shapes.small
+        Surface(
             modifier = Modifier
-                .weight(1f)
-                .padding(top = 22.dp),
+                .wrapContentWidth()
+                .heightIn(min = 44.dp)
+                .clip(payerControlShape)
+                .toggleable(
+                    value = paidByMe,
+                    role = Role.Checkbox,
+                    onValueChange = { isMe ->
+                        onFormChange(
+                            if (isMe) form.copy(expenseKind = ExpenseKind.PERSONAL, forOtherPersonId = null)
+                            else form.copy(expenseKind = ExpenseKind.DEBT),
+                        )
+                    },
+                )
+                .padding(horizontal = 2.dp),
+            shape = payerControlShape,
+            color = if (paidByMe) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+            contentColor = if (paidByMe) MaterialTheme.colorScheme.onPrimaryContainer else FinanceTheme.colors.mutedText,
+            border = BorderStroke(
+                1.dp,
+                if (paidByMe) MaterialTheme.colorScheme.primary.copy(alpha = 0.45f) else FinanceTheme.colors.cardBorder,
+            ),
         ) {
-            FormToggleRow(
-                label = stringResource(R.string.movement_whopaid_me_compact),
-                checked = form.expenseKind != ExpenseKind.DEBT,
-                onCheckedChange = { isMe ->
-                    onFormChange(
-                        if (isMe) form.copy(expenseKind = ExpenseKind.PERSONAL, forOtherPersonId = null)
-                        else form.copy(expenseKind = ExpenseKind.DEBT),
-                    )
-                },
-            )
+            Row(
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(18.dp)
+                        .background(
+                            if (paidByMe) MaterialTheme.colorScheme.primary else FinanceTheme.colors.cardBorder,
+                            CircleShape,
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (paidByMe) {
+                        Icon(
+                            imageVector = Icons.Outlined.Done,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(12.dp),
+                        )
+                    }
+                }
+                Text(
+                    text = stringResource(R.string.movement_whopaid_me_compact),
+                    style = MaterialTheme.typography.labelLarge,
+                )
+            }
         }
     }
 }
