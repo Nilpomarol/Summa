@@ -683,7 +683,7 @@ internal fun MovementAmountHeader(
                                     Text(
                                         text = "0,00",
                                         style = figureStyle,
-                                        color = FinanceTheme.colors.mutedText,
+                                        color = amountColor,
                                     )
                                 }
                                 innerTextField()
