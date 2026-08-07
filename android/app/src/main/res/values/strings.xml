@@ -291,6 +291,7 @@
 
     <string name="movement_whopaid_title">Qui ha pagat?</string>
     <string name="movement_whopaid_me">Jo</string>
+    <string name="movement_whopaid_me_compact">Pago jo</string>
     <string name="movement_whopaid_other">Una altra persona</string>
     <string name="movement_forwhom_title">Per a qui?</string>
     <string name="movement_forwhom_personal">Només per a mi</string>

@@ -14,9 +14,14 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
@@ -30,6 +35,7 @@ import com.gestorfinances.app.data.repository.TripSummary
 import com.gestorfinances.app.domain.rules.RecurrenceFrequency
 import com.gestorfinances.app.ui.common.BannerKind
 import com.gestorfinances.app.ui.common.AppModalBottomSheet
+import com.gestorfinances.app.ui.common.AppSheetHandleTouchHeight
 import com.gestorfinances.app.ui.common.FinanceFilterChip
 import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.PrimaryButton
@@ -71,25 +77,39 @@ fun MovementFormScreen(
     dismissRequested: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
+    val useExpandedSheetHeight = form.showOptional || form.isSettlement
+    val density = LocalDensity.current
+    // The three compact type layouts share one baseline. Retain its measured height while the
+    // user changes type so the pinned Save action never briefly falls back into normal flow.
+    var compactContentHeight by remember { mutableStateOf<androidx.compose.ui.unit.Dp?>(null) }
+    // After the initial natural measurement, keep the scrolling body and action bar pinned in
+    // both states. Dropping these weights before a collapse animation would move Save early.
+    val usePinnedActionLayout = compactContentHeight != null
     AppModalBottomSheet(
         onDismissRequest = onDismiss,
         modifier = modifier,
         dismissRequested = dismissRequested,
-        minHeightFraction = MovementSheetMinHeightFraction,
-        maxHeightFraction = MovementSheetMaxHeightFraction,
+        fixedHeightFraction = MovementSheetExpandedHeightFraction.takeIf { useExpandedSheetHeight },
+        fixedHeight = if (useExpandedSheetHeight) null else compactContentHeight?.plus(AppSheetHandleTouchHeight),
+        keepDragHandleInside = true,
         dismissFromDragHandleOnly = true,
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f)
+                .then(if (usePinnedActionLayout) Modifier.weight(1f) else Modifier)
+                .onSizeChanged { size ->
+                    if (!useExpandedSheetHeight && compactContentHeight == null) {
+                        compactContentHeight = with(density) { size.height.toDp() }
+                    }
+                }
                 .navigationBarsPadding()
                 .padding(bottom = 24.dp),
         ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f)
+                .then(if (usePinnedActionLayout) Modifier.weight(1f) else Modifier)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -165,14 +185,6 @@ fun MovementFormScreen(
             modifier = Modifier.scrollToWhen(amountError),
         )
         // Type 4 (Debt): the amount is what the user owes — surface that affordance.
-        if (form.type == MovementType.EXPENSE && form.expenseKind == ExpenseKind.DEBT) {
-            Text(
-                text = stringResource(R.string.movement_debt_amount_help),
-                color = FinanceTheme.colors.mutedText,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
-
         // Concepte
         OutlinedTextField(
             value = form.name,
@@ -283,6 +295,19 @@ fun MovementFormScreen(
             onRecurringFrequencyChanged = onRecurringFrequencyChanged,
             onOptionalToggled = onOptionalToggled,
             onAdvancedToggled = onAdvancedToggled,
+            expenseDetails = if (form.type == MovementType.EXPENSE) {
+                {
+                    ExpenseDetailsSection(
+                        form = form,
+                        people = people,
+                        onFormChange = onFormChange,
+                        onSharedToggled = onSharedToggled,
+                        onSplitEditorChange = onSplitEditorChange,
+                        onOtherPersonSelected = onOtherPersonSelected,
+                        onCreatePersonInSplit = onCreatePersonInSplit,
+                    )
+                }
+            } else null,
         )
         }
         MovementSaveActions(
@@ -302,8 +327,7 @@ fun MovementFormScreen(
     }
 }
 
-private const val MovementSheetMinHeightFraction = 0.765f
-private const val MovementSheetMaxHeightFraction = 0.80f
+private const val MovementSheetExpandedHeightFraction = 0.84f
 
 /** Save warnings and actions stay visible below the independently scrolling form body. */
 @Composable

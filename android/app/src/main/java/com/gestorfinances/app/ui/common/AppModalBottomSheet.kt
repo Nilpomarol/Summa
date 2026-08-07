@@ -2,6 +2,8 @@ package com.gestorfinances.app.ui.common
 
 import android.util.DisplayMetrics
 import android.view.View
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Box
@@ -44,7 +46,8 @@ import kotlinx.coroutines.launch
  *
  * Sheets move directly between hidden and expanded, measure to their content, and let Material own
  * safe-area, IME, nested-scroll, predictive-back, and user-driven dismissal behaviour. A caller
- * may cap the measured height or require dismissal to begin at the Material drag handle.
+ * may cap its measured height, use an animated fixed height, or require dismissal to begin at
+ * the Material drag handle.
  *
  * Set [dismissRequested] after a successful action that should close the sheet. The sheet finishes
  * its hide animation before invoking [onDismissRequest], allowing callers to remove navigation or
@@ -58,12 +61,18 @@ fun AppModalBottomSheet(
     dismissRequested: Boolean = false,
     minHeightFraction: Float? = null,
     maxHeightFraction: Float? = null,
+    fixedHeightFraction: Float? = null,
+    fixedHeight: Dp? = null,
+    keepDragHandleInside: Boolean = false,
     dismissFromDragHandleOnly: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     require(minHeightFraction == null || minHeightFraction in 0f..1f)
     require(maxHeightFraction == null || maxHeightFraction in 0f..1f)
+    require(fixedHeightFraction == null || fixedHeightFraction in 0f..1f)
     require(minHeightFraction == null || maxHeightFraction == null || minHeightFraction <= maxHeightFraction)
+    require(fixedHeightFraction == null || (minHeightFraction == null && maxHeightFraction == null))
+    require(fixedHeight == null || (minHeightFraction == null && maxHeightFraction == null && fixedHeightFraction == null))
 
     var handleDismissEnabled by remember(dismissFromDragHandleOnly) {
         mutableStateOf(!dismissFromDragHandleOnly)
@@ -83,6 +92,17 @@ fun AppModalBottomSheet(
     val maxHeight = maxHeightFraction?.let { fraction ->
         with(density) { screenHeightPx.toDp() * fraction }
     }
+    val fractionFixedHeight = fixedHeightFraction?.let { fraction ->
+        with(density) { screenHeightPx.toDp() * fraction }
+    }
+    val targetFixedHeight = fixedHeight ?: fractionFixedHeight
+    val animatedFixedHeight by animateDpAsState(
+        targetValue = targetFixedHeight ?: 0.dp,
+        animationSpec = tween(durationMillis = 250),
+        label = "sheetHeight",
+    )
+    val hasConstrainedHeight = minHeight != null || maxHeight != null || targetFixedHeight != null
+    val useInternalDragHandle = hasConstrainedHeight || keepDragHandleInside
 
     LaunchedEffect(dismissRequested) {
         if (dismissRequested) {
@@ -98,7 +118,7 @@ fun AppModalBottomSheet(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(SheetHandleTouchHeight)
+                    .height(AppSheetHandleTouchHeight)
                     .pointerInput(sheetState) {
                         awaitEachGesture {
                             awaitFirstDown(requireUnconsumed = false)
@@ -142,32 +162,33 @@ fun AppModalBottomSheet(
             shouldDismissOnBackPress = !dismissFromDragHandleOnly,
         ),
         contentWindowInsets = {
-            if (maxHeight != null) WindowInsets(0) else BottomSheetDefaults.windowInsets
+            if (useInternalDragHandle) WindowInsets(0) else BottomSheetDefaults.windowInsets
         },
         // Capping the outer Material modifier changes the anchor coordinate space. Keep the
         // Surface unconstrained and cap a single inner column instead so it remains bottom-aligned.
-        dragHandle = if (minHeight == null && maxHeight == null) sheetHandle else null,
+        dragHandle = if (!useInternalDragHandle) sheetHandle else null,
     ) {
-        if (minHeight != null || maxHeight != null) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(
+                    if (targetFixedHeight != null) Modifier.height(animatedFixedHeight)
+                    else if (minHeight != null || maxHeight != null) Modifier.heightIn(
                         min = minHeight ?: Dp.Unspecified,
                         max = maxHeight ?: Dp.Unspecified,
-                    ),
-            ) {
+                    ) else Modifier
+                ),
+        ) {
+            if (useInternalDragHandle) {
                 sheetHandle()
-                content()
             }
-        } else {
             content()
         }
     }
 }
 
 private const val SheetScrimAlpha = 0.55f
-private val SheetHandleTouchHeight = 48.dp
+internal val AppSheetHandleTouchHeight = 48.dp
 
 @Suppress("DEPRECATION")
 private fun View.realDisplayHeightPx(): Int {
