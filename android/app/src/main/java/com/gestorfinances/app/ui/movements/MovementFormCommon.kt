@@ -459,6 +459,7 @@ internal fun FormOptionalSection(
     onRecurringFrequencyChanged: (RecurrenceFrequency) -> Unit,
     onOptionalToggled: () -> Unit,
     onAdvancedToggled: () -> Unit,
+    expenseDetails: (@Composable () -> Unit)? = null,
 ) {
     FormDisclosureRow(
         label = stringResource(R.string.movement_form_optional),
@@ -468,6 +469,11 @@ internal fun FormOptionalSection(
     if (!form.showOptional) return
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        // Sharing and claiming money are expense-specific, but not part of the everyday
+        // expense path. Keeping them here lets every movement type retain the same compact
+        // primary body height without hiding the capability.
+        expenseDetails?.invoke()
+
         val recurringAllowed = when (form.type) {
             MovementType.EXPENSE -> form.expenseKind != ExpenseKind.DEBT
             MovementType.INCOME -> !form.isSettlement
@@ -557,7 +563,10 @@ internal fun FormAdvancedSection(
     )
 
     if (form.showAdvanced) {
-        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(
+            modifier = Modifier.scrollToWhen(form.showAdvanced),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
             if (form.type == MovementType.EXPENSE) {
                 FormToggleRow(
                     label = stringResource(R.string.movement_field_one_time),

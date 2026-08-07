@@ -1,6 +1,10 @@
 package com.gestorfinances.app.ui.movements
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -28,23 +32,31 @@ internal fun IncomeFormSection(
     onSettlementPersonSelected: (String?) -> Unit,
 ) {
     val accountError = form.errorField == MovementFormField.ACCOUNT
-    AccountSelect(
-        label = stringResource(R.string.movement_field_account),
-        selectedId = form.accountId,
-        accounts = accounts,
-        onSelect = { onFormChange(form.copy(accountId = it)) },
-        modifier = Modifier
-            .fillMaxWidth()
-            .scrollToWhen(accountError),
-        isError = accountError,
-        supportingText = if (accountError && form.errorRes != null) stringResource(form.errorRes) else null,
-    )
-
-    FormToggleRow(
-        label = stringResource(R.string.movement_field_settlement),
-        checked = form.isSettlement,
-        onCheckedChange = onSettlementToggled,
-    )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        AccountSelect(
+            label = stringResource(R.string.movement_field_account),
+            selectedId = form.accountId,
+            accounts = accounts,
+            onSelect = { onFormChange(form.copy(accountId = it)) },
+            modifier = Modifier.weight(1.3f).scrollToWhen(accountError),
+            isError = accountError,
+            supportingText = if (accountError && form.errorRes != null) stringResource(form.errorRes) else null,
+        )
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(top = 22.dp),
+        ) {
+            FormToggleRow(
+                label = stringResource(R.string.movement_field_settlement),
+                checked = form.isSettlement,
+                onCheckedChange = onSettlementToggled,
+            )
+        }
+    }
     if (form.isSettlement) {
         val personError = form.errorField == MovementFormField.PERSON
         FormSelect(

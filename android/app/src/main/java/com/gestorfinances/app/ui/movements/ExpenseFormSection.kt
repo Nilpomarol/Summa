@@ -1,6 +1,10 @@
 package com.gestorfinances.app.ui.movements
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -14,8 +18,8 @@ import com.gestorfinances.app.ui.common.LabeledSegmentedControl
 import com.gestorfinances.app.ui.common.scrollToWhen
 
 /**
- * The EXPENSE body of the movement form: the 4-type cascade ("Qui ha pagat?" → "Per a qui?").
- * Optional trip, recurrence, and advanced details are disclosed by [FormOptionalSection].
+ * The compact EXPENSE body. Payer and account/person share one row; sharing and claims are
+ * disclosed from the common optional area so all three movement types have the same base body.
  *
  * The four [ExpenseKind]s map 1:1 to the user's mental model:
  * - [ExpenseKind.PERSONAL] — user paid, for self.
@@ -34,67 +38,71 @@ internal fun ExpenseFormSection(
     onOtherPersonSelected: (String?) -> Unit,
     onCreatePersonInSplit: (String) -> Unit,
 ) {
-    val sharedEnabled = form.splitEditor != null || (form.existingSplit && !form.removeExistingSplit)
-
     val personError = form.errorField == MovementFormField.PERSON
     val personErrorText = if (personError && form.errorRes != null) stringResource(form.errorRes) else null
     val accountError = form.errorField == MovementFormField.ACCOUNT
     val accountErrorText = if (accountError && form.errorRes != null) stringResource(form.errorRes) else null
 
-    // Level 1: Qui ha pagat?
-    LabeledSegmentedControl(
-        label = stringResource(R.string.movement_whopaid_title),
-        options = listOf(true, false),
-        selected = form.expenseKind != ExpenseKind.DEBT,
-        optionLabel = { isMe ->
-            if (isMe) stringResource(R.string.movement_whopaid_me)
-            else stringResource(R.string.movement_whopaid_other)
-        },
-        onSelect = { isMe ->
-            if (isMe) {
-                onFormChange(form.copy(expenseKind = ExpenseKind.PERSONAL, forOtherPersonId = null))
-            } else {
-                onFormChange(form.copy(expenseKind = ExpenseKind.DEBT))
-            }
-        },
-    )
-    if (form.expenseKind == ExpenseKind.DEBT) {
-        // Una altra persona paid: payer person picker
-        FormSelect(
-            label = stringResource(R.string.movement_debt_payer),
-            options = people.map { person ->
-                SelectOption(
-                    id = person.id,
-                    label = person.name,
-                    leading = {
-                        PersonMonogram(
-                            label = personInitial(person.name),
-                            colorHex = person.color,
-                            size = 24.dp,
-                        )
-                    },
-                )
-            },
-            selectedId = form.forOtherPersonId,
-            onSelect = onOtherPersonSelected,
-            modifier = Modifier.scrollToWhen(personError),
-            isError = personError,
-            supportingText = personErrorText,
-        )
-    } else {
-        // Jo paid: account + level 2
-        AccountSelect(
-            label = stringResource(R.string.movement_field_account),
-            selectedId = form.accountId,
-            accounts = accounts,
-            onSelect = { onFormChange(form.copy(accountId = it)) },
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        if (form.expenseKind == ExpenseKind.DEBT) {
+            FormSelect(
+                label = stringResource(R.string.movement_debt_payer),
+                options = people.map { person -> SelectOption(id = person.id, label = person.name, leading = {
+                    PersonMonogram(personInitial(person.name), person.color, size = 24.dp)
+                }) },
+                selectedId = form.forOtherPersonId,
+                onSelect = onOtherPersonSelected,
+                modifier = Modifier.weight(1.3f).scrollToWhen(personError),
+                isError = personError,
+                supportingText = personErrorText,
+            )
+        } else {
+            AccountSelect(
+                label = stringResource(R.string.movement_field_account),
+                selectedId = form.accountId,
+                accounts = accounts,
+                onSelect = { onFormChange(form.copy(accountId = it)) },
+                modifier = Modifier.weight(1.3f).scrollToWhen(accountError),
+                isError = accountError,
+                supportingText = accountErrorText,
+            )
+        }
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .scrollToWhen(accountError),
-            isError = accountError,
-            supportingText = accountErrorText,
-        )
-        // Level 2: Per a qui?
+                .weight(1f)
+                .padding(top = 22.dp),
+        ) {
+            FormToggleRow(
+                label = stringResource(R.string.movement_whopaid_me_compact),
+                checked = form.expenseKind != ExpenseKind.DEBT,
+                onCheckedChange = { isMe ->
+                    onFormChange(
+                        if (isMe) form.copy(expenseKind = ExpenseKind.PERSONAL, forOtherPersonId = null)
+                        else form.copy(expenseKind = ExpenseKind.DEBT),
+                    )
+                },
+            )
+        }
+    }
+}
+
+/** Expense sharing and reimbursement choices, rendered after the common optional disclosure. */
+@Composable
+internal fun ExpenseDetailsSection(
+    form: MovementFormState,
+    people: List<PersonSummary>,
+    onFormChange: (MovementFormState) -> Unit,
+    onSharedToggled: (Boolean) -> Unit,
+    onSplitEditorChange: (SplitEditorState) -> Unit,
+    onOtherPersonSelected: (String?) -> Unit,
+    onCreatePersonInSplit: (String) -> Unit,
+) {
+    val personError = form.errorField == MovementFormField.PERSON
+    val personErrorText = if (personError && form.errorRes != null) stringResource(form.errorRes) else null
+    if (form.expenseKind != ExpenseKind.DEBT) {
         LabeledSegmentedControl(
             label = stringResource(R.string.movement_forwhom_title),
             options = listOf(ExpenseKind.PERSONAL, ExpenseKind.SHARED, ExpenseKind.FOR_OTHER),
@@ -116,7 +124,6 @@ internal fun ExpenseFormSection(
                 }
             },
         )
-        // FOR_OTHER: beneficiary person picker
         if (form.expenseKind == ExpenseKind.FOR_OTHER) {
             FormSelect(
                 label = stringResource(R.string.movement_forwhom_other),
@@ -140,8 +147,8 @@ internal fun ExpenseFormSection(
                 supportingText = personErrorText,
             )
         }
-        // SHARED: split editor or "unchanged" banner
         if (form.expenseKind == ExpenseKind.SHARED) {
+            val sharedEnabled = form.splitEditor != null || (form.existingSplit && !form.removeExistingSplit)
             val splitError = form.errorField == MovementFormField.SPLIT
             if (form.splitEditor != null) {
                 SplitEditorCard(
@@ -160,5 +167,4 @@ internal fun ExpenseFormSection(
             }
         }
     }
-
 }
