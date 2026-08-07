@@ -358,6 +358,7 @@
 
     <!-- Dashboard -->
     <string name="dashboard_title">Inici</string>
+    <string name="dashboard_budget_title">Pressupost d’aquest mes</string>
     <string name="dashboard_net_flow">Flux net</string>
     <string name="dashboard_savings_short">Estalvi</string>
     <string name="dashboard_savings_rate_unavailable">No disponible</string>
@@ -652,6 +653,9 @@
     <string name="budget_field_limit">Límit</string>
     <string name="budget_field_threshold">Llindar d\'avís (1–100)</string>
     <string name="budget_field_start">Data d\'inici</string>
+    <string name="budget_period_monthly">Mensual</string>
+    <string name="budget_period_yearly">Anual</string>
+    <string name="budget_period_one_off">Puntual</string>
     <string name="budget_progress">%1$s de %2$s</string>
     <string name="budget_remaining">Queden %1$s</string>
     <string name="budget_over">%1$s per sobre</string>
@@ -659,6 +663,16 @@
     <string name="budget_save_changes">Desa els canvis</string>
     <string name="budget_empty_title">Encara no tens pressupostos</string>
     <string name="budget_empty_body">Posa un límit a una categoria o a un viatge per controlar la despesa.</string>
+    <string name="budget_current_month">Aquest mes</string>
+    <string name="budget_monthly_categories">Categories amb límit mensual</string>
+    <string name="budget_yearly_categories">Límits anuals</string>
+    <string name="budget_trip_section">Pressupost del viatge</string>
+    <string name="budget_previous_month">Mes anterior</string>
+    <string name="budget_next_month">Mes següent</string>
+    <string name="budget_overall_empty_title">Defineix un límit mensual</string>
+    <string name="budget_overall_empty_body">Inclou tota la despesa personal, també la que no té límit per categoria.</string>
+    <string name="budget_add_overall">Afegeix un límit mensual</string>
+    <string name="budget_overall_form_hint">Aquest límit inclou tota la despesa personal del mes.</string>
     <string name="budget_validation_limit_positive">El límit ha de ser superior a zero.</string>
     <string name="budget_validation_category_required">Tria una categoria.</string>
     <string name="budget_validation_trip_required">Tria un viatge.</string>
@@ -669,6 +683,18 @@
     <string name="budget_status_ok">Dins del límit</string>
     <string name="budget_status_warn">A prop del límit</string>
     <string name="budget_status_over">Superat</string>
+    <string name="budget_forecast_amount">Estimació a final de mes: %1$s</string>
+    <string name="budget_forecast_final_amount">Estimació: %1$s</string>
+    <string name="budget_forecast_on_track">Dins de la previsió</string>
+    <string name="budget_forecast_may_exceed">Pot superar-se en %1$s</string>
+    <string name="budget_forecast_over">Superat en %1$s</string>
+    <string name="budget_forecast_recorded">Registrat</string>
+    <string name="budget_forecast_pending_recurring">Periòdics pendents</string>
+    <string name="budget_forecast_variable_estimate">Estimació variable</string>
+    <string name="budget_forecast_no_history">Encara no hi ha historial suficient per estimar la despesa variable.</string>
+    <string name="budget_forecast_legend_recorded">Registrat</string>
+    <string name="budget_forecast_legend_recurring">Periòdic</string>
+    <string name="budget_forecast_legend_estimated">Previst</string>
 
     <!-- Notifications & alerts (settings) -->
     <string name="notification_recurring_title">Recordatoris de recurrents</string>
@@ -838,6 +864,7 @@
 
     <!-- Trip budgets -->
     <string name="budget_scope_category">Categoria</string>
+    <string name="budget_scope_overall_month">Total mensual</string>
     <string name="budget_scope_trip">Viatge</string>
 
     <!-- Shared sheets -->

@@ -20,6 +20,10 @@ The future Windows implementation remains planned and unchanged in intent. It be
 - .NET validation harness using Microsoft.Data.Sqlite and Dapper.
 - No Windows UI and no cross-device synchronization yet.
 
+## Product behaviour
+
+- [Budget behaviour](docs/budget.md)
+
 ## Repository
 
 ```text

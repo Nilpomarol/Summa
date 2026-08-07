@@ -24,6 +24,9 @@ val generatedMigration3 = layout.projectDirectory.file(
 val generatedMigration4 = layout.projectDirectory.file(
     "src/main/sqldelight/com/gestorfinances/app/data/db/4.sqm",
 )
+val generatedMigration5 = layout.projectDirectory.file(
+    "src/main/sqldelight/com/gestorfinances/app/data/db/5.sqm",
+)
 
 val sharedViewFiles = listOf(
     "v_movement_shared.sql",
@@ -56,6 +59,7 @@ val syncSharedSqlForSqlDelight by tasks.registering {
     val sharedMigration003 = sharedRoot.file("migrations/003_add_tag_category_and_type.sql")
     val sharedMigration004 = sharedRoot.file("migrations/004_add_v_trip_actual_total_view.sql")
     val sharedMigration005 = sharedRoot.file("migrations/005_fix_v_movement_summary_external_amount.sql")
+    val sharedMigration006 = sharedRoot.file("migrations/006_add_yearly_budget_period.sql")
     val sharedViews = sharedViewFiles.map { sharedRoot.file("queries/$it") }
     val sharedAnalysisQueries = sharedAnalysisQueryFiles.map { sharedRoot.file("queries/${it.first}") }
 
@@ -64,6 +68,7 @@ val syncSharedSqlForSqlDelight by tasks.registering {
     inputs.file(sharedMigration003)
     inputs.file(sharedMigration004)
     inputs.file(sharedMigration005)
+    inputs.file(sharedMigration006)
     inputs.files(sharedViews)
     inputs.files(sharedAnalysisQueries)
     outputs.file(generatedSharedSql)
@@ -72,6 +77,7 @@ val syncSharedSqlForSqlDelight by tasks.registering {
     outputs.file(generatedMigration2)
     outputs.file(generatedMigration3)
     outputs.file(generatedMigration4)
+    outputs.file(generatedMigration5)
 
     doLast {
         val sharedOutputFile = generatedSharedSql.asFile
@@ -142,6 +148,14 @@ val syncSharedSqlForSqlDelight by tasks.registering {
                 appendLine("-- Do not edit directly; edit the shared SQL file instead.")
                 appendLine()
                 append(sharedMigration005.asFile.readText())
+            },
+        )
+        generatedMigration5.asFile.writeText(
+            buildString {
+                appendLine("-- Generated from ../../shared/migrations/006_add_yearly_budget_period.sql.")
+                appendLine("-- Do not edit directly; edit the shared SQL file instead.")
+                appendLine()
+                append(sharedMigration006.asFile.readText())
             },
         )
     }

@@ -1,6 +1,10 @@
 package com.gestorfinances.app.data.repository
 
 import com.gestorfinances.app.data.db.BudgetsQueries
+import com.gestorfinances.app.domain.rules.RecurringAdvancer
+import com.gestorfinances.app.domain.rules.toRecurrenceRule
+import java.time.LocalDate
+import java.time.YearMonth
 
 /** Default alert band when a budget defines no explicit threshold. */
 const val DEFAULT_BUDGET_ALERT_PERCENT = 80L
@@ -8,6 +12,7 @@ const val DEFAULT_BUDGET_ALERT_PERCENT = 80L
 enum class BudgetStatus { OK, WARN, OVER }
 
 enum class BudgetScope(val dbValue: String) {
+    OVERALL_MONTH("overall_month"),
     CATEGORY("category"),
     TRIP("trip"),
     ;
@@ -20,6 +25,7 @@ enum class BudgetScope(val dbValue: String) {
 
 enum class BudgetPeriod(val dbValue: String) {
     MONTHLY("monthly"),
+    YEARLY("yearly"),
     ONE_OFF("one_off"),
     ;
 
@@ -54,6 +60,7 @@ data class BudgetSummary(
 ) {
     val displayName: String?
         get() = when (scope) {
+            BudgetScope.OVERALL_MONTH -> null
             BudgetScope.CATEGORY -> categoryName
             BudgetScope.TRIP -> tripName
         }
@@ -76,8 +83,32 @@ data class BudgetEvaluation(
         }
 }
 
+enum class BudgetForecastStatus { ON_TRACK, MAY_EXCEED, OVER }
+
+/** Current-month budget truth plus the two inputs that make its estimate explainable. */
+data class BudgetProjection(
+    val evaluation: BudgetEvaluation,
+    val pendingRecurringCents: Long,
+    val estimatedVariableCents: Long,
+    val hasBehaviourEstimate: Boolean,
+) {
+    val forecastCents: Long get() = evaluation.actualCents + pendingRecurringCents + estimatedVariableCents
+    val remainingForecastCents: Long get() = evaluation.budget.limitAmountCents - forecastCents
+    val status: BudgetForecastStatus
+        get() = when {
+            evaluation.actualCents >= evaluation.budget.limitAmountCents -> BudgetForecastStatus.OVER
+            forecastCents > evaluation.budget.limitAmountCents -> BudgetForecastStatus.MAY_EXCEED
+            else -> BudgetForecastStatus.ON_TRACK
+        }
+}
+
+private data class BudgetVariableHistory(
+    val actualCents: Long,
+    val occurrenceCount: Long,
+)
+
 class BudgetRepository(
-    private val queries: BudgetsQueries,
+    internal val queries: BudgetsQueries,
 ) {
     fun listActive(): List<BudgetSummary> =
         queries.activeBudgets(::mapBudgetSummary).executeAsList()
@@ -109,6 +140,12 @@ class BudgetRepository(
             to_date = toDate,
         ).executeAsOne()
 
+    fun actualOverall(
+        fromDate: String,
+        toDate: String,
+    ): Long =
+        queries.budgetActualOverall(from_date = fromDate, to_date = toDate).executeAsOne()
+
     fun evaluateAll(
         fromDate: String,
         toDate: String,
@@ -119,6 +156,58 @@ class BudgetRepository(
                 actualCents = actualForBudget(budget, fromDate = fromDate, toDate = toDate),
             )
         }
+
+    /**
+     * Produces the current-month projections consumed by both the Dashboard and Budget page.
+     * Historical variable spending is intentionally read from canonical actual expense SQL;
+     * scheduled fixed templates are added separately so they are never double-counted.
+     */
+    fun currentMonthProjections(
+        today: LocalDate,
+        templates: List<TemplateSummary>,
+        categoryParentById: Map<String, String?>,
+    ): List<BudgetProjection> {
+        val month = YearMonth.from(today)
+        val monthStart = month.atDay(1).toString()
+        val monthEnd = month.atEndOfMonth().toString()
+        return listActive()
+            .filter { budget ->
+                budget.scope == BudgetScope.OVERALL_MONTH ||
+                    (budget.scope == BudgetScope.CATEGORY && budget.period == BudgetPeriod.MONTHLY)
+            }
+            .map { budget ->
+                val evaluation = BudgetEvaluation(
+                    budget = budget,
+                    actualCents = actualForBudget(budget, monthStart, monthEnd),
+                )
+                val history = variableHistory(
+                    budget = budget,
+                    month = month,
+                )
+                val hasBehaviourEstimate = history.sumOf(BudgetVariableHistory::occurrenceCount) > 0L
+                val historyDays = (1..BUDGET_HISTORY_MONTHS).sumOf { offset ->
+                    month.minusMonths(offset.toLong()).lengthOfMonth()
+                }
+                val estimatedVariable = if (hasBehaviourEstimate) {
+                    history.sumOf(BudgetVariableHistory::actualCents) *
+                        (month.lengthOfMonth() - today.dayOfMonth) / historyDays
+                } else {
+                    0L
+                }
+                BudgetProjection(
+                    evaluation = evaluation,
+                    pendingRecurringCents = pendingRecurringForBudget(
+                        budget = budget,
+                        templates = templates,
+                        today = today,
+                        monthEnd = month.atEndOfMonth(),
+                        categoryParentById = categoryParentById,
+                    ),
+                    estimatedVariableCents = estimatedVariable,
+                    hasBehaviourEstimate = hasBehaviourEstimate,
+                )
+            }
+    }
 
     fun create(
         draft: BudgetDraft,
@@ -171,9 +260,13 @@ private fun BudgetRepository.actualForBudget(
     toDate: String,
 ): Long =
     when (budget.scope) {
+        BudgetScope.OVERALL_MONTH -> actualOverall(
+            fromDate = budget.effectiveFromDate(fromDate),
+            toDate = toDate,
+        )
         BudgetScope.CATEGORY -> actualForCategory(
             categoryId = requireNotNull(budget.categoryId),
-            fromDate = budget.effectiveFromDate(fromDate),
+            fromDate = budget.effectiveFromDate(budget.periodStart(fromDate)),
             toDate = toDate,
         )
         // TRIP-scope budgets are one-off: they track a trip's whole life, not the
@@ -188,6 +281,69 @@ private fun BudgetRepository.actualForBudget(
         )
     }
 
+private fun BudgetRepository.variableHistory(
+    budget: BudgetSummary,
+    month: YearMonth,
+): List<BudgetVariableHistory> =
+    (1..BUDGET_HISTORY_MONTHS).map { offset ->
+        val historicalMonth = month.minusMonths(offset.toLong())
+        val fromDate = historicalMonth.atDay(1).toString()
+        val toDate = historicalMonth.atEndOfMonth().toString()
+        when (budget.scope) {
+            BudgetScope.CATEGORY -> queries.budgetVariableActualForCategory(
+                category_id = requireNotNull(budget.categoryId),
+                from_date = fromDate,
+                to_date = toDate,
+                mapper = { actualCents, occurrenceCount ->
+                    BudgetVariableHistory(actualCents, occurrenceCount)
+                },
+            ).executeAsOne()
+            BudgetScope.OVERALL_MONTH -> queries.budgetVariableActualOverall(
+                from_date = fromDate,
+                to_date = toDate,
+                mapper = { actualCents, occurrenceCount ->
+                    BudgetVariableHistory(actualCents, occurrenceCount)
+                },
+            ).executeAsOne()
+            BudgetScope.TRIP -> error("Trip budgets do not have a monthly forecast.")
+        }
+    }
+
+private fun pendingRecurringForBudget(
+    budget: BudgetSummary,
+    templates: List<TemplateSummary>,
+    today: LocalDate,
+    monthEnd: LocalDate,
+    categoryParentById: Map<String, String?>,
+): Long =
+    templates.asSequence()
+        .filter { template ->
+            template.status == TemplateStatus.ACTIVE &&
+                template.type == MovementType.EXPENSE &&
+                !template.amountIsVariable &&
+                template.amountCents != null &&
+                (budget.scope == BudgetScope.OVERALL_MONTH ||
+                    template.categoryId.matchesBudgetCategory(budget.categoryId, categoryParentById))
+        }
+        .sumOf { template ->
+            val cursor = runCatching { LocalDate.parse(template.nextDueDate) }.getOrNull() ?: return@sumOf 0L
+            val count = runCatching {
+                RecurringAdvancer.advance(template.toRecurrenceRule(), cursor, monthEnd).dueDates
+                    .count { dueDate -> !dueDate.isBefore(today) }
+            }.getOrDefault(0)
+            template.userActualAmountCents() * count
+        }
+
+private fun String?.matchesBudgetCategory(
+    budgetCategoryId: String?,
+    categoryParentById: Map<String, String?>,
+): Boolean =
+    this != null && (this == budgetCategoryId || categoryParentById[this] == budgetCategoryId)
+
+private fun TemplateSummary.userActualAmountCents(): Long =
+    splitConfig?.lines?.firstOrNull { it.party == "user" }?.owedAmountCents ?: requireNotNull(amountCents)
+
+private const val BUDGET_HISTORY_MONTHS = 3
 private const val TRIP_BUDGET_RANGE_START = "0001-01-01"
 private const val TRIP_BUDGET_RANGE_END = "9999-12-31"
 
@@ -196,12 +352,24 @@ private fun BudgetSummary.effectiveFromDate(periodStart: String): String {
     return if (start > periodStart) start else periodStart
 }
 
+private fun BudgetSummary.periodStart(referenceStart: String): String =
+    when (period) {
+        BudgetPeriod.YEARLY -> "${referenceStart.take(4)}-01-01"
+        BudgetPeriod.MONTHLY, BudgetPeriod.ONE_OFF -> referenceStart
+    }
+
 private fun validate(draft: BudgetDraft) {
     when (draft.scope) {
+        BudgetScope.OVERALL_MONTH -> {
+            require(draft.categoryId == null && draft.tripId == null) { "An overall budget has no category or trip." }
+            require(draft.period == BudgetPeriod.MONTHLY) { "An overall budget must be monthly." }
+        }
         BudgetScope.CATEGORY -> {
             require(!draft.categoryId.isNullOrBlank()) { "A category budget needs a category." }
             require(draft.tripId == null) { "A category budget cannot reference a trip." }
-            require(draft.period == BudgetPeriod.MONTHLY) { "A category budget must be monthly." }
+            require(draft.period in setOf(BudgetPeriod.MONTHLY, BudgetPeriod.YEARLY)) {
+                "A category budget must be monthly or yearly."
+            }
         }
         BudgetScope.TRIP -> {
             require(!draft.tripId.isNullOrBlank()) { "A trip budget needs a trip." }
