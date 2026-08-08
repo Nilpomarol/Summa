@@ -360,6 +360,7 @@
     <!-- Dashboard -->
     <string name="dashboard_title">Inici</string>
     <string name="dashboard_budget_title">Pressupost d’aquest mes</string>
+    <string name="dashboard_month_spending_title">Despesa d’aquest mes</string>
     <string name="dashboard_net_flow">Flux net</string>
     <string name="dashboard_savings_short">Estalvi</string>
     <string name="dashboard_flow_short">Flux</string>

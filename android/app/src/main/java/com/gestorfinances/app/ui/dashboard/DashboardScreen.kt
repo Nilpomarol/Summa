@@ -64,7 +64,6 @@ import com.gestorfinances.app.data.repository.icon
 import com.gestorfinances.app.ui.common.BannerKind
 import com.gestorfinances.app.ui.common.BudgetForecastCard
 import com.gestorfinances.app.ui.common.FinanceCard
-import com.gestorfinances.app.ui.common.FinanceFilterChip
 import com.gestorfinances.app.ui.common.IconChip
 import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.MoneyText
@@ -108,7 +107,6 @@ fun DashboardScreen(
         onMovementDetail = onMovementDetail,
         onAccountAnalysis = onAccountAnalysis,
         onAccountSelected = viewModel::onAccountSelected,
-        onCategoryModeChanged = viewModel::onCategoryModeChanged,
         onViewTrip = onViewTrip,
         onAddTripMovement = onAddTripMovement,
         onViewBudgets = onViewBudgets,
@@ -123,7 +121,6 @@ private fun DashboardContent(
     onMovementDetail: (MovementSummary) -> Unit,
     onAccountAnalysis: (AccountSummary) -> Unit,
     onAccountSelected: (String) -> Unit,
-    onCategoryModeChanged: (CategoryDisplayMode) -> Unit,
     onViewTrip: (TripSummary) -> Unit,
     onAddTripMovement: (TripSummary) -> Unit,
     onViewBudgets: () -> Unit,
@@ -166,15 +163,12 @@ private fun DashboardContent(
             )
         }
 
-        state.overallBudgetProjection?.let { projection ->
-            item {
-                BudgetForecastCard(
-                    title = stringResource(R.string.dashboard_budget_title),
-                    projection = projection,
-                    exceptions = state.budgetExceptions,
-                    onClick = onViewBudgets,
-                )
-            }
+        item {
+            MonthlySpendingCard(
+                state = state,
+                onDrillDown = onDrillDown,
+                onViewBudgets = onViewBudgets,
+            )
         }
 
         // Attention item: rendered only when the loaded state already exposes the condition.
@@ -192,14 +186,6 @@ private fun DashboardContent(
                     onAddMovement = { onAddTripMovement(trip) },
                 )
             }
-        }
-
-        item {
-            MonthCategorySection(
-                state = state,
-                onCategoryModeChanged = onCategoryModeChanged,
-                onDrillDown = onDrillDown,
-            )
         }
 
         item {
@@ -631,71 +617,68 @@ private fun ActiveTripRow(
 // ---------------------------------------------------------------------------
 
 @Composable
-private fun MonthCategorySection(
+private fun MonthlySpendingCard(
     state: DashboardUiState,
-    onCategoryModeChanged: (CategoryDisplayMode) -> Unit,
+    onDrillDown: (MovementFilters) -> Unit,
+    onViewBudgets: () -> Unit,
+) {
+    state.overallBudgetProjection?.let { projection ->
+        BudgetForecastCard(
+            title = stringResource(R.string.dashboard_month_spending_title),
+            projection = projection,
+            exceptions = state.budgetExceptions,
+            footer = { ExpenseCategoryBreakdown(state = state, onDrillDown = onDrillDown) },
+            onClick = onViewBudgets,
+        )
+        return
+    }
+
+    FinanceCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = stringResource(R.string.dashboard_month_spending_title),
+                    modifier = Modifier.weight(1f),
+                    color = FinanceTheme.colors.mutedText,
+                    style = MaterialTheme.typography.labelMedium,
+                )
+                TextButton(onClick = onViewBudgets) {
+                    Text(text = stringResource(R.string.category_flow_define_budget))
+                }
+            }
+            MoneyText(
+                cents = state.totals.actualExpenseCents,
+                style = MaterialTheme.typography.headlineSmall,
+            )
+            ExpenseCategoryBreakdown(state = state, onDrillDown = onDrillDown)
+        }
+    }
+}
+
+@Composable
+private fun ExpenseCategoryBreakdown(
+    state: DashboardUiState,
     onDrillDown: (MovementFilters) -> Unit,
 ) {
-    val totalCents = when (state.categoryMode) {
-        CategoryDisplayMode.EXPENSES -> state.totals.actualExpenseCents
-        CategoryDisplayMode.INCOME -> state.totals.actualIncomeCents
-    }
-    val totalLabel = when (state.categoryMode) {
-        CategoryDisplayMode.EXPENSES -> stringResource(R.string.dashboard_summary_expense)
-        CategoryDisplayMode.INCOME -> stringResource(R.string.dashboard_categories_income)
-    }
+    val totalCents = state.totals.actualExpenseCents
     val slices = categorySlices(
         categories = state.categories,
-        mode = state.categoryMode,
         totalCents = totalCents,
         noCategoryLabel = stringResource(R.string.common_no_category),
         aggregateLabel = stringResource(R.string.analysis_other),
     )
 
     Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        SectionHeader(title = stringResource(R.string.dashboard_categories_title))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.Top,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(1.dp),
-            ) {
-                Text(
-                    text = totalLabel,
-                    color = FinanceTheme.colors.mutedText,
-                    style = MaterialTheme.typography.labelMedium,
-                )
-                MoneyText(
-                    cents = totalCents,
-                    color = if (state.categoryMode == CategoryDisplayMode.INCOME) {
-                        FinanceTheme.colors.income
-                    } else {
-                        MaterialTheme.colorScheme.onSurface
-                    },
-                    style = MaterialTheme.typography.headlineSmall,
-                )
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                FinanceFilterChip(
-                    selected = state.categoryMode == CategoryDisplayMode.EXPENSES,
-                    label = stringResource(R.string.dashboard_categories_expenses),
-                    onClick = { onCategoryModeChanged(CategoryDisplayMode.EXPENSES) },
-                )
-                FinanceFilterChip(
-                    selected = state.categoryMode == CategoryDisplayMode.INCOME,
-                    label = stringResource(R.string.dashboard_categories_income),
-                    onClick = { onCategoryModeChanged(CategoryDisplayMode.INCOME) },
-                    selectedColor = FinanceTheme.colors.income,
-                )
-            }
-        }
+        Text(
+            text = stringResource(R.string.dashboard_categories_title),
+            color = FinanceTheme.colors.mutedText,
+            style = MaterialTheme.typography.labelMedium,
+        )
 
         if (slices.isEmpty()) {
             Text(
@@ -706,7 +689,7 @@ private fun MonthCategorySection(
         } else {
             CategoryDistributionBar(
                 slices = slices,
-                totalLabel = totalLabel,
+                totalLabel = stringResource(R.string.dashboard_summary_expense),
                 totalCents = totalCents,
             )
             Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
@@ -717,11 +700,7 @@ private fun MonthCategorySection(
                             {
                                 onDrillDown(
                                     state.month.actualPeriodFilters(
-                                        type = if (state.categoryMode == CategoryDisplayMode.EXPENSES) {
-                                            MovementType.EXPENSE
-                                        } else {
-                                            MovementType.INCOME
-                                        },
+                                        type = MovementType.EXPENSE,
                                         categoryId = slice.categoryId,
                                         uncategorizedOnly = slice.isUncategorized,
                                     ),
@@ -750,13 +729,11 @@ private data class CategorySlice(
 
 private fun categorySlices(
     categories: List<AnalysisCategoryTotal>,
-    mode: CategoryDisplayMode,
     totalCents: Long,
     noCategoryLabel: String,
     aggregateLabel: String,
 ): List<CategorySlice> {
-    fun amountOf(row: AnalysisCategoryTotal): Long =
-        if (mode == CategoryDisplayMode.EXPENSES) row.expenseCents else row.incomeCents
+    fun amountOf(row: AnalysisCategoryTotal): Long = row.expenseCents
 
     val denominator = totalCents.coerceAtLeast(1L)
     fun fractionOf(amount: Long): Float =

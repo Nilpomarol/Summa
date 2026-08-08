@@ -28,8 +28,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-enum class CategoryDisplayMode { EXPENSES, INCOME }
-
 class DashboardViewModel(
     private val analysisRepository: AnalysisRepository,
     private val accountRepository: AccountRepository,
@@ -46,10 +44,6 @@ class DashboardViewModel(
 
     fun onScreenShown() {
         refresh()
-    }
-
-    fun onCategoryModeChanged(mode: CategoryDisplayMode) {
-        _state.value = _state.value.copy(categoryMode = mode)
     }
 
     /** Picks which account's balance leads the summary. Presentation only — no data is reloaded. */
@@ -168,7 +162,6 @@ data class DashboardUiState(
     val activeTrip: TripSummary? = null,
     val overallBudgetProjection: BudgetProjection? = null,
     val budgetExceptions: List<BudgetProjection> = emptyList(),
-    val categoryMode: CategoryDisplayMode = CategoryDisplayMode.EXPENSES,
     val isLoading: Boolean = true,
     val errorMessage: String? = null,
 ) {
