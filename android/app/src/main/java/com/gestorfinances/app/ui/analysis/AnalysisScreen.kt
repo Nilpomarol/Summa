@@ -4,6 +4,7 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Tab
 import androidx.compose.material3.ScrollableTabRow
@@ -32,6 +33,7 @@ import com.gestorfinances.app.ui.analysis.components.HistoricTab
 import com.gestorfinances.app.ui.analysis.components.ResumTab
 import com.gestorfinances.app.ui.common.HeatmapCell
 import com.gestorfinances.app.ui.common.IncomeExpenseChartPoint
+import com.gestorfinances.app.ui.common.RootPageHeader
 import com.gestorfinances.app.ui.common.formatCompactDateRange
 import com.gestorfinances.app.ui.common.formatExpandedDate
 import com.gestorfinances.app.ui.common.formatMonth
@@ -109,6 +111,10 @@ internal fun AnalysisContent(
     val tabs = AnalysisTab.entries
 
     Column(modifier = modifier.fillMaxSize()) {
+        RootPageHeader(
+            title = stringResource(R.string.nav_analysis),
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+        )
         AnalysisHeader(
             state = state,
             onScopeSelected = onScopeSelected,

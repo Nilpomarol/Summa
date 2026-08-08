@@ -68,6 +68,7 @@ import com.gestorfinances.app.ui.common.IconChip
 import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.MovementListItem
+import com.gestorfinances.app.ui.common.RootPageHeader
 import com.gestorfinances.app.ui.common.SectionHeader
 import com.gestorfinances.app.ui.common.accountIcon
 import com.gestorfinances.app.ui.common.accountTypeIcon
@@ -132,10 +133,7 @@ private fun DashboardContent(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            Text(
-                text = stringResource(R.string.dashboard_title),
-                style = MaterialTheme.typography.headlineMedium,
-            )
+            RootPageHeader(title = stringResource(R.string.dashboard_title))
         }
 
         state.errorMessage?.let { message ->

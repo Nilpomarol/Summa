@@ -83,6 +83,7 @@ import com.gestorfinances.app.ui.common.LabeledSegmentedControl
 import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.MovementListItem
 import com.gestorfinances.app.ui.common.PageHeaderRow
+import com.gestorfinances.app.ui.common.RootPageHeader
 import com.gestorfinances.app.ui.common.PrimaryButton
 import com.gestorfinances.app.ui.common.TopBarIconButton
 import com.gestorfinances.app.ui.common.categoryIcon
@@ -213,21 +214,16 @@ private fun CategoriesContent(
     ) {
         // Title + add button
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(R.string.category_list_title),
-                    style = MaterialTheme.typography.headlineMedium,
-                    modifier = Modifier.weight(1f),
-                )
+            RootPageHeader(
+                title = stringResource(R.string.category_list_title),
+                trailing = {
                 TopBarIconButton(
                     icon = Icons.Outlined.Add,
                     contentDescription = stringResource(R.string.category_list_add),
                     onClick = onAdd,
                 )
-            }
+                },
+            )
         }
 
         state.errorMessage?.let { message ->

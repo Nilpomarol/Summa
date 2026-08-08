@@ -161,7 +161,27 @@ fun NeutralPill(
     }
 }
 
-/** Screen/section heading with an optional trailing action slot. */
+/** Primary heading for a root screen, with an optional contextual action. */
+@Composable
+fun RootPageHeader(
+    title: String,
+    modifier: Modifier = Modifier,
+    trailing: (@Composable () -> Unit)? = null,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.headlineMedium,
+            modifier = Modifier.weight(1f),
+        )
+        trailing?.invoke()
+    }
+}
+
+/** In-content section heading with an optional trailing action slot. */
 @Composable
 fun SectionHeader(
     title: String,

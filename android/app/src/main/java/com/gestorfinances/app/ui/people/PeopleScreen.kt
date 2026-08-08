@@ -80,6 +80,7 @@ import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.MovementListItem
 import com.gestorfinances.app.ui.common.AppModalBottomSheet
 import com.gestorfinances.app.ui.common.PageHeaderRow
+import com.gestorfinances.app.ui.common.RootPageHeader
 import com.gestorfinances.app.ui.common.PrimaryButton
 import com.gestorfinances.app.ui.common.doneKeyboardActions
 import com.gestorfinances.app.ui.common.formatEuroCents
@@ -208,10 +209,7 @@ private fun PeopleContent(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            Text(
-                text = stringResource(R.string.person_list_title),
-                style = MaterialTheme.typography.headlineMedium,
-            )
+            RootPageHeader(title = stringResource(R.string.person_list_title))
         }
 
         item {

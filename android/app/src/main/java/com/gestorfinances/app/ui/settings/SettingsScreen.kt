@@ -43,6 +43,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.BuildConfig
 import com.gestorfinances.app.R
+import com.gestorfinances.app.ui.common.RootPageHeader
 import com.gestorfinances.app.data.backup.BackupFileCandidate
 import com.gestorfinances.app.data.backup.PendingBackupRestore
 import com.gestorfinances.app.ui.common.BannerKind
@@ -91,19 +92,7 @@ fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = stringResource(R.string.common_back),
-                    )
-                }
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = stringResource(R.string.settings_title),
-                    style = MaterialTheme.typography.headlineMedium,
-                )
-            }
+            RootPageHeader(title = stringResource(R.string.settings_title))
         }
 
         if (!notificationPermissionGranted) {

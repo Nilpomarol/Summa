@@ -84,6 +84,7 @@ import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.NeutralPill
 import com.gestorfinances.app.ui.common.PageHeaderRow
 import com.gestorfinances.app.ui.common.PrimaryButton
+import com.gestorfinances.app.ui.common.RootPageHeader
 import com.gestorfinances.app.ui.common.SectionHeader
 import com.gestorfinances.app.ui.common.TopBarIconButton
 import com.gestorfinances.app.ui.common.parseEuroCents
@@ -235,7 +236,7 @@ private fun RecurringContent(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            SectionHeader(
+            RootPageHeader(
                 title = stringResource(R.string.recurring_list_title),
                 trailing = {
                     TopBarIconButton(

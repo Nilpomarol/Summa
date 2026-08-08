@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.R
+import com.gestorfinances.app.ui.common.RootPageHeader
 import com.gestorfinances.app.ui.common.IconChip
 import com.gestorfinances.app.ui.theme.FinanceTheme
 
@@ -49,10 +50,7 @@ fun ManagementScreen(
             .padding(horizontal = 20.dp, vertical = 18.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Text(
-            text = stringResource(R.string.management_title),
-            style = MaterialTheme.typography.headlineMedium,
-        )
+        RootPageHeader(title = stringResource(R.string.management_title))
         rows.forEach { row ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
