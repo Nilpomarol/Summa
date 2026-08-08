@@ -1,7 +1,6 @@
 package com.gestorfinances.app.ui.dashboard
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -41,9 +40,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
@@ -69,6 +65,8 @@ import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.MovementListItem
 import com.gestorfinances.app.ui.common.RootPageHeader
+import com.gestorfinances.app.ui.common.DistributionSegment
+import com.gestorfinances.app.ui.common.SegmentedDistributionBar
 import com.gestorfinances.app.ui.common.SectionHeader
 import com.gestorfinances.app.ui.common.accountIcon
 import com.gestorfinances.app.ui.common.accountTypeIcon
@@ -781,30 +779,10 @@ private fun CategoryDistributionBar(
         totalLabel,
         formatEuroCents(totalCents),
     )
-    Canvas(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(14.dp)
-            .clearAndSetSemantics { contentDescription = accessibility },
-    ) {
-        val gap = 3.dp.toPx()
-        val radius = CornerRadius(size.height / 2f, size.height / 2f)
-        var startX = 0f
-        slices.forEachIndexed { index, slice ->
-            val rawWidth = size.width * slice.fraction
-            val isLast = index == slices.lastIndex
-            val segmentWidth = if (isLast) size.width - startX else (rawWidth - gap)
-            if (segmentWidth > 0f) {
-                drawRoundRect(
-                    color = slice.color,
-                    topLeft = Offset(startX, 0f),
-                    size = Size(segmentWidth.coerceAtLeast(size.height), size.height),
-                    cornerRadius = radius,
-                )
-            }
-            startX += rawWidth
-        }
-    }
+    SegmentedDistributionBar(
+        segments = slices.map { DistributionSegment(color = it.color, fraction = it.fraction) },
+        contentDescription = accessibility,
+    )
 }
 
 @Composable

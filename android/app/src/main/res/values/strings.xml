@@ -72,6 +72,11 @@
     <string name="account_list_title">Comptes</string>
     <string name="account_list_net_worth">Patrimoni net</string>
     <string name="account_list_add">Nou compte</string>
+    <plurals name="account_list_count">
+        <item quantity="one">%d compte</item>
+        <item quantity="other">%d comptes</item>
+    </plurals>
+    <string name="account_distribution_accessibility">Distribució dels saldos positius per compte.</string>
     <string name="account_loading">Carregant comptes...</string>
     <string name="account_empty_title">Encara no hi ha cap compte</string>
     <string name="account_empty_body">Crea el primer compte per començar a registrar moviments.</string>
