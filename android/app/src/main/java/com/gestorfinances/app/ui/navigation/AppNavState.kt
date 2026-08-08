@@ -6,10 +6,10 @@ import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.gestorfinances.app.R
 import com.gestorfinances.app.ui.management.ManagementDestination
@@ -23,7 +23,7 @@ enum class TopLevelSection(
     DASHBOARD(R.string.nav_home, Icons.Filled.Home, Icons.Outlined.Home),
     MOVEMENTS(R.string.nav_movements, Icons.AutoMirrored.Filled.ReceiptLong, Icons.AutoMirrored.Outlined.ReceiptLong),
     ANALYSIS(R.string.nav_analysis, Icons.Filled.BarChart, Icons.Outlined.BarChart),
-    MANAGEMENT(R.string.nav_management, Icons.Filled.Tune, Icons.Outlined.Tune),
+    MANAGEMENT(R.string.nav_management, Icons.Filled.MoreHoriz, Icons.Outlined.MoreHoriz),
 }
 
 /** The route/chrome choices used by the app shell. */
@@ -87,7 +87,7 @@ sealed interface AppOverlay {
 
 /**
  * The whole shell navigation as a single value: the selected bottom-bar [section], the optional
- * Gestió child page, and an optional [overlay] on top. This replaces the previous set of
+ * Més destination, and an optional [overlay] on top. This replaces the previous set of
  * overlapping boolean flags (`showBudgets`/`showTags` + context ids); Back is the pure [back]
  * reducer that encodes the shell behaviour.
  */
@@ -111,7 +111,7 @@ data class AppNavState(
             managementDestination != null ||
             section != TopLevelSection.DASHBOARD
 
-    /** Pop one level: overlay → Gestió child → its originating section. */
+    /** Pop one level: overlay → Més destination → its originating section. */
     fun back(): AppNavState = when {
         overlay?.returnTo != null -> copy(overlay = overlay.returnTo)
         overlay != null -> copy(overlay = null)
@@ -123,10 +123,10 @@ data class AppNavState(
     companion object {
         val Home = AppNavState(TopLevelSection.DASHBOARD)
 
-        /** Switch to a top-level section, clearing any Gestió child and overlay. */
+        /** Switch to a top-level section, clearing any Més destination and overlay. */
         fun topLevel(section: TopLevelSection) = AppNavState(section = section)
 
-        /** Open a Gestió destination, returning to [returnSection] on Back. */
+        /** Open a Més destination, returning to [returnSection] on Back. */
         fun management(
             destination: ManagementDestination? = null,
             returnSection: TopLevelSection = TopLevelSection.DASHBOARD,
