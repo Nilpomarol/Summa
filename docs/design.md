@@ -13,7 +13,7 @@ Past Android redesign plans, audits, and remediation checklists are retired. The
 The current Android shell uses:
 
 - root destinations `Inici`, `Moviments`, centered new-movement action, `Anàlisi`, and `Gestió`;
-- a Management hub for accounts, categories, people, trips, recurring activity, and settings;
+- a Gestió sheet for accounts, categories, people, trips, recurring activity, budgets, and settings;
 - focused full-page movement, trip, and contextual flows;
 - Compose components and semantic colours built from the shared token file;
 - externalized Catalan copy;

@@ -1,15 +1,14 @@
 package com.gestorfinances.app.ui.management
 
 import androidx.annotation.StringRes
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.CalendarMonth
@@ -18,50 +17,86 @@ import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.R
-import com.gestorfinances.app.ui.common.RootPageHeader
+import com.gestorfinances.app.ui.common.AppModalBottomSheet
 import com.gestorfinances.app.ui.common.IconChip
-import com.gestorfinances.app.ui.theme.FinanceTheme
 
 @Composable
-fun ManagementScreen(
+fun ManagementSheet(
     onDestinationSelected: (ManagementDestination) -> Unit,
-    modifier: Modifier = Modifier,
+    onDismiss: () -> Unit,
 ) {
-    val rows = listOf(
-        listOf(ManagementDestination.ACCOUNTS, ManagementDestination.CATEGORIES),
-        listOf(ManagementDestination.PEOPLE, ManagementDestination.EVENTS),
-        listOf(ManagementDestination.RECURRING, ManagementDestination.BUDGETS),
-        listOf(ManagementDestination.SETTINGS),
+    var selectedDestination by remember { mutableStateOf<ManagementDestination?>(null) }
+    val groups = listOf(
+        R.string.management_group_finances to listOf(
+            ManagementDestination.ACCOUNTS,
+            ManagementDestination.CATEGORIES,
+            ManagementDestination.BUDGETS,
+        ),
+        R.string.management_group_organization to listOf(
+            ManagementDestination.PEOPLE,
+            ManagementDestination.EVENTS,
+            ManagementDestination.RECURRING,
+        ),
+        R.string.management_group_app to listOf(ManagementDestination.SETTINGS),
     )
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 20.dp, vertical = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+    AppModalBottomSheet(
+        onDismissRequest = {
+            onDismiss()
+            selectedDestination?.let(onDestinationSelected)
+        },
+        dismissRequested = selectedDestination != null,
     ) {
-        RootPageHeader(title = stringResource(R.string.management_title))
-        rows.forEach { row ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                row.forEach { destination ->
-                    ManagementTile(
-                        destination = destination,
-                        onClick = { onDestinationSelected(destination) },
-                        modifier = Modifier.weight(1f),
+        Column(
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.management_title),
+                style = MaterialTheme.typography.headlineSmall,
+            )
+            groups.forEach { (groupTitle, destinations) ->
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = stringResource(groupTitle),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 12.dp),
                     )
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.medium,
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                    ) {
+                        Column {
+                            destinations.forEachIndexed { index, destination ->
+                                ManagementRow(
+                                    destination = destination,
+                                    onClick = { selectedDestination = destination },
+                                )
+                                if (index < destinations.lastIndex) {
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(start = 56.dp),
+                                        color = MaterialTheme.colorScheme.outlineVariant,
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -69,48 +104,36 @@ fun ManagementScreen(
 }
 
 @Composable
-private fun ManagementTile(
+private fun ManagementRow(
     destination: ManagementDestination,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
-    Surface(
-        onClick = onClick,
-        modifier = modifier.height(88.dp),
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surface,
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        border = BorderStroke(1.dp, FinanceTheme.colors.cardBorder),
+    androidx.compose.foundation.layout.Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 44.dp)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            IconChip(
-                icon = destination.icon,
-                contentDescription = null,
-                color = destination.accentColor(),
-            )
-            Text(
-                text = stringResource(destination.titleRes),
-                style = MaterialTheme.typography.titleMedium,
-            )
-        }
+        IconChip(
+            icon = destination.icon,
+            contentDescription = null,
+            color = MaterialTheme.colorScheme.primary,
+            size = 32.dp,
+        )
+        Text(
+            text = stringResource(destination.titleRes),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.weight(1f),
+        )
+        androidx.compose.material3.Icon(
+            imageVector = Icons.Default.ChevronRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
-}
-
-@Composable
-private fun ManagementDestination.accentColor(): Color = when (this) {
-    ManagementDestination.ACCOUNTS -> MaterialTheme.colorScheme.primary
-    ManagementDestination.CATEGORIES -> FinanceTheme.colors.income
-    ManagementDestination.PEOPLE -> FinanceTheme.colors.settlement
-    ManagementDestination.EVENTS -> FinanceTheme.colors.refund
-    ManagementDestination.RECURRING -> FinanceTheme.colors.transfer
-    ManagementDestination.BUDGETS -> FinanceTheme.colors.alert
-    ManagementDestination.SETTINGS -> MaterialTheme.colorScheme.onSurfaceVariant
 }
 
 enum class ManagementDestination(

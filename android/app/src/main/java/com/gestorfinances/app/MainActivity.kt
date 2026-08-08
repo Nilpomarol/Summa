@@ -69,7 +69,7 @@ import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.dashboard.DashboardScreen
 import com.gestorfinances.app.ui.dashboard.DashboardViewModel
 import com.gestorfinances.app.ui.management.ManagementDestination
-import com.gestorfinances.app.ui.management.ManagementScreen
+import com.gestorfinances.app.ui.management.ManagementSheet
 import com.gestorfinances.app.ui.movements.MovementDetailScreen
 import com.gestorfinances.app.ui.movements.MovementFilters
 import com.gestorfinances.app.ui.movements.MovementFormState
@@ -247,6 +247,7 @@ private fun LedgerShell(
     val deviceAccessState by appContainer.deviceAccessState.collectAsState()
 
     var nav by remember { mutableStateOf(AppNavState.Home) }
+    var managementMenuVisible by remember { mutableStateOf(false) }
     val onboardingViewModel = remember(viewModelStoreOwner) {
         ViewModelProvider(
             viewModelStoreOwner,
@@ -452,7 +453,12 @@ private fun LedgerShell(
     }
 
     fun showManagement(destination: ManagementDestination? = null) {
-        nav = AppNavState.management(destination)
+        val returnSection = if (nav.section == TopLevelSection.MANAGEMENT) {
+            nav.managementReturnSection ?: TopLevelSection.DASHBOARD
+        } else {
+            nav.section
+        }
+        nav = AppNavState.management(destination, returnSection)
     }
 
     fun openMovementForm(
@@ -558,6 +564,7 @@ private fun LedgerShell(
             if (nav.routeChrome.showsGlobalNavigation) FinanceBottomBar(
                 selectedSection = nav.section,
                 onSelected = ::showTopLevel,
+                onManagementClick = { managementMenuVisible = true },
                 // The global FAB is available only on root/Management child routes. Trip Detail
                 // owns its local contextual add action because focused routes hide this bar.
                 onAddMovement = { openMovementForm() },
@@ -656,8 +663,17 @@ private fun LedgerShell(
                     .padding(innerPadding),
             )
             TopLevelSection.MANAGEMENT -> when (nav.managementDestination) {
-                null -> ManagementScreen(
-                    onDestinationSelected = ::showManagement,
+                null -> DashboardScreen(
+                    viewModel = dashboardViewModel,
+                    onDrillDown = openMovements,
+                    onMovementDetail = openMovementDetail,
+                    onAccountAnalysis = { account ->
+                        analysisViewModel.setAccountFilter(account.id, account.name)
+                        showTopLevel(TopLevelSection.ANALYSIS)
+                    },
+                    onViewTrip = { trip -> nav = nav.copy(overlay = AppOverlay.TripDetail(tripId = trip.id)) },
+                    onAddTripMovement = { trip -> openMovementForm(trip.id) },
+                    onViewBudgets = { showManagement(ManagementDestination.BUDGETS) },
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),
@@ -824,6 +840,12 @@ private fun LedgerShell(
             }
         }
     }
+    if (managementMenuVisible) {
+        ManagementSheet(
+            onDestinationSelected = ::showManagement,
+            onDismiss = { managementMenuVisible = false },
+        )
+    }
     RecurringOverlays(viewModel = recurringViewModel)
 
     // Surfaces due recurring items proactively instead of requiring a manual visit to
@@ -849,6 +871,7 @@ private fun LedgerShell(
 private fun FinanceBottomBar(
     selectedSection: TopLevelSection,
     onSelected: (TopLevelSection) -> Unit,
+    onManagementClick: () -> Unit,
     onAddMovement: () -> Unit,
 ) {
     Surface(
@@ -891,7 +914,7 @@ private fun FinanceBottomBar(
                     BottomBarItem(
                         section = TopLevelSection.MANAGEMENT,
                         selected = selectedSection == TopLevelSection.MANAGEMENT,
-                        onClick = { onSelected(TopLevelSection.MANAGEMENT) },
+                        onClick = onManagementClick,
                         modifier = Modifier.weight(1f),
                     )
                 }

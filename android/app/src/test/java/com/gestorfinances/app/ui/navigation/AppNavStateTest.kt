@@ -43,6 +43,17 @@ class AppNavStateTest {
     }
 
     @Test
+    fun `back from a management destination returns to its originating section`() {
+        assertEquals(
+            AppNavState.topLevel(TopLevelSection.ANALYSIS),
+            AppNavState.management(
+                destination = ManagementDestination.ACCOUNTS,
+                returnSection = TopLevelSection.ANALYSIS,
+            ).back(),
+        )
+    }
+
+    @Test
     fun `focused overlays hide global navigation chrome`() {
         val root = AppNavState.Home
 

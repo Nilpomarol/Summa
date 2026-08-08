@@ -40,6 +40,9 @@
     <string name="management_recurring_title">Recurrents</string>
     <string name="management_budgets_title">Pressupostos</string>
     <string name="management_settings_title">Configuració</string>
+    <string name="management_group_finances">Finances</string>
+    <string name="management_group_organization">Organització</string>
+    <string name="management_group_app">Aplicació</string>
 
     <!-- Onboarding -->
     <string name="onboarding_loading">Preparant l\'inici...</string>
