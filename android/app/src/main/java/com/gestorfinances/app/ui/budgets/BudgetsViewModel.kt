@@ -11,6 +11,7 @@ import com.gestorfinances.app.data.repository.BudgetProjection
 import com.gestorfinances.app.data.repository.BudgetRepository
 import com.gestorfinances.app.data.repository.BudgetScope
 import com.gestorfinances.app.data.repository.BudgetSummary
+import com.gestorfinances.app.data.repository.AnalysisRepository
 import com.gestorfinances.app.data.repository.CategoryRecord
 import com.gestorfinances.app.data.repository.CategoryRepository
 import com.gestorfinances.app.data.repository.DuplicateActiveBudgetException
@@ -38,6 +39,7 @@ class BudgetsViewModel(
     private val categoryRepository: CategoryRepository,
     private val tripRepository: TripRepository,
     private val templateRepository: TemplateRepository? = null,
+    private val analysisRepository: AnalysisRepository? = null,
     private val notificationRefresher: NotificationRefresher = NotificationRefresher.NoOp,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val today: () -> LocalDate = { LocalDate.now() },
@@ -50,18 +52,10 @@ class BudgetsViewModel(
         refresh(openContextForm = contextTripId != null)
     }
 
-    fun onPreviousMonthClicked() {
-        _state.value = _state.value.copy(selectedMonth = _state.value.selectedMonth.minusMonths(1))
+    fun onMonthSelected(month: YearMonth) {
+        if (month !in _state.value.activityMonths || month == _state.value.selectedMonth) return
+        _state.value = _state.value.copy(selectedMonth = month)
         refresh()
-    }
-
-    fun onNextMonthClicked() {
-        val current = YearMonth.from(today())
-        val next = _state.value.selectedMonth.plusMonths(1)
-        if (!next.isAfter(current)) {
-            _state.value = _state.value.copy(selectedMonth = next)
-            refresh()
-        }
     }
 
     fun onPastTripsExpandedToggled() {
@@ -218,14 +212,17 @@ class BudgetsViewModel(
             val currentMonth = YearMonth.from(today())
             val result = withContext(ioDispatcher) {
                 runCatching {
+                    val activityMonths = analysisRepository?.activityMonths().orEmpty()
+                    val effectiveMonth = selectedMonth.takeIf { it in activityMonths || activityMonths.isEmpty() }
+                        ?: requireNotNull(activityMonths.firstOrNull())
                     val categories = categoryRepository.listActive().filter { it.supportsExpense }
                     val evaluations = budgetRepository.evaluateAll(
-                        fromDate = selectedMonth.atDay(1).toString(),
-                        toDate = selectedMonth.atEndOfMonth().toString(),
+                        fromDate = effectiveMonth.atDay(1).toString(),
+                        toDate = effectiveMonth.atEndOfMonth().toString(),
                     )
                     LoadedBudgetData(
                         evaluations = evaluations,
-                        projections = if (selectedMonth == currentMonth) {
+                        projections = if (effectiveMonth == currentMonth) {
                             budgetRepository.currentMonthProjections(
                                 today = today(),
                                 templates = templateRepository?.listActive().orEmpty(),
@@ -236,6 +233,8 @@ class BudgetsViewModel(
                         },
                         categories = categories,
                         trips = tripRepository.listActive(),
+                        activityMonths = activityMonths,
+                        selectedMonth = effectiveMonth,
                     )
                 }
             }
@@ -246,6 +245,8 @@ class BudgetsViewModel(
                         projections = it.projections,
                         categories = it.categories,
                         trips = it.trips,
+                        activityMonths = it.activityMonths,
+                        selectedMonth = it.selectedMonth,
                         form = if (openContextForm) {
                             contextBudgetForm(
                                 contextTripId = _state.value.contextTripId,
@@ -281,6 +282,7 @@ class BudgetsViewModel(
         private val categoryRepository: CategoryRepository,
         private val tripRepository: TripRepository,
         private val templateRepository: TemplateRepository? = null,
+        private val analysisRepository: AnalysisRepository? = null,
         private val notificationRefresher: NotificationRefresher = NotificationRefresher.NoOp,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
@@ -291,6 +293,7 @@ class BudgetsViewModel(
                     categoryRepository = categoryRepository,
                     tripRepository = tripRepository,
                     templateRepository = templateRepository,
+                    analysisRepository = analysisRepository,
                     notificationRefresher = notificationRefresher,
                 ) as T
             }
@@ -304,6 +307,7 @@ data class BudgetsUiState(
     val projections: List<BudgetProjection> = emptyList(),
     val categories: List<CategoryRecord> = emptyList(),
     val trips: List<TripSummary> = emptyList(),
+    val activityMonths: List<YearMonth> = emptyList(),
     val contextTripId: String? = null,
     val selectedMonth: YearMonth = YearMonth.now(),
     val isLoading: Boolean = true,
@@ -341,6 +345,8 @@ private data class LoadedBudgetData(
     val projections: List<BudgetProjection>,
     val categories: List<CategoryRecord>,
     val trips: List<TripSummary>,
+    val activityMonths: List<YearMonth>,
+    val selectedMonth: YearMonth,
 )
 
 private fun BudgetSummary.toFormState(): BudgetFormState =

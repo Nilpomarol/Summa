@@ -297,6 +297,7 @@ private fun ComparisonMonthRow(
             AppDropdownMenu(expanded = showPicker, onDismissRequest = { showPicker = false }) {
                 MonthPickerContent(
                     initial = state.comparisonMonth,
+                    availableMonths = state.activityMonths,
                     onSelect = { onComparisonMonthSelected(it); showPicker = false },
                 )
             }
@@ -330,6 +331,7 @@ private fun ComparisonYearRow(
             AppDropdownMenu(expanded = showPicker, onDismissRequest = { showPicker = false }) {
                 YearPickerContent(
                     initial = state.comparisonYear,
+                    years = state.activityMonths.map { it.year }.distinct(),
                     onSelect = { onComparisonYearSelected(it); showPicker = false },
                 )
             }
@@ -424,11 +426,13 @@ private fun SteppedPeriod(
                 if (state.scope == AnalysisScope.MONTH) {
                     MonthPickerContent(
                         initial = state.month,
+                        availableMonths = state.activityMonths,
                         onSelect = { onMonthSelected(it); showPicker = false },
                     )
                 } else {
                     YearPickerContent(
                         initial = state.year,
+                        years = state.activityMonths.map { it.year }.distinct(),
                         onSelect = { onYearSelected(it); showPicker = false },
                     )
                 }
@@ -447,10 +451,11 @@ private fun SteppedPeriod(
 @Composable
 private fun YearPickerContent(
     initial: Int,
+    years: List<Int>,
     onSelect: (Int) -> Unit,
 ) {
     Column(modifier = Modifier.padding(horizontal = 8.dp)) {
-        (initial + 2 downTo initial - 9).forEach { year ->
+        years.distinct().sortedDescending().forEach { year ->
             TextButton(onClick = { onSelect(year) }, modifier = Modifier.fillMaxWidth()) {
                 Text(
                     text = year.toString(),

@@ -39,6 +39,7 @@ val sharedViewFiles = listOf(
     "v_trip_actual_total.sql",
 )
 val sharedAnalysisQueryFiles = listOf(
+    "analysis_activity_months.sql" to "activityMonths",
     "analysis_actual_breakdown.sql" to "analysisActualBreakdown",
     "analysis_actual_by_category.sql" to "analysisActualByCategory",
     "analysis_account_flow_over_time.sql" to "analysisAccountFlowOverTime",

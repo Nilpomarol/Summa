@@ -353,6 +353,7 @@ private fun LedgerShell(
                 categoryRepository = appContainer.categoryRepository,
                 tripRepository = appContainer.tripRepository,
                 templateRepository = appContainer.templateRepository,
+                analysisRepository = appContainer.analysisRepository,
                 notificationRefresher = appContainer.notificationCoordinator,
             ),
         )[BudgetsViewModel::class.java]

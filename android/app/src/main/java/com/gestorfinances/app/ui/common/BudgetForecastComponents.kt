@@ -38,7 +38,6 @@ fun BudgetForecastCard(
     exceptions: List<BudgetProjection> = emptyList(),
     footer: (@Composable () -> Unit)? = null,
     onClick: (() -> Unit)? = null,
-    onEdit: (() -> Unit)? = null,
 ) {
     val statusColor = projection.status.color()
     FinanceCard(
@@ -72,9 +71,6 @@ fun BudgetForecastCard(
                     remainingCents = projection.remainingForecastCents,
                     color = statusColor,
                 )
-                if (onEdit != null) {
-                    CompactEditIconButton(onClick = onEdit)
-                }
             }
             Text(
                 text = stringResource(
