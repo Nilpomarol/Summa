@@ -1,12 +1,12 @@
 package com.gestorfinances.app.ui.movements
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -24,6 +24,7 @@ import androidx.compose.material.icons.automirrored.outlined.Notes
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Storefront
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -60,6 +61,7 @@ import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.FinanceFilterChip
 import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.MoneyText
+import com.gestorfinances.app.ui.common.AppModalBottomSheet
 import com.gestorfinances.app.ui.common.PageHeaderRow
 import com.gestorfinances.app.ui.common.PrimaryButton
 import com.gestorfinances.app.ui.common.accountIcon
@@ -75,8 +77,10 @@ import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.amountColor
 import com.gestorfinances.app.ui.theme.categoryColor
 
+private const val MovementDetailSheetMaxHeightFraction = 0.88f
+
 /**
- * Movement detail page (formerly a bottom sheet). Reached via `AppOverlay.MovementDetail`
+ * Movement detail sheet. Reached via `AppOverlay.MovementDetail`
  * (MainActivity), since a movement can be viewed from any screen. [onBack] pops that overlay;
  * "Edit" and "Add refund" are local swaps within this same page — refund reuses
  * `state.detailMovement` (kept set while the refund form is open, see
@@ -102,7 +106,11 @@ fun MovementDetailScreen(
         BackHandler(onBack = viewModel::onRefundDismissed)
     }
 
-    Box(modifier = modifier.fillMaxSize()) {
+    AppModalBottomSheet(
+        onDismissRequest = onBack,
+        modifier = modifier,
+        maxHeightFraction = MovementDetailSheetMaxHeightFraction,
+    ) {
         when {
             refundForm != null -> RefundFormContent(
                 form = refundForm,
@@ -118,7 +126,6 @@ fun MovementDetailScreen(
                 accounts = state.accounts,
                 split = state.detailSplit,
                 people = state.people,
-                onBack = onBack,
                 onEdit = { onEdit(movement) },
                 onArchive = { viewModel.onArchiveClicked(movement) },
                 onAddRefund = { viewModel.onAddRefundClicked(movement) },
@@ -173,7 +180,6 @@ private fun MovementDetailContent(
     accounts: List<AccountSummary>,
     split: MovementSplitDraft?,
     people: List<PersonSummary>,
-    onBack: () -> Unit,
     onEdit: () -> Unit,
     onArchive: () -> Unit,
     onAddRefund: () -> Unit,
@@ -194,8 +200,6 @@ private fun MovementDetailContent(
             .padding(bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        PageHeaderRow(onBack = onBack)
-
         // Header: Icon chip, Title, Large amount
         MovementSheetHeader(
             title = movement.movementTitle(),
@@ -435,27 +439,39 @@ private fun MovementDetailContent(
                 }
             }
 
-            PrimaryButton(
-                text = stringResource(R.string.movement_detail_add_refund_action),
-                onClick = onAddRefund,
-                modifier = Modifier.fillMaxWidth(),
-            )
         }
 
         HorizontalDivider(color = FinanceTheme.colors.cardBorder)
 
-        // Action footer (Archive and Edit buttons)
+        // Action footer. Secondary actions stay grouped at the leading edge while Edit remains
+        // the primary trailing action.
         val canEdit = movement.type != MovementType.SETTLEMENT && movement.type != MovementType.REFUND
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            DestructiveTextButton(onClick = onArchive) {
-                Text(text = stringResource(R.string.movement_detail_action_archive))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = onArchive,
+                    contentPadding = PaddingValues(horizontal = 12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error,
+                    ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
+                ) {
+                    Text(text = stringResource(R.string.movement_detail_action_archive))
+                }
+                if (movement.type == MovementType.EXPENSE) {
+                    OutlinedButton(
+                        onClick = onAddRefund,
+                        contentPadding = PaddingValues(horizontal = 12.dp),
+                    ) {
+                        Text(text = stringResource(R.string.movement_detail_refund_action_compact))
+                    }
+                }
             }
             if (canEdit) {
-                Spacer(modifier = Modifier.weight(1f))
                 PrimaryButton(
                     text = stringResource(R.string.movement_detail_action_edit),
                     onClick = onEdit,

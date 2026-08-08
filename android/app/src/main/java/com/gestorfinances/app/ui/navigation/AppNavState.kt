@@ -76,7 +76,7 @@ sealed interface AppOverlay {
         override val returnTo: AppOverlay? = null,
     ) : AppOverlay
 
-    /** Movement detail, reachable from the same range of screens as [MovementForm]. */
+    /** Movement detail sheet, reachable from the same range of screens as [MovementForm]. */
     data class MovementDetail(
         val movementId: String,
         override val returnTo: AppOverlay? = null,

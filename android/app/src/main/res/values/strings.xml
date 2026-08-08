@@ -283,9 +283,10 @@
     <string name="movement_detail_section_extra">Detalls addicionals</string>
     <string name="movement_detail_refunds_title">Reemborsaments</string>
     <string name="movement_detail_add_refund_action">Afegeix reemborsament</string>
-    <string name="movement_detail_action_archive">Arxiva</string>
+    <string name="movement_detail_refund_action_compact">Reemborsa</string>
+    <string name="movement_detail_action_archive">Elimina</string>
     <string name="movement_detail_action_edit">Editar</string>
-    <string name="movement_detail_no_edit_hint">Les liquidacions i devolucions no es poden editar. Arxiva-la i registra\'n una de nova.</string>
+    <string name="movement_detail_no_edit_hint">Les liquidacions i devolucions no es poden editar. Elimina-la i registra\'n una de nova.</string>
     <string name="movement_filter_month_sheet_title">Filtra per mes</string>
     <string name="movement_filter_custom_range_title">Rang personalitzat</string>
 
