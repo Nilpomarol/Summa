@@ -94,6 +94,7 @@ sealed interface AppOverlay {
 data class AppNavState(
     val section: TopLevelSection,
     val managementDestination: ManagementDestination? = null,
+    val managementReturnSection: TopLevelSection? = null,
     val overlay: AppOverlay? = null,
 ) {
     /** Route/chrome matrix used by the shell. Modal forms preserve the page underneath. */
@@ -110,11 +111,11 @@ data class AppNavState(
             managementDestination != null ||
             section != TopLevelSection.DASHBOARD
 
-    /** Pop one level: overlay → Gestió child → top-level → Inici. */
+    /** Pop one level: overlay → Gestió child → its originating section. */
     fun back(): AppNavState = when {
         overlay?.returnTo != null -> copy(overlay = overlay.returnTo)
         overlay != null -> copy(overlay = null)
-        managementDestination != null -> copy(managementDestination = null)
+        managementDestination != null -> topLevel(managementReturnSection ?: TopLevelSection.DASHBOARD)
         section != TopLevelSection.DASHBOARD -> Home
         else -> this
     }
@@ -125,8 +126,14 @@ data class AppNavState(
         /** Switch to a top-level section, clearing any Gestió child and overlay. */
         fun topLevel(section: TopLevelSection) = AppNavState(section = section)
 
-        /** Open the Gestió hub (null) or one of its child pages. */
-        fun management(destination: ManagementDestination? = null) =
-            AppNavState(section = TopLevelSection.MANAGEMENT, managementDestination = destination)
+        /** Open a Gestió destination, returning to [returnSection] on Back. */
+        fun management(
+            destination: ManagementDestination? = null,
+            returnSection: TopLevelSection = TopLevelSection.DASHBOARD,
+        ) = AppNavState(
+            section = TopLevelSection.MANAGEMENT,
+            managementDestination = destination,
+            managementReturnSection = returnSection,
+        )
     }
 }
