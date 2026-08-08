@@ -36,6 +36,7 @@ fun BudgetForecastCard(
     titleContent: (@Composable (Modifier) -> Unit)? = null,
     showBreakdown: Boolean = false,
     exceptions: List<BudgetProjection> = emptyList(),
+    footer: (@Composable () -> Unit)? = null,
     onClick: (() -> Unit)? = null,
     onEdit: (() -> Unit)? = null,
 ) {
@@ -117,6 +118,7 @@ fun BudgetForecastCard(
                     }
                 }
             }
+            footer?.invoke()
         }
     }
 }

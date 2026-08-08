@@ -34,6 +34,6 @@ The distinction between a fact and an estimate is always visible. Colour reinfor
 
 ## Information architecture
 
-The Dashboard has one compact **Budget this month** card: actual versus overall monthly target, estimated month-end total, a named status, and up to three category exceptions (over or forecast to exceed). It opens Budget.
+The Dashboard has one compact **Monthly spending** card: actual versus overall monthly target, estimated month-end total, a named status, up to three category exceptions (over or forecast to exceed), and a compact expense-category distribution. It opens Budget; category rows open the filtered movements. Without an overall target, the same card still shows actual spending and the category distribution, with a clear path to define a budget.
 
 Budget is the home for planning and review. Its default view shows the current month summary, forecast breakdown, category exceptions, category limits, and an annual section for yearly limits. Users can select another month to review past actuals; forecasts apply only to the current month. The page also offers the only create/edit paths for monthly and yearly limits.

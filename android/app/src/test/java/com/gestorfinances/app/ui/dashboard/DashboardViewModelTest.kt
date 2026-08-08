@@ -79,13 +79,11 @@ class DashboardViewModelTest {
             advanceUntilIdle()
 
             viewModel.onAccountSelected("savings")
-            viewModel.onCategoryModeChanged(CategoryDisplayMode.INCOME)
             viewModel.refresh()
             advanceUntilIdle()
 
             val state = viewModel.state.value
             assertEquals("savings", state.mainAccount?.id)
-            assertEquals(CategoryDisplayMode.INCOME, state.categoryMode)
         }
     }
 
