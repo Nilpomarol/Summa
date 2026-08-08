@@ -53,6 +53,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -81,6 +82,8 @@ import com.gestorfinances.app.ui.common.AppModalBottomSheet
 import com.gestorfinances.app.ui.common.PageHeaderRow
 import com.gestorfinances.app.ui.common.RootPageHeader
 import com.gestorfinances.app.ui.common.PrimaryButton
+import com.gestorfinances.app.ui.common.NeutralPill
+import com.gestorfinances.app.ui.common.SectionHeader
 import com.gestorfinances.app.ui.common.doneKeyboardActions
 import com.gestorfinances.app.ui.common.formatEuroCents
 import com.gestorfinances.app.ui.common.formatCompactDate
@@ -234,6 +237,20 @@ private fun PeopleContent(
                 EmptyPeopleCard(onAdd = onAdd)
             }
         } else {
+            item {
+                SectionHeader(
+                    title = stringResource(R.string.person_list_active),
+                    trailing = {
+                        NeutralPill(
+                            text = pluralStringResource(
+                                R.plurals.person_list_count,
+                                state.people.size,
+                                state.people.size,
+                            ),
+                        )
+                    },
+                )
+            }
             items(items = state.people, key = { it.id }) { person ->
                 PersonRow(
                     person = person,
@@ -424,7 +441,7 @@ private fun PersonRow(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = person.name,
-                        style = MaterialTheme.typography.titleSmall,
+                        style = MaterialTheme.typography.titleMedium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )

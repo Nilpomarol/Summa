@@ -17,7 +17,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
 import com.gestorfinances.app.ui.common.AppDropdownMenu
 import com.gestorfinances.app.ui.common.AppDropdownMenuItem
@@ -101,6 +103,7 @@ fun TagsScreen(
             modifier = modifier,
             onBack = onBack,
             onAdd = viewModel::onAddClicked,
+            onSearchChanged = viewModel::onSearchChanged,
             onEdit = viewModel::onEditClicked,
             onArchive = viewModel::onArchiveClicked,
         )
@@ -179,6 +182,7 @@ private fun TagsContent(
     modifier: Modifier,
     onBack: () -> Unit,
     onAdd: () -> Unit,
+    onSearchChanged: (String) -> Unit,
     onEdit: (TagSummary) -> Unit,
     onArchive: (TagSummary) -> Unit,
 ) {
@@ -195,19 +199,38 @@ private fun TagsContent(
             PageHeaderRow(
                 onBack = onBack,
                 title = stringResource(R.string.tag_list_title),
-                trailing = {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(onClick = onAdd) {
-                            Text(text = stringResource(R.string.tag_list_add))
-                        }
-                    }
-                },
             )
         }
 
         state.errorMessage?.let { message ->
             item {
                 InlineBanner(kind = BannerKind.Error, text = message)
+            }
+        }
+
+        if (!state.isLoading && (state.tags.isNotEmpty() || state.searchQuery.isNotBlank())) {
+            item {
+                OutlinedTextField(
+                    value = state.searchQuery,
+                    onValueChange = onSearchChanged,
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text(text = stringResource(R.string.tag_search_label)) },
+                    leadingIcon = {
+                        Icon(imageVector = Icons.Outlined.Search, contentDescription = null)
+                    },
+                    trailingIcon = if (state.searchQuery.isNotBlank()) {
+                        {
+                            IconButton(onClick = { onSearchChanged("") }) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = stringResource(R.string.common_remove),
+                                )
+                            }
+                        }
+                    } else null,
+                    shape = MaterialTheme.shapes.small,
+                )
             }
         }
 
@@ -220,7 +243,17 @@ private fun TagsContent(
                 )
             }
         } else if (state.visibleTags.isEmpty()) {
-            item { EmptyTagsCard(onAdd = onAdd) }
+            item {
+                if (state.searchQuery.isNotBlank()) {
+                    Text(
+                        text = stringResource(R.string.tag_search_empty),
+                        color = FinanceTheme.colors.mutedText,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                } else {
+                    EmptyTagsCard(onAdd = onAdd)
+                }
+            }
         } else {
             sections.forEach { section ->
                 val expanded = section.key !in collapsedSections

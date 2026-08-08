@@ -36,6 +36,7 @@
     <string name="management_categories_title">Categories</string>
     <string name="management_people_title">Persones</string>
     <string name="management_events_title">Viatges</string>
+    <string name="management_tags_title">Etiquetes</string>
     <string name="management_recurring_title">Recurrents</string>
     <string name="management_budgets_title">Pressupostos</string>
     <string name="management_settings_title">Configuració</string>
@@ -45,6 +46,7 @@
     <string name="management_categories_description">Classifica els teus ingressos i despeses</string>
     <string name="management_people_description">Despeses compartides i deutes pendents</string>
     <string name="management_events_description">Controla la despesa de cada viatge</string>
+    <string name="management_tags_description">Troba i organitza les etiquetes dels viatges</string>
     <string name="management_recurring_description">Revisa cobraments i pagaments programats</string>
     <string name="management_budgets_description">Límits per al mes, les categories i els viatges</string>
     <string name="management_settings_description">Còpies, dades i preferències de l’aplicació</string>
@@ -158,6 +160,11 @@
     <string name="person_list_total_owed_to_user">Et deuen</string>
     <string name="person_list_total_you_owe">Deus</string>
     <string name="person_list_net_balance">Saldo net</string>
+    <string name="person_list_active">Persones actives</string>
+    <plurals name="person_list_count">
+        <item quantity="one">%d persona</item>
+        <item quantity="other">%d persones</item>
+    </plurals>
     <string name="person_summary_more">+%1$d més</string>
     <string name="person_loading">Carregant persones...</string>
     <string name="person_empty_title">Encara no hi ha persones</string>
@@ -791,6 +798,11 @@
     <!-- Trips list and detail -->
     <string name="trip_list_title">Viatges</string>
     <string name="trip_list_add">Nou viatge</string>
+    <string name="trip_list_results">Viatges</string>
+    <plurals name="trip_list_count">
+        <item quantity="one">%d viatge</item>
+        <item quantity="other">%d viatges</item>
+    </plurals>
     <string name="trip_loading">Carregant viatges...</string>
     <string name="trip_empty_title">Encara no tens viatges</string>
     <string name="trip_empty_body">Crea un viatge per veure\'n el cost separat de la despesa habitual.</string>
@@ -862,6 +874,8 @@
     <!-- Tags -->
     <string name="tag_list_title">Etiquetes</string>
     <string name="tag_list_add">Nova etiqueta</string>
+    <string name="tag_search_label">Cerca etiquetes</string>
+    <string name="tag_search_empty">No hi ha etiquetes que coincideixin.</string>
     <string name="tag_loading">Carregant etiquetes...</string>
     <string name="tag_empty_title">Encara no hi ha etiquetes</string>
     <string name="tag_empty_body">Crea etiquetes per classificar la despesa dins dels viatges.</string>

@@ -44,6 +44,10 @@ class TagsViewModel(
         )
     }
 
+    fun onSearchChanged(query: String) {
+        _state.value = _state.value.copy(searchQuery = query)
+    }
+
     fun onEditClicked(tag: TagSummary) {
         _state.value = _state.value.copy(form = tag.toFormState())
     }
@@ -199,14 +203,27 @@ data class TagsUiState(
     val categories: List<CategoryRecord> = emptyList(),
     val isLoading: Boolean = true,
     val errorMessage: String? = null,
+    val searchQuery: String = "",
     val form: TagFormState? = null,
     val archiveCandidate: TagSummary? = null,
 ) {
     val visibleTags: List<TagSummary>
-        get() = if (contextTripId == null) {
-            tags
-        } else {
-            tags.filter { it.tripId == null || it.tripId == contextTripId }
+        get() {
+            val scopedTags = if (contextTripId == null) {
+                tags
+            } else {
+                tags.filter { it.tripId == null || it.tripId == contextTripId }
+            }
+            val query = searchQuery.trim()
+            return if (query.isEmpty()) {
+                scopedTags
+            } else {
+                scopedTags.filter { tag ->
+                    tag.name.contains(query, ignoreCase = true) ||
+                        tag.categoryName?.contains(query, ignoreCase = true) == true ||
+                        tag.tripName?.contains(query, ignoreCase = true) == true
+                }
+            }
         }
 }
 

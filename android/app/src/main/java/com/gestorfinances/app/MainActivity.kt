@@ -720,7 +720,14 @@ private fun LedgerShell(
                 ManagementDestination.EVENTS -> TripsScreen(
                     viewModel = tripsViewModel,
                     onOpenDetail = { trip -> nav = nav.copy(overlay = AppOverlay.TripDetail(tripId = trip.id)) },
-                    onManageTags = { tripId -> nav = nav.copy(overlay = AppOverlay.Tags(tripId = tripId)) },
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                )
+                ManagementDestination.TAGS -> TagsScreen(
+                    viewModel = tagsViewModel,
+                    contextTripId = null,
+                    onBack = { nav = nav.back() },
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),

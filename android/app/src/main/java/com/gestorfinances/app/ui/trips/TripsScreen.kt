@@ -50,6 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -91,6 +92,7 @@ import com.gestorfinances.app.ui.common.NeutralPill
 import com.gestorfinances.app.ui.common.PageHeaderRow
 import com.gestorfinances.app.ui.common.RootPageHeader
 import com.gestorfinances.app.ui.common.PrimaryButton
+import com.gestorfinances.app.ui.common.SectionHeader
 import com.gestorfinances.app.ui.common.SegmentedControl
 import com.gestorfinances.app.ui.common.BannerKind
 import com.gestorfinances.app.ui.common.color
@@ -119,7 +121,6 @@ import kotlin.math.abs
 fun TripsScreen(
     viewModel: TripsViewModel,
     onOpenDetail: (TripSummary) -> Unit,
-    onManageTags: (String?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsState()
@@ -148,7 +149,6 @@ fun TripsScreen(
             onEdit = viewModel::onEditClicked,
             onArchive = viewModel::onArchiveClicked,
             onDetail = onOpenDetail,
-            onManageTags = onManageTags,
         )
     }
 
@@ -180,7 +180,6 @@ private fun TripsContent(
     onEdit: (TripSummary) -> Unit,
     onArchive: (TripSummary) -> Unit,
     onDetail: (TripSummary) -> Unit,
-    onManageTags: (String?) -> Unit,
 ) {
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -188,14 +187,7 @@ private fun TripsContent(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            RootPageHeader(
-                title = stringResource(R.string.trip_list_title),
-                trailing = {
-                TextButton(onClick = { onManageTags(null) }) {
-                    Text(text = stringResource(R.string.trip_action_manage_tags))
-                }
-                },
-            )
+            RootPageHeader(title = stringResource(R.string.trip_list_title))
         }
 
         item {
@@ -232,6 +224,20 @@ private fun TripsContent(
         } else if (state.visibleTrips.isEmpty()) {
             item { EmptyTripsCard(onAdd = onAdd) }
         } else {
+            item {
+                SectionHeader(
+                    title = stringResource(R.string.trip_list_results),
+                    trailing = {
+                        NeutralPill(
+                            text = pluralStringResource(
+                                R.plurals.trip_list_count,
+                                state.visibleTrips.size,
+                                state.visibleTrips.size,
+                            ),
+                        )
+                    },
+                )
+            }
             items(items = state.visibleTrips, key = { it.id }) { trip ->
                 TripRow(
                     trip = trip,
