@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.CalendarMonth
@@ -70,6 +71,7 @@ fun ManagementSheet(
             destinations = listOf(
                 ManagementDestination.PEOPLE,
                 ManagementDestination.EVENTS,
+                ManagementDestination.TAGS,
                 ManagementDestination.RECURRING,
             ),
         ),
@@ -237,6 +239,7 @@ enum class ManagementDestination(
     CATEGORIES(R.string.management_categories_title, R.string.management_categories_description, Icons.Filled.Sell),
     PEOPLE(R.string.management_people_title, R.string.management_people_description, Icons.Filled.Groups),
     EVENTS(R.string.management_events_title, R.string.management_events_description, Icons.Filled.CalendarMonth),
+    TAGS(R.string.management_tags_title, R.string.management_tags_description, Icons.AutoMirrored.Filled.Label),
     RECURRING(R.string.management_recurring_title, R.string.management_recurring_description, Icons.Filled.Autorenew),
     BUDGETS(R.string.management_budgets_title, R.string.management_budgets_description, Icons.Filled.Savings),
     SETTINGS(R.string.management_settings_title, R.string.management_settings_description, Icons.Filled.Settings),
