@@ -38,7 +38,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -218,11 +217,7 @@ private fun PeopleContent(
 
         state.errorMessage?.let { message ->
             item {
-                Text(
-                    text = message,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+                InlineBanner(kind = BannerKind.Error, text = message)
             }
         }
 
@@ -267,37 +262,30 @@ private fun PeopleSummaryCard(state: PeopleUiState) {
     val owedCents = state.totalOwedToUserCents
     val youOweCents = state.totalUserOwesCents
     val netColor = when {
-        netCents > 0L -> FinanceTheme.colors.heroIncome
-        netCents < 0L -> FinanceTheme.colors.heroDebt
-        else -> FinanceTheme.colors.heroOnSurface
+        netCents > 0L -> FinanceTheme.colors.income
+        netCents < 0L -> FinanceTheme.colors.debt
+        else -> MaterialTheme.colorScheme.onSurface
     }
     val nonZeroPeople = state.people.filter { it.balanceCents != 0L }
 
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        color = FinanceTheme.colors.heroSurface,
-        contentColor = FinanceTheme.colors.heroOnSurface,
-    ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+    FinanceCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             Text(
                 text = stringResource(R.string.person_list_net_balance),
-                style = MaterialTheme.typography.labelMedium,
-                color = FinanceTheme.colors.heroOnSurfaceMuted,
+                style = MaterialTheme.typography.titleSmall,
             )
-
-            Spacer(modifier = Modifier.height(10.dp))
 
             MoneyText(
                 cents = netCents,
                 color = netColor,
-                style = MaterialTheme.typography.displayMedium,
+                style = MaterialTheme.typography.headlineLarge,
                 signed = true,
             )
 
             if (owedCents > 0L || youOweCents > 0L) {
-                Spacer(modifier = Modifier.height(16.dp))
-
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -305,21 +293,21 @@ private fun PeopleSummaryCard(state: PeopleUiState) {
                     PeopleSummaryStatChip(
                         label = stringResource(R.string.person_list_total_owed_to_user),
                         cents = owedCents,
-                        color = FinanceTheme.colors.heroIncome,
+                        color = FinanceTheme.colors.income,
                         modifier = Modifier.weight(1f),
                     )
                     PeopleSummaryStatChip(
                         label = stringResource(R.string.person_list_total_you_owe),
                         cents = youOweCents,
-                        color = FinanceTheme.colors.heroDebt,
+                        color = FinanceTheme.colors.debt,
                         modifier = Modifier.weight(1f),
                     )
                 }
 
                 if (nonZeroPeople.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    HorizontalDivider(color = FinanceTheme.colors.heroOnSurface.copy(alpha = 0.12f))
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
+                    HorizontalDivider(color = FinanceTheme.colors.cardBorder)
+                    Spacer(modifier = Modifier.height(4.dp))
 
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         nonZeroPeople.take(PEOPLE_SUMMARY_MAX_ROWS).forEach { person ->
@@ -330,7 +318,7 @@ private fun PeopleSummaryCard(state: PeopleUiState) {
                             Text(
                                 text = stringResource(R.string.person_summary_more, remaining),
                                 style = MaterialTheme.typography.labelSmall,
-                                color = FinanceTheme.colors.heroOnSurfaceMuted,
+                                color = FinanceTheme.colors.mutedText,
                             )
                         }
                     }
@@ -378,14 +366,14 @@ private fun PeopleSummaryPersonRow(person: PersonSummary) {
         Text(
             text = person.name,
             style = MaterialTheme.typography.bodyMedium,
-            color = FinanceTheme.colors.heroOnSurface,
+            color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
         MoneyText(
             cents = person.balanceCents,
-            color = if (person.balanceCents > 0L) FinanceTheme.colors.heroIncome else FinanceTheme.colors.heroDebt,
+            color = if (person.balanceCents > 0L) FinanceTheme.colors.income else FinanceTheme.colors.debt,
             style = MaterialTheme.typography.titleSmall,
             signed = true,
         )
