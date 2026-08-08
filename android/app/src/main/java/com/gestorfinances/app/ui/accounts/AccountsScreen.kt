@@ -5,13 +5,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -20,7 +18,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -78,7 +75,11 @@ import com.gestorfinances.app.ui.common.NeutralPill
 import com.gestorfinances.app.ui.common.MovementListItem
 import com.gestorfinances.app.ui.common.PageHeaderRow
 import com.gestorfinances.app.ui.common.RootPageHeader
+import com.gestorfinances.app.ui.common.DistributionSegment
 import com.gestorfinances.app.ui.common.PrimaryButton
+import com.gestorfinances.app.ui.common.BannerKind
+import com.gestorfinances.app.ui.common.InlineBanner
+import com.gestorfinances.app.ui.common.SegmentedDistributionBar
 import com.gestorfinances.app.ui.common.scrollToWhen
 import com.gestorfinances.app.ui.common.accountIcon
 import com.gestorfinances.app.ui.common.accountTypeIcon
@@ -182,16 +183,12 @@ private fun AccountsContent(
         }
 
         item {
-            PatrimoniHeroCard(accounts = state.accounts)
+            AccountSummaryCard(accounts = state.accounts)
         }
 
         state.errorMessage?.let { message ->
             item {
-                Text(
-                    text = message,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+                InlineBanner(kind = BannerKind.Error, text = message)
             }
         }
 
@@ -208,11 +205,9 @@ private fun AccountsContent(
                 EmptyAccountsCard(onAdd = onAdd)
             }
         } else {
-            val totalCents = state.accounts.sumOf { it.currentBalanceCents }
             items(items = state.accounts, key = { it.id }) { account ->
                 AccountCard(
                     account = account,
-                    totalCents = totalCents,
                     onEdit = { onEdit(account) },
                     onArchive = { onArchive(account) },
                     onFlow = { onFlow(account) },
@@ -232,18 +227,14 @@ private fun AccountsContent(
 }
 
 @Composable
-private fun PatrimoniHeroCard(accounts: List<AccountSummary>) {
+private fun AccountSummaryCard(accounts: List<AccountSummary>) {
     val netWorthCents = accounts.sumOf { it.currentBalanceCents }
-    val countText = if (accounts.size == 1) "1 compte" else "${accounts.size} comptes"
+    val countText = pluralStringResource(R.plurals.account_list_count, accounts.size, accounts.size)
     val positiveAccounts = accounts.filter { it.currentBalanceCents > 0 }
+    val positiveBalanceCents = positiveAccounts.sumOf { it.currentBalanceCents }
 
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        color = FinanceTheme.colors.heroSurface,
-        contentColor = FinanceTheme.colors.heroOnSurface,
-    ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+    FinanceCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
             // Header row: label + account count badge
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -252,58 +243,35 @@ private fun PatrimoniHeroCard(accounts: List<AccountSummary>) {
             ) {
                 Text(
                     text = stringResource(R.string.account_list_net_worth),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = FinanceTheme.colors.heroOnSurfaceMuted,
+                    style = MaterialTheme.typography.titleSmall,
                 )
-                if (accounts.isNotEmpty()) {
-                    Surface(
-                        shape = MaterialTheme.shapes.extraSmall,
-                        color = FinanceTheme.colors.heroOnSurface.copy(alpha = 0.12f),
-                        contentColor = FinanceTheme.colors.heroOnSurfaceMuted,
-                    ) {
-                        Text(
-                            text = countText,
-                            style = MaterialTheme.typography.labelSmall,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                        )
-                    }
-                }
+                NeutralPill(text = countText)
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Main net worth figure
             MoneyText(
                 cents = netWorthCents,
-                color = FinanceTheme.colors.heroOnSurface,
-                style = MaterialTheme.typography.displayMedium,
+                color = if (netWorthCents < 0) FinanceTheme.colors.debt else MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.headlineLarge,
+                signed = netWorthCents < 0,
             )
 
-            // Per-account breakdown (only when there are accounts)
-            if (accounts.isNotEmpty()) {
+            if (positiveAccounts.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Colored stacked bar — one segment per positive-balance account
-                if (positiveAccounts.isNotEmpty()) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(6.dp)
-                            .clip(RoundedCornerShape(3.dp)),
-                    ) {
-                        positiveAccounts.forEach { account ->
-                            Box(
-                                modifier = Modifier
-                                    .weight(account.currentBalanceCents.toFloat())
-                                    .fillMaxHeight()
-                                    .background(categoryColor(account.color)),
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(14.dp))
-                }
+                SegmentedDistributionBar(
+                    segments = positiveAccounts.map { account ->
+                        DistributionSegment(
+                            color = categoryColor(account.color),
+                            fraction = account.currentBalanceCents.toFloat() /
+                                positiveBalanceCents.toFloat(),
+                        )
+                    },
+                    contentDescription = stringResource(R.string.account_distribution_accessibility),
+                    modifier = Modifier.padding(end = 16.dp),
+                )
+                Spacer(modifier = Modifier.height(14.dp))
 
-                HorizontalDivider(color = FinanceTheme.colors.heroOnSurface.copy(alpha = 0.12f))
+                HorizontalDivider(color = FinanceTheme.colors.cardBorder)
                 Spacer(modifier = Modifier.height(10.dp))
 
                 // Per-account rows
@@ -342,7 +310,7 @@ private fun AccountBreakdownRow(account: AccountSummary, netWorthCents: Long) {
         Text(
             text = account.name,
             style = MaterialTheme.typography.bodyMedium,
-            color = FinanceTheme.colors.heroOnSurface,
+            color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -351,13 +319,13 @@ private fun AccountBreakdownRow(account: AccountSummary, netWorthCents: Long) {
             Text(
                 text = percentText,
                 style = MaterialTheme.typography.labelSmall,
-                color = FinanceTheme.colors.heroOnSurfaceMuted,
+                color = FinanceTheme.colors.mutedText,
             )
         }
         MoneyText(
             cents = account.currentBalanceCents,
             color = if (account.currentBalanceCents < 0) FinanceTheme.colors.debt
-                    else FinanceTheme.colors.heroOnSurface,
+                    else MaterialTheme.colorScheme.onSurface,
             style = MaterialTheme.typography.titleSmall,
             signed = account.currentBalanceCents < 0,
         )
@@ -391,7 +359,6 @@ private fun EmptyAccountsCard(onAdd: () -> Unit) {
 @Composable
 private fun AccountCard(
     account: AccountSummary,
-    totalCents: Long,
     onEdit: () -> Unit,
     onArchive: () -> Unit,
     onFlow: () -> Unit,
@@ -402,11 +369,6 @@ private fun AccountCard(
         account.currentBalanceCents < it
     } ?: false
     val accountColor = categoryColor(account.color)
-    val fraction = if (totalCents > 0 && account.currentBalanceCents > 0) {
-        (account.currentBalanceCents.toFloat() / totalCents.toFloat()).coerceIn(0f, 1f)
-    } else 0f
-    val percentText = "${(fraction * 100).toInt()}%"
-
     FinanceCard(
         modifier = Modifier
             .fillMaxWidth()
@@ -460,36 +422,6 @@ private fun AccountCard(
                 )
             }
 
-            // Progress bar + percentage (only when total is meaningful)
-            if (totalCents > 0) {
-                Spacer(modifier = Modifier.height(10.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(4.dp)
-                            .background(
-                                MaterialTheme.colorScheme.surfaceVariant,
-                                RoundedCornerShape(2.dp),
-                            ),
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxHeight()
-                                .fillMaxWidth(fraction)
-                                .background(accountColor, RoundedCornerShape(2.dp)),
-                        )
-                    }
-                    Text(
-                        text = percentText,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = FinanceTheme.colors.mutedText,
-                    )
-                }
-            }
         }
     }
 }

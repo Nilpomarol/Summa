@@ -26,7 +26,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.Check
@@ -71,6 +70,7 @@ import com.gestorfinances.app.data.repository.CategoryNature
 import com.gestorfinances.app.data.repository.CategoryRecord
 import com.gestorfinances.app.data.repository.MovementSummary
 import com.gestorfinances.app.ui.common.BudgetProgressBar
+import com.gestorfinances.app.ui.common.BannerKind
 import com.gestorfinances.app.ui.common.CategoryIconPalette
 import com.gestorfinances.app.ui.common.CollapsibleSectionHeader
 import com.gestorfinances.app.ui.common.ColorPickerRow
@@ -85,7 +85,7 @@ import com.gestorfinances.app.ui.common.MovementListItem
 import com.gestorfinances.app.ui.common.PageHeaderRow
 import com.gestorfinances.app.ui.common.RootPageHeader
 import com.gestorfinances.app.ui.common.PrimaryButton
-import com.gestorfinances.app.ui.common.TopBarIconButton
+import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.categoryIcon
 import com.gestorfinances.app.ui.common.color
 import com.gestorfinances.app.ui.common.formatEuroCents
@@ -210,33 +210,27 @@ private fun CategoriesContent(
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        // Title + add button
         item {
-            RootPageHeader(
-                title = stringResource(R.string.category_list_title),
-                trailing = {
-                TopBarIconButton(
-                    icon = Icons.Outlined.Add,
-                    contentDescription = stringResource(R.string.category_list_add),
-                    onClick = onAdd,
-                )
-                },
-            )
+            RootPageHeader(title = stringResource(R.string.category_list_title))
         }
 
         state.errorMessage?.let { message ->
             item {
-                Text(
-                    text = message,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+                InlineBanner(kind = BannerKind.Error, text = message)
             }
         }
 
         item { UncategorizedCard() }
+
+        item {
+            PrimaryButton(
+                text = stringResource(R.string.category_list_add),
+                onClick = onAdd,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
 
         if (state.isLoading) {
             item {
@@ -325,6 +319,7 @@ private fun CategoriesContent(
                 }
             }
         }
+
     }
 }
 
