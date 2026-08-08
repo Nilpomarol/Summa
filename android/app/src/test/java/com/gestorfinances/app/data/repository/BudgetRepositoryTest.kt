@@ -33,6 +33,32 @@ class BudgetRepositoryTest {
     }
 
     @Test
+    fun overallBudgetCanExcludeTripAndExtraordinaryExpenses() {
+        freshStore().use { store ->
+            seedAccountAndCategory(store)
+            seedTrip(store, "mallorca")
+            store.budgets.create(
+                BudgetDraft(
+                    id = "overall",
+                    categoryId = null,
+                    limitAmountCents = 20_000,
+                    alertThresholdPercent = null,
+                    scope = BudgetScope.OVERALL_MONTH,
+                    period = BudgetPeriod.MONTHLY,
+                    includeTripExpenses = false,
+                    includeExtraordinaryExpenses = false,
+                ),
+                createdAt = NOW,
+            )
+            store.movements.create(expense("regular", 1_000), createdAt = NOW)
+            store.movements.create(expense("trip", 2_000).copy(tripId = "mallorca"), createdAt = NOW)
+            store.movements.create(expense("extra", 3_000).copy(isOneTime = true), createdAt = NOW)
+
+            assertEquals(1_000L, store.budgets.evaluateAll(FROM, TO).single().actualCents)
+        }
+    }
+
+    @Test
     fun yearlyCategoryBudgetEvaluatesFromTheStartOfTheReferenceYear() {
         freshStore().use { store ->
             seedAccountAndCategory(store)

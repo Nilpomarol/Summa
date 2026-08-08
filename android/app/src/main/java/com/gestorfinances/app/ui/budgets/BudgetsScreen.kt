@@ -1,6 +1,7 @@
 package com.gestorfinances.app.ui.budgets
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +23,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.ChevronLeft
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -37,6 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.R
@@ -57,11 +60,14 @@ import com.gestorfinances.app.ui.common.color
 import com.gestorfinances.app.ui.common.label
 import com.gestorfinances.app.ui.common.progressFraction
 import com.gestorfinances.app.ui.common.DestructiveTextButton
+import com.gestorfinances.app.ui.common.DestructiveButton
 import com.gestorfinances.app.ui.common.FinanceCard
+import com.gestorfinances.app.ui.common.FinanceSwitch
 import com.gestorfinances.app.ui.common.IconChip
 import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.NeutralPill
 import com.gestorfinances.app.ui.common.PrimaryButton
+import com.gestorfinances.app.ui.common.SecondaryButton
 import com.gestorfinances.app.ui.common.SectionHeader
 import com.gestorfinances.app.ui.common.SegmentedControl
 import com.gestorfinances.app.ui.common.categoryIcon
@@ -676,17 +682,32 @@ private fun BudgetFormSheet(
                 .fillMaxWidth()
                 .scrollToWhen(thresholdError),
         )
+        if (form.scope != BudgetScope.TRIP) {
+            BudgetInclusionSection(
+                includeTripExpenses = form.includeTripExpenses,
+                includeExtraordinaryExpenses = form.includeExtraordinaryExpenses,
+                onTripExpensesChanged = { onFormChange(form.copy(includeTripExpenses = it)) },
+                onExtraordinaryExpensesChanged = {
+                    onFormChange(form.copy(includeExtraordinaryExpenses = it))
+                },
+            )
+        }
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            OutlinedButton(
+            if (form.id != null) {
+                DestructiveButton(
+                    text = stringResource(R.string.common_archive),
+                    onClick = onDelete,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            SecondaryButton(
+                text = stringResource(R.string.common_cancel),
                 onClick = onDismiss,
                 modifier = Modifier.weight(1f),
-                shape = MaterialTheme.shapes.small,
-            ) {
-                Text(text = stringResource(R.string.common_cancel))
-            }
+            )
             PrimaryButton(
                 text = stringResource(
                     if (form.id == null) R.string.budget_save_new else R.string.budget_save_changes,
@@ -695,17 +716,73 @@ private fun BudgetFormSheet(
                 modifier = Modifier.weight(1f),
             )
         }
-        if (form.id != null) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-            ) {
-                DestructiveTextButton(onClick = onDelete) {
-                    Text(text = stringResource(R.string.common_archive))
-                }
-            }
         }
+    }
+}
+
+@Composable
+private fun BudgetInclusionSection(
+    includeTripExpenses: Boolean,
+    includeExtraordinaryExpenses: Boolean,
+    onTripExpensesChanged: (Boolean) -> Unit,
+    onExtraordinaryExpensesChanged: (Boolean) -> Unit,
+) {
+    FinanceCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.budget_inclusion_title),
+                style = MaterialTheme.typography.titleSmall,
+            )
+            Text(
+                text = stringResource(R.string.budget_inclusion_supporting),
+                color = FinanceTheme.colors.mutedText,
+                style = MaterialTheme.typography.bodySmall,
+            )
         }
+        HorizontalDivider(color = FinanceTheme.colors.cardBorder)
+        BudgetInclusionToggle(
+            label = stringResource(R.string.budget_include_trip_expenses),
+            checked = includeTripExpenses,
+            onCheckedChange = onTripExpensesChanged,
+        )
+        HorizontalDivider(
+            modifier = Modifier.padding(start = 16.dp),
+            color = FinanceTheme.colors.cardBorder,
+        )
+        BudgetInclusionToggle(
+            label = stringResource(R.string.budget_include_extraordinary_expenses),
+            checked = includeExtraordinaryExpenses,
+            onCheckedChange = onExtraordinaryExpensesChanged,
+        )
+    }
+}
+
+@Composable
+private fun BudgetInclusionToggle(
+    label: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .toggleable(
+                value = checked,
+                role = Role.Switch,
+                onValueChange = onCheckedChange,
+            )
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        FinanceSwitch(checked = checked, onCheckedChange = null)
     }
 }
 

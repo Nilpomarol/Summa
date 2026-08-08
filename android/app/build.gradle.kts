@@ -54,6 +54,7 @@ val sharedAnalysisQueryFiles = listOf(
 
 val syncSharedSqlForSqlDelight by tasks.registering {
     val sharedRoot = rootProject.layout.projectDirectory.dir("../shared")
+    val sharedSchema = sharedRoot.file("schema/schema.sql")
     val sharedBaselineMigration = sharedRoot.file("migrations/001_initial.sql")
     val sharedMigration002 = sharedRoot.file("migrations/002_add_splits_tag_id.sql")
     val sharedMigration003 = sharedRoot.file("migrations/003_add_tag_category_and_type.sql")
@@ -64,6 +65,7 @@ val syncSharedSqlForSqlDelight by tasks.registering {
     val sharedAnalysisQueries = sharedAnalysisQueryFiles.map { sharedRoot.file("queries/${it.first}") }
 
     inputs.file(sharedBaselineMigration)
+    inputs.file(sharedSchema)
     inputs.file(sharedMigration002)
     inputs.file(sharedMigration003)
     inputs.file(sharedMigration004)
@@ -84,18 +86,21 @@ val syncSharedSqlForSqlDelight by tasks.registering {
         sharedOutputFile.parentFile.mkdirs()
         sharedOutputFile.writeText(
             buildString {
-                appendLine("-- Generated from ../../shared/migrations/001_initial.sql and shared view queries.")
+                appendLine("-- Generated from ../../shared/schema/schema.sql and shared view queries.")
                 appendLine("-- Do not edit directly; edit the shared SQL files instead.")
                 appendLine("-- Connection PRAGMAs are applied by DatabaseDriverFactory.")
                 appendLine()
                 append(
-                    sharedBaselineMigration.asFile
+                    sharedSchema.asFile
                         .readLines()
                         .filterNot { it.trimStart().startsWith("PRAGMA ") }
                         .joinToString(separator = "\n"),
                 )
                 appendLine()
                 appendLine()
+                appendLine("INSERT INTO meta (key, value) VALUES")
+                appendLine("    ('schema_version', '8'),")
+                appendLine("    ('snapshot_version', '0');")
                 sharedViews.forEach { queryFile ->
                     appendLine()
                     appendLine("-- ${queryFile.asFile.name}")

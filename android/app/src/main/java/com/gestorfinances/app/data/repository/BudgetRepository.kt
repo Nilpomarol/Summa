@@ -43,6 +43,8 @@ data class BudgetDraft(
     val tripId: String? = null,
     val scope: BudgetScope = if (tripId != null) BudgetScope.TRIP else BudgetScope.CATEGORY,
     val period: BudgetPeriod = if (scope == BudgetScope.TRIP) BudgetPeriod.ONE_OFF else BudgetPeriod.MONTHLY,
+    val includeTripExpenses: Boolean = true,
+    val includeExtraordinaryExpenses: Boolean = true,
 )
 
 data class BudgetSummary(
@@ -57,6 +59,8 @@ data class BudgetSummary(
     val period: BudgetPeriod,
     val limitAmountCents: Long,
     val alertThresholdPercent: Long?,
+    val includeTripExpenses: Boolean = true,
+    val includeExtraordinaryExpenses: Boolean = true,
 ) {
     val displayName: String?
         get() = when (scope) {
@@ -124,11 +128,15 @@ class BudgetRepository(
         categoryId: String,
         fromDate: String,
         toDate: String,
+        includeTripExpenses: Boolean = true,
+        includeExtraordinaryExpenses: Boolean = true,
     ): Long =
         queries.budgetActualForCategory(
             category_id = categoryId,
             from_date = fromDate,
             to_date = toDate,
+            include_trip_expenses = includeTripExpenses.toDbLong(),
+            include_extraordinary_expenses = includeExtraordinaryExpenses.toDbLong(),
         ).executeAsOne()
 
     /** Sum of actual expenses, with refunds netted, for a trip over [fromDate, toDate]. */
@@ -146,8 +154,15 @@ class BudgetRepository(
     fun actualOverall(
         fromDate: String,
         toDate: String,
+        includeTripExpenses: Boolean = true,
+        includeExtraordinaryExpenses: Boolean = true,
     ): Long =
-        queries.budgetActualOverall(from_date = fromDate, to_date = toDate).executeAsOne()
+        queries.budgetActualOverall(
+            from_date = fromDate,
+            to_date = toDate,
+            include_trip_expenses = includeTripExpenses.toDbLong(),
+            include_extraordinary_expenses = includeExtraordinaryExpenses.toDbLong(),
+        ).executeAsOne()
 
     fun evaluateAll(
         fromDate: String,
@@ -226,6 +241,8 @@ class BudgetRepository(
             period = draft.period.dbValue,
             limit_amount_cents = draft.limitAmountCents,
             alert_threshold_percent = draft.alertThresholdPercent,
+            include_trip_expenses = draft.includeTripExpenses.toDbLong(),
+            include_extraordinary_expenses = draft.includeExtraordinaryExpenses.toDbLong(),
             created_at = createdAt,
             updated_at = createdAt,
         )
@@ -245,6 +262,8 @@ class BudgetRepository(
             period = draft.period.dbValue,
             limit_amount_cents = draft.limitAmountCents,
             alert_threshold_percent = draft.alertThresholdPercent,
+            include_trip_expenses = draft.includeTripExpenses.toDbLong(),
+            include_extraordinary_expenses = draft.includeExtraordinaryExpenses.toDbLong(),
             updated_at = updatedAt,
         )
     }
@@ -281,11 +300,15 @@ private fun BudgetRepository.actualForBudget(
         BudgetScope.OVERALL_MONTH -> actualOverall(
             fromDate = fromDate,
             toDate = toDate,
+            includeTripExpenses = budget.includeTripExpenses,
+            includeExtraordinaryExpenses = budget.includeExtraordinaryExpenses,
         )
         BudgetScope.CATEGORY -> actualForCategory(
             categoryId = requireNotNull(budget.categoryId),
             fromDate = budget.periodStart(fromDate),
             toDate = toDate,
+            includeTripExpenses = budget.includeTripExpenses,
+            includeExtraordinaryExpenses = budget.includeExtraordinaryExpenses,
         )
         // TRIP-scope budgets are one-off: they track a trip's whole life, not the
         // caller-supplied period. Evaluate them fully unbounded, matching how
@@ -312,6 +335,8 @@ private fun BudgetRepository.variableHistory(
                 category_id = requireNotNull(budget.categoryId),
                 from_date = fromDate,
                 to_date = toDate,
+                include_trip_expenses = budget.includeTripExpenses.toDbLong(),
+                include_extraordinary_expenses = budget.includeExtraordinaryExpenses.toDbLong(),
                 mapper = { actualCents, occurrenceCount ->
                     BudgetVariableHistory(actualCents, occurrenceCount)
                 },
@@ -319,6 +344,8 @@ private fun BudgetRepository.variableHistory(
             BudgetScope.OVERALL_MONTH -> queries.budgetVariableActualOverall(
                 from_date = fromDate,
                 to_date = toDate,
+                include_trip_expenses = budget.includeTripExpenses.toDbLong(),
+                include_extraordinary_expenses = budget.includeExtraordinaryExpenses.toDbLong(),
                 mapper = { actualCents, occurrenceCount ->
                     BudgetVariableHistory(actualCents, occurrenceCount)
                 },
@@ -365,6 +392,8 @@ private const val BUDGET_HISTORY_MONTHS = 3
 private const val TRIP_BUDGET_RANGE_START = "0001-01-01"
 private const val TRIP_BUDGET_RANGE_END = "9999-12-31"
 
+private fun Boolean.toDbLong(): Long = if (this) 1L else 0L
+
 private fun BudgetSummary.periodStart(referenceStart: String): String =
     when (period) {
         BudgetPeriod.YEARLY -> "${referenceStart.take(4)}-01-01"
@@ -408,6 +437,8 @@ private fun mapBudgetSummary(
     period: String,
     limitAmountCents: Long,
     alertThresholdPercent: Long?,
+    includeTripExpenses: Long,
+    includeExtraordinaryExpenses: Long,
     createdAt: String,
     updatedAt: String,
     archivedAt: String?,
@@ -424,4 +455,6 @@ private fun mapBudgetSummary(
         period = BudgetPeriod.fromDb(period),
         limitAmountCents = limitAmountCents,
         alertThresholdPercent = alertThresholdPercent,
+        includeTripExpenses = includeTripExpenses != 0L,
+        includeExtraordinaryExpenses = includeExtraordinaryExpenses != 0L,
     )

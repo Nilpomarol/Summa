@@ -1,10 +1,8 @@
 package com.gestorfinances.app.ui.movements
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,11 +22,9 @@ import androidx.compose.material.icons.automirrored.outlined.Notes
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Storefront
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -57,6 +53,7 @@ import com.gestorfinances.app.data.repository.supports
 import com.gestorfinances.app.ui.common.BannerKind
 import com.gestorfinances.app.ui.common.ChipFlowSection
 import com.gestorfinances.app.ui.common.DestructiveTextButton
+import com.gestorfinances.app.ui.common.DestructiveButton
 import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.FinanceFilterChip
 import com.gestorfinances.app.ui.common.InlineBanner
@@ -64,6 +61,7 @@ import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.AppModalBottomSheet
 import com.gestorfinances.app.ui.common.PageHeaderRow
 import com.gestorfinances.app.ui.common.PrimaryButton
+import com.gestorfinances.app.ui.common.SecondaryButton
 import com.gestorfinances.app.ui.common.accountIcon
 import com.gestorfinances.app.ui.common.categoryIcon
 import com.gestorfinances.app.ui.common.chipVisual
@@ -452,23 +450,15 @@ private fun MovementDetailContent(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(
+                DestructiveButton(
                     onClick = onArchive,
-                    contentPadding = PaddingValues(horizontal = 12.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error,
-                    ),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
-                ) {
-                    Text(text = stringResource(R.string.movement_detail_action_archive))
-                }
+                    text = stringResource(R.string.movement_detail_action_archive),
+                )
                 if (movement.type == MovementType.EXPENSE) {
-                    OutlinedButton(
+                    SecondaryButton(
+                        text = stringResource(R.string.movement_detail_refund_action_compact),
                         onClick = onAddRefund,
-                        contentPadding = PaddingValues(horizontal = 12.dp),
-                    ) {
-                        Text(text = stringResource(R.string.movement_detail_refund_action_compact))
-                    }
+                    )
                 }
             }
             if (canEdit) {
@@ -629,13 +619,11 @@ private fun RefundFormContent(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            OutlinedButton(
+            SecondaryButton(
+                text = stringResource(R.string.common_cancel),
                 onClick = onBack,
                 modifier = Modifier.weight(1f),
-                shape = MaterialTheme.shapes.small,
-            ) {
-                Text(text = stringResource(R.string.common_cancel))
-            }
+            )
             PrimaryButton(
                 text = stringResource(R.string.refund_save),
                 onClick = onSave,
