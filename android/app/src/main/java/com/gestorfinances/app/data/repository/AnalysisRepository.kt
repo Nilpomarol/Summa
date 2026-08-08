@@ -1,6 +1,7 @@
 package com.gestorfinances.app.data.repository
 
 import com.gestorfinances.app.data.db.AnalysisQueries
+import java.time.YearMonth
 
 data class AnalysisPeriodTotals(
     val netWorthCents: Long,
@@ -119,6 +120,11 @@ enum class AnalysisBreakdownKind {
 class AnalysisRepository(
     private val queries: AnalysisQueries,
 ) {
+    fun activityMonths(): List<YearMonth> =
+        queries.activityMonths().executeAsList().mapNotNull { row ->
+            row.month?.let { runCatching { YearMonth.parse(it) }.getOrNull() }
+        }
+
     fun periodTotals(
         fromDate: String,
         toDate: String,

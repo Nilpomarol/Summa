@@ -77,7 +77,28 @@ class AnalysisViewModel(
         viewModelScope.launch {
             val accounts = withContext(ioDispatcher) { accountRepository.listActive() }
             val categories = withContext(ioDispatcher) { categoryRepository.listActive() }
-            update { it.copy(accountOptions = accounts, categoryOptions = categories) }
+            val months = withContext(ioDispatcher) { analysisRepository.activityMonths() }
+            update { state ->
+                val selectedMonth = state.month.takeIf { it in months } ?: months.firstOrNull() ?: state.month
+                val availableYears = months.map { it.year }.distinct().sorted()
+                val selectedYear = state.year.takeIf { it in availableYears } ?: selectedMonth.year
+                val comparisonMonth = state.comparisonMonth.takeIf { it in months }
+                    ?: months.firstOrNull { it.isBefore(selectedMonth) }
+                    ?: selectedMonth
+                val comparisonYear = state.comparisonYear.takeIf { it in availableYears }
+                    ?: availableYears.lastOrNull { it < selectedYear }
+                    ?: selectedYear
+                state.copy(
+                    month = selectedMonth,
+                    year = selectedYear,
+                    comparisonMonth = comparisonMonth,
+                    comparisonYear = comparisonYear,
+                    accountOptions = accounts,
+                    categoryOptions = categories,
+                    activityMonths = months,
+                )
+            }
+            refresh()
         }
     }
 
@@ -183,11 +204,13 @@ class AnalysisViewModel(
     fun onNextPeriodClicked() = shiftPeriod(delta = 1)
 
     fun onMonthSelected(month: YearMonth) {
+        if (month !in _state.value.activityMonths) return
         _state.value = _state.value.copy(month = month)
         refresh()
     }
 
     fun onYearSelected(year: Int) {
+        if (year !in _state.value.activityMonths.map { it.year }) return
         _state.value = _state.value.copy(year = year)
         refresh()
     }
@@ -203,11 +226,13 @@ class AnalysisViewModel(
     }
 
     fun onComparisonMonthSelected(month: YearMonth) {
+        if (month !in _state.value.activityMonths) return
         _state.value = _state.value.copy(comparisonMonth = month, comparisonTouched = true)
         refresh()
     }
 
     fun onComparisonYearSelected(year: Int) {
+        if (year !in _state.value.activityMonths.map { it.year }) return
         _state.value = _state.value.copy(comparisonYear = year, comparisonTouched = true)
         refresh()
     }
@@ -264,8 +289,9 @@ class AnalysisViewModel(
     private fun shiftPeriod(delta: Long) {
         val state = _state.value
         _state.value = when (state.scope) {
-            AnalysisScope.MONTH -> state.copy(month = state.month.plusMonths(delta))
-            AnalysisScope.YEAR -> state.copy(year = state.year + delta.toInt())
+            AnalysisScope.MONTH -> state.activityMonths.shiftFrom(state.month, delta)?.let { state.copy(month = it) } ?: state
+            AnalysisScope.YEAR -> state.activityMonths.map { it.year }.distinct().sorted()
+                .shiftFrom(state.year, delta)?.let { state.copy(year = it) } ?: state
             AnalysisScope.ALL_TIME, AnalysisScope.CUSTOM -> state
         }
         refresh()
@@ -703,6 +729,7 @@ data class AnalysisUiState(
     val filterCategoryName: String? = null,
     val accountOptions: List<AccountSummary> = emptyList(),
     val categoryOptions: List<CategoryRecord> = emptyList(),
+    val activityMonths: List<YearMonth> = emptyList(),
     val resum: ResumData? = null,
     val categories: CategoriesData? = null,
     val comparativa: ComparativaData? = null,
@@ -733,6 +760,13 @@ internal fun AnalysisTab.isLoaded(state: AnalysisUiState): Boolean =
         AnalysisTab.HISTORIC -> state.historic != null
         AnalysisTab.FIX_VARIABLE -> state.fixVariable != null
     }
+
+private fun <T : Comparable<T>> List<T>.shiftFrom(value: T, delta: Long): T? {
+    val sorted = distinct().sorted()
+    val index = sorted.indexOf(value)
+    if (index == -1) return null
+    return sorted.getOrNull(index + delta.toInt())
+}
 
 private fun AnalysisUiState.clearedTabs(): AnalysisUiState =
     copy(resum = null, categories = null, comparativa = null, historic = null, fixVariable = null)

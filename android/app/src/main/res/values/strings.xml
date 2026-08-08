@@ -697,7 +697,7 @@
     <string name="budget_status_warn">A prop del límit</string>
     <string name="budget_status_over">Superat</string>
     <string name="budget_forecast_amount">Estimació a final de mes: %1$s</string>
-    <string name="budget_forecast_final_amount">Estimació                : %1$s</string>
+    <string name="budget_forecast_final_amount">Estimació                s: %1$s</string>
     <string name="budget_forecast_on_track">Dins de la previsió</string>
     <string name="budget_forecast_may_exceed">Pot superar-se en %1$s</string>
     <string name="budget_forecast_over">Superat en %1$s</string>

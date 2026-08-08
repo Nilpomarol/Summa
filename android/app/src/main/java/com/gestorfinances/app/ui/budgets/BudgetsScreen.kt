@@ -18,14 +18,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.outlined.ChevronLeft
-import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -54,7 +50,6 @@ import com.gestorfinances.app.ui.common.BannerKind
 import com.gestorfinances.app.ui.common.BudgetProgressBar
 import com.gestorfinances.app.ui.common.BudgetForecastCard
 import com.gestorfinances.app.ui.common.CollapsibleSectionHeader
-import com.gestorfinances.app.ui.common.CompactEditIconButton
 import com.gestorfinances.app.ui.common.AppModalBottomSheet
 import com.gestorfinances.app.ui.common.color
 import com.gestorfinances.app.ui.common.label
@@ -73,7 +68,7 @@ import com.gestorfinances.app.ui.common.RootPageHeader
 import com.gestorfinances.app.ui.common.SegmentedControl
 import com.gestorfinances.app.ui.common.categoryIcon
 import com.gestorfinances.app.ui.common.formatEuroCents
-import com.gestorfinances.app.ui.common.formatMonthYear
+import com.gestorfinances.app.ui.common.MonthDropdownPicker
 import com.gestorfinances.app.ui.common.inPickerHierarchyOrder
 import com.gestorfinances.app.ui.common.scrollToWhen
 import com.gestorfinances.app.ui.movements.FormSelect
@@ -102,8 +97,7 @@ fun BudgetsScreen(
         onBack = onBack,
         onAdd = { viewModel.onAddClicked() },
         onAddOverall = viewModel::onAddOverallClicked,
-        onPreviousMonth = viewModel::onPreviousMonthClicked,
-        onNextMonth = viewModel::onNextMonthClicked,
+        onMonthSelected = viewModel::onMonthSelected,
         onEdit = viewModel::onEditClicked,
         onDelete = viewModel::onDeleteClicked,
         onOpenCategoryMovements = onOpenCategoryMovements,
@@ -148,8 +142,7 @@ private fun BudgetsContent(
     onBack: () -> Unit,
     onAdd: () -> Unit,
     onAddOverall: () -> Unit,
-    onPreviousMonth: () -> Unit,
-    onNextMonth: () -> Unit,
+    onMonthSelected: (YearMonth) -> Unit,
     onEdit: (BudgetSummary) -> Unit,
     onDelete: (BudgetSummary) -> Unit,
     onOpenCategoryMovements: (CategoryRecord) -> Unit,
@@ -203,14 +196,13 @@ private fun BudgetsContent(
                     titleContent = { modifier ->
                         BudgetMonthSelector(
                             month = state.selectedMonth,
-                            canMoveForward = state.selectedMonth < YearMonth.now(),
-                            onPrevious = onPreviousMonth,
-                            onNext = onNextMonth,
+                            activityMonths = state.activityMonths,
+                            onMonthSelected = onMonthSelected,
                             modifier = modifier,
                         )
                     },
                     showBreakdown = state.selectedMonth == YearMonth.now(),
-                    onEdit = { onEdit(overall.evaluation.budget) },
+                    onClick = { onEdit(overall.evaluation.budget) },
                 )
             }
         } else if (overallEvaluation != null) {
@@ -220,9 +212,8 @@ private fun BudgetsContent(
                     headerContent = { modifier ->
                         BudgetMonthSelector(
                             month = state.selectedMonth,
-                            canMoveForward = state.selectedMonth < YearMonth.now(),
-                            onPrevious = onPreviousMonth,
-                            onNext = onNextMonth,
+                            activityMonths = state.activityMonths,
+                            onMonthSelected = onMonthSelected,
                             modifier = modifier,
                         )
                     },
@@ -234,9 +225,8 @@ private fun BudgetsContent(
                 OverallBudgetEmptyCard(
                     onAddOverall = onAddOverall,
                     month = state.selectedMonth,
-                    canMoveForward = state.selectedMonth < YearMonth.now(),
-                    onPrevious = onPreviousMonth,
-                    onNext = onNextMonth,
+                    activityMonths = state.activityMonths,
+                    onMonthSelected = onMonthSelected,
                 )
             }
         }
@@ -324,24 +314,16 @@ private fun TripSummary.startsAfter(monthEnd: String): Boolean =
 @Composable
 private fun BudgetMonthSelector(
     month: YearMonth,
-    canMoveForward: Boolean,
-    onPrevious: () -> Unit,
-    onNext: () -> Unit,
+    activityMonths: List<YearMonth>,
+    onMonthSelected: (YearMonth) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
+    MonthDropdownPicker(
+        selectedMonth = month,
+        months = activityMonths.ifEmpty { listOf(month) },
+        onMonthSelected = onMonthSelected,
         modifier = modifier,
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        IconButton(onClick = onPrevious) {
-            Icon(Icons.Outlined.ChevronLeft, stringResource(R.string.budget_previous_month))
-        }
-        Text(text = formatMonthYear(month), style = MaterialTheme.typography.titleSmall)
-        IconButton(onClick = onNext, enabled = canMoveForward) {
-            Icon(Icons.Outlined.ChevronRight, stringResource(R.string.budget_next_month))
-        }
-    }
+    )
 }
 
 @Composable
@@ -354,7 +336,11 @@ private fun BudgetRow(
     onCategoryClick: (() -> Unit)? = null,
 ) {
     val color = evaluation.status.color()
-    FinanceCard(modifier = Modifier.fillMaxWidth()) {
+    FinanceCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onEdit),
+    ) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -390,7 +376,6 @@ private fun BudgetRow(
                     )
                 }
                 NeutralPill(text = evaluation.status.label())
-                CompactEditIconButton(onClick = onEdit)
             }
             projection?.let {
                 Text(
@@ -432,9 +417,8 @@ private fun BudgetRow(
 private fun OverallBudgetEmptyCard(
     onAddOverall: () -> Unit,
     month: YearMonth,
-    canMoveForward: Boolean,
-    onPrevious: () -> Unit,
-    onNext: () -> Unit,
+    activityMonths: List<YearMonth>,
+    onMonthSelected: (YearMonth) -> Unit,
 ) {
     FinanceCard(modifier = Modifier.fillMaxWidth()) {
         Column(
@@ -443,10 +427,8 @@ private fun OverallBudgetEmptyCard(
         ) {
             BudgetMonthSelector(
                 month = month,
-                canMoveForward = canMoveForward,
-                onPrevious = onPrevious,
-                onNext = onNext,
-                modifier = Modifier.fillMaxWidth(),
+                activityMonths = activityMonths,
+                onMonthSelected = onMonthSelected,
             )
             Text(
                 text = stringResource(R.string.budget_overall_empty_title),
@@ -464,6 +446,7 @@ private fun OverallBudgetEmptyCard(
         }
     }
 }
+
 
 @Composable
 private fun EmptyBudgetsCard(onAdd: () -> Unit) {
