@@ -65,7 +65,6 @@ import com.gestorfinances.app.ui.movements.FormSelect
 import com.gestorfinances.app.ui.movements.SelectOption
 import com.gestorfinances.app.ui.common.PageHeaderRow
 import com.gestorfinances.app.ui.common.PrimaryButton
-import com.gestorfinances.app.ui.common.SectionHeader
 import com.gestorfinances.app.ui.common.categoryIcon
 import com.gestorfinances.app.ui.common.scrollToWhen
 import com.gestorfinances.app.ui.theme.FinanceTheme
@@ -193,13 +192,11 @@ private fun TagsContent(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            SectionHeader(
+            PageHeaderRow(
+                onBack = onBack,
                 title = stringResource(R.string.tag_list_title),
                 trailing = {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(onClick = onBack) {
-                            Text(text = stringResource(R.string.common_back))
-                        }
                         TextButton(onClick = onAdd) {
                             Text(text = stringResource(R.string.tag_list_add))
                         }

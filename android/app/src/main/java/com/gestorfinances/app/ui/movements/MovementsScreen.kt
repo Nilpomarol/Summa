@@ -78,7 +78,7 @@ import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.MovementListItem
 import com.gestorfinances.app.ui.common.PrimaryButton
 import com.gestorfinances.app.ui.common.label
-import com.gestorfinances.app.ui.common.SectionHeader
+import com.gestorfinances.app.ui.common.RootPageHeader
 import com.gestorfinances.app.ui.common.TopBarIconButton
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -285,7 +285,7 @@ private fun MovementsContent(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            SectionHeader(
+            RootPageHeader(
                 title = stringResource(R.string.movement_list_title),
                 trailing = {
                     if (state.accounts.isNotEmpty()) {

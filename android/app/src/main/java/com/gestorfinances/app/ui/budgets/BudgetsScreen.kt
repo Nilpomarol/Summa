@@ -69,6 +69,7 @@ import com.gestorfinances.app.ui.common.NeutralPill
 import com.gestorfinances.app.ui.common.PrimaryButton
 import com.gestorfinances.app.ui.common.SecondaryButton
 import com.gestorfinances.app.ui.common.SectionHeader
+import com.gestorfinances.app.ui.common.RootPageHeader
 import com.gestorfinances.app.ui.common.SegmentedControl
 import com.gestorfinances.app.ui.common.categoryIcon
 import com.gestorfinances.app.ui.common.formatEuroCents
@@ -160,19 +161,7 @@ private fun BudgetsContent(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = stringResource(R.string.common_back),
-                    )
-                }
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = stringResource(R.string.budget_list_title),
-                    style = MaterialTheme.typography.headlineMedium,
-                )
-            }
+            RootPageHeader(title = stringResource(R.string.budget_list_title))
         }
 
         state.errorMessage?.let { message ->

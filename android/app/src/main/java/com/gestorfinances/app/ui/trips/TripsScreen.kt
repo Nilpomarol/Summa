@@ -89,6 +89,7 @@ import com.gestorfinances.app.ui.common.MovementListItem
 import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.NeutralPill
 import com.gestorfinances.app.ui.common.PageHeaderRow
+import com.gestorfinances.app.ui.common.RootPageHeader
 import com.gestorfinances.app.ui.common.PrimaryButton
 import com.gestorfinances.app.ui.common.SegmentedControl
 import com.gestorfinances.app.ui.common.BannerKind
@@ -187,19 +188,14 @@ private fun TripsContent(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(R.string.trip_list_title),
-                    style = MaterialTheme.typography.headlineMedium,
-                    modifier = Modifier.weight(1f),
-                )
+            RootPageHeader(
+                title = stringResource(R.string.trip_list_title),
+                trailing = {
                 TextButton(onClick = { onManageTags(null) }) {
                     Text(text = stringResource(R.string.trip_action_manage_tags))
                 }
-            }
+                },
+            )
         }
 
         item {

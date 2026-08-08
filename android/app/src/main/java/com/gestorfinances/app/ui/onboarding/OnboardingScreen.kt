@@ -22,6 +22,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.R
+import com.gestorfinances.app.ui.common.RootPageHeader
 import com.gestorfinances.app.data.repository.AccountType
 import com.gestorfinances.app.data.repository.CategoryKind
 import com.gestorfinances.app.data.repository.CategoryNature
@@ -78,10 +79,7 @@ private fun OnboardingContent(
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text(
-            text = stringResource(R.string.onboarding_title),
-            style = MaterialTheme.typography.headlineMedium,
-        )
+        RootPageHeader(title = stringResource(R.string.onboarding_title))
         Text(
             text = stringResource(R.string.onboarding_body),
             color = FinanceTheme.colors.mutedText,
