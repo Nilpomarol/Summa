@@ -431,7 +431,7 @@ class RecurringViewModelTest {
     // path (toTemplateDraft(existing), above), the manual Edit-template form has no split_config
     // field of its own -- onSaveClicked used to always pass splitConfig = null, and
     // TemplateRepository.update is a full-row overwrite, so saving an unrelated edit (e.g. the
-    // name) through "Gestió > Recurrents > Edit" silently wiped a shared template's split forever.
+    // name) through "Més > Recurrents > Edit" silently wiped a shared template's split forever.
     @Test
     fun editingATemplateWithAnExistingSplitConfigPreservesIt() = runTest(dispatcher) {
         freshStore().use { store ->
