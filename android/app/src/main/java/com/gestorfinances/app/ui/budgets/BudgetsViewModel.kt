@@ -178,6 +178,8 @@ class BudgetsViewModel(
             tripId = if (form.scope == BudgetScope.TRIP) requireNotNull(form.tripId) else null,
             scope = form.scope,
             period = form.period,
+            includeTripExpenses = form.includeTripExpenses,
+            includeExtraordinaryExpenses = form.includeExtraordinaryExpenses,
         )
         val now = Instant.now().toString()
         viewModelScope.launch {
@@ -327,6 +329,8 @@ data class BudgetFormState(
     val tripId: String? = null,
     val limit: String = "",
     val threshold: String = "80",
+    val includeTripExpenses: Boolean = true,
+    val includeExtraordinaryExpenses: Boolean = true,
     val errorRes: Int? = null,
     val errorField: BudgetFormField? = null,
     val errorMessage: String? = null,
@@ -348,6 +352,8 @@ private fun BudgetSummary.toFormState(): BudgetFormState =
         tripId = tripId,
         limit = formatEuroInput(limitAmountCents),
         threshold = alertThresholdPercent?.toString().orEmpty(),
+        includeTripExpenses = includeTripExpenses,
+        includeExtraordinaryExpenses = includeExtraordinaryExpenses,
     )
 
 private fun newBudgetForm(

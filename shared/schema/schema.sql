@@ -142,6 +142,8 @@ CREATE TABLE budgets (
     period                  TEXT    NOT NULL CHECK (period IN ('monthly','yearly','one_off')),
     limit_amount_cents      INTEGER NOT NULL CHECK (limit_amount_cents > 0),
     alert_threshold_percent INTEGER CHECK (alert_threshold_percent BETWEEN 1 AND 100),
+    include_trip_expenses          INTEGER NOT NULL DEFAULT 1 CHECK (include_trip_expenses IN (0,1)),
+    include_extraordinary_expenses INTEGER NOT NULL DEFAULT 1 CHECK (include_extraordinary_expenses IN (0,1)),
     created_at              TEXT    NOT NULL,
     updated_at              TEXT    NOT NULL,
     archived_at             TEXT,

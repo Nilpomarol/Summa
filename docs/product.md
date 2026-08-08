@@ -63,7 +63,7 @@ Templates describe future occurrences; confirmed occurrences become real movemen
 
 ### Budgets
 
-Budgets evaluate actual expense over their active period: an optional overall monthly target, category monthly/yearly limits, and independent trip limits. Current-month views pair actuals with an explainable forecast. Crossing a threshold changes status and warning presentation; it does not prevent spending.
+Budgets evaluate actual expense over their active period: an optional overall monthly target, category monthly/yearly limits, and independent trip limits. Overall and category budgets can independently exclude trip spending and expenses marked extraordinary; trip budgets always evaluate their own spend. Current-month views pair actuals with an explainable forecast using the same inclusion rules. Crossing a threshold changes status and warning presentation; it does not prevent spending.
 
 ### Trips and tags
 
