@@ -141,7 +141,6 @@ CREATE TABLE budgets (
     trip_id                 TEXT    REFERENCES trips(id),
     period                  TEXT    NOT NULL CHECK (period IN ('monthly','yearly','one_off')),
     limit_amount_cents      INTEGER NOT NULL CHECK (limit_amount_cents > 0),
-    start_date              TEXT,
     alert_threshold_percent INTEGER CHECK (alert_threshold_percent BETWEEN 1 AND 100),
     created_at              TEXT    NOT NULL,
     updated_at              TEXT    NOT NULL,

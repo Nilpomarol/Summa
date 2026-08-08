@@ -11,7 +11,6 @@ SELECT
     budgets.period,
     budgets.limit_amount_cents,
     budgets.alert_threshold_percent,
-    budgets.start_date,
     budgets.created_at,
     budgets.updated_at,
     budgets.archived_at
@@ -46,7 +45,6 @@ SELECT
     budgets.period,
     budgets.limit_amount_cents,
     budgets.alert_threshold_percent,
-    budgets.start_date,
     budgets.created_at,
     budgets.updated_at,
     budgets.archived_at
@@ -123,7 +121,6 @@ INSERT INTO budgets(
     trip_id,
     period,
     limit_amount_cents,
-    start_date,
     alert_threshold_percent,
     created_at,
     updated_at
@@ -134,7 +131,6 @@ INSERT INTO budgets(
     :trip_id,
     :period,
     :limit_amount_cents,
-    :start_date,
     :alert_threshold_percent,
     :created_at,
     :updated_at
@@ -148,7 +144,6 @@ SET
     trip_id = :trip_id,
     period = :period,
     limit_amount_cents = :limit_amount_cents,
-    start_date = :start_date,
     alert_threshold_percent = :alert_threshold_percent,
     updated_at = :updated_at
 WHERE id = :id

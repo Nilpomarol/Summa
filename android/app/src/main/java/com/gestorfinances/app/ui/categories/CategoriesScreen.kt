@@ -38,6 +38,7 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
 import com.gestorfinances.app.ui.common.AppDropdownMenu
 import com.gestorfinances.app.ui.common.AppDropdownMenuItem
+import com.gestorfinances.app.ui.common.AppModalBottomSheet
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.MaterialTheme
@@ -108,7 +109,6 @@ fun CategoriesScreen(
     }
 
     val form = state.form
-    val flowDetail = state.flowDetail
     when {
         form != null -> {
             BackHandler(onBack = viewModel::onFormDismissed)
@@ -118,23 +118,6 @@ fun CategoriesScreen(
                 onFormChange = viewModel::onFormChanged,
                 onBack = viewModel::onFormDismissed,
                 onSave = viewModel::onSaveClicked,
-                modifier = modifier,
-            )
-        }
-        flowDetail != null -> {
-            BackHandler(onBack = viewModel::onFlowDismissed)
-            CategoryFlowScreen(
-                detail = flowDetail,
-                onBack = viewModel::onFlowDismissed,
-                onViewAnalysis = {
-                    viewModel.onFlowDismissed()
-                    onViewAnalysis(flowDetail.category.id, flowDetail.category.name)
-                },
-                onDefineBudget = {
-                    viewModel.onFlowDismissed()
-                    onDefineBudget(flowDetail.category.id)
-                },
-                onMovementDetail = onMovementDetail,
                 modifier = modifier,
             )
         }
@@ -148,6 +131,22 @@ fun CategoriesScreen(
                 onFlow = viewModel::onFlowClicked,
             )
         }
+    }
+
+    state.flowDetail?.let { detail ->
+        CategoryFlowSheet(
+            detail = detail,
+            onDismiss = viewModel::onFlowDismissed,
+            onViewAnalysis = {
+                viewModel.onFlowDismissed()
+                onViewAnalysis(detail.category.id, detail.category.name)
+            },
+            onDefineBudget = {
+                viewModel.onFlowDismissed()
+                onDefineBudget(detail.category.id)
+            },
+            onMovementDetail = onMovementDetail,
+        )
     }
 
     state.archiveCandidate?.let {
@@ -1020,19 +1019,38 @@ private fun ParentOptionRow(
 // ---------------------------------------------------------------------------
 
 @Composable
-private fun CategoryFlowScreen(
+fun CategoryFlowSheet(
+    detail: CategoryFlowDetailState,
+    onDismiss: () -> Unit,
+    onViewAnalysis: () -> Unit,
+    onDefineBudget: () -> Unit,
+    onMovementDetail: (MovementSummary) -> Unit,
+) {
+    AppModalBottomSheet(onDismissRequest = onDismiss, maxHeightFraction = 0.88f) {
+        CategoryFlowContent(
+            detail = detail,
+            onBack = onDismiss,
+            onViewAnalysis = onViewAnalysis,
+            onDefineBudget = onDefineBudget,
+            onMovementDetail = onMovementDetail,
+        )
+    }
+}
+
+@Composable
+private fun CategoryFlowContent(
     detail: CategoryFlowDetailState,
     onBack: () -> Unit,
     onViewAnalysis: () -> Unit,
     onDefineBudget: () -> Unit,
     onMovementDetail: (MovementSummary) -> Unit,
-    modifier: Modifier = Modifier,
 ) {
     val category = detail.category
 
     Column(
-        modifier = modifier
-            .fillMaxSize()
+        modifier = Modifier
+            .fillMaxWidth()
+            .fillMaxHeight()
             .navigationBarsPadding()
             .padding(bottom = 8.dp),
     ) {

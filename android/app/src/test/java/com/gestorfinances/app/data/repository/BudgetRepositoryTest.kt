@@ -19,7 +19,6 @@ class BudgetRepositoryTest {
                     categoryId = null,
                     limitAmountCents = 20_000,
                     alertThresholdPercent = null,
-                    startDate = null,
                     scope = BudgetScope.OVERALL_MONTH,
                     period = BudgetPeriod.MONTHLY,
                 ),
@@ -43,7 +42,6 @@ class BudgetRepositoryTest {
                     categoryId = "food",
                     limitAmountCents = 100_000,
                     alertThresholdPercent = null,
-                    startDate = null,
                     period = BudgetPeriod.YEARLY,
                 ),
                 createdAt = NOW,
@@ -52,6 +50,32 @@ class BudgetRepositoryTest {
             store.movements.create(expense("mar", 3_000), createdAt = NOW)
 
             assertEquals(5_000L, store.budgets.evaluateAll(FROM, TO).single().actualCents)
+        }
+    }
+
+    @Test
+    fun categoryCanHaveMonthlyAndYearlyRulesButNotDuplicatesOfEither() {
+        freshStore().use { store ->
+            seedAccountAndCategory(store)
+            store.budgets.create(
+                BudgetDraft("food-monthly", "food", 30_000, null),
+                createdAt = NOW,
+            )
+            store.budgets.create(
+                BudgetDraft(
+                    id = "food-yearly",
+                    categoryId = "food",
+                    limitAmountCents = 300_000,
+                    alertThresholdPercent = null,
+                    period = BudgetPeriod.YEARLY,
+                ),
+                createdAt = NOW,
+            )
+
+            assertThrows(DuplicateActiveBudgetException::class.java) {
+                store.budgets.create(BudgetDraft("food-monthly-2", "food", 40_000, null), createdAt = NOW)
+            }
+            assertEquals(2, store.budgets.listActive().size)
         }
     }
 
@@ -65,7 +89,6 @@ class BudgetRepositoryTest {
                     categoryId = null,
                     limitAmountCents = 20_000,
                     alertThresholdPercent = null,
-                    startDate = null,
                     scope = BudgetScope.OVERALL_MONTH,
                     period = BudgetPeriod.MONTHLY,
                 ),
@@ -97,7 +120,6 @@ class BudgetRepositoryTest {
                     categoryId = "food",
                     limitAmountCents = 10_000,
                     alertThresholdPercent = 80,
-                    startDate = null,
                 ),
                 createdAt = NOW,
             )
@@ -199,17 +221,17 @@ class BudgetRepositoryTest {
     }
 
     @Test
-    fun evaluationHonorsBudgetStartDateInsidePeriod() {
+    fun recurringMonthlyBudgetCountsTheWholeMonth() {
         freshStore().use { store ->
             seedAccountAndCategory(store)
             store.budgets.create(
-                BudgetDraft("b1", "food", 10_000, null, "2026-03-10"),
+                BudgetDraft("b1", "food", 10_000, null),
                 createdAt = NOW,
             )
             store.movements.create(expense("before", 4_000).copy(date = "2026-03-05"), createdAt = NOW)
             store.movements.create(expense("after", 3_000).copy(date = "2026-03-10"), createdAt = NOW)
 
-            assertEquals(3_000L, store.budgets.evaluateAll(FROM, TO).single().actualCents)
+            assertEquals(7_000L, store.budgets.evaluateAll(FROM, TO).single().actualCents)
         }
     }
 
@@ -224,7 +246,6 @@ class BudgetRepositoryTest {
                     categoryId = null,
                     limitAmountCents = 10_000,
                     alertThresholdPercent = null,
-                    startDate = "2026-03-01",
                     tripId = "mallorca",
                     scope = BudgetScope.TRIP,
                     period = BudgetPeriod.ONE_OFF,

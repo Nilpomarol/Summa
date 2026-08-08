@@ -15,7 +15,7 @@ Android consumes the SQL through SQLDelight. Windows uses Microsoft.Data.Sqlite 
 
 ## Schema snapshot
 
-The current schema version is `6`. Principal tables are:
+The current schema version is `7`. Principal tables are:
 
 | Area | Tables |
 |---|---|

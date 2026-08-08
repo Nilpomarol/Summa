@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -62,6 +63,7 @@ import com.gestorfinances.app.ui.budgets.BudgetsScreen
 import com.gestorfinances.app.ui.budgets.BudgetsViewModel
 import com.gestorfinances.app.ui.categories.CategoriesScreen
 import com.gestorfinances.app.ui.categories.CategoriesViewModel
+import com.gestorfinances.app.ui.categories.CategoryFlowSheet
 import com.gestorfinances.app.ui.common.BannerKind
 import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.dashboard.DashboardScreen
@@ -405,6 +407,7 @@ private fun LedgerShell(
     val movementsState by movementsViewModel.state.collectAsState()
     val accountsState by accountsViewModel.state.collectAsState()
     val recurringState by recurringViewModel.state.collectAsState()
+    val categoriesState by categoriesViewModel.state.collectAsState()
     val createAccountMessage = stringResource(R.string.movement_no_accounts_title)
     // `remember` (not `rememberSaveable`) is deliberate: a real process restart is exactly what
     // "once per app cold start" means, so losing this on process death re-shows the sheet, which
@@ -728,6 +731,9 @@ private fun LedgerShell(
                 ManagementDestination.BUDGETS -> BudgetsScreen(
                     viewModel = budgetsViewModel,
                     onBack = { nav = nav.back() },
+                    onOpenCategoryMovements = { category ->
+                        categoriesViewModel.onFlowClicked(category)
+                    },
                     contextTripId = null,
                     modifier = Modifier
                         .fillMaxSize()
@@ -743,6 +749,29 @@ private fun LedgerShell(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),
+                )
+            }
+        }
+
+        if (
+            pageOverlay == null &&
+            nav.section == TopLevelSection.MANAGEMENT &&
+            nav.managementDestination == ManagementDestination.BUDGETS
+        ) {
+            categoriesState.flowDetail?.let { detail ->
+                CategoryFlowSheet(
+                    detail = detail,
+                    onDismiss = categoriesViewModel::onFlowDismissed,
+                    onViewAnalysis = {
+                        categoriesViewModel.onFlowDismissed()
+                        analysisViewModel.setCategoryFilter(detail.category.id, detail.category.name)
+                        showTopLevel(TopLevelSection.ANALYSIS)
+                    },
+                    onDefineBudget = {
+                        categoriesViewModel.onFlowDismissed()
+                        budgetsViewModel.onAddClicked(detail.category.id)
+                    },
+                    onMovementDetail = openMovementDetail,
                 )
             }
         }
@@ -887,11 +916,14 @@ private fun BottomBarItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val itemShape = MaterialTheme.shapes.small
     Surface(
         onClick = onClick,
         modifier = modifier
             .height(64.dp)
-            .padding(horizontal = 2.dp),
+            .padding(horizontal = 2.dp)
+            .clip(itemShape),
+        shape = itemShape,
         color = FinanceTheme.colors.bottomBarSurface,
         contentColor = if (selected) {
             FinanceTheme.colors.bottomBarActive

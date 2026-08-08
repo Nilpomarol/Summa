@@ -33,9 +33,11 @@ fun BudgetForecastCard(
     title: String,
     projection: BudgetProjection,
     modifier: Modifier = Modifier,
+    titleContent: (@Composable (Modifier) -> Unit)? = null,
     showBreakdown: Boolean = false,
     exceptions: List<BudgetProjection> = emptyList(),
     onClick: (() -> Unit)? = null,
+    onEdit: (() -> Unit)? = null,
 ) {
     val statusColor = projection.status.color()
     FinanceCard(
@@ -50,21 +52,28 @@ fun BudgetForecastCard(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(0.dp),
             ) {
-                Text(
-                    text = title,
-                    modifier = Modifier.weight(1f),
-                    color = FinanceTheme.colors.mutedText,
-                    style = MaterialTheme.typography.labelMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                if (titleContent != null) {
+                    titleContent(Modifier.weight(1f))
+                } else {
+                    Text(
+                        text = title,
+                        modifier = Modifier.weight(1f),
+                        color = FinanceTheme.colors.mutedText,
+                        style = MaterialTheme.typography.labelMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 BudgetForecastStatusPill(
                     status = projection.status,
                     remainingCents = projection.remainingForecastCents,
                     color = statusColor,
                 )
+                if (onEdit != null) {
+                    CompactEditIconButton(onClick = onEdit)
+                }
             }
             Text(
                 text = stringResource(

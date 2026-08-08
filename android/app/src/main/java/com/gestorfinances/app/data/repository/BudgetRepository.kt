@@ -40,7 +40,6 @@ data class BudgetDraft(
     val categoryId: String?,
     val limitAmountCents: Long,
     val alertThresholdPercent: Long?,
-    val startDate: String?,
     val tripId: String? = null,
     val scope: BudgetScope = if (tripId != null) BudgetScope.TRIP else BudgetScope.CATEGORY,
     val period: BudgetPeriod = if (scope == BudgetScope.TRIP) BudgetPeriod.ONE_OFF else BudgetPeriod.MONTHLY,
@@ -58,7 +57,6 @@ data class BudgetSummary(
     val period: BudgetPeriod,
     val limitAmountCents: Long,
     val alertThresholdPercent: Long?,
-    val startDate: String?,
 ) {
     val displayName: String?
         get() = when (scope) {
@@ -86,6 +84,9 @@ data class BudgetEvaluation(
 }
 
 enum class BudgetForecastStatus { ON_TRACK, MAY_EXCEED, OVER }
+
+/** Raised when a reusable budget rule would duplicate an active rule with the same scope. */
+class DuplicateActiveBudgetException : IllegalArgumentException()
 
 /** Current-month budget truth plus the two inputs that make its estimate explainable. */
 data class BudgetProjection(
@@ -216,6 +217,7 @@ class BudgetRepository(
         createdAt: String,
     ) {
         validate(draft)
+        requireNoDuplicate(draft)
         queries.insertBudget(
             id = draft.id,
             scope = draft.scope.dbValue,
@@ -223,7 +225,6 @@ class BudgetRepository(
             trip_id = draft.tripId,
             period = draft.period.dbValue,
             limit_amount_cents = draft.limitAmountCents,
-            start_date = draft.startDate,
             alert_threshold_percent = draft.alertThresholdPercent,
             created_at = createdAt,
             updated_at = createdAt,
@@ -235,6 +236,7 @@ class BudgetRepository(
         updatedAt: String,
     ) {
         validate(draft)
+        requireNoDuplicate(draft)
         queries.updateBudget(
             id = draft.id,
             scope = draft.scope.dbValue,
@@ -242,7 +244,6 @@ class BudgetRepository(
             trip_id = draft.tripId,
             period = draft.period.dbValue,
             limit_amount_cents = draft.limitAmountCents,
-            start_date = draft.startDate,
             alert_threshold_percent = draft.alertThresholdPercent,
             updated_at = updatedAt,
         )
@@ -254,6 +255,21 @@ class BudgetRepository(
     ) {
         queries.archiveBudget(id = id, archived_at = archivedAt, updated_at = archivedAt)
     }
+
+    private fun requireNoDuplicate(draft: BudgetDraft) {
+        val duplicate = listActive().any { existing ->
+            existing.id != draft.id &&
+                when (draft.scope) {
+                    BudgetScope.OVERALL_MONTH -> existing.scope == BudgetScope.OVERALL_MONTH
+                    BudgetScope.CATEGORY ->
+                        existing.scope == BudgetScope.CATEGORY &&
+                            existing.categoryId == draft.categoryId &&
+                            existing.period == draft.period
+                    BudgetScope.TRIP -> existing.scope == BudgetScope.TRIP && existing.tripId == draft.tripId
+                }
+        }
+        if (duplicate) throw DuplicateActiveBudgetException()
+    }
 }
 
 private fun BudgetRepository.actualForBudget(
@@ -263,12 +279,12 @@ private fun BudgetRepository.actualForBudget(
 ): Long =
     when (budget.scope) {
         BudgetScope.OVERALL_MONTH -> actualOverall(
-            fromDate = budget.effectiveFromDate(fromDate),
+            fromDate = fromDate,
             toDate = toDate,
         )
         BudgetScope.CATEGORY -> actualForCategory(
             categoryId = requireNotNull(budget.categoryId),
-            fromDate = budget.effectiveFromDate(budget.periodStart(fromDate)),
+            fromDate = budget.periodStart(fromDate),
             toDate = toDate,
         )
         // TRIP-scope budgets are one-off: they track a trip's whole life, not the
@@ -349,11 +365,6 @@ private const val BUDGET_HISTORY_MONTHS = 3
 private const val TRIP_BUDGET_RANGE_START = "0001-01-01"
 private const val TRIP_BUDGET_RANGE_END = "9999-12-31"
 
-private fun BudgetSummary.effectiveFromDate(periodStart: String): String {
-    val start = startDate ?: return periodStart
-    return if (start > periodStart) start else periodStart
-}
-
 private fun BudgetSummary.periodStart(referenceStart: String): String =
     when (period) {
         BudgetPeriod.YEARLY -> "${referenceStart.take(4)}-01-01"
@@ -397,7 +408,6 @@ private fun mapBudgetSummary(
     period: String,
     limitAmountCents: Long,
     alertThresholdPercent: Long?,
-    startDate: String?,
     createdAt: String,
     updatedAt: String,
     archivedAt: String?,
@@ -414,5 +424,4 @@ private fun mapBudgetSummary(
         period = BudgetPeriod.fromDb(period),
         limitAmountCents = limitAmountCents,
         alertThresholdPercent = alertThresholdPercent,
-        startDate = startDate,
     )
