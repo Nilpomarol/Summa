@@ -1,6 +1,5 @@
 package com.gestorfinances.app.ui.budgets
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -8,7 +7,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -21,12 +19,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.ChevronLeft
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material3.AlertDialog
-import com.gestorfinances.app.ui.common.AppDropdownMenu
-import com.gestorfinances.app.ui.common.AppDropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -38,9 +33,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -57,7 +50,9 @@ import com.gestorfinances.app.data.repository.TripSummary
 import com.gestorfinances.app.ui.common.BannerKind
 import com.gestorfinances.app.ui.common.BudgetProgressBar
 import com.gestorfinances.app.ui.common.BudgetForecastCard
-import com.gestorfinances.app.ui.common.PageHeaderRow
+import com.gestorfinances.app.ui.common.CollapsibleSectionHeader
+import com.gestorfinances.app.ui.common.CompactEditIconButton
+import com.gestorfinances.app.ui.common.AppModalBottomSheet
 import com.gestorfinances.app.ui.common.color
 import com.gestorfinances.app.ui.common.label
 import com.gestorfinances.app.ui.common.progressFraction
@@ -74,7 +69,6 @@ import com.gestorfinances.app.ui.common.formatEuroCents
 import com.gestorfinances.app.ui.common.formatMonthYear
 import com.gestorfinances.app.ui.common.inPickerHierarchyOrder
 import com.gestorfinances.app.ui.common.scrollToWhen
-import com.gestorfinances.app.ui.movements.FormDatePicker
 import com.gestorfinances.app.ui.movements.FormSelect
 import com.gestorfinances.app.ui.movements.SelectOption
 import com.gestorfinances.app.ui.theme.FinanceTheme
@@ -85,6 +79,7 @@ import java.time.YearMonth
 fun BudgetsScreen(
     viewModel: BudgetsViewModel,
     onBack: () -> Unit,
+    onOpenCategoryMovements: (CategoryRecord) -> Unit = {},
     contextTripId: String? = null,
     modifier: Modifier = Modifier,
 ) {
@@ -94,29 +89,29 @@ fun BudgetsScreen(
         viewModel.onScreenShown(contextTripId)
     }
 
-    val form = state.form
-    if (form != null) {
-        BackHandler(onBack = viewModel::onFormDismissed)
-        BudgetFormScreen(
+    BudgetsContent(
+        state = state,
+        modifier = modifier,
+        onBack = onBack,
+        onAdd = { viewModel.onAddClicked() },
+        onAddOverall = viewModel::onAddOverallClicked,
+        onPreviousMonth = viewModel::onPreviousMonthClicked,
+        onNextMonth = viewModel::onNextMonthClicked,
+        onEdit = viewModel::onEditClicked,
+        onDelete = viewModel::onDeleteClicked,
+        onOpenCategoryMovements = onOpenCategoryMovements,
+        onTogglePastTrips = viewModel::onPastTripsExpandedToggled,
+    )
+
+    state.form?.let { form ->
+        BudgetFormSheet(
             form = form,
             categories = state.categories,
             trips = state.trips,
             onFormChange = viewModel::onFormChanged,
-            onBack = viewModel::onFormDismissed,
+            onDismiss = viewModel::onFormDismissed,
             onSave = viewModel::onSaveClicked,
-            modifier = modifier,
-        )
-    } else {
-        BudgetsContent(
-            state = state,
-            modifier = modifier,
-            onBack = onBack,
-            onAdd = { viewModel.onAddClicked() },
-            onAddOverall = viewModel::onAddOverallClicked,
-            onPreviousMonth = viewModel::onPreviousMonthClicked,
-            onNextMonth = viewModel::onNextMonthClicked,
-            onEdit = viewModel::onEditClicked,
-            onDelete = viewModel::onDeleteClicked,
+            onDelete = viewModel::onDeleteEditingBudgetClicked,
         )
     }
 
@@ -150,6 +145,8 @@ private fun BudgetsContent(
     onNextMonth: () -> Unit,
     onEdit: (BudgetSummary) -> Unit,
     onDelete: (BudgetSummary) -> Unit,
+    onOpenCategoryMovements: (CategoryRecord) -> Unit,
+    onTogglePastTrips: () -> Unit,
 ) {
     LazyColumn(
         modifier = modifier.fillMaxWidth(),
@@ -172,15 +169,6 @@ private fun BudgetsContent(
             }
         }
 
-        item {
-            BudgetMonthSelector(
-                month = state.selectedMonth,
-                canMoveForward = state.selectedMonth < YearMonth.now(),
-                onPrevious = onPreviousMonth,
-                onNext = onNextMonth,
-            )
-        }
-
         state.errorMessage?.let { message ->
             item {
                 InlineBanner(kind = BannerKind.Error, text = message)
@@ -201,26 +189,67 @@ private fun BudgetsContent(
             it.budget.scope == BudgetScope.CATEGORY && it.budget.period == BudgetPeriod.YEARLY
         }
         val tripBudgets = state.evaluations.filter { it.budget.scope == BudgetScope.TRIP }
+        val tripsById = state.trips.associateBy { it.id }
+        val monthStart = state.selectedMonth.atDay(1).toString()
+        val monthEnd = state.selectedMonth.atEndOfMonth().toString()
+        val currentTripBudgets = tripBudgets.filter { evaluation ->
+            tripsById[evaluation.budget.tripId]?.isDuring(monthStart, monthEnd) == true
+        }
+        val futureTripBudgets = tripBudgets.filter { evaluation ->
+            tripsById[evaluation.budget.tripId]?.startsAfter(monthEnd) == true
+        }
+        val pastTripBudgets = tripBudgets - currentTripBudgets.toSet() - futureTripBudgets.toSet()
 
         if (overall != null) {
             item {
                 BudgetForecastCard(
                     title = stringResource(R.string.budget_current_month),
                     projection = overall,
+                    titleContent = { modifier ->
+                        BudgetMonthSelector(
+                            month = state.selectedMonth,
+                            canMoveForward = state.selectedMonth < YearMonth.now(),
+                            onPrevious = onPreviousMonth,
+                            onNext = onNextMonth,
+                            modifier = modifier,
+                        )
+                    },
                     showBreakdown = state.selectedMonth == YearMonth.now(),
+                    onEdit = { onEdit(overall.evaluation.budget) },
                 )
             }
         } else if (overallEvaluation != null) {
             item {
                 BudgetRow(
                     evaluation = overallEvaluation,
-                    title = stringResource(R.string.budget_current_month),
+                    headerContent = { modifier ->
+                        BudgetMonthSelector(
+                            month = state.selectedMonth,
+                            canMoveForward = state.selectedMonth < YearMonth.now(),
+                            onPrevious = onPreviousMonth,
+                            onNext = onNextMonth,
+                            modifier = modifier,
+                        )
+                    },
                     onEdit = { onEdit(overallEvaluation.budget) },
-                    onDelete = { onDelete(overallEvaluation.budget) },
                 )
             }
         } else if (!state.isLoading && state.selectedMonth == YearMonth.now()) {
-            item { OverallBudgetEmptyCard(onAddOverall = onAddOverall) }
+            item {
+                OverallBudgetEmptyCard(
+                    onAddOverall = onAddOverall,
+                    month = state.selectedMonth,
+                    canMoveForward = state.selectedMonth < YearMonth.now(),
+                    onPrevious = onPreviousMonth,
+                    onNext = onNextMonth,
+                )
+            }
+        }
+
+        if (currentTripBudgets.isNotEmpty()) {
+            items(items = currentTripBudgets, key = { it.budget.id }) { evaluation ->
+                BudgetRow(evaluation = evaluation, onEdit = { onEdit(evaluation.budget) })
+            }
         }
 
         if (monthlyCategories.isNotEmpty()) {
@@ -230,7 +259,9 @@ private fun BudgetsContent(
                     evaluation = evaluation,
                     projection = projectionsById[evaluation.budget.id],
                     onEdit = { onEdit(evaluation.budget) },
-                    onDelete = { onDelete(evaluation.budget) },
+                    onCategoryClick = evaluation.budget.categoryId?.let { id ->
+                        { state.categories.firstOrNull { it.id == id }?.let(onOpenCategoryMovements) }
+                    },
                 )
             }
         }
@@ -241,19 +272,36 @@ private fun BudgetsContent(
                 BudgetRow(
                     evaluation = evaluation,
                     onEdit = { onEdit(evaluation.budget) },
-                    onDelete = { onDelete(evaluation.budget) },
+                    onCategoryClick = evaluation.budget.categoryId?.let { id ->
+                        { state.categories.firstOrNull { it.id == id }?.let(onOpenCategoryMovements) }
+                    },
                 )
             }
         }
 
-        if (state.contextTripId != null && tripBudgets.isNotEmpty()) {
-            item { SectionHeader(title = stringResource(R.string.budget_trip_section)) }
-            items(items = tripBudgets, key = { it.budget.id }) { evaluation ->
+        if (futureTripBudgets.isNotEmpty()) {
+            item { SectionHeader(title = stringResource(R.string.budget_trip_future)) }
+            items(items = futureTripBudgets, key = { it.budget.id }) { evaluation ->
                 BudgetRow(
                     evaluation = evaluation,
                     onEdit = { onEdit(evaluation.budget) },
-                    onDelete = { onDelete(evaluation.budget) },
                 )
+            }
+        }
+
+        if (pastTripBudgets.isNotEmpty()) {
+            item {
+                CollapsibleSectionHeader(
+                    title = stringResource(R.string.budget_trip_past),
+                    count = pastTripBudgets.size,
+                    expanded = state.pastTripsExpanded,
+                    onToggle = onTogglePastTrips,
+                )
+            }
+            if (state.pastTripsExpanded) {
+                items(items = pastTripBudgets, key = { it.budget.id }) { evaluation ->
+                    BudgetRow(evaluation = evaluation, onEdit = { onEdit(evaluation.budget) })
+                }
             }
         }
 
@@ -268,8 +316,15 @@ private fun BudgetsContent(
                 modifier = Modifier.fillMaxWidth(),
             )
         }
+
     }
 }
+
+private fun TripSummary.isDuring(monthStart: String, monthEnd: String): Boolean =
+    startDate != null && startDate <= monthEnd && (endDate == null || endDate >= monthStart)
+
+private fun TripSummary.startsAfter(monthEnd: String): Boolean =
+    startDate != null && startDate > monthEnd
 
 @Composable
 private fun BudgetMonthSelector(
@@ -277,9 +332,10 @@ private fun BudgetMonthSelector(
     canMoveForward: Boolean,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
@@ -298,24 +354,48 @@ private fun BudgetRow(
     evaluation: BudgetEvaluation,
     projection: BudgetProjection? = null,
     title: String? = null,
+    headerContent: (@Composable (Modifier) -> Unit)? = null,
     onEdit: () -> Unit,
-    onDelete: () -> Unit,
+    onCategoryClick: (() -> Unit)? = null,
 ) {
     val color = evaluation.status.color()
-    FinanceCard(modifier = Modifier.fillMaxWidth().clickable(onClick = onEdit)) {
+    FinanceCard(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = title ?: evaluation.budget.displayName
-                        ?: stringResource(R.string.common_no_category),
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.titleSmall,
-                )
+                if (evaluation.budget.scope == BudgetScope.CATEGORY) {
+                    Box(
+                        modifier = if (onCategoryClick != null) {
+                            Modifier.clickable(onClick = onCategoryClick)
+                        } else {
+                            Modifier
+                        },
+                    ) {
+                        IconChip(
+                            icon = categoryIcon(evaluation.budget.categoryIcon),
+                            contentDescription = null,
+                            color = categoryColor(evaluation.budget.categoryColor),
+                            size = 28.dp,
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+                if (headerContent != null) {
+                    headerContent(Modifier.weight(1f))
+                } else {
+                    Text(
+                        text = title ?: evaluation.budget.displayName
+                            ?: stringResource(R.string.common_no_category),
+                        modifier = Modifier
+                            .weight(1f)
+                            .then(if (onCategoryClick != null) Modifier.clickable(onClick = onCategoryClick) else Modifier),
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                }
                 NeutralPill(text = evaluation.status.label())
-                BudgetRowMenu(onEdit = onEdit, onDelete = onDelete)
+                CompactEditIconButton(onClick = onEdit)
             }
             projection?.let {
                 Text(
@@ -354,12 +434,25 @@ private fun BudgetRow(
 }
 
 @Composable
-private fun OverallBudgetEmptyCard(onAddOverall: () -> Unit) {
+private fun OverallBudgetEmptyCard(
+    onAddOverall: () -> Unit,
+    month: YearMonth,
+    canMoveForward: Boolean,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+) {
     FinanceCard(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            BudgetMonthSelector(
+                month = month,
+                canMoveForward = canMoveForward,
+                onPrevious = onPrevious,
+                onNext = onNext,
+                modifier = Modifier.fillMaxWidth(),
+            )
             Text(
                 text = stringResource(R.string.budget_overall_empty_title),
                 style = MaterialTheme.typography.titleMedium,
@@ -372,38 +465,6 @@ private fun OverallBudgetEmptyCard(onAddOverall: () -> Unit) {
             PrimaryButton(
                 text = stringResource(R.string.budget_add_overall),
                 onClick = onAddOverall,
-            )
-        }
-    }
-}
-
-@Composable
-private fun BudgetRowMenu(
-    onEdit: () -> Unit,
-    onDelete: () -> Unit,
-) {
-    var expanded by remember { mutableStateOf(false) }
-    Box {
-        IconButton(onClick = { expanded = true }) {
-            Icon(
-                imageVector = Icons.Outlined.MoreVert,
-                contentDescription = stringResource(R.string.common_more_options),
-                tint = FinanceTheme.colors.mutedText,
-            )
-        }
-        AppDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            AppDropdownMenuItem(
-                text = { Text(stringResource(R.string.common_edit)) },
-                onClick = { expanded = false; onEdit() },
-            )
-            AppDropdownMenuItem(
-                text = {
-                    Text(
-                        text = stringResource(R.string.common_archive),
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                },
-                onClick = { expanded = false; onDelete() },
             )
         }
     }
@@ -434,35 +495,53 @@ private fun EmptyBudgetsCard(onAdd: () -> Unit) {
 }
 
 @Composable
-private fun BudgetFormScreen(
+private fun BudgetFormSheet(
     form: BudgetFormState,
     categories: List<CategoryRecord>,
     trips: List<TripSummary>,
     onFormChange: (BudgetFormState) -> Unit,
-    onBack: () -> Unit,
+    onDismiss: () -> Unit,
     onSave: () -> Unit,
-    modifier: Modifier = Modifier,
+    onDelete: () -> Unit,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp)
-            .navigationBarsPadding()
-            .padding(bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+    AppModalBottomSheet(
+        onDismissRequest = onDismiss,
+        maxHeightFraction = 0.84f,
     ) {
-        PageHeaderRow(
-            onBack = onBack,
-            title = stringResource(
-                if (form.id == null) R.string.budget_new_title else R.string.budget_edit_title,
-            ),
-        )
-        form.errorMessage?.let {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .navigationBarsPadding()
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text(
+                text = stringResource(
+                    if (form.id == null) R.string.budget_new_title else R.string.budget_edit_title,
+                ),
+                style = MaterialTheme.typography.titleLarge,
+            )
+            form.errorMessage?.let {
             InlineBanner(kind = BannerKind.Error, text = it)
         }
-        SegmentedControl(
-            options = BudgetScope.entries,
+        if (form.errorField == null && form.errorRes != null) {
+            InlineBanner(kind = BannerKind.Error, text = stringResource(form.errorRes))
+        }
+        if (
+            form.id != null &&
+            form.scope == BudgetScope.CATEGORY &&
+            form.period == BudgetPeriod.MONTHLY
+        ) {
+            InlineBanner(
+                kind = BannerKind.Info,
+                text = stringResource(R.string.budget_existing_monthly_hint),
+            )
+        }
+        if (form.id == null && form.scope != BudgetScope.OVERALL_MONTH) {
+            SegmentedControl(
+            options = listOf(BudgetScope.CATEGORY, BudgetScope.TRIP),
             selected = form.scope,
             label = { it.label() },
             onSelect = { scope ->
@@ -487,7 +566,8 @@ private fun BudgetFormScreen(
                     },
                 )
             },
-        )
+            )
+        }
         val categoryError = form.errorField == BudgetFormField.CATEGORY
         val tripError = form.errorField == BudgetFormField.TRIP
         when (form.scope) {
@@ -552,13 +632,7 @@ private fun BudgetFormScreen(
                 },
                 selectedId = form.tripId,
                 onSelect = { tripId ->
-                    val trip = trips.firstOrNull { it.id == tripId }
-                    onFormChange(
-                        form.copy(
-                            tripId = tripId,
-                            startDate = form.startDate.ifBlank { trip?.startDate.orEmpty() },
-                        ),
-                    )
+                    onFormChange(form.copy(tripId = tripId))
                 },
                 modifier = Modifier.scrollToWhen(tripError),
                 isError = tripError,
@@ -602,26 +676,12 @@ private fun BudgetFormScreen(
                 .fillMaxWidth()
                 .scrollToWhen(thresholdError),
         )
-        val startDateError = form.errorField == BudgetFormField.START_DATE
-        FormDatePicker(
-            label = stringResource(R.string.budget_field_start),
-            date = form.startDate,
-            onDateChange = { onFormChange(form.copy(startDate = it)) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .scrollToWhen(startDateError),
-            isError = startDateError,
-            supportingText = if (startDateError && form.errorRes != null) {
-                stringResource(form.errorRes)
-            } else null,
-            onClear = { onFormChange(form.copy(startDate = "")) },
-        )
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             OutlinedButton(
-                onClick = onBack,
+                onClick = onDismiss,
                 modifier = Modifier.weight(1f),
                 shape = MaterialTheme.shapes.small,
             ) {
@@ -634,6 +694,17 @@ private fun BudgetFormScreen(
                 onClick = onSave,
                 modifier = Modifier.weight(1f),
             )
+        }
+        if (form.id != null) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                DestructiveTextButton(onClick = onDelete) {
+                    Text(text = stringResource(R.string.common_archive))
+                }
+            }
+        }
         }
     }
 }

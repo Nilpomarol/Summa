@@ -3,6 +3,7 @@ package com.gestorfinances.app.ui.common
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,11 +38,14 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -533,6 +537,32 @@ fun DestructiveTextButton(
         colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
     ) {
         content()
+    }
+}
+
+/** Compact visual edit affordance for dense cards; intentionally does not impose a 48dp row height. */
+@Composable
+fun CompactEditIconButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .size(24.dp)
+            .clip(CircleShape)
+            .clickable(
+                onClickLabel = stringResource(R.string.common_edit),
+                role = Role.Button,
+                onClick = onClick,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.Edit,
+            contentDescription = stringResource(R.string.common_edit),
+            modifier = Modifier.size(14.dp),
+            tint = FinanceTheme.colors.mutedText,
+        )
     }
 }
 

@@ -122,7 +122,6 @@ class NotificationRulesTest {
             period = BudgetPeriod.MONTHLY,
             limitAmountCents = limit,
             alertThresholdPercent = threshold,
-            startDate = null,
         )
 
     private fun account(

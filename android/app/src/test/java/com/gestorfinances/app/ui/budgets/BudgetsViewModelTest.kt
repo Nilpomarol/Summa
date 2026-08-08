@@ -54,7 +54,6 @@ class BudgetsViewModelTest {
             val form = requireNotNull(viewModel.state.value.form)
             assertEquals(BudgetScope.TRIP, form.scope)
             assertEquals("mallorca", form.tripId)
-            assertEquals("2026-08-01", form.startDate)
 
             viewModel.onFormChanged(form.copy(limit = "250", threshold = "80"))
             viewModel.onSaveClicked()
@@ -168,6 +167,65 @@ class BudgetsViewModelTest {
         }
     }
 
+    @Test
+    fun deletingFromTheEditSheetClosesItBeforeOpeningTheArchiveConfirmation() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.categories.create(categoryDraft("food"), createdAt = NOW)
+            store.budgets.create(budgetDraft("food-budget", categoryId = "food"), createdAt = NOW)
+            val viewModel = viewModel(store)
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+
+            viewModel.onEditClicked(viewModel.state.value.evaluations.single().budget)
+            viewModel.onDeleteEditingBudgetClicked()
+
+            assertNull(viewModel.state.value.form)
+            assertEquals("food-budget", viewModel.state.value.archiveCandidate?.id)
+        }
+    }
+
+    @Test
+    fun addingAnAlreadyConfiguredMonthlyCategoryStillStartsANewForm() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.categories.create(categoryDraft("food"), createdAt = NOW)
+            store.budgets.create(budgetDraft("food-monthly", categoryId = "food"), createdAt = NOW)
+            val viewModel = viewModel(store)
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+
+            viewModel.onAddClicked(categoryId = "food")
+
+            val form = requireNotNull(viewModel.state.value.form)
+            assertNull(form.id)
+            assertEquals(BudgetScope.CATEGORY, form.scope)
+        }
+    }
+
+    @Test
+    fun addingABudgetNeverOpensTheExistingOverallMonthlyBudget() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.budgets.create(
+                BudgetDraft(
+                    id = "overall-monthly",
+                    categoryId = null,
+                    limitAmountCents = 100_000L,
+                    alertThresholdPercent = null,
+                    scope = BudgetScope.OVERALL_MONTH,
+                ),
+                createdAt = NOW,
+            )
+            val viewModel = viewModel(store)
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+
+            viewModel.onAddClicked()
+
+            val form = requireNotNull(viewModel.state.value.form)
+            assertNull(form.id)
+            assertEquals(BudgetScope.CATEGORY, form.scope)
+        }
+    }
+
     private fun viewModel(store: TestStore): BudgetsViewModel =
         BudgetsViewModel(
             budgetRepository = store.budgets,
@@ -233,7 +291,6 @@ class BudgetsViewModelTest {
             categoryId = categoryId,
             limitAmountCents = 25_000L,
             alertThresholdPercent = 80L,
-            startDate = null,
         )
 
     private companion object {

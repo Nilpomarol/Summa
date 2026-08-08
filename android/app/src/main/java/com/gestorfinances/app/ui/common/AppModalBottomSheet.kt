@@ -143,7 +143,12 @@ fun AppModalBottomSheet(
                 BottomSheetDefaults.DragHandle()
             }
         } else {
-            BottomSheetDefaults.DragHandle()
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center,
+            ) {
+                BottomSheetDefaults.DragHandle()
+            }
         }
     }
 

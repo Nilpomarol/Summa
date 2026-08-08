@@ -12,6 +12,57 @@ import org.junit.Test
 class MigrationTest {
 
     @Test
+    fun `v6 to v7 migration preserves rules and removes their legacy start date`() {
+        val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+        driver.execute(null, "PRAGMA foreign_keys = OFF", 0)
+        driver.execute(null, "CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)", 0)
+        driver.execute(null, "INSERT INTO meta VALUES ('schema_version', '6')", 0)
+        driver.execute(
+            null,
+            """
+            CREATE TABLE budgets (
+                id TEXT PRIMARY KEY, scope TEXT NOT NULL, category_id TEXT, trip_id TEXT,
+                period TEXT NOT NULL, limit_amount_cents INTEGER NOT NULL, start_date TEXT,
+                alert_threshold_percent INTEGER, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+                archived_at TEXT
+            )
+            """.trimIndent(),
+            0,
+        )
+        driver.execute(
+            null,
+            """
+            INSERT INTO budgets VALUES
+                ('food-monthly', 'category', 'food', NULL, 'monthly', 30000, '2026-08-10', NULL,
+                 '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', NULL)
+            """.trimIndent(),
+            0,
+        )
+        driver.execute(null, "PRAGMA user_version = 6", 0)
+
+        GestorDatabase.Schema.migrate(driver, 6, 7)
+
+        val columns = mutableListOf<String>()
+        driver.executeQuery(
+            null,
+            "PRAGMA table_info(budgets)",
+            { cursor ->
+                while (cursor.next().value) columns += cursor.getString(1)!!
+                QueryResult.Value(Unit)
+            },
+            0,
+        )
+        assertTrue("budgets.start_date must be removed", "start_date" !in columns)
+        val limit = driver.executeQuery(
+            null,
+            "SELECT limit_amount_cents FROM budgets WHERE id = 'food-monthly'",
+            { cursor -> cursor.next(); QueryResult.Value(cursor.getLong(0)!!) },
+            0,
+        ).value
+        assertEquals(30_000L, limit)
+    }
+
+    @Test
     fun `v5 to v6 migration preserves budgets and permits yearly category limits`() {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         driver.execute(null, "PRAGMA foreign_keys = OFF", 0)

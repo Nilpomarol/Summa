@@ -6,8 +6,8 @@ Budgets are a central planning tool: they show whether actual personal expense i
 
 ## Budget model
 
-- An optional overall monthly target covers all actual personal expense, including spending without a category limit.
-- A category can have an optional monthly limit, yearly limit, or both. Monthly limits reset each calendar month; yearly limits cover 1 January through 31 December and allow uneven monthly spending.
+- An optional overall monthly target covers all actual personal expense, including spending without a category limit. It is one reusable monthly rule, not a dated monthly entry.
+- A category can have at most one monthly limit and one yearly limit, so it may have both. Monthly limits reset each calendar month; yearly limits cover 1 January through 31 December and allow uneven monthly spending.
 - Budget limits are managed from the Budget page. Categories remain classification only.
 - Trips retain their existing independent, time-bound trip budget. Trip spending also contributes to its expense-category and overall budgets.
 - There is no carry-over between months in the first version.

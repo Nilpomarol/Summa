@@ -13,6 +13,7 @@ import com.gestorfinances.app.data.repository.BudgetScope
 import com.gestorfinances.app.data.repository.BudgetSummary
 import com.gestorfinances.app.data.repository.CategoryRecord
 import com.gestorfinances.app.data.repository.CategoryRepository
+import com.gestorfinances.app.data.repository.DuplicateActiveBudgetException
 import com.gestorfinances.app.data.repository.supportsExpense
 import com.gestorfinances.app.data.repository.TripRepository
 import com.gestorfinances.app.data.repository.TripSummary
@@ -23,7 +24,6 @@ import com.gestorfinances.app.ui.common.parseEuroCents
 import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
-import java.time.format.DateTimeParseException
 import java.util.UUID
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -64,6 +64,10 @@ class BudgetsViewModel(
         }
     }
 
+    fun onPastTripsExpandedToggled() {
+        _state.value = _state.value.copy(pastTripsExpanded = !_state.value.pastTripsExpanded)
+    }
+
     fun onAddClicked(categoryId: String? = null) {
         val state = _state.value
         _state.value = state.copy(
@@ -76,8 +80,11 @@ class BudgetsViewModel(
     }
 
     fun onAddOverallClicked() {
+        val existing = _state.value.evaluations.firstOrNull {
+            it.budget.scope == BudgetScope.OVERALL_MONTH
+        }
         _state.value = _state.value.copy(
-            form = BudgetFormState(
+            form = existing?.budget?.toFormState() ?: BudgetFormState(
                 scope = BudgetScope.OVERALL_MONTH,
                 period = BudgetPeriod.MONTHLY,
             ),
@@ -90,7 +97,11 @@ class BudgetsViewModel(
 
     fun onFormChanged(form: BudgetFormState) {
         _state.value = _state.value.copy(
-            form = form.copy(errorRes = null, errorField = null, errorMessage = null),
+            form = form.copy(
+                errorRes = null,
+                errorField = null,
+                errorMessage = null,
+            ),
         )
     }
 
@@ -100,6 +111,14 @@ class BudgetsViewModel(
 
     fun onDeleteClicked(budget: BudgetSummary) {
         _state.value = _state.value.copy(archiveCandidate = budget)
+    }
+
+    fun onDeleteEditingBudgetClicked() {
+        val id = _state.value.form?.id ?: return
+        val budget = _state.value.evaluations.firstOrNull { it.budget.id == id }?.budget ?: return
+        // Modal sheets render in their own dialog layer. Close it before opening the archive
+        // confirmation so the confirmation is visible and can receive interaction.
+        _state.value = _state.value.copy(form = null, archiveCandidate = budget)
     }
 
     fun onArchiveDismissed() {
@@ -135,7 +154,6 @@ class BudgetsViewModel(
         val form = _state.value.form ?: return
         val limit = parseEuroCents(form.limit, allowNegative = false)
         val threshold = form.threshold.trim().toLongOrNull()
-        val startValid = form.startDate.isBlank() || parseDate(form.startDate) != null
 
         val (errorRes, errorField) = when {
             form.scope == BudgetScope.CATEGORY && form.categoryId == null ->
@@ -145,7 +163,6 @@ class BudgetsViewModel(
             limit == null || limit <= 0L -> R.string.budget_validation_limit_positive to BudgetFormField.LIMIT
             form.threshold.isNotBlank() && (threshold == null || threshold !in 1L..100L) ->
                 R.string.budget_validation_threshold_range to BudgetFormField.THRESHOLD
-            !startValid -> R.string.movement_validation_date_invalid to BudgetFormField.START_DATE
             else -> null to null
         }
         if (errorRes != null) {
@@ -158,7 +175,6 @@ class BudgetsViewModel(
             categoryId = if (form.scope == BudgetScope.CATEGORY) requireNotNull(form.categoryId) else null,
             limitAmountCents = requireNotNull(limit),
             alertThresholdPercent = threshold,
-            startDate = form.startDate.trim().ifBlank { null },
             tripId = if (form.scope == BudgetScope.TRIP) requireNotNull(form.tripId) else null,
             scope = form.scope,
             period = form.period,
@@ -182,7 +198,11 @@ class BudgetsViewModel(
                 },
                 onFailure = {
                     _state.value = _state.value.copy(
-                        form = form.copy(errorMessage = it.message ?: it.javaClass.simpleName),
+                        form = if (it is DuplicateActiveBudgetException) {
+                            form.copy(errorRes = R.string.budget_validation_duplicate)
+                        } else {
+                            form.copy(errorMessage = it.message ?: it.javaClass.simpleName)
+                        },
                     )
                 },
             )
@@ -288,6 +308,7 @@ data class BudgetsUiState(
     val errorMessage: String? = null,
     val form: BudgetFormState? = null,
     val archiveCandidate: BudgetSummary? = null,
+    val pastTripsExpanded: Boolean = false,
 )
 
 /** Identifies which field a budget-form validation error belongs to (field-level validation). */
@@ -296,7 +317,6 @@ enum class BudgetFormField {
     TRIP,
     LIMIT,
     THRESHOLD,
-    START_DATE,
 }
 
 data class BudgetFormState(
@@ -307,7 +327,6 @@ data class BudgetFormState(
     val tripId: String? = null,
     val limit: String = "",
     val threshold: String = "80",
-    val startDate: String = "",
     val errorRes: Int? = null,
     val errorField: BudgetFormField? = null,
     val errorMessage: String? = null,
@@ -320,7 +339,6 @@ private data class LoadedBudgetData(
     val trips: List<TripSummary>,
 )
 
-
 private fun BudgetSummary.toFormState(): BudgetFormState =
     BudgetFormState(
         id = id,
@@ -330,7 +348,6 @@ private fun BudgetSummary.toFormState(): BudgetFormState =
         tripId = tripId,
         limit = formatEuroInput(limitAmountCents),
         threshold = alertThresholdPercent?.toString().orEmpty(),
-        startDate = startDate.orEmpty(),
     )
 
 private fun newBudgetForm(
@@ -343,7 +360,6 @@ private fun newBudgetForm(
             scope = BudgetScope.TRIP,
             period = BudgetPeriod.ONE_OFF,
             tripId = trip.id,
-            startDate = trip.startDate.orEmpty(),
         )
     } else {
         BudgetFormState()
@@ -359,10 +375,3 @@ private fun contextBudgetForm(
     val existing = evaluations.firstOrNull { it.budget.scope == BudgetScope.TRIP && it.budget.tripId == tripId }
     return existing?.budget?.toFormState() ?: newBudgetForm(tripId, trips)
 }
-
-private fun parseDate(raw: String): LocalDate? =
-    try {
-        LocalDate.parse(raw.trim())
-    } catch (_: DateTimeParseException) {
-        null
-    }
