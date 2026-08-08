@@ -476,9 +476,12 @@ private fun LedgerShell(
         }
     }
 
-    // Material's modal sheet owns Back while the movement form is visible so it can animate
-    // closed before the navigation state changes.
-    BackHandler(enabled = nav.canNavigateBack && nav.overlay !is AppOverlay.MovementForm) {
+    // Movement sheets own Back so they can animate closed before navigation state changes.
+    BackHandler(
+        enabled = nav.canNavigateBack &&
+            nav.overlay !is AppOverlay.MovementForm &&
+            nav.overlay !is AppOverlay.MovementDetail,
+    ) {
         nav = nav.back()
     }
 
@@ -561,10 +564,11 @@ private fun LedgerShell(
         },
     ) { innerPadding ->
         val movementFormOverlay = nav.overlay as? AppOverlay.MovementForm
-        val pageOverlay = if (movementFormOverlay != null) {
-            movementFormOverlay.returnTo
-        } else {
-            nav.overlay
+        val movementDetailOverlay = nav.overlay as? AppOverlay.MovementDetail
+        val pageOverlay = when {
+            movementFormOverlay != null -> movementFormOverlay.returnTo
+            movementDetailOverlay != null -> movementDetailOverlay.returnTo
+            else -> nav.overlay
         }
 
         when (val overlay = pageOverlay) {
@@ -617,25 +621,7 @@ private fun LedgerShell(
                 if (movementFormOverlay == null) return@Scaffold
             }
             is AppOverlay.MovementForm -> Unit
-            is AppOverlay.MovementDetail -> {
-                MovementDetailScreen(
-                    viewModel = movementsViewModel,
-                    onBack = {
-                        movementsViewModel.onDetailDismissed()
-                        nav = nav.back()
-                    },
-                    onEdit = { movement ->
-                        movementsViewModel.onEditClicked(movement)
-                        nav = nav.copy(
-                            overlay = AppOverlay.MovementForm(returnTo = overlay),
-                        )
-                    },
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding),
-                )
-                if (movementFormOverlay == null) return@Scaffold
-            }
+            is AppOverlay.MovementDetail -> Unit
             null -> Unit
         }
         if (pageOverlay == null) when (nav.section) {
@@ -755,6 +741,7 @@ private fun LedgerShell(
 
         if (
             pageOverlay == null &&
+            movementDetailOverlay == null &&
             nav.section == TopLevelSection.MANAGEMENT &&
             nav.managementDestination == ManagementDestination.BUDGETS
         ) {
@@ -774,6 +761,22 @@ private fun LedgerShell(
                     onMovementDetail = openMovementDetail,
                 )
             }
+        }
+
+        movementDetailOverlay?.let { overlay ->
+            MovementDetailScreen(
+                viewModel = movementsViewModel,
+                onBack = {
+                    movementsViewModel.onDetailDismissed()
+                    nav = nav.back()
+                },
+                onEdit = { movement ->
+                    movementsViewModel.onEditClicked(movement)
+                    nav = nav.copy(
+                        overlay = AppOverlay.MovementForm(returnTo = overlay),
+                    )
+                },
+            )
         }
 
         movementFormOverlay?.let { overlay ->
