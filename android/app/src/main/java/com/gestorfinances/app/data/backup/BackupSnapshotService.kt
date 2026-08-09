@@ -45,7 +45,17 @@ class BackupSnapshotService(
         closeDatabase()
     }
 
-    override fun exportToFolder(folderUriString: String): BackupExportResult {
+    override fun exportToFolder(folderUriString: String): BackupExportResult =
+        exportToFolder(folderUriString, allowDatabaseReset = true)
+
+    /** Background work must never close the active app database as a compatibility fallback. */
+    fun exportAutomaticallyToFolder(folderUriString: String): BackupExportResult =
+        exportToFolder(folderUriString, allowDatabaseReset = false)
+
+    private fun exportToFolder(
+        folderUriString: String,
+        allowDatabaseReset: Boolean,
+    ): BackupExportResult {
         val folderUri = Uri.parse(folderUriString)
         val snapshotVersion = metaRepository.incrementSnapshotVersion()
         // The snapshot version already on record before this export, so self-validating the just-
@@ -58,7 +68,7 @@ class BackupSnapshotService(
         var snapshotCreation: BackupSnapshotCreation? = null
         var documentUri: Uri? = null
         try {
-            snapshotCreation = createSnapshot(snapshotFile)
+            snapshotCreation = createSnapshot(snapshotFile, allowDatabaseReset)
             documentUri = createBackupDocument(folderUri, displayName)
             resolver.openOutputStream(documentUri, "w")?.use { output ->
                 FileInputStream(snapshotFile).use { input -> input.copyTo(output) }
@@ -183,16 +193,23 @@ class BackupSnapshotService(
         return validation.metadata
     }
 
-    private fun createSnapshot(destination: File): BackupSnapshotCreation =
-        try {
+    private fun createSnapshot(
+        destination: File,
+        allowDatabaseReset: Boolean,
+    ): BackupSnapshotCreation =
+        if (!allowDatabaseReset) {
             fileOperations.createVacuumSnapshot(driver, destination)
-        } catch (_: Exception) {
-            fileOperations.createCheckpointCopySnapshot(
-                databaseFile = DatabaseDriverFactory.databaseFile(appContext),
-                destination = destination,
-                checkpoint = ::checkpointMainDatabase,
-                closeDatabase = guardedCloseDatabase,
-            )
+        } else {
+            try {
+                fileOperations.createVacuumSnapshot(driver, destination)
+            } catch (_: Exception) {
+                fileOperations.createCheckpointCopySnapshot(
+                    databaseFile = DatabaseDriverFactory.databaseFile(appContext),
+                    destination = destination,
+                    checkpoint = ::checkpointMainDatabase,
+                    closeDatabase = guardedCloseDatabase,
+                )
+            }
         }
 
     private fun checkpointMainDatabase() {

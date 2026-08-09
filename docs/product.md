@@ -20,7 +20,7 @@ The Android application currently supports:
 - dashboard and multi-period analysis using canonical derived data;
 - duplicate warnings and category suggestions;
 - local notifications;
-- unencrypted whole-database backup and restore to a user-selected Android folder.
+- unencrypted whole-database backup and restore to a user-selected Android folder, with an optional daily automatic backup.
 
 Windows currently validates the shared schema, SQL, and money rules but has no user interface.
 

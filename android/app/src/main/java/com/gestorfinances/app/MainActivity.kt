@@ -368,6 +368,8 @@ private fun LedgerShell(
                 dataSeeder = appContainer.dataSeeder,
                 backupFolderRepository = appContainer.backupFolderStore,
                 backupOperations = appContainer.backupSnapshotService,
+                autoBackupSettings = appContainer.autoBackupPreferences,
+                autoBackupScheduler = appContainer.autoBackupScheduler,
                 notificationRefresher = appContainer.notificationCoordinator,
             ),
         )[SettingsViewModel::class.java]

@@ -11,6 +11,9 @@ import com.gestorfinances.app.data.backup.BackupMetadata
 import com.gestorfinances.app.data.backup.BackupOperations
 import com.gestorfinances.app.data.backup.BackupValidationError
 import com.gestorfinances.app.data.backup.PendingBackupRestore
+import com.gestorfinances.app.data.backup.AutoBackupScheduler
+import com.gestorfinances.app.data.backup.AutoBackupSettings
+import com.gestorfinances.app.data.backup.AutoBackupSettingsRepository
 import com.gestorfinances.app.data.db.DataSeeder
 import com.gestorfinances.app.notifications.NotificationSettings
 import com.gestorfinances.app.notifications.NotificationSettingsRepository
@@ -74,6 +77,19 @@ class SettingsViewModelTest {
         assertEquals("content://folder", folderRepository.folder?.uriString)
         assertEquals("content://folder", viewModel.state.value.backupFolder?.uriString)
         assertEquals(R.string.settings_backup_folder_saved, viewModel.state.value.backupMessage?.messageRes)
+    }
+
+    @Test
+    fun enablingAutoBackupPersistsTheChoiceAndSchedulesDailyWork() {
+        val preferences = FakeAutoBackupSettingsRepository()
+        val scheduler = FakeAutoBackupScheduler()
+        val viewModel = viewModel(autoBackupSettings = preferences, autoBackupScheduler = scheduler)
+
+        viewModel.onAutoBackupChanged(enabled = true)
+
+        assertTrue(viewModel.state.value.autoBackupEnabled)
+        assertTrue(preferences.settings.enabled)
+        assertEquals(true, scheduler.enabled)
     }
 
     @Test
@@ -377,12 +393,16 @@ class SettingsViewModelTest {
     private fun viewModel(
         folderRepository: FakeFolderRepository = FakeFolderRepository(),
         operations: FakeBackupOperations = FakeBackupOperations(),
+        autoBackupSettings: FakeAutoBackupSettingsRepository = FakeAutoBackupSettingsRepository(),
+        autoBackupScheduler: FakeAutoBackupScheduler = FakeAutoBackupScheduler(),
     ): SettingsViewModel =
         SettingsViewModel(
             preferences = FakeNotificationSettingsRepository(),
             dataSeeder = DataSeeder(driver),
             backupFolderRepository = folderRepository,
             backupOperations = operations,
+            autoBackupSettings = autoBackupSettings,
+            autoBackupScheduler = autoBackupScheduler,
             ioDispatcher = dispatcher,
         )
 
@@ -403,6 +423,28 @@ class SettingsViewModelTest {
 
         override fun saveSelectedFolder(uriString: String): BackupFolder =
             BackupFolder(uriString = uriString, displayLabel = uriString).also { folder = it }
+    }
+
+    private class FakeAutoBackupSettingsRepository : AutoBackupSettingsRepository {
+        var settings = AutoBackupSettings()
+
+        override fun load(): AutoBackupSettings = settings
+
+        override fun setEnabled(enabled: Boolean) {
+            settings = settings.copy(enabled = enabled)
+        }
+
+        override fun recordSuccessfulBackup(at: Instant) {
+            settings = settings.copy(lastSuccessfulBackupAt = at)
+        }
+    }
+
+    private class FakeAutoBackupScheduler : AutoBackupScheduler {
+        var enabled: Boolean? = null
+
+        override fun update(enabled: Boolean) {
+            this.enabled = enabled
+        }
     }
 
     private class FakeBackupOperations(

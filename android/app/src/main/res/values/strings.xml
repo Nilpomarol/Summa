@@ -786,13 +786,22 @@
     <!-- Backups -->
     <string name="settings_backup_title">Còpies de seguretat</string>
     <string name="settings_backup_body">Exporta o restaura una còpia completa de la base de dades en una carpeta que triïs.</string>
+    <string name="settings_backup_frequency_manual">Manual</string>
+    <string name="settings_auto_backup_title">Còpia automàtica</string>
+    <string name="settings_auto_backup_daily">Una còpia al dia quan Android pugui executar-la.</string>
+    <string name="settings_backup_last_success">Darrera còpia: %1$s</string>
+    <string name="settings_backup_last_missing">Encara no s’ha creat cap còpia.</string>
+    <string name="settings_backup_storage_google_drive">Google Drive</string>
+    <string name="settings_backup_storage_local">Local</string>
+    <string name="settings_notifications_section">Avisos</string>
     <string name="settings_backup_folder_missing">Tria una carpeta abans de crear o restaurar còpies.</string>
     <string name="settings_backup_folder_value">Carpeta: %1$s</string>
     <string name="settings_backup_folder_saved">Carpeta de còpies desada.</string>
     <string name="settings_backup_choose_folder">Tria carpeta</string>
+    <string name="settings_backup_change">Canvia</string>
     <string name="settings_backup_change_folder">Canvia carpeta</string>
-    <string name="settings_backup_export">Exporta</string>
-    <string name="settings_backup_import">Importa</string>
+    <string name="settings_backup_export">Fes una còpia ara</string>
+    <string name="settings_backup_import">Restaura una còpia</string>
     <string name="settings_backup_busy">Treballant amb la còpia de seguretat...</string>
     <string name="settings_backup_busy_short">Treballant...</string>
     <string name="settings_backup_replacing_database">Substituint la base de dades. Espera un moment, l\'aplicació es reiniciarà tot seguit.</string>
