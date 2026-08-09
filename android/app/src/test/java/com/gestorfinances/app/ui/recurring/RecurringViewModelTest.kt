@@ -314,6 +314,8 @@ class RecurringViewModelTest {
             assertEquals(8_000L, viewModel.state.value.monthlyExpenseCents)
             assertEquals(200_000L, viewModel.state.value.monthlyIncomeCents)
             assertEquals(192_000L, viewModel.state.value.monthlyNetCents)
+            assertEquals(0L, viewModel.state.value.monthlyPaidCents)
+            assertEquals(208_000L, viewModel.state.value.monthlyRemainingCents)
         }
     }
 
@@ -339,6 +341,12 @@ class RecurringViewModelTest {
             assertEquals("2026-01-01", movement.date)
             assertEquals("2026-02-01", store.templates.getActive("rent")!!.nextDueDate)
             assertTrue(viewModel.state.value.duePrompts.isEmpty())
+            assertEquals(8_000L, viewModel.state.value.monthlyPaidCents)
+            assertEquals(0L, viewModel.state.value.monthlyRemainingCents)
+            assertEquals(8_000L, viewModel.state.value.monthlyPaidExpenseCents)
+            assertEquals(0L, viewModel.state.value.monthlyPaidIncomeCents)
+            assertEquals(TemplateMonthPaymentState.PAID, viewModel.state.value.monthlyPaymentStates["rent"])
+            assertEquals(1L, viewModel.state.value.occurrenceCounts["rent"])
         }
     }
 

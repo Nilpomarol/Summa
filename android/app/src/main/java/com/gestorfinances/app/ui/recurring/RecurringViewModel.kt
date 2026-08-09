@@ -396,20 +396,30 @@ class RecurringViewModel(
                         accounts = accountRepository.listActive(),
                         categories = categoryRepository.listActive(),
                         people = personRepository.listActive(),
+                        movements = movementRepository.listActive(),
+                        occurrenceCounts = movementRepository.countsByTemplate(),
                     )
                 }
             }
             _state.value = result.fold(
                 onSuccess = {
-                    val (expense, income) = it.templates.monthlyTotals(today())
+                    val calendar = it.templates.monthlyCalendar(today(), it.movements)
                     _state.value.copy(
                         templates = it.templates,
                         accounts = it.accounts,
                         categories = it.categories,
                         people = it.people,
                         duePrompts = it.templates.toDuePrompts(today()),
-                        monthlyExpenseCents = expense,
-                        monthlyIncomeCents = income,
+                        monthlyExpenseCents = calendar.scheduledExpenseCents,
+                        monthlyIncomeCents = calendar.scheduledIncomeCents,
+                        monthlyPaidCents = calendar.paidCents,
+                        monthlyRemainingCents = calendar.remainingCents,
+                        monthlyPaidExpenseCents = calendar.paidExpenseCents,
+                        monthlyPaidIncomeCents = calendar.paidIncomeCents,
+                        monthlyRemainingExpenseCents = calendar.remainingExpenseCents,
+                        monthlyRemainingIncomeCents = calendar.remainingIncomeCents,
+                        monthlyPaymentStates = calendar.paymentStates,
+                        occurrenceCounts = it.occurrenceCounts,
                         isLoading = false,
                     )
                 },
@@ -590,6 +600,17 @@ data class RecurringUiState(
     val duePrompts: List<DuePrompt> = emptyList(),
     val monthlyExpenseCents: Long = 0L,
     val monthlyIncomeCents: Long = 0L,
+    /** Amount already materialised as recurring movements in the current calendar month. */
+    val monthlyPaidCents: Long = 0L,
+    /** Fixed recurring amount still scheduled for this calendar month. */
+    val monthlyRemainingCents: Long = 0L,
+    val monthlyPaidExpenseCents: Long = 0L,
+    val monthlyPaidIncomeCents: Long = 0L,
+    val monthlyRemainingExpenseCents: Long = 0L,
+    val monthlyRemainingIncomeCents: Long = 0L,
+    val monthlyPaymentStates: Map<String, TemplateMonthPaymentState> = emptyMap(),
+    /** Completed, linked movements per template; used only for recurrence history in the UI. */
+    val occurrenceCounts: Map<String, Long> = emptyMap(),
     val isLoading: Boolean = true,
     val errorMessage: String? = null,
     val form: TemplateFormState? = null,
@@ -600,7 +621,7 @@ data class RecurringUiState(
     val detectionReview: DetectionReviewState? = null,
 ) {
     val monthlyNetCents: Long get() = monthlyIncomeCents - monthlyExpenseCents
-    val hasMonthlySummary: Boolean get() = monthlyExpenseCents != 0L || monthlyIncomeCents != 0L
+    val hasMonthlySummary: Boolean get() = templates.isNotEmpty()
 
     /** True while any of this ViewModel's own dialogs (rendered by `RecurringOverlays`) is open --
      * used to make the auto-triggered due-reminders sheet step aside for them, then reappear. */
@@ -694,6 +715,8 @@ private data class LoadedRecurringData(
     val accounts: List<AccountSummary>,
     val categories: List<CategoryRecord>,
     val people: List<PersonSummary>,
+    val movements: List<MovementSummary>,
+    val occurrenceCounts: Map<String, Long>,
 )
 
 private fun List<TemplateSummary>.toDuePrompts(today: LocalDate): List<DuePrompt> =
@@ -714,27 +737,101 @@ private fun List<TemplateSummary>.toDuePrompts(today: LocalDate): List<DuePrompt
  * in the current calendar month × amount, summed by type. Variable-amount templates and transfers
  * are excluded (unknown amount / neither income nor expense). Returns (expense, income) magnitudes.
  */
-private fun List<TemplateSummary>.monthlyTotals(today: LocalDate): Pair<Long, Long> {
+private data class MonthlyRecurringCalendar(
+    val scheduledExpenseCents: Long,
+    val scheduledIncomeCents: Long,
+    val paidCents: Long,
+    val remainingCents: Long,
+    val paidExpenseCents: Long,
+    val paidIncomeCents: Long,
+    val remainingExpenseCents: Long,
+    val remainingIncomeCents: Long,
+    val paymentStates: Map<String, TemplateMonthPaymentState>,
+)
+
+enum class TemplateMonthPaymentState {
+    NONE,
+    PAID,
+    PENDING,
+    PARTIALLY_PAID,
+}
+
+/**
+ * Display-only current-month calendar. Posted linked movements are "paid"; the schedule cursor
+ * supplies the remaining fixed occurrences. Their sum is the amount represented on this page,
+ * without changing any finance or recurrence rule.
+ */
+private fun List<TemplateSummary>.monthlyCalendar(
+    today: LocalDate,
+    movements: List<MovementSummary>,
+): MonthlyRecurringCalendar {
     val month = YearMonth.from(today)
     val monthEnd = month.atEndOfMonth()
     var expense = 0L
     var income = 0L
+    var paidExpense = 0L
+    var paidIncome = 0L
+    val postedOccurrences = mutableMapOf<String, Int>()
+    movements
+        .filter { it.templateId != null && runCatching { YearMonth.from(LocalDate.parse(it.date)) }.getOrNull() == month }
+        .forEach { movement ->
+            when (movement.type) {
+                MovementType.EXPENSE -> {
+                    paidExpense += movement.amountCents
+                    movement.templateId?.let { id -> postedOccurrences[id] = (postedOccurrences[id] ?: 0) + 1 }
+                }
+                MovementType.INCOME -> {
+                    paidIncome += movement.amountCents
+                    movement.templateId?.let { id -> postedOccurrences[id] = (postedOccurrences[id] ?: 0) + 1 }
+                }
+                else -> Unit
+            }
+        }
+    val paid = paidExpense + paidIncome
+    var remaining = 0L
+    val pendingOccurrences = mutableMapOf<String, Int>()
     forEach { template ->
         if (template.status != TemplateStatus.ACTIVE) return@forEach
-        val amount = template.amountCents
-        if (template.amountIsVariable || amount == null) return@forEach
         val cursor = parseDate(template.nextDueDate) ?: return@forEach
         val occurrences = runCatching {
             RecurringAdvancer.advance(template.toRecurrenceRule(), cursor = cursor, today = monthEnd).dueDates
         }.getOrNull() ?: return@forEach
         val count = occurrences.count { YearMonth.from(it) == month }
+        pendingOccurrences[template.id] = count
+        val amount = template.amountCents
+        if (template.amountIsVariable || amount == null) return@forEach
         when (template.type) {
-            MovementType.EXPENSE -> expense += amount * count
-            MovementType.INCOME -> income += amount * count
+            MovementType.EXPENSE -> {
+                expense += amount * count
+                remaining += amount * count
+            }
+            MovementType.INCOME -> {
+                income += amount * count
+                remaining += amount * count
+            }
             else -> Unit
         }
     }
-    return expense to income
+    return MonthlyRecurringCalendar(
+        scheduledExpenseCents = expense,
+        scheduledIncomeCents = income,
+        paidCents = paid,
+        remainingCents = remaining,
+        paidExpenseCents = paidExpense,
+        paidIncomeCents = paidIncome,
+        remainingExpenseCents = expense,
+        remainingIncomeCents = income,
+        paymentStates = associate { template ->
+            val posted = postedOccurrences[template.id] ?: 0
+            val pending = pendingOccurrences[template.id] ?: 0
+            template.id to when {
+                posted > 0 && pending > 0 -> TemplateMonthPaymentState.PARTIALLY_PAID
+                pending > 0 -> TemplateMonthPaymentState.PENDING
+                posted > 0 -> TemplateMonthPaymentState.PAID
+                else -> TemplateMonthPaymentState.NONE
+            }
+        },
+    )
 }
 
 /** Day a scheduled template lands on, for day-ordered listing. */
