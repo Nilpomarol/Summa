@@ -812,10 +812,14 @@
     <string name="trip_filter_finished">Finalitzats</string>
     <string name="trip_row_avg_day">%1$s/dia</string>
     <string name="trip_detail_total_actual">Cost real</string>
+    <string name="trip_detail_top_categories">Despeses principals</string>
+    <string name="trip_detail_view_breakdown">Veure desglossament</string>
     <string name="trip_detail_days_count">%1$d dies</string>
     <string name="trip_detail_avg_day_excluding">%1$s/dia sense extraordinàries</string>
     <string name="trip_detail_outflow">Sortida total %1$s</string>
     <string name="trip_detail_exclude_one_time">Exclou despeses extraordinàries</string>
+    <string name="trip_detail_exclude_one_time_short">Sense extraordinàries</string>
+    <string name="trip_detail_include_one_time_short">Inclou extraordinàries</string>
     <string name="trip_detail_daily_chart">Evolució diària</string>
     <string name="trip_detail_breakdown">Desglossament</string>
     <string name="trip_detail_breakdown_category">Per categoria</string>

@@ -32,6 +32,22 @@ Exit: Windows launches against the real database and performs basic ledger work.
 
 Exit: Windows can view and edit everything intentionally shared with Android.
 
+### Trip detail information architecture
+
+Trip detail leads with the decisions needed to manage one trip, rather than duplicating the
+ledger in several views. The default summary shows the trip identity (name, status, and date
+range), actual trip cost, and its budget state (spent, limit, and remaining or over-budget; or a
+clear action to define one). It then shows the leading spending categories and offers a secondary
+drill-down for the full breakdown.
+
+The detailed movement ledger remains available and is grouped by date. A separate day-by-day
+rollup is not needed because it duplicates that ledger; daily trend charts and category/tag
+analysis are secondary exploration, not default detail content. The choice to exclude
+extraordinary expenses belongs with the budget interpretation, not the page-wide summary.
+
+Windows may use a split view, panels, or tabs as appropriate for desktop, but must preserve this
+information priority and use the same canonical trip actual and budget data as Android.
+
 ## C — CSV import
 
 - Design the import wizard and review surfaces.

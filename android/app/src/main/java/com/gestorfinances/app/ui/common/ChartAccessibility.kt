@@ -61,6 +61,7 @@ fun AccessibleChart(
     summary: String,
     dataRows: List<ChartDataRow>,
     modifier: Modifier = Modifier,
+    showDataControl: Boolean = true,
     visual: @Composable () -> Unit,
 ) {
     var showData by rememberSaveable(summary) { mutableStateOf(false) }
@@ -81,7 +82,7 @@ fun AccessibleChart(
             visual()
         }
 
-        if (dataRows.isNotEmpty()) {
+        if (showDataControl && dataRows.isNotEmpty()) {
             TextButton(
                 onClick = { showData = !showData },
                 modifier = Modifier.semantics {
@@ -97,7 +98,7 @@ fun AccessibleChart(
             }
         }
 
-        if (showData) {
+        if (showDataControl && showData) {
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
