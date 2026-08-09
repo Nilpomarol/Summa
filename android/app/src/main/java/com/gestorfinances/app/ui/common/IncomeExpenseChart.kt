@@ -69,6 +69,7 @@ fun IncomeExpenseChart(
     accessibilitySummary: String,
     accessibilityRows: List<ChartDataRow> = emptyList(),
     onPointClick: ((IncomeExpenseChartPoint) -> Unit)? = null,
+    compact: Boolean = false,
 ) {
     val hasComparison = previous.isNotEmpty()
     val hasData = points.isNotEmpty() || previous.isNotEmpty()
@@ -106,6 +107,7 @@ fun IncomeExpenseChart(
                 AccessibleChart(
                     summary = accessibilitySummary,
                     dataRows = accessibilityRows,
+                    showDataControl = !compact,
                 ) {
                     if (!hasData) {
                         Text(
@@ -158,7 +160,11 @@ fun IncomeExpenseChart(
                                 chartScrollSpec = rememberChartScrollSpec(isScrollEnabled = false),
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(if (hasComparison) 240.dp else 208.dp)
+                                    .height(
+                                        if (compact) 152.dp
+                                        else if (hasComparison) 240.dp
+                                        else 208.dp,
+                                    )
                                     .chartPointTap(points = points, onPointClick = onPointClick),
                             )
                             ChartLegend(

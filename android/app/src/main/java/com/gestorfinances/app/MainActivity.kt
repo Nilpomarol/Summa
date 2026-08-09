@@ -612,9 +612,6 @@ private fun LedgerShell(
                         tripsViewModel.onDetailDismissed()
                         nav = nav.back()
                     },
-                    onManageTags = { tripId ->
-                        nav = nav.copy(overlay = AppOverlay.Tags(tripId = tripId, returnTo = overlay))
-                    },
                     onManageBudget = { tripId ->
                         nav = nav.copy(overlay = AppOverlay.Budgets(tripId = tripId, returnTo = overlay))
                     },
