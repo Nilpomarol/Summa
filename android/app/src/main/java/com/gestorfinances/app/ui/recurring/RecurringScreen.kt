@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -24,8 +25,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Autorenew
+import androidx.compose.material.icons.outlined.Cancel
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.PauseCircle
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
@@ -37,6 +40,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -69,6 +73,8 @@ import com.gestorfinances.app.domain.rules.DetectedRecurringCandidate
 import com.gestorfinances.app.domain.rules.DetectedTemplateAction
 import com.gestorfinances.app.domain.rules.RecurrenceFrequency
 import com.gestorfinances.app.ui.common.BannerKind
+import com.gestorfinances.app.ui.common.BudgetProgressBar
+import com.gestorfinances.app.ui.common.CollapsibleSectionHeader
 import com.gestorfinances.app.ui.common.AppModalBottomSheet
 import com.gestorfinances.app.ui.common.DestructiveTextButton
 import com.gestorfinances.app.ui.common.FinanceCard
@@ -76,7 +82,6 @@ import com.gestorfinances.app.ui.common.doneKeyboardActions
 import com.gestorfinances.app.ui.common.nextFieldKeyboardActions
 import com.gestorfinances.app.ui.common.formatEuroCents
 import com.gestorfinances.app.ui.common.formatCompactDate
-import com.gestorfinances.app.ui.common.IconChip
 import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.LabeledSegmentedControl
 import com.gestorfinances.app.ui.common.label
@@ -89,6 +94,7 @@ import com.gestorfinances.app.ui.common.SectionHeader
 import com.gestorfinances.app.ui.common.TopBarIconButton
 import com.gestorfinances.app.ui.common.parseEuroCents
 import com.gestorfinances.app.ui.common.scrollToWhen
+import com.gestorfinances.app.ui.common.parseIsoDateOrNull
 import com.gestorfinances.app.ui.movements.AccountSelect
 import com.gestorfinances.app.ui.movements.CategorySelect
 import com.gestorfinances.app.ui.movements.FormDatePicker
@@ -227,6 +233,7 @@ private fun RecurringContent(
     val active = state.templates
         .filter { it.status == TemplateStatus.ACTIVE }
         .sortedWith(compareBy({ it.effectiveDayOfMonth() }, { it.name?.lowercase() ?: "" }))
+    var endedExpanded by remember { mutableStateOf(false) }
     val paused = state.templates.filter { it.status == TemplateStatus.PAUSED }
     val ended = state.templates.filter { it.status == TemplateStatus.ENDED }
 
@@ -255,12 +262,6 @@ private fun RecurringContent(
             )
         }
 
-        if (state.hasMonthlySummary) {
-            item(key = "monthly-summary") {
-                MonthlySummaryCard(state = state)
-            }
-        }
-
         if (state.duePrompts.isNotEmpty()) {
             item(key = "due-header") {
                 Text(
@@ -280,6 +281,12 @@ private fun RecurringContent(
             }
         }
 
+        if (state.hasMonthlySummary) {
+            item(key = "monthly-summary") {
+                MonthlySummaryCard(state = state)
+            }
+        }
+
         state.errorMessage?.let { message ->
             item {
                 InlineBanner(kind = BannerKind.Error, text = message)
@@ -292,6 +299,8 @@ private fun RecurringContent(
             templateSection(
                 titleRes = R.string.recurring_scheduled_section_title,
                 templates = active,
+                occurrenceCounts = state.occurrenceCounts,
+                paymentStates = state.monthlyPaymentStates,
                 onEdit = onEdit,
                 onPause = onPause,
                 onResume = onResume,
@@ -301,21 +310,38 @@ private fun RecurringContent(
             templateSection(
                 titleRes = R.string.recurring_paused_section_title,
                 templates = paused,
+                occurrenceCounts = state.occurrenceCounts,
+                paymentStates = state.monthlyPaymentStates,
                 onEdit = onEdit,
                 onPause = onPause,
                 onResume = onResume,
                 onEnd = onEnd,
                 onDelete = onDelete,
             )
-            templateSection(
-                titleRes = R.string.recurring_ended_section_title,
-                templates = ended,
-                onEdit = onEdit,
-                onPause = onPause,
-                onResume = onResume,
-                onEnd = onEnd,
-                onDelete = onDelete,
-            )
+            if (ended.isNotEmpty()) {
+                item(key = "ended-header") {
+                    CollapsibleSectionHeader(
+                        title = stringResource(R.string.recurring_ended_section_title),
+                        count = ended.size,
+                        expanded = endedExpanded,
+                        onToggle = { endedExpanded = !endedExpanded },
+                    )
+                }
+                if (endedExpanded) {
+                    items(items = ended, key = { it.id }) { template ->
+                        TemplateRow(
+                            template = template,
+                            occurrenceCount = state.occurrenceCounts[template.id] ?: 0L,
+                            paymentState = state.monthlyPaymentStates[template.id] ?: TemplateMonthPaymentState.NONE,
+                            onEdit = { onEdit(template) },
+                            onPause = { onPause(template) },
+                            onResume = { onResume(template) },
+                            onEnd = { onEnd(template) },
+                            onDelete = { onDelete(template) },
+                        )
+                    }
+                }
+            }
             item {
                 PrimaryButton(
                     text = stringResource(R.string.recurring_list_add),
@@ -330,6 +356,8 @@ private fun RecurringContent(
 private fun androidx.compose.foundation.lazy.LazyListScope.templateSection(
     titleRes: Int,
     templates: List<TemplateSummary>,
+    occurrenceCounts: Map<String, Long>,
+    paymentStates: Map<String, TemplateMonthPaymentState>,
     onEdit: (TemplateSummary) -> Unit,
     onPause: (TemplateSummary) -> Unit,
     onResume: (TemplateSummary) -> Unit,
@@ -347,6 +375,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.templateSection(
     items(items = templates, key = { it.id }) { template ->
         TemplateRow(
             template = template,
+            occurrenceCount = occurrenceCounts[template.id] ?: 0L,
+            paymentState = paymentStates[template.id] ?: TemplateMonthPaymentState.NONE,
             onEdit = { onEdit(template) },
             onPause = { onPause(template) },
             onResume = { onResume(template) },
@@ -372,7 +402,7 @@ private fun TemplateAmountDisplay(template: TemplateSummary, style: TextStyle = 
         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(1.dp)) {
             MoneyText(
                 cents = userShare,
-                color = FinanceTheme.colors.amountColor(template.type),
+                color = FinanceTheme.colors.shared,
                 style = style,
                 signed = template.type != MovementType.EXPENSE,
             )
@@ -396,63 +426,146 @@ private fun TemplateAmountDisplay(template: TemplateSummary, style: TextStyle = 
 @Composable
 private fun TemplateRow(
     template: TemplateSummary,
+    occurrenceCount: Long,
+    paymentState: TemplateMonthPaymentState,
     onEdit: () -> Unit,
     onPause: () -> Unit,
     onResume: () -> Unit,
     onEnd: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    Row(
+    FinanceCard(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onEdit)
-            .padding(vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconChip(
-            icon = Icons.Outlined.Autorenew,
-            contentDescription = null,
-            color = MaterialTheme.colorScheme.primary,
-        )
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = template.name ?: template.type.label(),
-                style = MaterialTheme.typography.titleSmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            RecurringDateBadge(template = template, paymentState = paymentState)
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = template.name ?: template.type.label(),
+                        modifier = Modifier.weight(1f, fill = false),
+                        color = if (template.type == MovementType.INCOME) FinanceTheme.colors.income else MaterialTheme.colorScheme.onSurface,
+                        style = MaterialTheme.typography.titleSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (template.splitConfig != null) {
+                        SharedPill()
+                    }
+                }
+                Text(
+                    text = listOfNotNull(template.cadenceLabel(), template.accountName)
+                        .joinToString(separator = " · "),
+                    color = FinanceTheme.colors.mutedText,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text(
+                    text = listOf(
+                        stringResource(R.string.recurring_occurrence_count, occurrenceCount),
+                        paymentState.label(),
+                    ).filter { it.isNotBlank() }.joinToString(separator = " · "),
+                    color = FinanceTheme.colors.mutedText,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            TemplateAmountDisplay(template = template)
+            TemplateRowMenu(
+                status = template.status,
+                onEdit = onEdit,
+                onPause = onPause,
+                onResume = onResume,
+                onEnd = onEnd,
+                onDelete = onDelete,
             )
-            Text(
-                text = listOfNotNull(template.cadenceLabel(), template.accountName)
-                    .joinToString(separator = " · "),
-                color = FinanceTheme.colors.mutedText,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Text(
-                text = stringResource(R.string.recurring_next_due, formatCompactDate(template.nextDueDate)),
-                color = FinanceTheme.colors.mutedText,
-                style = MaterialTheme.typography.labelSmall,
-            )
-            if (template.splitConfig != null) {
-                Spacer(modifier = Modifier.height(4.dp))
-                NeutralPill(
-                    text = stringResource(R.string.recurring_shared_badge),
-                    leadingIcon = Icons.Outlined.Group,
+        }
+    }
+}
+
+@Composable
+private fun SharedPill() {
+    val sharedColor = FinanceTheme.colors.shared
+    Surface(
+        shape = MaterialTheme.shapes.extraLarge,
+        color = sharedColor.copy(alpha = 0.14f),
+        contentColor = sharedColor,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Icon(imageVector = Icons.Outlined.Group, contentDescription = null, modifier = Modifier.size(12.dp))
+            Text(text = stringResource(R.string.movement_shared_badge), style = MaterialTheme.typography.labelSmall)
+        }
+    }
+}
+
+@Composable
+private fun RecurringDateBadge(
+    template: TemplateSummary,
+    paymentState: TemplateMonthPaymentState,
+) {
+    val dateBadgeColor = when (paymentState) {
+        TemplateMonthPaymentState.PAID -> FinanceTheme.colors.income.copy(alpha = 0.16f)
+        TemplateMonthPaymentState.PENDING, TemplateMonthPaymentState.PARTIALLY_PAID -> FinanceTheme.colors.alert.copy(alpha = 0.16f)
+        TemplateMonthPaymentState.NONE -> MaterialTheme.colorScheme.surfaceVariant
+    }
+    val dateBadgeContent = when (paymentState) {
+        TemplateMonthPaymentState.PAID -> FinanceTheme.colors.income
+        TemplateMonthPaymentState.PENDING, TemplateMonthPaymentState.PARTIALLY_PAID -> FinanceTheme.colors.alert
+        TemplateMonthPaymentState.NONE -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Surface(
+        modifier = Modifier.width(48.dp).height(52.dp),
+        shape = MaterialTheme.shapes.small,
+        color = dateBadgeColor,
+        contentColor = dateBadgeContent,
+    ) {
+        val date = parseIsoDateOrNull(template.nextDueDate)
+        Column(
+            modifier = Modifier.padding(horizontal = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            if (template.status == TemplateStatus.ACTIVE && date != null) {
+                Text(text = date.dayOfMonth.toString(), style = MaterialTheme.typography.titleMedium)
+                Text(
+                    text = date.month.getDisplayName(java.time.format.TextStyle.SHORT_STANDALONE, java.util.Locale.forLanguageTag("ca"))
+                        .replace(".", "")
+                        .uppercase(),
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            } else {
+                Icon(
+                    imageVector = if (template.status == TemplateStatus.PAUSED) {
+                        Icons.Outlined.PauseCircle
+                    } else {
+                        Icons.Outlined.Cancel
+                    },
+                    contentDescription = template.status.label(),
+                    tint = if (template.status == TemplateStatus.PAUSED) FinanceTheme.colors.alert else FinanceTheme.colors.mutedText,
+                    modifier = Modifier.size(24.dp),
                 )
             }
         }
-        Spacer(modifier = Modifier.width(8.dp))
-        TemplateAmountDisplay(template = template)
-        TemplateRowMenu(
-            status = template.status,
-            onEdit = onEdit,
-            onPause = onPause,
-            onResume = onResume,
-            onEnd = onEnd,
-            onDelete = onDelete,
-        )
     }
 }
+
+@Composable
+private fun TemplateMonthPaymentState.label(): String =
+    when (this) {
+        TemplateMonthPaymentState.NONE -> ""
+        TemplateMonthPaymentState.PAID -> stringResource(R.string.recurring_payment_paid)
+        TemplateMonthPaymentState.PENDING -> stringResource(R.string.recurring_payment_pending)
+        TemplateMonthPaymentState.PARTIALLY_PAID -> stringResource(R.string.recurring_payment_partial)
+    }
 
 @Composable
 private fun TemplateRowMenu(
@@ -508,56 +621,93 @@ private fun TemplateRowMenu(
 
 @Composable
 private fun MonthlySummaryCard(state: RecurringUiState) {
+    val expenseForecast = state.monthlyPaidExpenseCents + state.monthlyRemainingExpenseCents
+    val incomeForecast = state.monthlyPaidIncomeCents + state.monthlyRemainingIncomeCents
+    val expenseProgress = if (expenseForecast > 0L) {
+        state.monthlyPaidExpenseCents.toFloat() / expenseForecast.toFloat()
+    } else {
+        0f
+    }
     FinanceCard(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = stringResource(R.string.recurring_month_title),
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                NeutralPill(
+                    text = stringResource(R.string.recurring_active_count, state.templates.count { it.status == TemplateStatus.ACTIVE }),
+                )
+            }
             Text(
-                text = stringResource(R.string.recurring_monthly_total),
-                style = MaterialTheme.typography.titleSmall,
+                text = stringResource(R.string.recurring_expenses_section_title),
+                color = FinanceTheme.colors.mutedText,
+                style = MaterialTheme.typography.labelMedium,
             )
-            SummaryMetric(
-                label = stringResource(R.string.recurring_summary_expense),
-                cents = -state.monthlyExpenseCents,
+            MoneyText(
+                cents = -expenseForecast,
                 color = FinanceTheme.colors.expense,
+                style = MaterialTheme.typography.headlineMedium,
             )
-            SummaryMetric(
-                label = stringResource(R.string.recurring_summary_income),
-                cents = state.monthlyIncomeCents,
-                color = FinanceTheme.colors.income,
-                signed = true,
-            )
-            SummaryMetric(
-                label = stringResource(R.string.recurring_summary_net),
-                cents = state.monthlyNetCents,
-                color = if (state.monthlyNetCents >= 0L) FinanceTheme.colors.income else FinanceTheme.colors.expense,
-                signed = true,
+            BudgetProgressBar(fraction = expenseProgress, color = FinanceTheme.colors.expense)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                MonthExpenseStat(
+                    label = stringResource(R.string.recurring_month_registered_label),
+                    cents = state.monthlyPaidExpenseCents,
+                    color = FinanceTheme.colors.income,
+                    modifier = Modifier.weight(1f),
+                )
+                MonthExpenseStat(
+                    label = stringResource(R.string.recurring_month_pending_label),
+                    cents = state.monthlyRemainingExpenseCents,
+                    color = FinanceTheme.colors.alert,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            Text(
+                text = stringResource(
+                    R.string.recurring_month_income_summary,
+                    formatEuroCents(incomeForecast),
+                    formatEuroCents(state.monthlyPaidIncomeCents),
+                ),
+                color = FinanceTheme.colors.mutedText,
+                style = MaterialTheme.typography.bodyMedium,
             )
         }
     }
 }
 
 @Composable
-private fun SummaryMetric(
+private fun MonthExpenseStat(
     label: String,
     cents: Long,
     color: androidx.compose.ui.graphics.Color,
-    signed: Boolean = false,
+    modifier: Modifier = Modifier,
 ) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            text = label,
-            modifier = Modifier.weight(1f),
-            color = FinanceTheme.colors.mutedText,
-            style = MaterialTheme.typography.labelMedium,
-        )
-        MoneyText(
-            cents = cents,
-            color = color,
-            style = MaterialTheme.typography.titleSmall,
-            signed = signed,
-        )
+    Surface(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.small,
+        color = color.copy(alpha = 0.14f),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            MoneyText(
+                cents = -cents,
+                color = color,
+                style = MaterialTheme.typography.titleSmall,
+            )
+            Text(
+                text = label,
+                color = FinanceTheme.colors.mutedText,
+                style = MaterialTheme.typography.labelSmall,
+            )
+        }
     }
 }
 
@@ -581,10 +731,7 @@ private fun DuePromptCard(
                     leadingIcon = Icons.Outlined.Warning,
                 )
                 if (template.splitConfig != null) {
-                    NeutralPill(
-                        text = stringResource(R.string.recurring_shared_badge),
-                        leadingIcon = Icons.Outlined.Group,
-                    )
+                    SharedPill()
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -864,12 +1011,14 @@ private fun TemplateFormScreen(
             InlineBanner(kind = BannerKind.Error, text = it)
         }
 
-        MovementTypeSelector(
-            selected = form.type,
-            onSelect = { onFormChange(form.copy(type = it)) },
-        )
+        FinanceCard(modifier = Modifier.fillMaxWidth()) {
+            MovementTypeSelector(
+                selected = form.type,
+                onSelect = { onFormChange(form.copy(type = it)) },
+            )
+        }
 
-        // Concepte
+        FormSectionLabel(R.string.recurring_form_details_section)
         OutlinedTextField(
             value = form.name,
             onValueChange = { onFormChange(form.copy(name = it)) },
@@ -881,6 +1030,7 @@ private fun TemplateFormScreen(
             modifier = Modifier.fillMaxWidth(),
         )
 
+        FormSectionLabel(R.string.recurring_form_amount_section)
         FormToggleRow(
             label = stringResource(R.string.template_field_amount_variable),
             checked = form.amountIsVariable,
@@ -926,6 +1076,7 @@ private fun TemplateFormScreen(
         }
 
         // Row: next due date & category (transfers have no category — date spans full width)
+        FormSectionLabel(R.string.recurring_form_account_section)
         val nextDueError = form.errorField == TemplateFormField.NEXT_DUE_DATE
         val nextDueErrorText = if (nextDueError && form.errorRes != null) stringResource(form.errorRes) else null
         if (form.type == MovementType.TRANSFER) {
@@ -1011,6 +1162,7 @@ private fun TemplateFormScreen(
             )
         }
 
+        FormSectionLabel(R.string.recurring_form_schedule_section)
         ScheduleFields(form = form, onFormChange = onFormChange)
 
         val dateFlexError = form.errorField == TemplateFormField.DATE_FLEX
@@ -1056,6 +1208,7 @@ private fun TemplateFormScreen(
             onSelect = { onFormChange(form.copy(status = it)) },
         )
 
+        FormSectionLabel(R.string.recurring_form_notes_section)
         OutlinedTextField(
             value = form.payee,
             onValueChange = { onFormChange(form.copy(payee = it)) },
@@ -1094,6 +1247,15 @@ private fun TemplateFormScreen(
             )
         }
     }
+}
+
+@Composable
+private fun FormSectionLabel(titleRes: Int) {
+    Text(
+        text = stringResource(titleRes),
+        color = FinanceTheme.colors.mutedText,
+        style = MaterialTheme.typography.labelLarge,
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -1184,10 +1346,7 @@ private fun DetectionCandidateRow(
                         overflow = TextOverflow.Ellipsis,
                     )
                     if (item.splitConfig != null) {
-                        NeutralPill(
-                            text = stringResource(R.string.recurring_shared_badge),
-                            leadingIcon = Icons.Outlined.Group,
-                        )
+                        SharedPill()
                     }
                     NeutralPill(
                         text = stringResource(
@@ -1227,7 +1386,7 @@ private fun DetectionCandidateAmount(candidate: DetectedRecurringCandidate, spli
     val userShare = splitConfig?.userShareCents(amount)
     if (splitConfig != null && userShare != null) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            MoneyText(cents = userShare, style = MaterialTheme.typography.bodyMedium)
+            MoneyText(cents = userShare, color = FinanceTheme.colors.shared, style = MaterialTheme.typography.bodyMedium)
             Text(
                 text = stringResource(R.string.movement_total_short, formatEuroCents(amount)),
                 color = FinanceTheme.colors.mutedText,
