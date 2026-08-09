@@ -574,6 +574,10 @@ private fun LedgerShell(
         val movementFormOverlay = nav.overlay as? AppOverlay.MovementForm
         val movementDetailOverlay = nav.overlay as? AppOverlay.MovementDetail
         val pageOverlay = when {
+            // Editing swaps the detail sheet for the form, so the page behind the form is the
+            // detail's own background, not a second sheet stacked underneath it.
+            movementFormOverlay?.returnTo is AppOverlay.MovementDetail ->
+                (movementFormOverlay.returnTo as AppOverlay.MovementDetail).returnTo
             movementFormOverlay != null -> movementFormOverlay.returnTo
             movementDetailOverlay != null -> movementDetailOverlay.returnTo
             else -> nav.overlay
@@ -792,10 +796,11 @@ private fun LedgerShell(
                     nav = nav.back()
                 },
                 onEdit = { movement ->
-                    movementsViewModel.onEditClicked(movement)
-                    nav = nav.copy(
-                        overlay = AppOverlay.MovementForm(returnTo = overlay),
-                    )
+                    movementsViewModel.onEditClicked(movement) {
+                        nav = nav.copy(
+                            overlay = AppOverlay.MovementForm(returnTo = overlay),
+                        )
+                    }
                 },
             )
         }
@@ -830,8 +835,16 @@ private fun LedgerShell(
                     onAdvancedToggled = movementsViewModel::onAdvancedToggled,
                     onCreatePersonInSplit = movementsViewModel::onCreatePersonInSplit,
                     onDismiss = {
+                        val savedEdit = movementsState.form == null &&
+                            overlay.returnTo is AppOverlay.MovementDetail
                         movementsViewModel.onFormDismissed()
-                        nav = nav.back()
+                        // A completed edit returns to the source page rather than reopening a
+                        // stale detail sheet. Cancelling still restores the untouched detail.
+                        nav = if (savedEdit) {
+                            nav.copy(overlay = (overlay.returnTo as AppOverlay.MovementDetail).returnTo)
+                        } else {
+                            nav.back()
+                        }
                     },
                     onSave = movementsViewModel::onSaveClicked,
                     onOverride = movementsViewModel::onDuplicateOverrideClicked,

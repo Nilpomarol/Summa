@@ -82,9 +82,10 @@ fun MovementFormScreen(
     // The three compact type layouts share one baseline. Retain its measured height while the
     // user changes type so the pinned Save action never briefly falls back into normal flow.
     var compactContentHeight by remember { mutableStateOf<androidx.compose.ui.unit.Dp?>(null) }
-    // After the initial natural measurement, keep the scrolling body and action bar pinned in
-    // both states. Dropping these weights before a collapse animation would move Save early.
-    val usePinnedActionLayout = compactContentHeight != null
+    // Expanded forms must pin the action bar from their first composition: edit flows can open
+    // with optional values already disclosed, before a compact height has ever been measured.
+    // Once a compact height exists, retain the pinned layout through a collapse animation too.
+    val usePinnedActionLayout = useExpandedSheetHeight || compactContentHeight != null
     AppModalBottomSheet(
         onDismissRequest = onDismiss,
         modifier = modifier,
@@ -92,7 +93,6 @@ fun MovementFormScreen(
         fixedHeightFraction = MovementSheetExpandedHeightFraction.takeIf { useExpandedSheetHeight },
         fixedHeight = if (useExpandedSheetHeight) null else compactContentHeight?.plus(AppSheetHandleTouchHeight),
         keepDragHandleInside = true,
-        dismissFromDragHandleOnly = true,
     ) {
         Column(
             modifier = Modifier
