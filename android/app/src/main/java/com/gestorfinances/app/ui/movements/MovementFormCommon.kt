@@ -564,7 +564,6 @@ internal fun FormAdvancedSection(
 
     if (form.showAdvanced) {
         Column(
-            modifier = Modifier.scrollToWhen(form.showAdvanced),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             if (form.type == MovementType.EXPENSE) {

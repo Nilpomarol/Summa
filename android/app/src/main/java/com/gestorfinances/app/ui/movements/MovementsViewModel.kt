@@ -119,23 +119,31 @@ class MovementsViewModel(
         }
     }
 
-    fun onEditClicked(movement: MovementSummary) {
+    fun onEditClicked(movement: MovementSummary, onReady: () -> Unit = {}) {
         if (movement.type == MovementType.SETTLEMENT || movement.type == MovementType.REFUND) return
         viewModelScope.launch {
-            val (splitDraft, template) = withContext(ioDispatcher) {
-                val split = when {
-                    movement.isShared -> splitRepository?.getForMovement(movement.id)
-                    movement.type == MovementType.EXTERNAL_EXPENSE -> splitRepository?.getForMovementById(movement.id)
-                    else -> null
+            val result = withContext(ioDispatcher) {
+                runCatching {
+                    val split = when {
+                        movement.isShared -> splitRepository?.getForMovement(movement.id)
+                        movement.type == MovementType.EXTERNAL_EXPENSE -> splitRepository?.getForMovementById(movement.id)
+                        else -> null
+                    }
+                    // Load the real template so the form can show the actual linked
+                    // frequency/status instead of silently defaulting or ignoring it.
+                    val linkedTemplate = movement.templateId?.let { templateRepository?.getActive(it) }
+                    split to linkedTemplate
                 }
-                // Regression: load the real template so the form can show the actual
-                // linked frequency/status instead of silently defaulting or ignoring it.
-                val linkedTemplate = movement.templateId?.let { templateRepository?.getActive(it) }
-                split to linkedTemplate
             }
-            _state.value = _state.value.copy(
-                form = movement.toFormState(splitDraft, template),
-                detailMovement = null
+            result.fold(
+                onSuccess = { (splitDraft, template) ->
+                    // Keep the detail data intact so dismissing the edit form can restore it.
+                    _state.value = _state.value.copy(form = movement.toFormState(splitDraft, template))
+                    onReady()
+                },
+                onFailure = {
+                    _state.value = _state.value.copy(errorMessage = it.message ?: it.javaClass.simpleName)
+                },
             )
         }
     }
