@@ -3,6 +3,7 @@ package com.gestorfinances.app.data.backup
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.provider.DocumentsContract
 
 class BackupFolderStore(
     context: Context,
@@ -25,9 +26,22 @@ class BackupFolderStore(
 
     private fun toBackupFolder(uriString: String): BackupFolder {
         val uri = Uri.parse(uriString)
-        val label = uri.lastPathSegment
-            ?.substringAfterLast(':')
-            ?.takeIf { it.isNotBlank() }
+        val label = runCatching {
+            val documentUri = DocumentsContract.buildDocumentUriUsingTree(
+                uri,
+                DocumentsContract.getTreeDocumentId(uri),
+            )
+            appContext.contentResolver.query(
+                documentUri,
+                arrayOf(DocumentsContract.Document.COLUMN_DISPLAY_NAME),
+                null,
+                null,
+                null,
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) cursor.getString(0) else null
+            }
+        }.getOrNull()?.takeIf { it.isNotBlank() }
+            ?: uri.lastPathSegment?.substringAfterLast(':')?.takeIf { it.isNotBlank() }
             ?: uriString
         return BackupFolder(uriString = uriString, displayLabel = label)
     }

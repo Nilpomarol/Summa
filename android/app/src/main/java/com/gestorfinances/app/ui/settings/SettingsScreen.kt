@@ -3,6 +3,7 @@
 package com.gestorfinances.app.ui.settings
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -36,6 +37,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -47,6 +51,7 @@ import com.gestorfinances.app.R
 import com.gestorfinances.app.ui.common.RootPageHeader
 import com.gestorfinances.app.data.backup.BackupFileCandidate
 import com.gestorfinances.app.data.backup.PendingBackupRestore
+import com.gestorfinances.app.data.backup.AutoBackupInterval
 import com.gestorfinances.app.ui.common.BannerKind
 import com.gestorfinances.app.ui.common.DestructiveTextButton
 import com.gestorfinances.app.ui.common.FinanceCard
@@ -54,6 +59,8 @@ import com.gestorfinances.app.ui.common.FinanceSwitch
 import com.gestorfinances.app.ui.common.IconChip
 import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.AppModalBottomSheet
+import com.gestorfinances.app.ui.common.AppDropdownMenu
+import com.gestorfinances.app.ui.common.AppDropdownMenuItem
 import com.gestorfinances.app.ui.common.PrimaryButton
 import com.gestorfinances.app.ui.common.SecondaryButton
 import com.gestorfinances.app.ui.common.SectionHeader
@@ -106,6 +113,7 @@ fun SettingsScreen(
                 onExport = viewModel::onBackupExportClicked,
                 onImport = viewModel::onBackupImportClicked,
                 onAutoBackupChanged = viewModel::onAutoBackupChanged,
+                onAutoBackupIntervalChanged = viewModel::onAutoBackupIntervalChanged,
             )
         }
 
@@ -243,6 +251,7 @@ private fun BackupSettingsCard(
     onExport: () -> Unit,
     onImport: () -> Unit,
     onAutoBackupChanged: (Boolean) -> Unit,
+    onAutoBackupIntervalChanged: (AutoBackupInterval) -> Unit,
 ) {
     FinanceCard(modifier = Modifier.fillMaxWidth()) {
         Column(
@@ -291,8 +300,10 @@ private fun BackupSettingsCard(
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 AutoBackupRow(
                     enabled = state.autoBackupEnabled,
+                    interval = state.autoBackupInterval,
                     lastSuccessfulBackupAt = state.lastSuccessfulBackupAt,
                     onEnabledChange = onAutoBackupChanged,
+                    onIntervalChange = onAutoBackupIntervalChanged,
                 )
             }
             if (state.backupFolder != null) {
@@ -329,9 +340,12 @@ private fun BackupSettingsCard(
 @Composable
 private fun AutoBackupRow(
     enabled: Boolean,
+    interval: AutoBackupInterval,
     lastSuccessfulBackupAt: Instant?,
     onEnabledChange: (Boolean) -> Unit,
+    onIntervalChange: (AutoBackupInterval) -> Unit,
 ) {
+    var intervalMenuExpanded by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -340,7 +354,12 @@ private fun AutoBackupRow(
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(text = stringResource(R.string.settings_auto_backup_title), style = MaterialTheme.typography.titleSmall)
             Text(
-                text = stringResource(R.string.settings_auto_backup_daily),
+                text = stringResource(R.string.settings_auto_backup_schedule, interval.displayName()),
+                color = FinanceTheme.colors.mutedText,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Text(
+                text = stringResource(R.string.settings_auto_backup_start),
                 color = FinanceTheme.colors.mutedText,
                 style = MaterialTheme.typography.bodySmall,
             )
@@ -351,10 +370,48 @@ private fun AutoBackupRow(
                 color = FinanceTheme.colors.mutedText,
                 style = MaterialTheme.typography.bodySmall,
             )
+            Text(
+                text = stringResource(R.string.settings_auto_backup_retention),
+                color = FinanceTheme.colors.mutedText,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Box {
+                SecondaryButton(
+                    text = interval.displayName(),
+                    onClick = { intervalMenuExpanded = true },
+                    enabled = enabled,
+                )
+                AppDropdownMenu(
+                    expanded = intervalMenuExpanded,
+                    onDismissRequest = { intervalMenuExpanded = false },
+                ) {
+                    AutoBackupInterval.entries.forEach { option ->
+                        AppDropdownMenuItem(
+                            text = { Text(option.displayName()) },
+                            selected = option == interval,
+                            onClick = {
+                                intervalMenuExpanded = false
+                                onIntervalChange(option)
+                            },
+                        )
+                    }
+                }
+            }
         }
         FinanceSwitch(checked = enabled, onCheckedChange = onEnabledChange)
     }
 }
+
+@Composable
+private fun AutoBackupInterval.displayName(): String =
+    stringResource(
+        when (this) {
+            AutoBackupInterval.DAILY -> R.string.settings_auto_backup_daily
+            AutoBackupInterval.WEEKLY -> R.string.settings_auto_backup_weekly
+            AutoBackupInterval.MONTHLY -> R.string.settings_auto_backup_monthly
+            AutoBackupInterval.QUARTERLY -> R.string.settings_auto_backup_quarterly
+        },
+    )
 
 @Composable
 private fun BackupLocationRow(

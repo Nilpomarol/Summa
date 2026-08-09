@@ -80,6 +80,7 @@ class BackupSnapshotService(
                 lastModifiedMillis = null,
                 currentSnapshotVersion = previousSnapshotVersion,
             ).also { it.deleteSourceFile() }.metadata
+            pruneBackups(folderUri)
             return BackupExportResult(
                 metadata = metadata,
                 fallbackUsed = snapshotCreation?.fallbackUsed ?: false,
@@ -137,6 +138,12 @@ class BackupSnapshotService(
                 compareByDescending<BackupFileCandidate> { it.parsedSnapshotVersion ?: Long.MIN_VALUE }
                     .thenByDescending { it.lastModifiedMillis ?: Long.MIN_VALUE },
             )
+        }
+    }
+
+    private fun pruneBackups(folderUri: Uri) {
+        BackupRetention.filesToDelete(listBackups(folderUri.toString())).forEach { candidate ->
+            DocumentsContract.deleteDocument(resolver, Uri.parse(candidate.id))
         }
     }
 
@@ -309,4 +316,5 @@ class BackupSnapshotService(
             sourceFile.delete()
         }
     }
+
 }

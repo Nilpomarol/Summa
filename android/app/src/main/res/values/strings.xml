@@ -788,7 +788,13 @@
     <string name="settings_backup_body">Exporta o restaura una còpia completa de la base de dades en una carpeta que triïs.</string>
     <string name="settings_backup_frequency_manual">Manual</string>
     <string name="settings_auto_backup_title">Còpia automàtica</string>
-    <string name="settings_auto_backup_daily">Una còpia al dia quan Android pugui executar-la.</string>
+    <string name="settings_auto_backup_schedule">Automàtica: cada %1$s</string>
+    <string name="settings_auto_backup_daily">dia</string>
+    <string name="settings_auto_backup_weekly">setmana</string>
+    <string name="settings_auto_backup_monthly">mes</string>
+    <string name="settings_auto_backup_quarterly">3 mesos</string>
+    <string name="settings_auto_backup_start">En activar-la, es fa una còpia ara i després segueix aquest ritme.</string>
+    <string name="settings_auto_backup_retention">Es conserven només les 5 còpies més recents.</string>
     <string name="settings_backup_last_success">Darrera còpia: %1$s</string>
     <string name="settings_backup_last_missing">Encara no s’ha creat cap còpia.</string>
     <string name="settings_backup_storage_google_drive">Google Drive</string>

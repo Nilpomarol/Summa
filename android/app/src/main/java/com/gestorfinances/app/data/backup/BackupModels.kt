@@ -21,6 +21,13 @@ data class BackupFileCandidate(
     val lastModifiedMillis: Long?,
 )
 
+object BackupRetention {
+    const val MAX_FILES = 5
+
+    fun filesToDelete(candidatesNewestFirst: List<BackupFileCandidate>): List<BackupFileCandidate> =
+        candidatesNewestFirst.drop(MAX_FILES)
+}
+
 data class PendingBackupRestore(
     val tempPath: String,
     val metadata: BackupMetadata,
