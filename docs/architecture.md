@@ -63,7 +63,7 @@ Android can export and restore an unencrypted `.gfbackup` SQLite snapshot throug
 - The Android compatibility fallback checkpoints WAL, closes the database, copies the stable main file, and recreates the app container.
 - Restore validates SQLite integrity, required objects, and metadata before replacing the database.
 - Older or same-version manual backups warn but may be restored deliberately.
-- An optional Android WorkManager job requests one daily automatic export to the selected folder. It only uses the live `VACUUM INTO` path; if that safe path is unavailable, it retries later rather than closing the active database for the compatibility fallback.
+- An optional Android WorkManager job requests an immediate export when first enabled, then repeats daily, weekly, monthly, or quarterly in the selected folder. Every successful export retains only the five newest `.gfbackup` files. Automatic work only uses the live `VACUUM INTO` path; if that safe path is unavailable, it retries later rather than closing the active database for the compatibility fallback.
 - This format is not the future encrypted sync format.
 
 ## Future sync contract

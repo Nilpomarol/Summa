@@ -14,6 +14,7 @@ import com.gestorfinances.app.data.backup.PendingBackupRestore
 import com.gestorfinances.app.data.backup.AutoBackupScheduler
 import com.gestorfinances.app.data.backup.AutoBackupSettings
 import com.gestorfinances.app.data.backup.AutoBackupSettingsRepository
+import com.gestorfinances.app.data.backup.AutoBackupInterval
 import com.gestorfinances.app.data.db.DataSeeder
 import com.gestorfinances.app.notifications.NotificationSettings
 import com.gestorfinances.app.notifications.NotificationSettingsRepository
@@ -89,7 +90,24 @@ class SettingsViewModelTest {
 
         assertTrue(viewModel.state.value.autoBackupEnabled)
         assertTrue(preferences.settings.enabled)
-        assertEquals(true, scheduler.enabled)
+        assertTrue(scheduler.settings?.enabled == true)
+        assertTrue(scheduler.runImmediately)
+    }
+
+    @Test
+    fun changingAutoBackupIntervalReschedulesWithoutAnotherImmediateBackup() {
+        val preferences = FakeAutoBackupSettingsRepository().apply {
+            settings = AutoBackupSettings(enabled = true)
+        }
+        val scheduler = FakeAutoBackupScheduler()
+        val viewModel = viewModel(autoBackupSettings = preferences, autoBackupScheduler = scheduler)
+        viewModel.onScreenShown()
+
+        viewModel.onAutoBackupIntervalChanged(AutoBackupInterval.QUARTERLY)
+
+        assertEquals(AutoBackupInterval.QUARTERLY, preferences.settings.interval)
+        assertEquals(AutoBackupInterval.QUARTERLY, scheduler.settings?.interval)
+        assertFalse(scheduler.runImmediately)
     }
 
     @Test
@@ -430,8 +448,8 @@ class SettingsViewModelTest {
 
         override fun load(): AutoBackupSettings = settings
 
-        override fun setEnabled(enabled: Boolean) {
-            settings = settings.copy(enabled = enabled)
+        override fun save(settings: AutoBackupSettings) {
+            this.settings = settings
         }
 
         override fun recordSuccessfulBackup(at: Instant) {
@@ -440,10 +458,12 @@ class SettingsViewModelTest {
     }
 
     private class FakeAutoBackupScheduler : AutoBackupScheduler {
-        var enabled: Boolean? = null
+        var settings: AutoBackupSettings? = null
+        var runImmediately: Boolean = false
 
-        override fun update(enabled: Boolean) {
-            this.enabled = enabled
+        override fun update(settings: AutoBackupSettings, runImmediately: Boolean) {
+            this.settings = settings
+            this.runImmediately = runImmediately
         }
     }
 

@@ -15,6 +15,7 @@ import com.gestorfinances.app.data.backup.BackupWarning
 import com.gestorfinances.app.data.backup.PendingBackupRestore
 import com.gestorfinances.app.data.backup.AutoBackupScheduler
 import com.gestorfinances.app.data.backup.AutoBackupSettingsRepository
+import com.gestorfinances.app.data.backup.AutoBackupInterval
 import com.gestorfinances.app.data.db.DataSeeder
 import com.gestorfinances.app.notifications.NotificationPreferences
 import com.gestorfinances.app.notifications.NotificationRefresher
@@ -55,6 +56,7 @@ class SettingsViewModel(
         _state.value = SettingsUiState.fromSettings(settings).copy(
             backupFolder = folder,
             autoBackupEnabled = autoBackup.enabled,
+            autoBackupInterval = autoBackup.interval,
             lastSuccessfulBackupAt = autoBackup.lastSuccessfulBackupAt,
         )
     }
@@ -109,9 +111,17 @@ class SettingsViewModel(
     }
 
     fun onAutoBackupChanged(enabled: Boolean) {
-        autoBackupSettings.setEnabled(enabled)
-        autoBackupScheduler.update(enabled)
-        _state.value = _state.value.copy(autoBackupEnabled = enabled)
+        val settings = autoBackupSettings.load().copy(enabled = enabled)
+        autoBackupSettings.save(settings)
+        autoBackupScheduler.update(settings, runImmediately = enabled)
+        _state.value = _state.value.copy(autoBackupEnabled = enabled, autoBackupInterval = settings.interval)
+    }
+
+    fun onAutoBackupIntervalChanged(interval: AutoBackupInterval) {
+        val settings = autoBackupSettings.load().copy(interval = interval)
+        autoBackupSettings.save(settings)
+        autoBackupScheduler.update(settings, runImmediately = false)
+        _state.value = _state.value.copy(autoBackupInterval = interval)
     }
 
     fun onBackupFolderSelected(uriString: String?) {
@@ -297,6 +307,7 @@ class SettingsViewModel(
             showBackupList = _state.value.showBackupList,
             pendingRestore = _state.value.pendingRestore,
             autoBackupEnabled = _state.value.autoBackupEnabled,
+            autoBackupInterval = _state.value.autoBackupInterval,
             lastSuccessfulBackupAt = _state.value.lastSuccessfulBackupAt,
         )
         viewModelScope.launch {
@@ -400,6 +411,7 @@ data class SettingsUiState(
     val showBackupList: Boolean = false,
     val pendingRestore: PendingBackupRestore? = null,
     val autoBackupEnabled: Boolean = false,
+    val autoBackupInterval: AutoBackupInterval = AutoBackupInterval.DAILY,
     val lastSuccessfulBackupAt: Instant? = null,
 ) {
     companion object {
