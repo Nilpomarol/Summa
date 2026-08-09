@@ -3,6 +3,8 @@ package com.gestorfinances.app.di
 import android.content.Context
 import com.gestorfinances.app.data.backup.BackupFolderStore
 import com.gestorfinances.app.data.backup.BackupSnapshotService
+import com.gestorfinances.app.data.backup.AutoBackupPreferences
+import com.gestorfinances.app.data.backup.WorkManagerAutoBackupScheduler
 import com.gestorfinances.app.data.db.DataSeeder
 import com.gestorfinances.app.data.db.DatabaseDriverFactory
 import com.gestorfinances.app.data.db.GestorDatabase
@@ -106,6 +108,14 @@ class AppContainer(context: Context) {
 
     val backupFolderStore: BackupFolderStore by lazy {
         BackupFolderStore(appContext)
+    }
+
+    val autoBackupPreferences: AutoBackupPreferences by lazy {
+        AutoBackupPreferences(appContext)
+    }
+
+    val autoBackupScheduler: WorkManagerAutoBackupScheduler by lazy {
+        WorkManagerAutoBackupScheduler(appContext)
     }
 
     val backupSnapshotService: BackupSnapshotService by lazy {

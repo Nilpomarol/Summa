@@ -13,12 +13,15 @@ import com.gestorfinances.app.data.backup.BackupOperations
 import com.gestorfinances.app.data.backup.BackupValidationError
 import com.gestorfinances.app.data.backup.BackupWarning
 import com.gestorfinances.app.data.backup.PendingBackupRestore
+import com.gestorfinances.app.data.backup.AutoBackupScheduler
+import com.gestorfinances.app.data.backup.AutoBackupSettingsRepository
 import com.gestorfinances.app.data.db.DataSeeder
 import com.gestorfinances.app.notifications.NotificationPreferences
 import com.gestorfinances.app.notifications.NotificationRefresher
 import com.gestorfinances.app.notifications.NotificationSettings
 import com.gestorfinances.app.notifications.NotificationSettingsRepository
 import java.io.File
+import java.time.Instant
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -35,6 +38,8 @@ class SettingsViewModel(
     private val dataSeeder: DataSeeder,
     private val backupFolderRepository: BackupFolderRepository,
     private val backupOperations: BackupOperations,
+    private val autoBackupSettings: AutoBackupSettingsRepository,
+    private val autoBackupScheduler: AutoBackupScheduler,
     private val notificationRefresher: NotificationRefresher = NotificationRefresher.NoOp,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
@@ -46,7 +51,12 @@ class SettingsViewModel(
     fun onScreenShown() {
         val settings = preferences.loadSettings()
         val folder = backupFolderRepository.loadSelectedFolder()
-        _state.value = SettingsUiState.fromSettings(settings).copy(backupFolder = folder)
+        val autoBackup = autoBackupSettings.load()
+        _state.value = SettingsUiState.fromSettings(settings).copy(
+            backupFolder = folder,
+            autoBackupEnabled = autoBackup.enabled,
+            lastSuccessfulBackupAt = autoBackup.lastSuccessfulBackupAt,
+        )
     }
 
     fun resetForMenuNavigation() = onScreenShown()
@@ -98,6 +108,12 @@ class SettingsViewModel(
         }
     }
 
+    fun onAutoBackupChanged(enabled: Boolean) {
+        autoBackupSettings.setEnabled(enabled)
+        autoBackupScheduler.update(enabled)
+        _state.value = _state.value.copy(autoBackupEnabled = enabled)
+    }
+
     fun onBackupFolderSelected(uriString: String?) {
         if (uriString == null) return
         viewModelScope.launch {
@@ -143,11 +159,17 @@ class SettingsViewModel(
                         },
                         arg = export.metadata.displayName,
                     )
+                    val completedAt = Instant.now()
+                    autoBackupSettings.recordSuccessfulBackup(completedAt)
                     if (export.requiresAppReset) {
                         _effects.emit(SettingsEffect.RecreateApp(message))
-                        _state.value.copy(backupMessage = message)
+                        _state.value.copy(backupMessage = message, lastSuccessfulBackupAt = completedAt)
                     } else {
-                        _state.value.copy(isBackupBusy = false, backupMessage = message)
+                        _state.value.copy(
+                            isBackupBusy = false,
+                            backupMessage = message,
+                            lastSuccessfulBackupAt = completedAt,
+                        )
                     }
                 },
                 onFailure = { error ->
@@ -274,6 +296,8 @@ class SettingsViewModel(
             backupCandidates = _state.value.backupCandidates,
             showBackupList = _state.value.showBackupList,
             pendingRestore = _state.value.pendingRestore,
+            autoBackupEnabled = _state.value.autoBackupEnabled,
+            lastSuccessfulBackupAt = _state.value.lastSuccessfulBackupAt,
         )
         viewModelScope.launch {
             withContext(ioDispatcher) {
@@ -341,6 +365,8 @@ class SettingsViewModel(
         private val dataSeeder: DataSeeder,
         private val backupFolderRepository: BackupFolderRepository,
         private val backupOperations: BackupOperations,
+        private val autoBackupSettings: AutoBackupSettingsRepository,
+        private val autoBackupScheduler: AutoBackupScheduler,
         private val notificationRefresher: NotificationRefresher,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
@@ -351,6 +377,8 @@ class SettingsViewModel(
                     dataSeeder = dataSeeder,
                     backupFolderRepository = backupFolderRepository,
                     backupOperations = backupOperations,
+                    autoBackupSettings = autoBackupSettings,
+                    autoBackupScheduler = autoBackupScheduler,
                     notificationRefresher = notificationRefresher,
                 ) as T
             }
@@ -371,6 +399,8 @@ data class SettingsUiState(
     val backupCandidates: List<BackupFileCandidate> = emptyList(),
     val showBackupList: Boolean = false,
     val pendingRestore: PendingBackupRestore? = null,
+    val autoBackupEnabled: Boolean = false,
+    val lastSuccessfulBackupAt: Instant? = null,
 ) {
     companion object {
         fun fromSettings(settings: NotificationSettings): SettingsUiState =

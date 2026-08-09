@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -54,6 +55,9 @@ import com.gestorfinances.app.ui.common.IconChip
 import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.AppModalBottomSheet
 import com.gestorfinances.app.ui.common.PrimaryButton
+import com.gestorfinances.app.ui.common.SecondaryButton
+import com.gestorfinances.app.ui.common.SectionHeader
+import com.gestorfinances.app.ui.common.NeutralPill
 import com.gestorfinances.app.ui.theme.FinanceTheme
 import java.time.Instant
 import java.time.ZoneId
@@ -95,6 +99,16 @@ fun SettingsScreen(
             RootPageHeader(title = stringResource(R.string.settings_title))
         }
 
+        item {
+            BackupSettingsCard(
+                state = state,
+                onChooseFolder = viewModel::onBackupChooseFolderClicked,
+                onExport = viewModel::onBackupExportClicked,
+                onImport = viewModel::onBackupImportClicked,
+                onAutoBackupChanged = viewModel::onAutoBackupChanged,
+            )
+        }
+
         if (!notificationPermissionGranted) {
             item {
                 FinanceCard(modifier = Modifier.fillMaxWidth()) {
@@ -118,69 +132,12 @@ fun SettingsScreen(
         }
 
         item {
-            FinanceCard(modifier = Modifier.fillMaxWidth()) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Text(
-                        text = stringResource(R.string.notification_recurring_title),
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                    Text(
-                        text = stringResource(R.string.notification_recurring_lead_help),
-                        color = FinanceTheme.colors.mutedText,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    state.errorRes?.let {
-                        InlineBanner(kind = BannerKind.Error, text = stringResource(it))
-                    }
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        OutlinedTextField(
-                            value = state.recurringLeadDays,
-                            onValueChange = viewModel::onRecurringLeadDaysChanged,
-                            label = { Text(text = stringResource(R.string.notification_recurring_lead_default)) },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            shape = MaterialTheme.shapes.small,
-                            modifier = Modifier.weight(1f),
-                        )
-                        PrimaryButton(
-                            text = stringResource(R.string.common_save),
-                            onClick = viewModel::onSaveRecurringLeadDays,
-                        )
-                    }
-                }
-            }
-        }
-
-        item {
-            SettingsSwitchCard(
-                title = stringResource(R.string.alert_budget_title),
-                body = stringResource(R.string.alert_budget_body),
-                checked = state.budgetAlertsEnabled,
-                onCheckedChange = viewModel::onBudgetAlertsChanged,
-            )
-        }
-
-        item {
-            SettingsSwitchCard(
-                title = stringResource(R.string.alert_low_balance_title),
-                body = stringResource(R.string.alert_low_balance_body),
-                checked = state.lowBalanceAlertsEnabled,
-                onCheckedChange = viewModel::onLowBalanceAlertsChanged,
-            )
-        }
-
-        item {
-            BackupSettingsCard(
+            NotificationSettingsCard(
                 state = state,
-                onChooseFolder = viewModel::onBackupChooseFolderClicked,
-                onExport = viewModel::onBackupExportClicked,
-                onImport = viewModel::onBackupImportClicked,
+                onRecurringLeadDaysChanged = viewModel::onRecurringLeadDaysChanged,
+                onSaveRecurringLeadDays = viewModel::onSaveRecurringLeadDays,
+                onBudgetAlertsChanged = viewModel::onBudgetAlertsChanged,
+                onLowBalanceAlertsChanged = viewModel::onLowBalanceAlertsChanged,
             )
         }
 
@@ -285,10 +242,11 @@ private fun BackupSettingsCard(
     onChooseFolder: () -> Unit,
     onExport: () -> Unit,
     onImport: () -> Unit,
+    onAutoBackupChanged: (Boolean) -> Unit,
 ) {
     FinanceCard(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Row(
@@ -306,12 +264,8 @@ private fun BackupSettingsCard(
                         text = stringResource(R.string.settings_backup_title),
                         style = MaterialTheme.typography.titleMedium,
                     )
-                    Text(
-                        text = stringResource(R.string.settings_backup_body),
-                        color = FinanceTheme.colors.mutedText,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
                 }
+                NeutralPill(text = stringResource(R.string.settings_backup_frequency_manual))
             }
             state.backupMessage?.let { message ->
                 InlineBanner(
@@ -320,54 +274,177 @@ private fun BackupSettingsCard(
                         ?: stringResource(message.messageRes),
                 )
             }
-            InlineBanner(
-                kind = if (state.backupFolder == null) BannerKind.Alert else BannerKind.Info,
-                text = state.backupFolder?.let {
-                    stringResource(R.string.settings_backup_folder_value, it.displayLabel)
-                } ?: stringResource(R.string.settings_backup_folder_missing),
-            )
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
+            if (state.backupFolder == null) {
+                InlineBanner(
+                    kind = BannerKind.Alert,
+                    text = stringResource(R.string.settings_backup_folder_missing),
+                )
                 PrimaryButton(
-                    text = stringResource(
-                        if (state.backupFolder == null) {
-                            R.string.settings_backup_choose_folder
-                        } else {
-                            R.string.settings_backup_change_folder
-                        },
-                    ),
+                    text = stringResource(R.string.settings_backup_choose_folder),
                     onClick = onChooseFolder,
                     enabled = !state.isBackupBusy,
                     leadingIcon = Icons.Outlined.FolderOpen,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            } else {
+                BackupLocationRow(folder = state.backupFolder, onChange = onChooseFolder, enabled = !state.isBackupBusy)
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                AutoBackupRow(
+                    enabled = state.autoBackupEnabled,
+                    lastSuccessfulBackupAt = state.lastSuccessfulBackupAt,
+                    onEnabledChange = onAutoBackupChanged,
                 )
             }
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                PrimaryButton(
-                    text = stringResource(R.string.settings_backup_export),
-                    onClick = onExport,
-                    enabled = !state.isBackupBusy,
-                    leadingIcon = Icons.Outlined.CloudUpload,
-                    modifier = Modifier.weight(1f),
-                )
-                PrimaryButton(
-                    text = stringResource(R.string.settings_backup_import),
-                    onClick = onImport,
-                    enabled = !state.isBackupBusy,
-                    leadingIcon = Icons.Outlined.CloudDownload,
-                    modifier = Modifier.weight(1f),
-                )
+            if (state.backupFolder != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    PrimaryButton(
+                        text = stringResource(R.string.settings_backup_export),
+                        onClick = onExport,
+                        enabled = !state.isBackupBusy,
+                        leadingIcon = Icons.Outlined.CloudUpload,
+                        modifier = Modifier.weight(1f),
+                    )
+                    SecondaryButton(
+                        text = stringResource(R.string.settings_backup_import),
+                        onClick = onImport,
+                        enabled = !state.isBackupBusy,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
             if (state.isBackupBusy) {
                 Text(
                     text = stringResource(R.string.settings_backup_busy),
                     color = FinanceTheme.colors.mutedText,
                     style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AutoBackupRow(
+    enabled: Boolean,
+    lastSuccessfulBackupAt: Instant?,
+    onEnabledChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(text = stringResource(R.string.settings_auto_backup_title), style = MaterialTheme.typography.titleSmall)
+            Text(
+                text = stringResource(R.string.settings_auto_backup_daily),
+                color = FinanceTheme.colors.mutedText,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Text(
+                text = lastSuccessfulBackupAt?.let {
+                    stringResource(R.string.settings_backup_last_success, it.formatBackupInstant())
+                } ?: stringResource(R.string.settings_backup_last_missing),
+                color = FinanceTheme.colors.mutedText,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        FinanceSwitch(checked = enabled, onCheckedChange = onEnabledChange)
+    }
+}
+
+@Composable
+private fun BackupLocationRow(
+    folder: com.gestorfinances.app.data.backup.BackupFolder,
+    onChange: () -> Unit,
+    enabled: Boolean,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = folder.displayLabel,
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        NeutralPill(text = folder.storageLabel())
+        SecondaryButton(
+            text = stringResource(R.string.settings_backup_change),
+            onClick = onChange,
+            enabled = enabled,
+        )
+    }
+}
+
+@Composable
+private fun com.gestorfinances.app.data.backup.BackupFolder.storageLabel(): String =
+    when {
+        uriString.contains("com.google.android.apps.docs.storage") ->
+            stringResource(R.string.settings_backup_storage_google_drive)
+        else -> stringResource(R.string.settings_backup_storage_local)
+    }
+
+@Composable
+private fun NotificationSettingsCard(
+    state: SettingsUiState,
+    onRecurringLeadDaysChanged: (String) -> Unit,
+    onSaveRecurringLeadDays: () -> Unit,
+    onBudgetAlertsChanged: (Boolean) -> Unit,
+    onLowBalanceAlertsChanged: (Boolean) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SectionHeader(title = stringResource(R.string.settings_notifications_section))
+        FinanceCard(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconChip(Icons.Outlined.Notifications, null, MaterialTheme.colorScheme.primary, size = 36.dp)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.notification_recurring_title), style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            stringResource(R.string.notification_recurring_lead_help),
+                            color = FinanceTheme.colors.mutedText,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
+                state.errorRes?.let { InlineBanner(kind = BannerKind.Error, text = stringResource(it)) }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(
+                        value = state.recurringLeadDays,
+                        onValueChange = onRecurringLeadDaysChanged,
+                        label = { Text(stringResource(R.string.notification_recurring_lead_default)) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        shape = MaterialTheme.shapes.small,
+                        modifier = Modifier.weight(1f),
+                    )
+                    PrimaryButton(
+                        text = stringResource(R.string.common_save),
+                        onClick = onSaveRecurringLeadDays,
+                        modifier = Modifier.height(56.dp),
+                    )
+                }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                SettingsSwitchRow(
+                    title = stringResource(R.string.alert_budget_title),
+                    body = stringResource(R.string.alert_budget_body),
+                    checked = state.budgetAlertsEnabled,
+                    onCheckedChange = onBudgetAlertsChanged,
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                SettingsSwitchRow(
+                    title = stringResource(R.string.alert_low_balance_title),
+                    body = stringResource(R.string.alert_low_balance_body),
+                    checked = state.lowBalanceAlertsEnabled,
+                    onCheckedChange = onLowBalanceAlertsChanged,
                 )
             }
         }
@@ -480,31 +557,29 @@ private fun RestoreConfirmDialog(
 }
 
 @Composable
-private fun SettingsSwitchCard(
+private fun SettingsSwitchRow(
     title: String,
     body: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
 ) {
-    FinanceCard(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Text(text = title, style = MaterialTheme.typography.titleMedium)
-                Text(
-                    text = body,
-                    color = FinanceTheme.colors.mutedText,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-            FinanceSwitch(checked = checked, onCheckedChange = onCheckedChange)
+            Text(text = title, style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = body,
+                color = FinanceTheme.colors.mutedText,
+                style = MaterialTheme.typography.bodyMedium,
+            )
         }
+        FinanceSwitch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 

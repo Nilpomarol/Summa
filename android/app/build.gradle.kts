@@ -236,6 +236,7 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.sqldelight.android.driver)
     implementation(libs.vico.compose.m3)
+    implementation(libs.androidx.work.runtime)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
