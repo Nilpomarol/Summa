@@ -43,6 +43,11 @@ class PeopleViewModel(
         refreshPeople()
     }
 
+    fun resetForMenuNavigation() {
+        _state.value = PeopleUiState()
+        refreshPeople()
+    }
+
     fun onAddClicked() {
         _state.value = _state.value.copy(form = PersonFormState())
     }

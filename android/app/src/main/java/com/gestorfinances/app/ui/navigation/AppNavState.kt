@@ -96,6 +96,10 @@ data class AppNavState(
     val managementDestination: ManagementDestination? = null,
     val managementReturnSection: TopLevelSection? = null,
     val overlay: AppOverlay? = null,
+    /** The contextual screen to restore with Back; direct menu navigation has no parent. */
+    val previous: AppNavState? = null,
+    /** Changes for each direct menu visit so page-local Compose state starts clean as well. */
+    val menuVisit: Int = 0,
 ) {
     /** Route/chrome matrix used by the shell. Modal forms preserve the page underneath. */
     val routeChrome: RouteChrome
@@ -115,6 +119,7 @@ data class AppNavState(
     fun back(): AppNavState = when {
         overlay?.returnTo != null -> copy(overlay = overlay.returnTo)
         overlay != null -> copy(overlay = null)
+        previous != null -> previous
         managementDestination != null -> topLevel(managementReturnSection ?: TopLevelSection.DASHBOARD)
         section != TopLevelSection.DASHBOARD -> Home
         else -> this
@@ -125,6 +130,10 @@ data class AppNavState(
 
         /** Switch to a top-level section, clearing any Més destination and overlay. */
         fun topLevel(section: TopLevelSection) = AppNavState(section = section)
+
+        /** Open a top-level screen from within the app while preserving the caller for Back. */
+        fun contextualTopLevel(section: TopLevelSection, previous: AppNavState) =
+            topLevel(section).copy(previous = previous)
 
         /** Open a Més destination, returning to [returnSection] on Back. */
         fun management(

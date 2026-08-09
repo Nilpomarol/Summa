@@ -52,6 +52,12 @@ class BudgetsViewModel(
         refresh(openContextForm = contextTripId != null)
     }
 
+    /** Clears the period and expanded/form state for a fresh visit from the Més menu. */
+    fun resetForMenuNavigation() {
+        _state.value = BudgetsUiState(selectedMonth = YearMonth.from(today()))
+        refresh()
+    }
+
     fun onMonthSelected(month: YearMonth) {
         if (month !in _state.value.activityMonths || month == _state.value.selectedMonth) return
         _state.value = _state.value.copy(selectedMonth = month)

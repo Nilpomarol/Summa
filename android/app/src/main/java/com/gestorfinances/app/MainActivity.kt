@@ -40,6 +40,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -448,8 +449,21 @@ private fun LedgerShell(
         return
     }
 
+    /** A bottom-bar choice is a new visit, not a continuation of a contextual flow. */
+    fun showTopLevelFromMenu(section: TopLevelSection) {
+        when (section) {
+            TopLevelSection.MOVEMENTS -> movementsViewModel.resetForMenuNavigation()
+            TopLevelSection.ANALYSIS -> analysisViewModel.resetForMenuNavigation()
+            TopLevelSection.DASHBOARD,
+            TopLevelSection.MANAGEMENT,
+            -> Unit
+        }
+        nav = AppNavState.topLevel(section).copy(menuVisit = nav.menuVisit + 1)
+    }
+
+    /** Contextual links keep their destination state; their caller owns the Back path. */
     fun showTopLevel(section: TopLevelSection) {
-        nav = AppNavState.topLevel(section)
+        nav = AppNavState.contextualTopLevel(section, previous = nav)
     }
 
     fun showManagement(destination: ManagementDestination? = null) {
@@ -459,6 +473,22 @@ private fun LedgerShell(
             nav.section
         }
         nav = AppNavState.management(destination, returnSection)
+    }
+
+    /** A Més-menu choice is a new visit; contextual routes use [showManagement] instead. */
+    fun showManagementFromMenu(destination: ManagementDestination) {
+        when (destination) {
+            ManagementDestination.ACCOUNTS -> accountsViewModel.resetForMenuNavigation()
+            ManagementDestination.CATEGORIES -> categoriesViewModel.resetForMenuNavigation()
+            ManagementDestination.PEOPLE -> peopleViewModel.resetForMenuNavigation()
+            ManagementDestination.EVENTS -> tripsViewModel.resetForMenuNavigation()
+            ManagementDestination.RECURRING -> recurringViewModel.resetForMenuNavigation()
+            ManagementDestination.BUDGETS -> budgetsViewModel.resetForMenuNavigation()
+            ManagementDestination.TAGS -> tagsViewModel.resetForMenuNavigation()
+            ManagementDestination.SETTINGS -> settingsViewModel.resetForMenuNavigation()
+        }
+        showManagement(destination)
+        nav = nav.copy(menuVisit = nav.menuVisit + 1)
     }
 
     fun openMovementForm(
@@ -563,7 +593,7 @@ private fun LedgerShell(
         bottomBar = {
             if (nav.routeChrome.showsGlobalNavigation) FinanceBottomBar(
                 selectedSection = nav.section,
-                onSelected = ::showTopLevel,
+                onSelected = ::showTopLevelFromMenu,
                 onManagementClick = { managementMenuVisible = true },
                 // The global FAB is available only on root/Management child routes. Trip Detail
                 // owns its local contextual add action because focused routes hide this bar.
@@ -583,6 +613,7 @@ private fun LedgerShell(
             else -> nav.overlay
         }
 
+        key(nav.menuVisit) {
         when (val overlay = pageOverlay) {
             is AppOverlay.Tags -> {
                 TagsScreen(
@@ -856,10 +887,11 @@ private fun LedgerShell(
                 )
             }
         }
+        }
     }
     if (managementMenuVisible) {
         ManagementSheet(
-            onDestinationSelected = ::showManagement,
+            onDestinationSelected = ::showManagementFromMenu,
             onDismiss = { managementMenuVisible = false },
         )
     }

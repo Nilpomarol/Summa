@@ -72,6 +72,11 @@ class RecurringViewModel(
         refresh()
     }
 
+    fun resetForMenuNavigation() {
+        _state.value = RecurringUiState()
+        refresh()
+    }
+
     fun onAddClicked() {
         _state.value = _state.value.copy(
             form = TemplateFormState(nextDueDate = today().toString()),

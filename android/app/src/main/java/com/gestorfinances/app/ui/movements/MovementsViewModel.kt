@@ -82,6 +82,24 @@ class MovementsViewModel(
         refresh()
     }
 
+    /**
+     * Starts a fresh ledger visit from global navigation. Contextual navigation deliberately uses
+     * [onDrillDown] instead, so Back can reveal the ledger exactly as the person left it.
+     */
+    fun resetForMenuNavigation() {
+        _state.value = _state.value.copy(
+            filters = MovementFilters(),
+            form = null,
+            detailMovement = null,
+            detailRefunds = emptyList(),
+            detailSplit = null,
+            refundForm = null,
+            archiveCandidate = null,
+            errorMessage = null,
+        )
+        refresh()
+    }
+
     fun onAddClicked() {
         onAddClicked(tripId = null)
     }

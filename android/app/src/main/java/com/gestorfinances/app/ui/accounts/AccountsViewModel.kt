@@ -36,6 +36,11 @@ class AccountsViewModel(
         refreshAccounts()
     }
 
+    fun resetForMenuNavigation() {
+        _state.value = AccountsUiState()
+        refreshAccounts()
+    }
+
     fun onAddClicked() {
         val accounts = _state.value.accounts
         val nextOrder = (accounts.maxOfOrNull { it.displayOrder } ?: -1L) + 1L

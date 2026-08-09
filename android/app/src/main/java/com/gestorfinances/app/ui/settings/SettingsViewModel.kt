@@ -49,6 +49,8 @@ class SettingsViewModel(
         _state.value = SettingsUiState.fromSettings(settings).copy(backupFolder = folder)
     }
 
+    fun resetForMenuNavigation() = onScreenShown()
+
     fun onRecurringLeadDaysChanged(value: String) {
         _state.value = _state.value.copy(recurringLeadDays = value, errorRes = null)
     }
