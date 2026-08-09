@@ -38,6 +38,12 @@ class TagsViewModel(
         refresh()
     }
 
+    /** A direct Més-menu visit never inherits a prior search or unfinished tag form. */
+    fun resetForMenuNavigation() {
+        _state.value = TagsUiState()
+        refresh()
+    }
+
     fun onAddClicked() {
         _state.value = _state.value.copy(
             form = TagFormState(tripId = _state.value.contextTripId),

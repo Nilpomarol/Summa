@@ -54,6 +54,16 @@ class AppNavStateTest {
     }
 
     @Test
+    fun `back from a contextually opened top-level screen restores its full prior route`() {
+        val accounts = AppNavState.management(ManagementDestination.ACCOUNTS)
+
+        assertEquals(
+            accounts,
+            AppNavState.contextualTopLevel(TopLevelSection.ANALYSIS, previous = accounts).back(),
+        )
+    }
+
+    @Test
     fun `focused overlays hide global navigation chrome`() {
         val root = AppNavState.Home
 

@@ -71,6 +71,44 @@ class AnalysisViewModel(
         refresh()
     }
 
+    /**
+     * Starts Analysis from its default view when it was chosen from global navigation. This is
+     * intentionally separate from contextual links (for example account analysis), whose Back
+     * path must retain the current analysis state.
+     */
+    fun resetForMenuNavigation() {
+        val defaultCustomFrom = initialMonth.atDay(1).toString()
+        val defaultCustomTo = initialMonth.atEndOfMonth().toString()
+        loadedSignature = null
+        _state.value = _state.value.copy(
+            scope = AnalysisScope.MONTH,
+            valueMode = AnalysisValueMode.TOTALS,
+            natureFilter = AnalysisNatureFilter.ALL,
+            oneTimeMode = AnalysisOneTimeMode.INCLUDE,
+            month = initialMonth,
+            year = initialToday.year,
+            customFrom = defaultCustomFrom,
+            customTo = defaultCustomTo,
+            comparisonMonth = initialMonth.minusMonths(1),
+            comparisonYear = initialToday.year - 1,
+            comparisonCustomFrom = "",
+            comparisonCustomTo = "",
+            comparisonTouched = false,
+            groupTripsAsBlocks = true,
+            selectedTab = AnalysisTab.RESUM,
+            filterAccountId = null,
+            filterAccountName = null,
+            filterCategoryId = null,
+            filterCategoryName = null,
+            currentRange = null,
+            currentAverageDivisor = 1,
+            errorMessage = null,
+            customErrorRes = null,
+            loadingTabs = emptySet(),
+        ).clearedTabs()
+        refresh()
+    }
+
     private fun loadFilterOptions() {
         if (filterOptionsLoaded) return
         filterOptionsLoaded = true

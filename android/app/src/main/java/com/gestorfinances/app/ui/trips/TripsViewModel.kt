@@ -53,6 +53,11 @@ class TripsViewModel(
         refresh()
     }
 
+    fun resetForMenuNavigation() {
+        _state.value = TripsUiState()
+        refresh()
+    }
+
     fun onStatusFilterChanged(status: TripStatus?) {
         _state.value = _state.value.copy(statusFilter = status)
     }

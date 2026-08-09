@@ -42,6 +42,11 @@ class CategoriesViewModel(
         refreshCategories()
     }
 
+    fun resetForMenuNavigation() {
+        _state.value = CategoriesUiState()
+        refreshCategories()
+    }
+
     fun onAddClicked() {
         val nextOrder = (_state.value.categories.maxOfOrNull { it.displayOrder } ?: -1L) + 1L
         _state.value = _state.value.copy(
