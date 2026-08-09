@@ -5,10 +5,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -21,8 +23,10 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.HorizontalDivider
 import com.gestorfinances.app.ui.common.AppDropdownMenu
 import com.gestorfinances.app.ui.common.AppDropdownMenuItem
+import com.gestorfinances.app.ui.common.AppModalBottomSheet
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -85,27 +89,25 @@ fun TagsScreen(
         viewModel.onScreenShown(contextTripId)
     }
 
-    val form = state.form
-    if (form != null) {
+    TagsContent(
+        state = state,
+        modifier = modifier,
+        onBack = onBack,
+        onAdd = viewModel::onAddClicked,
+        onSearchChanged = viewModel::onSearchChanged,
+        onEdit = viewModel::onEditClicked,
+        onArchive = viewModel::onArchiveClicked,
+    )
+
+    state.form?.let { form ->
         BackHandler(onBack = viewModel::onFormDismissed)
-        TagFormScreen(
+        TagFormSheet(
             form = form,
             trips = state.trips,
             categories = state.categories,
             onFormChange = viewModel::onFormChanged,
-            onBack = viewModel::onFormDismissed,
+            onDismiss = viewModel::onFormDismissed,
             onSave = viewModel::onSaveClicked,
-            modifier = modifier,
-        )
-    } else {
-        TagsContent(
-            state = state,
-            modifier = modifier,
-            onBack = onBack,
-            onAdd = viewModel::onAddClicked,
-            onSearchChanged = viewModel::onSearchChanged,
-            onEdit = viewModel::onEditClicked,
-            onArchive = viewModel::onArchiveClicked,
         )
     }
 
@@ -208,6 +210,14 @@ private fun TagsContent(
             }
         }
 
+        item {
+            PrimaryButton(
+                text = stringResource(R.string.tag_list_add),
+                onClick = onAdd,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+
         if (!state.isLoading && (state.tags.isNotEmpty() || state.searchQuery.isNotBlank())) {
             item {
                 OutlinedTextField(
@@ -251,7 +261,7 @@ private fun TagsContent(
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 } else {
-                    EmptyTagsCard(onAdd = onAdd)
+                    EmptyTagsCard()
                 }
             }
         } else {
@@ -281,19 +291,12 @@ private fun TagsContent(
                     }
                 }
             }
-            item {
-                PrimaryButton(
-                    text = stringResource(R.string.tag_list_add),
-                    onClick = onAdd,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
         }
     }
 }
 
 @Composable
-private fun EmptyTagsCard(onAdd: () -> Unit) {
+private fun EmptyTagsCard() {
     FinanceCard(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(18.dp),
@@ -307,10 +310,6 @@ private fun EmptyTagsCard(onAdd: () -> Unit) {
                 text = stringResource(R.string.tag_empty_body),
                 color = FinanceTheme.colors.mutedText,
                 style = MaterialTheme.typography.bodyMedium,
-            )
-            PrimaryButton(
-                text = stringResource(R.string.tag_list_add),
-                onClick = onAdd,
             )
         }
     }
@@ -341,7 +340,7 @@ private fun TagRow(
                 )
                 Column(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     Text(
                         text = tag.name,
@@ -354,10 +353,7 @@ private fun TagRow(
                         color = FinanceTheme.colors.mutedText,
                         style = MaterialTheme.typography.bodyMedium,
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        NeutralPill(text = tag.scopeKindLabel())
-                        tag.categoryName?.let { NeutralPill(text = it) }
-                    }
+                    tag.categoryName?.let { NeutralPill(text = it) }
                 }
                 TagRowMenu(onEdit = onEdit, onArchive = onArchive)
             }
@@ -411,138 +407,147 @@ private fun TagFormState.scopeOption(): TagScopeOption =
     }
 
 @Composable
-private fun TagFormScreen(
+private fun TagFormSheet(
     form: TagFormState,
     trips: List<TripSummary>,
     categories: List<CategoryRecord>,
     onFormChange: (TagFormState) -> Unit,
-    onBack: () -> Unit,
+    onDismiss: () -> Unit,
     onSave: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp)
-            .navigationBarsPadding()
-            .padding(bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+    AppModalBottomSheet(
+        onDismissRequest = onDismiss,
+        maxHeightFraction = 0.88f,
     ) {
-        PageHeaderRow(
-            onBack = onBack,
-            title = stringResource(
-                if (form.id == null) R.string.tag_form_new_title else R.string.tag_form_edit_title,
-            ),
-        )
+        Column(modifier = Modifier.fillMaxHeight()) {
+            Column(
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Text(
+                    text = stringResource(
+                        if (form.id == null) R.string.tag_form_new_title else R.string.tag_form_edit_title,
+                    ),
+                    style = MaterialTheme.typography.titleLarge,
+                )
 
-        form.errorMessage?.let {
-            InlineBanner(kind = BannerKind.Error, text = it)
-        }
+                form.errorMessage?.let {
+                    InlineBanner(kind = BannerKind.Error, text = it)
+                }
 
-        val nameError = form.errorField == TagFormField.NAME
-        OutlinedTextField(
-            value = form.name,
-            onValueChange = { onFormChange(form.copy(name = it)) },
-            label = { Text(text = stringResource(R.string.tag_field_name)) },
-            singleLine = true,
-            isError = nameError,
-            supportingText = if (nameError && form.errorRes != null) {
-                { Text(text = stringResource(form.errorRes)) }
-            } else null,
-            shape = MaterialTheme.shapes.small,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-            keyboardActions = doneKeyboardActions(),
-            modifier = Modifier
-                .fillMaxWidth()
-                .scrollToWhen(nameError),
-        )
+                val nameError = form.errorField == TagFormField.NAME
+                OutlinedTextField(
+                    value = form.name,
+                    onValueChange = { onFormChange(form.copy(name = it)) },
+                    label = { Text(text = stringResource(R.string.tag_field_name)) },
+                    singleLine = true,
+                    isError = nameError,
+                    supportingText = if (nameError && form.errorRes != null) {
+                        { Text(text = stringResource(form.errorRes)) }
+                    } else null,
+                    shape = MaterialTheme.shapes.small,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = doneKeyboardActions(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .scrollToWhen(nameError),
+                )
 
-        LabeledSegmentedControl(
-            label = stringResource(R.string.tag_field_scope),
-            options = TagScopeOption.entries,
-            selected = form.scopeOption(),
-            optionLabel = { it.label() },
-            onSelect = { option ->
-                onFormChange(
-                    when (option) {
-                        TagScopeOption.GLOBAL -> form.copy(tripId = null, tripType = null)
-                        TagScopeOption.EVENT_TYPE -> form.copy(
-                            tripId = null,
-                            tripType = form.tripType ?: TripType.entries.first(),
-                        )
-                        TagScopeOption.SPECIFIC_TRIP -> form.copy(
-                            tripType = null,
-                            tripId = form.tripId ?: trips.firstOrNull()?.id,
+                LabeledSegmentedControl(
+                    label = stringResource(R.string.tag_field_scope),
+                    options = TagScopeOption.entries,
+                    selected = form.scopeOption(),
+                    optionLabel = { it.label() },
+                    onSelect = { option ->
+                        onFormChange(
+                            when (option) {
+                                TagScopeOption.GLOBAL -> form.copy(tripId = null, tripType = null)
+                                TagScopeOption.EVENT_TYPE -> form.copy(
+                                    tripId = null,
+                                    tripType = form.tripType ?: TripType.entries.first(),
+                                )
+                                TagScopeOption.SPECIFIC_TRIP -> form.copy(
+                                    tripType = null,
+                                    tripId = form.tripId ?: trips.firstOrNull()?.id,
+                                )
+                            },
                         )
                     },
                 )
-            },
-        )
 
-        if (form.scopeOption() == TagScopeOption.EVENT_TYPE) {
-            LabeledSegmentedControl(
-                label = stringResource(R.string.trip_field_type),
-                options = TripType.entries,
-                selected = form.tripType ?: TripType.entries.first(),
-                optionLabel = { it.label() },
-                onSelect = { onFormChange(form.copy(tripType = it)) },
-            )
-        }
+                if (form.scopeOption() == TagScopeOption.EVENT_TYPE) {
+                    LabeledSegmentedControl(
+                        label = stringResource(R.string.trip_field_type),
+                        options = TripType.entries,
+                        selected = form.tripType ?: TripType.entries.first(),
+                        optionLabel = { it.label() },
+                        onSelect = { onFormChange(form.copy(tripType = it)) },
+                    )
+                }
 
-        if (form.scopeOption() == TagScopeOption.SPECIFIC_TRIP) {
-            val tripError = form.errorField == TagFormField.TRIP
-            FormSelect(
-                label = stringResource(R.string.tag_field_trip),
-                options = trips.map { SelectOption(id = it.id, label = it.name) },
-                selectedId = form.tripId,
-                onSelect = { onFormChange(form.copy(tripId = it)) },
-                modifier = Modifier.scrollToWhen(tripError),
-                isError = tripError,
-                supportingText = if (tripError && form.errorRes != null) stringResource(form.errorRes) else null,
-            )
-        }
+                if (form.scopeOption() == TagScopeOption.SPECIFIC_TRIP) {
+                    val tripError = form.errorField == TagFormField.TRIP
+                    FormSelect(
+                        label = stringResource(R.string.tag_field_trip),
+                        options = trips.map { SelectOption(id = it.id, label = it.name) },
+                        selectedId = form.tripId,
+                        onSelect = { onFormChange(form.copy(tripId = it)) },
+                        modifier = Modifier.scrollToWhen(tripError),
+                        isError = tripError,
+                        supportingText = if (tripError && form.errorRes != null) stringResource(form.errorRes) else null,
+                    )
+                }
 
-        FormSelect(
-            label = stringResource(R.string.tag_field_category),
-            options = listOf(SelectOption(id = null, label = stringResource(R.string.tag_category_picker_none))) +
-                categories.map { SelectOption(id = it.id, label = it.name) },
-            selectedId = form.categoryId,
-            onSelect = { onFormChange(form.copy(categoryId = it)) },
-            placeholder = stringResource(R.string.tag_category_picker_none),
-        )
+                FormSelect(
+                    label = stringResource(R.string.tag_field_category),
+                    options = listOf(SelectOption(id = null, label = stringResource(R.string.tag_category_picker_none))) +
+                        categories.map { SelectOption(id = it.id, label = it.name) },
+                    selectedId = form.categoryId,
+                    onSelect = { onFormChange(form.copy(categoryId = it)) },
+                    placeholder = stringResource(R.string.tag_category_picker_none),
+                )
 
-        ColorPickerRow(
-            label = stringResource(R.string.tag_field_color),
-            selectedHex = form.color.ifBlank { null },
-            onSelect = { onFormChange(form.copy(color = it)) },
-        )
+                ColorPickerRow(
+                    label = stringResource(R.string.tag_field_color),
+                    selectedHex = form.color.ifBlank { null },
+                    onSelect = { onFormChange(form.copy(color = it)) },
+                )
 
-        IconPickerRow(
-            label = stringResource(R.string.tag_field_icon),
-            options = CategoryIconPalette,
-            selectedKey = form.icon.ifBlank { null },
-            onSelect = { onFormChange(form.copy(icon = it)) },
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            OutlinedButton(
-                onClick = onBack,
-                modifier = Modifier.weight(1f),
-                shape = MaterialTheme.shapes.small,
-            ) {
-                Text(text = stringResource(R.string.common_cancel))
+                IconPickerRow(
+                    label = stringResource(R.string.tag_field_icon),
+                    options = CategoryIconPalette,
+                    selectedKey = form.icon.ifBlank { null },
+                    onSelect = { onFormChange(form.copy(icon = it)) },
+                )
             }
-            PrimaryButton(
-                text = stringResource(
-                    if (form.id == null) R.string.tag_save_new else R.string.tag_save_changes,
-                ),
-                onClick = onSave,
-                modifier = Modifier.weight(1f),
-            )
+
+            HorizontalDivider(color = FinanceTheme.colors.cardBorder)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .imePadding()
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f),
+                    shape = MaterialTheme.shapes.small,
+                ) {
+                    Text(text = stringResource(R.string.common_cancel))
+                }
+                PrimaryButton(
+                    text = stringResource(
+                        if (form.id == null) R.string.tag_save_new else R.string.tag_save_changes,
+                    ),
+                    onClick = onSave,
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
     }
 }
@@ -566,13 +571,3 @@ private fun TagSummary.scopeLabel(): String =
         else -> stringResource(R.string.tag_scope_global)
     }
 
-/** Short pill label for the tag's scope kind (global / event-type / specific-trip). */
-@Composable
-private fun TagSummary.scopeKindLabel(): String =
-    stringResource(
-        when {
-            tripId != null -> R.string.tag_scope_specific_trip
-            tripType != null -> R.string.tag_scope_event_type
-            else -> R.string.tag_scope_global
-        },
-    )
