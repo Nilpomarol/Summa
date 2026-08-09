@@ -64,6 +64,20 @@ internal object TokenColor {
     val AlertLight = Color(0xFFA56B00)
     val AlertDark = Color(0xFFE5B75D)
 
+    // Trip status â€” planned / active / finished (container / content, light / dark)
+    val TripPlannedContainerLight = Color(0xFFF0E7EE)
+    val TripPlannedContentLight = Color(0xFF59385A)
+    val TripPlannedContainerDark = Color(0xFF4A3D49)
+    val TripPlannedContentDark = Color(0xFFF5EFEB)
+    val TripActiveContainerLight = Color(0xFFE8F0E3)
+    val TripActiveContentLight = Color(0xFF405B32)
+    val TripActiveContainerDark = Color(0xFF30412A)
+    val TripActiveContentDark = Color(0xFFB1C891)
+    val TripFinishedContainerLight = Color(0xFFEEE6DA)
+    val TripFinishedContentLight = Color(0xFF66584F)
+    val TripFinishedContainerDark = Color(0xFF2B222A)
+    val TripFinishedContentDark = Color(0xFFC9BAC5)
+
     // Banner — light triples (background / border / text); Info + Alert + Error are in use.
     val BannerInfoBg = Color(0xFFF0E7EE)
     val BannerInfoBorder = Color(0xFFDFCFE0)

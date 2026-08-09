@@ -3,6 +3,7 @@ package com.gestorfinances.app.ui.trips
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
@@ -24,6 +25,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
@@ -39,6 +41,7 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -191,23 +194,6 @@ private fun TripsContent(
             RootPageHeader(title = stringResource(R.string.trip_list_title))
         }
 
-        item {
-            ChipFlowSection(label = stringResource(R.string.trip_field_status)) {
-                FinanceFilterChip(
-                    selected = state.statusFilter == null,
-                    label = stringResource(R.string.trip_filter_all),
-                    onClick = { onStatusFilter(null) },
-                )
-                TripStatus.entries.forEach { status ->
-                    FinanceFilterChip(
-                        selected = state.statusFilter == status,
-                        label = status.filterLabel(),
-                        onClick = { onStatusFilter(status) },
-                    )
-                }
-            }
-        }
-
         state.errorMessage?.let { message ->
             item {
                 InlineBanner(kind = BannerKind.Error, text = message)
@@ -222,37 +208,48 @@ private fun TripsContent(
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
-        } else if (state.visibleTrips.isEmpty()) {
-            item { EmptyTripsCard(onAdd = onAdd) }
         } else {
             item {
                 SectionHeader(
                     title = stringResource(R.string.trip_list_results),
                     trailing = {
-                        NeutralPill(
-                            text = pluralStringResource(
-                                R.plurals.trip_list_count,
-                                state.visibleTrips.size,
-                                state.visibleTrips.size,
-                            ),
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            NeutralPill(
+                                text = pluralStringResource(
+                                    R.plurals.trip_list_count,
+                                    state.visibleTrips.size,
+                                    state.visibleTrips.size,
+                                ),
+                            )
+                            TripStatusFilterDropdown(
+                                selectedStatus = state.statusFilter,
+                                onSelect = onStatusFilter,
+                            )
+                        }
                     },
                 )
             }
-            items(items = state.visibleTrips, key = { it.id }) { trip ->
-                TripRow(
-                    trip = trip,
-                    onDetail = { onDetail(trip) },
-                    onEdit = { onEdit(trip) },
-                    onArchive = { onArchive(trip) },
-                )
-            }
-            item {
-                PrimaryButton(
-                    text = stringResource(R.string.trip_list_add),
-                    onClick = onAdd,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+            if (state.visibleTrips.isEmpty()) {
+                item { EmptyTripsCard(onAdd = onAdd) }
+            } else {
+                items(items = state.visibleTrips, key = { it.id }) { trip ->
+                    TripRow(
+                        trip = trip,
+                        onDetail = { onDetail(trip) },
+                        onEdit = { onEdit(trip) },
+                        onArchive = { onArchive(trip) },
+                    )
+                }
+                item {
+                    PrimaryButton(
+                        text = stringResource(R.string.trip_list_add),
+                        onClick = onAdd,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
         }
     }
@@ -325,7 +322,7 @@ private fun TripRow(
                         color = FinanceTheme.colors.mutedText,
                         style = MaterialTheme.typography.bodyMedium,
                     )
-                    NeutralPill(text = trip.status.label())
+                    TripStatusPill(status = trip.status)
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     MoneyText(
@@ -1064,21 +1061,6 @@ private fun TripCategoryPreviewSection(
                 }
             } else null,
         )
-        if (days > 0L) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = stringResource(R.string.trip_analysis_mode_avg_day),
-                    color = FinanceTheme.colors.mutedText,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.weight(1f),
-                )
-                MoneyText(
-                    cents = averageCents(entries.sumOf { it.actualCents }, days),
-                    color = FinanceTheme.colors.expense,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-        }
         if (entries.isEmpty()) {
             Text(
                 text = stringResource(R.string.trip_analysis_empty_body),
@@ -1092,6 +1074,9 @@ private fun TripCategoryPreviewSection(
                     color = categoryColor(entry.categoryColor),
                     label = entry.categoryName ?: stringResource(R.string.common_no_category),
                     cents = entry.actualCents,
+                    averagePerDayCents = days.takeIf { it > 0L }?.let {
+                        averageCents(entry.actualCents, it)
+                    },
                     maxCents = maxCents,
                     percentOfCents = abs(entry.actualCents),
                     totalCents = totalCents,
@@ -1267,13 +1252,19 @@ private fun TripBreakdownRow(
     color: Color,
     label: String,
     cents: Long,
+    averagePerDayCents: Long? = null,
     maxCents: Long,
     percentOfCents: Long,
     totalCents: Long,
 ) {
     val fraction = (abs(cents).toFloat() / maxCents.toFloat()).coerceIn(0f, 1f)
     val pctFraction = (percentOfCents.toFloat() / totalCents.toFloat()).coerceIn(0f, 1f)
-    val pctText = formatPercentLabel(pctFraction)
+    val secondaryText = listOfNotNull(
+        averagePerDayCents?.let {
+            stringResource(R.string.trip_row_avg_day, formatEuroCents(it))
+        },
+        formatPercentLabel(pctFraction),
+    ).joinToString(" · ")
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1298,7 +1289,7 @@ private fun TripBreakdownRow(
                     style = MaterialTheme.typography.titleSmall,
                 )
                 Text(
-                    text = pctText,
+                    text = secondaryText,
                     color = FinanceTheme.colors.mutedText,
                     style = MaterialTheme.typography.labelSmall,
                 )
@@ -1475,6 +1466,103 @@ private fun TripStatus.label(): String =
             TripStatus.FINISHED -> R.string.trip_status_finished
         },
     )
+
+@Composable
+private fun TripStatusPill(status: TripStatus) {
+    val (containerColor, contentColor) = status.statusColors()
+    Surface(
+        shape = RoundedCornerShape(percent = 50),
+        color = containerColor,
+        contentColor = contentColor,
+    ) {
+        Text(
+            text = status.label(),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+            style = MaterialTheme.typography.labelSmall,
+        )
+    }
+}
+
+@Composable
+private fun TripStatusFilterDropdown(
+    selectedStatus: TripStatus?,
+    onSelect: (TripStatus?) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val (containerColor, contentColor) = selectedStatus?.statusColors()
+        ?: (MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant)
+    Box {
+        Surface(
+            onClick = { expanded = true },
+            shape = RoundedCornerShape(percent = 50),
+            color = containerColor,
+            contentColor = contentColor,
+        ) {
+            Row(
+                modifier = Modifier.padding(start = 10.dp, end = 4.dp, top = 5.dp, bottom = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = selectedStatus?.filterLabel() ?: stringResource(R.string.trip_filter_all),
+                    style = MaterialTheme.typography.labelSmall,
+                )
+                Icon(
+                    imageVector = Icons.Filled.ArrowDropDown,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+        }
+        AppDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            TripStatusFilterMenuItem(
+                label = stringResource(R.string.trip_filter_all),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                onClick = { expanded = false; onSelect(null) },
+            )
+            TripStatus.entries.forEach { status ->
+                val (_, contentColor) = status.statusColors()
+                TripStatusFilterMenuItem(
+                    label = status.filterLabel(),
+                    color = contentColor,
+                    onClick = { expanded = false; onSelect(status) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TripStatusFilterMenuItem(
+    label: String,
+    color: Color,
+    onClick: () -> Unit,
+) {
+    AppDropdownMenuItem(
+        text = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(color),
+                )
+                Text(text = label)
+            }
+        },
+        onClick = onClick,
+    )
+}
+
+@Composable
+private fun TripStatus.statusColors(): Pair<Color, Color> =
+    when (this) {
+        TripStatus.PLANNED -> FinanceTheme.colors.tripPlannedContainer to FinanceTheme.colors.tripPlannedContent
+        TripStatus.ACTIVE -> FinanceTheme.colors.tripActiveContainer to FinanceTheme.colors.tripActiveContent
+        TripStatus.FINISHED -> FinanceTheme.colors.tripFinishedContainer to FinanceTheme.colors.tripFinishedContent
+    }
 
 @Composable
 private fun TripStatus.filterLabel(): String =

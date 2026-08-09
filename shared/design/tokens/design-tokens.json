@@ -76,6 +76,23 @@
         "light": "#A56B00",
         "dark": "#E5B75D",
         "use": "Near limit and warning states"
+      },
+      "tripStatus": {
+        "planned": {
+          "light": { "background": "#F0E7EE", "text": "#59385A" },
+          "dark": { "background": "#4A3D49", "text": "#F5EFEB" },
+          "use": "Planned trip status"
+        },
+        "active": {
+          "light": { "background": "#E8F0E3", "text": "#405B32" },
+          "dark": { "background": "#30412A", "text": "#B1C891" },
+          "use": "Active trip status"
+        },
+        "finished": {
+          "light": { "background": "#EEE6DA", "text": "#66584F" },
+          "dark": { "background": "#2B222A", "text": "#C9BAC5" },
+          "use": "Finished trip status"
+        }
       }
     },
     "category": {
