@@ -45,7 +45,6 @@ class CoreLedgerRepositoryTest {
                     refundsExpenseId = "exp",
                     amountCents = 5_000,
                     accountId = "checking",
-                    categoryId = "food",
                     date = "2026-03-02",
                     name = null,
                     payee = null,
@@ -79,7 +78,6 @@ class CoreLedgerRepositoryTest {
                     refundsExpenseId = "exp",
                     amountCents = 5_000,
                     accountId = "checking",
-                    categoryId = "food",
                     date = "2026-03-02",
                     name = null,
                     payee = null,
@@ -114,7 +112,6 @@ class CoreLedgerRepositoryTest {
                     refundsExpenseId = "exp",
                     amountCents = 5_000,
                     accountId = "checking",
-                    categoryId = "food",
                     date = "2026-03-02",
                     name = null,
                     payee = null,
@@ -131,9 +128,8 @@ class CoreLedgerRepositoryTest {
 
             store.movements.archive("exp", archivedAt = LATER)
 
-            val afterArchive = store.movements.getActive("ref")!!
-            assertEquals("Weekly shop", afterArchive.refundsExpenseName)
-            assertTrue(afterArchive.refundsExpenseArchived)
+            assertNull(store.movements.getActive("ref"))
+            assertEquals(0L, store.analysis.periodTotals("2026-03-01", "2026-03-31").actualExpenseCents)
         }
     }
 

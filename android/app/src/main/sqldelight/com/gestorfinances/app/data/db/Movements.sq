@@ -150,7 +150,6 @@ INSERT INTO movements(
     name,
     payee,
     notes,
-    category_id,
     refunds_expense_id,
     actual_refund_cents,
     created_at,
@@ -164,7 +163,6 @@ INSERT INTO movements(
     :name,
     :payee,
     :notes,
-    :category_id,
     :refunds_expense_id,
     :actual_refund_cents,
     :created_at,
@@ -216,6 +214,15 @@ SET
     template_id = :template_id,
     updated_at = :updated_at
 WHERE id = :id
+  AND archived_at IS NULL;
+
+archiveRefundsForExpense:
+UPDATE movements
+SET
+    archived_at = :archived_at,
+    updated_at = :updated_at
+WHERE type = 'refund'
+  AND refunds_expense_id = :expense_id
   AND archived_at IS NULL;
 
 archiveMovement:

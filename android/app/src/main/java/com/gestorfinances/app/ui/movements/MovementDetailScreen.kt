@@ -140,6 +140,15 @@ fun MovementDetailScreen(
             text = {
                 Column {
                     Text(text = stringResource(R.string.movement_archive_warning))
+                    if (candidate.activeRefundCount > 0) {
+                        Text(
+                            text = stringResource(
+                                R.string.movement_archive_refunds_warning,
+                                candidate.activeRefundCount,
+                            ),
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                    }
                     if (candidate.revertibleTemplateId != null) {
                         val label = candidate.movement.name?.takeIf { it.isNotBlank() }
                             ?: candidate.movement.payee.orEmpty()
@@ -579,20 +588,6 @@ private fun RefundFormContent(
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.labelSmall,
             )
-        }
-        ChipFlowSection(label = stringResource(R.string.refund_field_category)) {
-            FinanceFilterChip(
-                selected = form.categoryId == null,
-                label = stringResource(R.string.common_no_category),
-                onClick = { onFormChange(form.copy(categoryId = null)) },
-            )
-            categories.filter { it.supports(MovementType.EXPENSE) }.forEach { category ->
-                FinanceFilterChip(
-                    selected = form.categoryId == category.id,
-                    label = category.name,
-                    onClick = { onFormChange(form.copy(categoryId = category.id)) },
-                )
-            }
         }
         val dateError = form.errorField == RefundFormField.DATE
         FormDatePicker(
