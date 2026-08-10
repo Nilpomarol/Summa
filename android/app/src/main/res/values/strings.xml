@@ -86,6 +86,11 @@
     <string name="account_empty_body">Crea el primer compte per començar a registrar moviments.</string>
     <string name="account_archive_confirm_title">Eliminar compte?</string>
     <string name="account_archive_warning">El compte es deixarà de mostrar a les llistes. Els moviments i l\'historial intern es conservaran.</string>
+    <plurals name="account_archive_active_templates_warning">
+        <item quantity="one">Aquest compte s\'utilitza en %d plantilla activa. Si continues, la plantilla es pausarà abans d\'arxivar el compte.</item>
+        <item quantity="other">Aquest compte s\'utilitza en %d plantilles actives. Si continues, les plantilles es pausaran abans d\'arxivar el compte.</item>
+    </plurals>
+    <string name="account_archive_pause_and_archive">Pausa i arxiva</string>
     <string name="account_form_new_title">Nou compte</string>
     <string name="account_form_edit_title">Edita compte</string>
     <string name="account_save_new">Crea compte</string>
@@ -140,6 +145,8 @@
     <string name="category_parent_disabled_has_children">Una categoria amb subcategories no pot passar a ser subcategoria.</string>
     <string name="category_archive_confirm_title">Eliminar categoria?</string>
     <string name="category_archive_warning">La categoria es deixarà de mostrar a les llistes. Les subcategories i moviments existents es conservaran.</string>
+    <string name="category_archive_dependencies_warning">Hi ha %1$d plantilles actives, %2$d pressupostos i %3$d subcategories. Si continues, les plantilles es pausaran, els pressupostos s\'arxivaran i les subcategories passaran al nivell principal.</string>
+    <string name="category_archive_resolve_and_archive">Resol i arxiva</string>
     <string name="category_validation_name_required">Introdueix el nom de la categoria.</string>
     <string name="category_validation_parent_invalid">Tria una categoria superior de primer nivell.</string>
     <string name="category_validation_parent_has_children">Una categoria amb subcategories no pot tenir categoria superior.</string>

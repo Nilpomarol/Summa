@@ -15,6 +15,8 @@ import com.gestorfinances.app.data.repository.CategoryRecord
 import com.gestorfinances.app.data.repository.CategoryRepository
 import com.gestorfinances.app.data.repository.MovementRepository
 import com.gestorfinances.app.data.repository.MovementSummary
+import com.gestorfinances.app.data.repository.TemplateRepository
+import com.gestorfinances.app.data.repository.TemplateStatus
 import com.gestorfinances.app.ui.common.EntityColorPalette
 import java.time.Instant
 import java.time.LocalDate
@@ -33,6 +35,7 @@ class CategoriesViewModel(
     private val analysisRepository: AnalysisRepository,
     private val movementRepository: MovementRepository,
     private val budgetRepository: BudgetRepository,
+    private val templateRepository: TemplateRepository,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
     private val _state = MutableStateFlow(CategoriesUiState())
@@ -62,7 +65,24 @@ class CategoriesViewModel(
     }
 
     fun onArchiveClicked(category: CategoryRecord) {
-        _state.value = _state.value.copy(archiveCandidate = category)
+        viewModelScope.launch {
+            val result = withContext(ioDispatcher) {
+                runCatching {
+                    CategoryArchiveCandidate(
+                        category = category,
+                        activeTemplateCount = templateRepository.listActive().count {
+                            it.status == TemplateStatus.ACTIVE && it.categoryId == category.id
+                        },
+                        budgetCount = budgetRepository.listActive().count { it.categoryId == category.id },
+                        childCount = categoryRepository.listActive().count { it.parentId == category.id },
+                    )
+                }
+            }
+            _state.value = result.fold(
+                onSuccess = { _state.value.copy(archiveCandidate = it) },
+                onFailure = { _state.value.copy(errorMessage = it.message ?: it.javaClass.simpleName) },
+            )
+        }
     }
 
     fun onArchiveDismissed() {
@@ -70,11 +90,24 @@ class CategoriesViewModel(
     }
 
     fun onArchiveConfirmed() {
-        val category = _state.value.archiveCandidate ?: return
+        val category = _state.value.archiveCandidate?.category ?: return
         val now = Instant.now().toString()
         viewModelScope.launch {
             val result = withContext(ioDispatcher) {
-                runCatching { categoryRepository.archive(category.id, archivedAt = now) }
+                runCatching {
+                    movementRepository.runInTransaction {
+                        templateRepository.listActive()
+                            .filter { it.status == TemplateStatus.ACTIVE && it.categoryId == category.id }
+                            .forEach { templateRepository.setStatus(it.id, TemplateStatus.PAUSED, updatedAt = now) }
+                        budgetRepository.listActive()
+                            .filter { it.categoryId == category.id }
+                            .forEach { budgetRepository.archive(it.id, archivedAt = now) }
+                        categoryRepository.listActive()
+                            .filter { it.parentId == category.id }
+                            .forEach { child -> categoryRepository.update(child.toDraft(parentId = null), updatedAt = now) }
+                        categoryRepository.archive(category.id, archivedAt = now)
+                    }
+                }
             }
             result.fold(
                 onSuccess = {
@@ -276,6 +309,7 @@ class CategoriesViewModel(
         private val analysisRepository: AnalysisRepository,
         private val movementRepository: MovementRepository,
         private val budgetRepository: BudgetRepository,
+        private val templateRepository: TemplateRepository,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -285,6 +319,7 @@ class CategoriesViewModel(
                     analysisRepository = analysisRepository,
                     movementRepository = movementRepository,
                     budgetRepository = budgetRepository,
+                    templateRepository = templateRepository,
                 ) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
@@ -299,8 +334,15 @@ data class CategoriesUiState(
     val isLoading: Boolean = true,
     val errorMessage: String? = null,
     val form: CategoryFormState? = null,
-    val archiveCandidate: CategoryRecord? = null,
+    val archiveCandidate: CategoryArchiveCandidate? = null,
     val flowDetail: CategoryFlowDetailState? = null,
+)
+
+data class CategoryArchiveCandidate(
+    val category: CategoryRecord,
+    val activeTemplateCount: Int,
+    val budgetCount: Int,
+    val childCount: Int,
 )
 
 data class CategoryFlowDetailState(
@@ -342,3 +384,6 @@ private fun CategoryRecord.toFormState(): CategoryFormState =
         iconKey = icon,
         displayOrder = displayOrder,
     )
+
+private fun CategoryRecord.toDraft(parentId: String?): CategoryDraft =
+    CategoryDraft(id, name, kind, nature, parentId, icon, color, displayOrder)

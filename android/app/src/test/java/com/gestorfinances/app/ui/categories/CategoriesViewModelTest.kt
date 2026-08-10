@@ -10,6 +10,7 @@ import com.gestorfinances.app.data.repository.CategoryKind
 import com.gestorfinances.app.data.repository.CategoryNature
 import com.gestorfinances.app.data.repository.CategoryRepository
 import com.gestorfinances.app.data.repository.MovementRepository
+import com.gestorfinances.app.data.repository.TemplateRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -135,6 +136,7 @@ class CategoriesViewModelTest {
             analysisRepository = store.analysis,
             movementRepository = store.movements,
             budgetRepository = store.budgets,
+            templateRepository = store.templates,
             ioDispatcher = dispatcher,
         )
 
@@ -149,6 +151,7 @@ class CategoriesViewModelTest {
             analysis = AnalysisRepository(database.analysisQueries),
             movements = MovementRepository(database.movementsQueries, database.splitsQueries),
             budgets = BudgetRepository(database.budgetsQueries),
+            templates = TemplateRepository(database.templatesQueries),
         )
     }
 
@@ -158,6 +161,7 @@ class CategoriesViewModelTest {
         val analysis: AnalysisRepository,
         val movements: MovementRepository,
         val budgets: BudgetRepository,
+        val templates: TemplateRepository,
     ) : AutoCloseable {
         fun exec(sql: String) {
             driver.execute(null, sql, 0)

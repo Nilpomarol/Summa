@@ -5,6 +5,7 @@ import com.gestorfinances.app.R
 import com.gestorfinances.app.data.db.GestorDatabase
 import com.gestorfinances.app.data.repository.AccountRepository
 import com.gestorfinances.app.data.repository.MovementRepository
+import com.gestorfinances.app.data.repository.TemplateRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -83,6 +84,7 @@ class AccountsViewModelTest {
         AccountsViewModel(
             accountRepository = store.accounts,
             movementRepository = store.movements,
+            templateRepository = store.templates,
         )
 
     private fun freshStore(): TestStore {
@@ -94,6 +96,7 @@ class AccountsViewModelTest {
             driver = driver,
             accounts = AccountRepository(database.accountsQueries),
             movements = MovementRepository(database.movementsQueries, database.splitsQueries),
+            templates = TemplateRepository(database.templatesQueries),
         )
     }
 
@@ -101,6 +104,7 @@ class AccountsViewModelTest {
         private val driver: JdbcSqliteDriver,
         val accounts: AccountRepository,
         val movements: MovementRepository,
+        val templates: TemplateRepository,
     ) : AutoCloseable {
         override fun close() {
             driver.close()
