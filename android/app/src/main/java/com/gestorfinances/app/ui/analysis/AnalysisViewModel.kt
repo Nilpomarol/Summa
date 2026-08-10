@@ -176,7 +176,10 @@ class AnalysisViewModel(
         viewModelScope.launch {
             val divisor = withContext(ioDispatcher) { computeAverageDivisor(snapshot, range) }
             update { it.copy(currentAverageDivisor = divisor) }
-            loadTab(_state.value.selectedTab)
+            loadTab(AnalysisTab.RESUM)
+            if (_state.value.scope != AnalysisScope.ALL_TIME) {
+                loadTab(AnalysisTab.COMPARATIVA)
+            }
         }
     }
 
@@ -446,15 +449,15 @@ class AnalysisViewModel(
     }
 
     private fun loadComparativa(s: AnalysisUiState, range: AnalysisPeriodRange): ComparativaData {
-        val comparisonValidation = comparisonAnalysisRange(
-            scope = s.scope,
-            comparisonMonth = s.comparisonMonth,
-            comparisonYear = s.comparisonYear,
-            comparisonCustomFrom = s.comparisonCustomFrom,
-            comparisonCustomTo = s.comparisonCustomTo,
-            currentRange = range,
-        )
-        val comparisonRange = comparisonValidation.range
+        val comparisonRange = previousAnalysisRange(range, s.scope)?.let { previous ->
+            comparablePreviousRange(
+                currentRange = range,
+                previousRange = previous,
+                scope = s.scope,
+                today = todayProvider(),
+            )
+        }
+        val categoriesById = categoryRepository.listActive().associateBy { it.id }
         val current = analysisRepository.actualByCategory(
             fromDate = range.fromDate.toString(),
             toDate = range.toDateExclusive.toString(),
@@ -462,7 +465,7 @@ class AnalysisViewModel(
             categoryNature = s.queryNature(),
             accountId = s.filterAccountId,
             categoryId = s.filterCategoryId,
-        )
+        ).rollUpToParents(categoriesById)
         val currentTotals = analysisRepository.periodTotals(
             fromDate = range.fromDate.toString(),
             toDate = range.toDateExclusive.toString(),
@@ -488,7 +491,7 @@ class AnalysisViewModel(
                 categoryNature = s.queryNature(),
                 accountId = s.filterAccountId,
                 categoryId = s.filterCategoryId,
-            )
+            ).rollUpToParents(categoriesById)
         }.orEmpty()
         val previousTotals = comparisonRange?.let {
             analysisRepository.periodTotals(
@@ -909,6 +912,25 @@ internal fun previousAnalysisRange(
         }
         AnalysisScope.ALL_TIME -> null
     }
+
+/**
+ * Keeps an in-progress month or year comparison honest by ending the previous period at the
+ * equivalent calendar day. Completed and historical periods continue to compare in full.
+ */
+internal fun comparablePreviousRange(
+    currentRange: AnalysisPeriodRange,
+    previousRange: AnalysisPeriodRange,
+    scope: AnalysisScope,
+    today: LocalDate,
+): AnalysisPeriodRange {
+    if (today < currentRange.fromDate || today >= currentRange.toDateExclusive) return previousRange
+    val equivalentEnd = when (scope) {
+        AnalysisScope.MONTH -> previousRange.fromDate.plusDays(today.dayOfMonth.toLong())
+        AnalysisScope.YEAR -> today.minusYears(1).plusDays(1)
+        AnalysisScope.ALL_TIME, AnalysisScope.CUSTOM -> return previousRange
+    }
+    return previousRange.copy(toDateExclusive = minOf(equivalentEnd, previousRange.toDateExclusive))
+}
 
 /**
  * Resolves the user-selected comparison period. The bucket mirrors [currentRange] so both periods

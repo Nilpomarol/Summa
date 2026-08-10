@@ -1,14 +1,7 @@
 package com.gestorfinances.app.ui.analysis
 
 import androidx.annotation.StringRes
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Tab
-import androidx.compose.material3.ScrollableTabRow
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -25,20 +18,13 @@ import com.gestorfinances.app.data.repository.AnalysisBucket
 import com.gestorfinances.app.data.repository.AnalysisCategoryTotal
 import com.gestorfinances.app.data.repository.AnalysisIncomeExpenseBucket
 import com.gestorfinances.app.ui.analysis.components.AnalysisFilterSheet
-import com.gestorfinances.app.ui.analysis.components.AnalysisHeader
-import com.gestorfinances.app.ui.analysis.components.CategoriesTab
-import com.gestorfinances.app.ui.analysis.components.ComparativaTab
-import com.gestorfinances.app.ui.analysis.components.FixVariableTab
-import com.gestorfinances.app.ui.analysis.components.HistoricTab
-import com.gestorfinances.app.ui.analysis.components.ResumTab
+import com.gestorfinances.app.ui.analysis.components.AnalysisOverview
 import com.gestorfinances.app.ui.common.HeatmapCell
 import com.gestorfinances.app.ui.common.IncomeExpenseChartPoint
-import com.gestorfinances.app.ui.common.RootPageHeader
 import com.gestorfinances.app.ui.common.formatCompactDateRange
 import com.gestorfinances.app.ui.common.formatExpandedDate
 import com.gestorfinances.app.ui.common.formatMonth
 import com.gestorfinances.app.ui.common.formatMonthYear
-import com.gestorfinances.app.ui.theme.FinanceTheme
 import java.time.YearMonth
 
 @Composable
@@ -54,20 +40,11 @@ internal fun AnalysisScreen(
 
     AnalysisContent(
         state = state,
-        onTabSelected = viewModel::onTabSelected,
         onScopeSelected = viewModel::onScopeSelected,
-        onValueModeSelected = viewModel::onValueModeSelected,
         onPreviousPeriod = viewModel::onPreviousPeriodClicked,
         onNextPeriod = viewModel::onNextPeriodClicked,
         onMonthSelected = viewModel::onMonthSelected,
         onYearSelected = viewModel::onYearSelected,
-        onCustomFromChange = viewModel::onCustomFromChanged,
-        onCustomToChange = viewModel::onCustomToChanged,
-        onComparisonMonthSelected = viewModel::onComparisonMonthSelected,
-        onComparisonYearSelected = viewModel::onComparisonYearSelected,
-        onComparisonCustomFromChange = viewModel::onComparisonCustomFromChanged,
-        onComparisonCustomToChange = viewModel::onComparisonCustomToChanged,
-        onResetComparison = viewModel::onResetComparison,
         onNatureFilterSelected = viewModel::onNatureFilterSelected,
         onOneTimeModeSelected = viewModel::onOneTimeModeSelected,
         onGroupTripsAsBlocksChange = viewModel::onGroupTripsAsBlocksChanged,
@@ -83,20 +60,11 @@ internal fun AnalysisScreen(
 @Composable
 internal fun AnalysisContent(
     state: AnalysisUiState,
-    onTabSelected: (AnalysisTab) -> Unit,
     onScopeSelected: (AnalysisScope) -> Unit,
-    onValueModeSelected: (AnalysisValueMode) -> Unit,
     onPreviousPeriod: () -> Unit,
     onNextPeriod: () -> Unit,
     onMonthSelected: (YearMonth) -> Unit,
     onYearSelected: (Int) -> Unit,
-    onCustomFromChange: (String) -> Unit,
-    onCustomToChange: (String) -> Unit,
-    onComparisonMonthSelected: (YearMonth) -> Unit,
-    onComparisonYearSelected: (Int) -> Unit,
-    onComparisonCustomFromChange: (String) -> Unit,
-    onComparisonCustomToChange: (String) -> Unit,
-    onResetComparison: () -> Unit,
     onNatureFilterSelected: (AnalysisNatureFilter) -> Unit,
     onOneTimeModeSelected: (com.gestorfinances.app.data.repository.AnalysisOneTimeMode) -> Unit,
     onGroupTripsAsBlocksChange: (Boolean) -> Unit,
@@ -108,64 +76,17 @@ internal fun AnalysisContent(
     modifier: Modifier = Modifier,
 ) {
     var showFilters by remember { mutableStateOf(false) }
-    val tabs = AnalysisTab.entries
-
-    Column(modifier = modifier.fillMaxSize()) {
-        RootPageHeader(
-            title = stringResource(R.string.nav_analysis),
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
-        )
-        AnalysisHeader(
-            state = state,
-            onScopeSelected = onScopeSelected,
-            onValueModeSelected = onValueModeSelected,
-            onPreviousPeriod = onPreviousPeriod,
-            onNextPeriod = onNextPeriod,
-            onMonthSelected = onMonthSelected,
-            onYearSelected = onYearSelected,
-            onCustomFromChange = onCustomFromChange,
-            onCustomToChange = onCustomToChange,
-            onOpenFilters = { showFilters = true },
-        )
-        ScrollableTabRow(
-            selectedTabIndex = tabs.indexOf(state.selectedTab),
-            containerColor = MaterialTheme.colorScheme.surface,
-            contentColor = MaterialTheme.colorScheme.onSurface,
-            edgePadding = 20.dp,
-        ) {
-            tabs.forEach { tab ->
-                Tab(
-                    selected = tab == state.selectedTab,
-                    onClick = { onTabSelected(tab) },
-                    selectedContentColor = MaterialTheme.colorScheme.onSurface,
-                    unselectedContentColor = FinanceTheme.colors.mutedText,
-                    text = {
-                        Text(
-                            text = stringResource(tab.labelRes()),
-                            style = MaterialTheme.typography.labelMedium,
-                            maxLines = 1,
-                            softWrap = false,
-                        )
-                    },
-                )
-            }
-        }
-        when (state.selectedTab) {
-            AnalysisTab.RESUM -> ResumTab(state = state, contentPadding = tabPadding)
-            AnalysisTab.CATEGORIES -> CategoriesTab(state = state, contentPadding = tabPadding)
-            AnalysisTab.COMPARATIVA -> ComparativaTab(
-                state = state,
-                contentPadding = tabPadding,
-                onComparisonMonthSelected = onComparisonMonthSelected,
-                onComparisonYearSelected = onComparisonYearSelected,
-                onComparisonCustomFromChange = onComparisonCustomFromChange,
-                onComparisonCustomToChange = onComparisonCustomToChange,
-                onResetComparison = onResetComparison,
-            )
-            AnalysisTab.HISTORIC -> HistoricTab(state = state, contentPadding = tabPadding)
-            AnalysisTab.FIX_VARIABLE -> FixVariableTab(state = state, contentPadding = tabPadding)
-        }
-    }
+    AnalysisOverview(
+        state = state,
+        onScopeSelected = onScopeSelected,
+        onPreviousPeriod = onPreviousPeriod,
+        onNextPeriod = onNextPeriod,
+        onMonthSelected = onMonthSelected,
+        onYearSelected = onYearSelected,
+        onOpenFilters = { showFilters = true },
+        contentPadding = tabPadding,
+        modifier = modifier,
+    )
 
     if (showFilters) {
         AnalysisFilterSheet(

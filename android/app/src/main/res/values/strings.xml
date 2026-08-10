@@ -443,6 +443,18 @@
     <string name="analysis_savings_rate_period_title">Estalvi per període</string>
     <string name="analysis_heatmap_legend_less">Menys</string>
     <string name="analysis_heatmap_legend_more">Més</string>
+    <string name="analysis_mobile_history">Històric</string>
+    <string name="analysis_mobile_since">Des de %1$s</string>
+    <string name="analysis_mobile_total_expense">Despesa acumulada</string>
+    <string name="analysis_mobile_amount_vs_period">%1$s vs. %2$s</string>
+    <string name="analysis_mobile_percent_amount_vs_period">%1$s · %2$s vs. %3$s</string>
+    <string name="analysis_mobile_yearly_evolution">Evolució anual</string>
+    <string name="analysis_mobile_spending_evolution">Evolució de la despesa</string>
+    <string name="analysis_mobile_evolution_accessibility">Comparació de despesa. %1$s: %2$s. %3$s: %4$s.</string>
+    <string name="analysis_mobile_year_net">Net %1$s</string>
+    <string name="analysis_mobile_share">%1$d%% de la despesa</string>
+    <string name="analysis_mobile_amount_vs_short">%1$s vs. anterior</string>
+    <string name="analysis_mobile_percent_amount_vs_short">%1$s · %2$s vs. anterior</string>
 
     <!-- Analysis tabs -->
     <string name="analysis_tab_resum">Resum</string>
