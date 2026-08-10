@@ -369,7 +369,6 @@ private fun LedgerShell(
             viewModelStoreOwner,
             SettingsViewModel.Factory(
                 preferences = appContainer.notificationPreferences,
-                dataSeeder = appContainer.dataSeeder,
                 backupFolderRepository = appContainer.backupFolderStore,
                 backupOperations = appContainer.backupSnapshotService,
                 autoBackupSettings = appContainer.autoBackupPreferences,

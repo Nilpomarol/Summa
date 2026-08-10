@@ -15,7 +15,6 @@ import com.gestorfinances.app.data.backup.AutoBackupScheduler
 import com.gestorfinances.app.data.backup.AutoBackupSettings
 import com.gestorfinances.app.data.backup.AutoBackupSettingsRepository
 import com.gestorfinances.app.data.backup.AutoBackupInterval
-import com.gestorfinances.app.data.db.DataSeeder
 import com.gestorfinances.app.notifications.NotificationSettings
 import com.gestorfinances.app.notifications.NotificationSettingsRepository
 import java.time.Instant
@@ -416,7 +415,6 @@ class SettingsViewModelTest {
     ): SettingsViewModel =
         SettingsViewModel(
             preferences = FakeNotificationSettingsRepository(),
-            dataSeeder = DataSeeder(driver),
             backupFolderRepository = folderRepository,
             backupOperations = operations,
             autoBackupSettings = autoBackupSettings,
