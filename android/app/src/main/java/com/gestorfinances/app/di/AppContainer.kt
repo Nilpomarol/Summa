@@ -5,7 +5,6 @@ import com.gestorfinances.app.data.backup.BackupFolderStore
 import com.gestorfinances.app.data.backup.BackupSnapshotService
 import com.gestorfinances.app.data.backup.AutoBackupPreferences
 import com.gestorfinances.app.data.backup.WorkManagerAutoBackupScheduler
-import com.gestorfinances.app.data.db.DataSeeder
 import com.gestorfinances.app.data.db.DatabaseDriverFactory
 import com.gestorfinances.app.data.db.GestorDatabase
 import com.gestorfinances.app.data.repository.AccountRepository
@@ -45,10 +44,6 @@ class AppContainer(context: Context) {
         GestorDatabase(driver)
     }
     private val database: GestorDatabase by databaseLazy
-
-    val dataSeeder: DataSeeder by lazy {
-        DataSeeder(driver)
-    }
 
     val accountRepository: AccountRepository by lazy {
         AccountRepository(database.accountsQueries)

@@ -16,7 +16,6 @@ import com.gestorfinances.app.data.backup.PendingBackupRestore
 import com.gestorfinances.app.data.backup.AutoBackupScheduler
 import com.gestorfinances.app.data.backup.AutoBackupSettingsRepository
 import com.gestorfinances.app.data.backup.AutoBackupInterval
-import com.gestorfinances.app.data.db.DataSeeder
 import com.gestorfinances.app.notifications.NotificationPreferences
 import com.gestorfinances.app.notifications.NotificationRefresher
 import com.gestorfinances.app.notifications.NotificationSettings
@@ -36,7 +35,6 @@ import kotlinx.coroutines.withContext
 
 class SettingsViewModel(
     private val preferences: NotificationSettingsRepository,
-    private val dataSeeder: DataSeeder,
     private val backupFolderRepository: BackupFolderRepository,
     private val backupOperations: BackupOperations,
     private val autoBackupSettings: AutoBackupSettingsRepository,
@@ -82,25 +80,6 @@ class SettingsViewModel(
 
     fun onLowBalanceAlertsChanged(enabled: Boolean) {
         saveSettings(preferences.loadSettings().copy(lowBalanceAlertsEnabled = enabled))
-    }
-
-    fun onSeedDataClicked() {
-        _state.value = _state.value.copy(seedDataConfirmationPending = true)
-    }
-
-    fun onSeedDataDismissed() {
-        _state.value = _state.value.copy(seedDataConfirmationPending = false)
-    }
-
-    fun onSeedDataConfirmed(onFinished: () -> Unit) {
-        _state.value = _state.value.copy(seedDataConfirmationPending = false)
-        viewModelScope.launch {
-            withContext(ioDispatcher) {
-                dataSeeder.seed()
-                notificationRefresher.refreshNotifications()
-            }
-            onFinished()
-        }
     }
 
     fun onBackupChooseFolderClicked() {
@@ -373,7 +352,6 @@ class SettingsViewModel(
 
     class Factory(
         private val preferences: NotificationPreferences,
-        private val dataSeeder: DataSeeder,
         private val backupFolderRepository: BackupFolderRepository,
         private val backupOperations: BackupOperations,
         private val autoBackupSettings: AutoBackupSettingsRepository,
@@ -385,7 +363,6 @@ class SettingsViewModel(
             if (modelClass.isAssignableFrom(SettingsViewModel::class.java)) {
                 return SettingsViewModel(
                     preferences = preferences,
-                    dataSeeder = dataSeeder,
                     backupFolderRepository = backupFolderRepository,
                     backupOperations = backupOperations,
                     autoBackupSettings = autoBackupSettings,
@@ -403,7 +380,6 @@ data class SettingsUiState(
     val budgetAlertsEnabled: Boolean = true,
     val lowBalanceAlertsEnabled: Boolean = true,
     val errorRes: Int? = null,
-    val seedDataConfirmationPending: Boolean = false,
     val backupFolder: BackupFolder? = null,
     val isBackupBusy: Boolean = false,
     val backupMessage: SettingsMessage? = null,

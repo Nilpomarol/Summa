@@ -70,8 +70,6 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-private const val SHOW_DEBUG_SEED_DATA = false
-
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel,
@@ -149,57 +147,6 @@ fun SettingsScreen(
             )
         }
 
-        if (BuildConfig.DEBUG && SHOW_DEBUG_SEED_DATA) {
-            item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 16.dp, bottom = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    Text(
-                        text = stringResource(R.string.settings_debug_title),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
-            }
-
-            item {
-                FinanceCard(modifier = Modifier.fillMaxWidth()) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.BugReport,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Text(
-                                text = stringResource(R.string.settings_seed_data_title),
-                                style = MaterialTheme.typography.titleMedium,
-                            )
-                        }
-                        Text(
-                            text = stringResource(R.string.settings_seed_data_body),
-                            color = FinanceTheme.colors.mutedText,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        PrimaryButton(
-                            text = stringResource(R.string.settings_seed_data_action),
-                            onClick = viewModel::onSeedDataClicked,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                }
-            }
-        }
     }
 
     if (state.showBackupList) {
@@ -219,29 +166,6 @@ fun SettingsScreen(
         )
     }
 
-    if (state.seedDataConfirmationPending) {
-        AlertDialog(
-            onDismissRequest = viewModel::onSeedDataDismissed,
-            title = { Text(text = stringResource(R.string.settings_seed_data_confirm_title)) },
-            text = { Text(text = stringResource(R.string.settings_seed_data_confirm_body)) },
-            confirmButton = {
-                DestructiveTextButton(
-                    onClick = {
-                        viewModel.onSeedDataConfirmed {
-                            onBack() // Navigate back to refresh
-                        }
-                    },
-                ) {
-                    Text(text = stringResource(R.string.settings_seed_data_action))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = viewModel::onSeedDataDismissed) {
-                    Text(text = stringResource(R.string.common_cancel))
-                }
-            },
-        )
-    }
 }
 
 @Composable
