@@ -17,7 +17,6 @@ public sealed class GoldenVectorTests
         var expected = new[]
         {
             "account_flow.json",
-            "auto_categorize.json",
             "debt_balance.json",
             "duplicate_detection.json",
             "recurring_advance.json",
@@ -113,22 +112,6 @@ public sealed class GoldenVectorTests
                 result.DueDates.Select(date => date.ToString("yyyy-MM-dd")).ToArray(),
                 testCase.Name());
             Assert.AreEqual(DateOnly.Parse(expected.String("new_cursor")), result.NewCursor, testCase.Name());
-        }
-    }
-
-    [TestMethod]
-    public void AutoCategorizeMatchesGoldenVectors()
-    {
-        foreach (var testCase in Golden("auto_categorize.json").Cases())
-        {
-            var input = testCase.Obj("input");
-            var match = AutoCategorizer.FindMatch(
-                input.Obj("movement").ToAutoCategorizeMovement(),
-                input.Array("rules").Select(rule => rule.ToAutoCategorizeRule()));
-            var expected = testCase.Obj("expected");
-
-            Assert.AreEqual(expected.OptionalString("winning_rule_id"), match?.RuleId, testCase.Name());
-            Assert.AreEqual(expected.OptionalAction("action"), match?.Action, testCase.Name());
         }
     }
 
@@ -341,43 +324,6 @@ internal static class GoldenJsonExtensions
             "years" => CustomRecurrenceUnit.Years,
             var unit => throw new InvalidOperationException($"Unknown custom unit {unit}")
         };
-
-    public static AutoCategorizeMovement ToAutoCategorizeMovement(this JsonElement element) =>
-        new(
-            Name: element.OptionalString("name"),
-            Payee: element.OptionalString("payee"),
-            AmountCents: element.Long("amount_cents"),
-            Date: DateOnly.Parse(element.String("date")),
-            AccountId: element.String("account_id"));
-
-    public static AutoCategorizeRule ToAutoCategorizeRule(this JsonElement element) =>
-        new(
-            Id: element.String("id"),
-            Priority: element.Int("priority"),
-            CreatedAt: element.String("created_at"),
-            Active: element.Int("active") == 1,
-            Conditions: element.Obj("conditions").ToAutoCategorizeConditions(),
-            Action: element.Obj("action").ToAutoCategorizeAction());
-
-    private static AutoCategorizeConditions ToAutoCategorizeConditions(this JsonElement element) =>
-        new(
-            TextContains: element.OptionalString("text_contains"),
-            AmountMinCents: element.OptionalLong("amount_min_cents"),
-            AmountMaxCents: element.OptionalLong("amount_max_cents"),
-            AccountId: element.OptionalString("account_id"),
-            DayOfMonthIn: element.TryGetProperty("day_of_month_in", out var days) && days.ValueKind != JsonValueKind.Null
-                ? days.EnumerateArray().Select(value => value.GetInt32()).ToHashSet()
-                : new HashSet<int>());
-
-    private static AutoCategorizeAction ToAutoCategorizeAction(this JsonElement element) =>
-        new(
-            CategoryId: element.OptionalString("set_category_id"),
-            TripId: element.OptionalString("set_trip_id"));
-
-    public static AutoCategorizeAction? OptionalAction(this JsonElement element, string key) =>
-        element.TryGetProperty(key, out var value) && value.ValueKind != JsonValueKind.Null
-            ? value.ToAutoCategorizeAction()
-            : null;
 
     public static DuplicateMovement ToDuplicateMovement(this JsonElement element) =>
         new(

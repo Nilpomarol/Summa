@@ -72,7 +72,6 @@ class AndroidBackupDatabaseInspector : BackupDatabaseInspector {
             "tags",
             "templates",
             "budgets",
-            "auto_cat_rules",
             "import_batches",
             "movements",
             "splits",
@@ -94,7 +93,6 @@ class AndroidBackupDatabaseInspector : BackupDatabaseInspector {
             "movements" to setOf("id", "type", "amount_cents", "date", "archived_at"),
             "templates" to setOf("id", "type", "account_id", "status", "archived_at"),
             "budgets" to setOf("id", "scope", "archived_at"),
-            "auto_cat_rules" to setOf("id", "archived_at"),
             "import_batches" to setOf("id", "archived_at"),
         )
     }

@@ -2,13 +2,11 @@ package com.gestorfinances.app.ui.movements
 
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import com.gestorfinances.app.R
-import com.gestorfinances.app.data.db.AutoCatRulesQueries
 import com.gestorfinances.app.data.db.GestorDatabase
 import com.gestorfinances.app.data.repository.AccountDraft
 import com.gestorfinances.app.data.repository.AccountRepository
 import com.gestorfinances.app.data.repository.AccountType
 import com.gestorfinances.app.data.repository.AnalysisRepository
-import com.gestorfinances.app.data.repository.AutoCatRuleRepository
 import com.gestorfinances.app.data.repository.CategoryDraft
 import com.gestorfinances.app.data.repository.CategoryKind
 import com.gestorfinances.app.data.repository.CategoryNature
@@ -383,59 +381,6 @@ class MovementsViewModelTest {
             assertNull(viewModel.form().pendingDataLossWarning)
             assertEquals("nothing was saved", 1, store.movements.listActive().size)
             assertEquals("the in-progress edit is preserved", "2,50", viewModel.form().amount)
-        }
-    }
-
-    @Test
-    fun formSuggestsCategoryFromActiveAutoCatRuleButNeverAppliesItAutomatically() = runTest(dispatcher) {
-        freshStore().use { store ->
-            store.accounts.create(accountDraft("checking"), createdAt = NOW)
-            store.categories.create(
-                CategoryDraft(
-                    id = "groceries",
-                    name = "Alimentació",
-                    kind = CategoryKind.EXPENSE,
-                    nature = CategoryNature.VARIABLE,
-                    parentId = null,
-                    icon = null,
-                    color = null,
-                    displayOrder = 0,
-                ),
-                createdAt = NOW,
-            )
-            store.autoCatRulesQueries.insertAutoCatRule(
-                id = "rule-1",
-                name = "Supermarket",
-                priority = 10,
-                conditions = "{\"text_contains\":\"super\"}",
-                action_category_id = "groceries",
-                action_trip_id = null,
-                source = "user",
-                active = 1,
-                created_at = NOW,
-                updated_at = NOW,
-            )
-            val viewModel = viewModel(store)
-            viewModel.onAddClicked()
-            advanceUntilIdle()
-
-            viewModel.onFormChanged(
-                viewModel.form().copy(
-                    name = "Super Mercat",
-                    amount = "20",
-                    date = "2026-01-01",
-                    accountId = "checking",
-                ),
-            )
-
-            // Suggested, but not applied to categoryId (read-only hint, never auto-applies).
-            assertEquals("groceries", viewModel.form().suggestedCategoryId)
-            assertNull(viewModel.form().categoryId)
-
-            // Tapping the suggestion is the form's onFormChange with categoryId set explicitly.
-            viewModel.onFormChanged(viewModel.form().copy(categoryId = "groceries"))
-            assertEquals("groceries", viewModel.form().categoryId)
-            assertEquals("groceries", viewModel.form().suggestedCategoryId)
         }
     }
 
@@ -1498,7 +1443,6 @@ class MovementsViewModelTest {
             tagRepository = store.tags,
             splitRepository = store.splits,
             ioDispatcher = dispatcher,
-            autoCatRuleRepository = store.autoCatRules,
             templateRepository = store.templates,
         )
 
@@ -1518,8 +1462,6 @@ class MovementsViewModelTest {
             trips = TripRepository(database.tripsQueries),
             templates = TemplateRepository(database.templatesQueries),
             splits = SplitRepository(database.splitsQueries),
-            autoCatRules = AutoCatRuleRepository(database.autoCatRulesQueries),
-            autoCatRulesQueries = database.autoCatRulesQueries,
         )
     }
 
@@ -1534,8 +1476,6 @@ class MovementsViewModelTest {
         val trips: TripRepository,
         val templates: TemplateRepository,
         val splits: SplitRepository,
-        val autoCatRules: AutoCatRuleRepository,
-        val autoCatRulesQueries: AutoCatRulesQueries,
     ) : AutoCloseable {
         override fun close() {
             driver.close()

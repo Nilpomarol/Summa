@@ -303,7 +303,6 @@
     <string name="movement_field_origin_account">Compte d\'origen</string>
     <string name="movement_field_destination_account">Compte destí</string>
     <string name="movement_field_category">Categoria</string>
-    <string name="movement_category_suggestion">Suggerit: %1$s</string>
     <string name="movement_field_name">Concepte</string>
     <string name="movement_field_payee">Beneficiari</string>
     <string name="movement_field_notes">Notes</string>

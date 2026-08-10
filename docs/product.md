@@ -73,7 +73,6 @@ A movement can belong to one trip and have at most one compatible tag. Tags may 
 
 - The Android database may contain real user data. Do not clear, replace, or seed it during development unless the user explicitly approves an isolated test-data flow.
 - Android backup/restore is implemented; encrypted token-based Android/Windows synchronization is not.
-- Auto-categorization suggestions exist, but a complete rules-management interface does not.
 - The Windows application, Windows CSV importer, packaging, and distribution do not exist yet.
 
 These are boundaries, not an active backlog. Work is selected explicitly during the redesign or Windows phases.

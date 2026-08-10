@@ -37,7 +37,8 @@ internal static class SharedSql
     [
         "007_simplify_budget_rules.sql",
         "008_add_budget_inclusion_rules.sql",
-        "009_derive_refund_attribution.sql"
+        "009_derive_refund_attribution.sql",
+        "010_remove_auto_categorization.sql"
     ];
 
     public static string RepositoryRoot { get; } = FindRepositoryRoot();

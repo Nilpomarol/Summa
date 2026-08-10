@@ -160,24 +160,6 @@ CREATE TABLE budgets (
     )
 );
 
-CREATE TABLE auto_cat_rules (
-    id                 TEXT    PRIMARY KEY,
-    name               TEXT    NOT NULL,
-    priority           INTEGER NOT NULL,
-    conditions         TEXT    NOT NULL,
-    action_category_id TEXT    REFERENCES categories(id),
-    action_trip_id     TEXT    REFERENCES trips(id),
-    source             TEXT    NOT NULL CHECK (source IN ('user','system_learned')),
-    active             INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0,1)),
-    created_at         TEXT    NOT NULL,
-    updated_at         TEXT    NOT NULL,
-    archived_at        TEXT
-);
-
-CREATE INDEX idx_rules_match
-    ON auto_cat_rules(priority DESC, created_at DESC)
-    WHERE active = 1;
-
 CREATE TABLE import_batches (
     id          TEXT    PRIMARY KEY,
     source_file TEXT,

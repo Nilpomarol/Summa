@@ -9,7 +9,6 @@ import com.gestorfinances.app.data.db.DatabaseDriverFactory
 import com.gestorfinances.app.data.db.GestorDatabase
 import com.gestorfinances.app.data.repository.AccountRepository
 import com.gestorfinances.app.data.repository.AnalysisRepository
-import com.gestorfinances.app.data.repository.AutoCatRuleRepository
 import com.gestorfinances.app.data.repository.BudgetRepository
 import com.gestorfinances.app.data.repository.CategoryRepository
 import com.gestorfinances.app.data.repository.MetaRepository
@@ -51,10 +50,6 @@ class AppContainer(context: Context) {
 
     val analysisRepository: AnalysisRepository by lazy {
         AnalysisRepository(database.analysisQueries)
-    }
-
-    val autoCatRuleRepository: AutoCatRuleRepository by lazy {
-        AutoCatRuleRepository(database.autoCatRulesQueries)
     }
 
     val budgetRepository: BudgetRepository by lazy {
