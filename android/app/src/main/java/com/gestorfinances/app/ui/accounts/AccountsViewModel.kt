@@ -10,6 +10,8 @@ import com.gestorfinances.app.data.repository.AccountSummary
 import com.gestorfinances.app.data.repository.AccountType
 import com.gestorfinances.app.data.repository.MovementRepository
 import com.gestorfinances.app.data.repository.MovementSummary
+import com.gestorfinances.app.data.repository.TemplateRepository
+import com.gestorfinances.app.data.repository.TemplateStatus
 import com.gestorfinances.app.notifications.NotificationRefresher
 import com.gestorfinances.app.ui.common.EntityColorPalette
 import com.gestorfinances.app.ui.common.formatEuroInput
@@ -27,6 +29,7 @@ import kotlinx.coroutines.withContext
 class AccountsViewModel(
     private val accountRepository: AccountRepository,
     private val movementRepository: MovementRepository,
+    private val templateRepository: TemplateRepository,
     private val notificationRefresher: NotificationRefresher = NotificationRefresher.NoOp,
 ) : ViewModel() {
     private val _state = MutableStateFlow(AccountsUiState())
@@ -67,7 +70,20 @@ class AccountsViewModel(
     }
 
     fun onArchiveClicked(account: AccountSummary) {
-        _state.value = _state.value.copy(archiveCandidate = account)
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    templateRepository.listActive().count {
+                        it.status == TemplateStatus.ACTIVE &&
+                            (it.accountId == account.id || it.destAccountId == account.id)
+                    }
+                }
+            }
+            _state.value = result.fold(
+                onSuccess = { count -> _state.value.copy(archiveCandidate = AccountArchiveCandidate(account, count)) },
+                onFailure = { _state.value.copy(errorMessage = it.message ?: it.javaClass.simpleName) },
+            )
+        }
     }
 
     fun onFlowClicked(account: AccountSummary) {
@@ -113,11 +129,21 @@ class AccountsViewModel(
     }
 
     fun onArchiveConfirmed() {
-        val account = _state.value.archiveCandidate ?: return
+        val account = _state.value.archiveCandidate?.account ?: return
         val now = Instant.now().toString()
         viewModelScope.launch {
             val result = withContext(Dispatchers.IO) {
-                runCatching { accountRepository.archive(account.id, archivedAt = now) }
+                runCatching {
+                    movementRepository.runInTransaction {
+                        templateRepository.listActive()
+                            .filter {
+                                it.status == TemplateStatus.ACTIVE &&
+                                    (it.accountId == account.id || it.destAccountId == account.id)
+                            }
+                            .forEach { templateRepository.setStatus(it.id, TemplateStatus.PAUSED, updatedAt = now) }
+                        accountRepository.archive(account.id, archivedAt = now)
+                    }
+                }
             }
             result.fold(
                 onSuccess = {
@@ -261,12 +287,13 @@ class AccountsViewModel(
     class Factory(
         private val accountRepository: AccountRepository,
         private val movementRepository: MovementRepository,
+        private val templateRepository: TemplateRepository,
         private val notificationRefresher: NotificationRefresher = NotificationRefresher.NoOp,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if (modelClass.isAssignableFrom(AccountsViewModel::class.java)) {
-                return AccountsViewModel(accountRepository, movementRepository, notificationRefresher) as T
+                return AccountsViewModel(accountRepository, movementRepository, templateRepository, notificationRefresher) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }
@@ -278,8 +305,13 @@ data class AccountsUiState(
     val isLoading: Boolean = true,
     val errorMessage: String? = null,
     val form: AccountFormState? = null,
-    val archiveCandidate: AccountSummary? = null,
+    val archiveCandidate: AccountArchiveCandidate? = null,
     val flowDetail: AccountFlowDetailState? = null,
+)
+
+data class AccountArchiveCandidate(
+    val account: AccountSummary,
+    val activeTemplateCount: Int,
 )
 
 data class AccountFlowDetailState(

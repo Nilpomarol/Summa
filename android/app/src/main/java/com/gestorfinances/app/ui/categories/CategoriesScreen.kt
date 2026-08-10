@@ -154,10 +154,29 @@ fun CategoriesScreen(
         AlertDialog(
             onDismissRequest = viewModel::onArchiveDismissed,
             title = { Text(text = stringResource(R.string.category_archive_confirm_title)) },
-            text = { Text(text = stringResource(R.string.category_archive_warning)) },
+            text = {
+                Text(
+                    text = if (it.activeTemplateCount + it.budgetCount + it.childCount == 0) {
+                        stringResource(R.string.category_archive_warning)
+                    } else {
+                        stringResource(
+                            R.string.category_archive_dependencies_warning,
+                            it.activeTemplateCount,
+                            it.budgetCount,
+                            it.childCount,
+                        )
+                    },
+                )
+            },
             confirmButton = {
                 DestructiveTextButton(onClick = viewModel::onArchiveConfirmed) {
-                    Text(text = stringResource(R.string.common_archive))
+                    Text(
+                        text = if (it.activeTemplateCount + it.budgetCount + it.childCount == 0) {
+                            stringResource(R.string.common_archive)
+                        } else {
+                            stringResource(R.string.category_archive_resolve_and_archive)
+                        },
+                    )
                 }
             },
             dismissButton = {

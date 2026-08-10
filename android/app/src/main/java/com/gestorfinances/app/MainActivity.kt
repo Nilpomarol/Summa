@@ -264,6 +264,7 @@ private fun LedgerShell(
             AccountsViewModel.Factory(
                 accountRepository = appContainer.accountRepository,
                 movementRepository = appContainer.movementRepository,
+                templateRepository = appContainer.templateRepository,
                 notificationRefresher = appContainer.notificationCoordinator,
             ),
         )[AccountsViewModel::class.java]
@@ -276,6 +277,7 @@ private fun LedgerShell(
                 analysisRepository = appContainer.analysisRepository,
                 movementRepository = appContainer.movementRepository,
                 budgetRepository = appContainer.budgetRepository,
+                templateRepository = appContainer.templateRepository,
             ),
         )[CategoriesViewModel::class.java]
     }

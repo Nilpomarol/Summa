@@ -147,10 +147,28 @@ fun AccountsScreen(
         AlertDialog(
             onDismissRequest = viewModel::onArchiveDismissed,
             title = { Text(text = stringResource(R.string.account_archive_confirm_title)) },
-            text = { Text(text = stringResource(R.string.account_archive_warning)) },
+            text = {
+                Text(
+                    text = if (it.activeTemplateCount == 0) {
+                        stringResource(R.string.account_archive_warning)
+                    } else {
+                        pluralStringResource(
+                            R.plurals.account_archive_active_templates_warning,
+                            it.activeTemplateCount,
+                            it.activeTemplateCount,
+                        )
+                    },
+                )
+            },
             confirmButton = {
                 DestructiveTextButton(onClick = viewModel::onArchiveConfirmed) {
-                    Text(text = stringResource(R.string.common_archive))
+                    Text(
+                        text = if (it.activeTemplateCount == 0) {
+                            stringResource(R.string.common_archive)
+                        } else {
+                            stringResource(R.string.account_archive_pause_and_archive)
+                        },
+                    )
                 }
             },
             dismissButton = {
