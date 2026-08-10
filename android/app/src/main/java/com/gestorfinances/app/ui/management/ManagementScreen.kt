@@ -2,27 +2,24 @@ package com.gestorfinances.app.ui.management
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.Sell
@@ -59,20 +56,25 @@ fun ManagementSheet(
     var selectedDestination by remember { mutableStateOf<ManagementDestination?>(null) }
     val sections = listOf(
         ManagementSection(
-            titleRes = R.string.management_group_finances,
+            titleRes = R.string.management_group_setup,
             destinations = listOf(
                 ManagementDestination.ACCOUNTS,
                 ManagementDestination.CATEGORIES,
-                ManagementDestination.BUDGETS,
             ),
         ),
         ManagementSection(
-            titleRes = R.string.management_group_organization,
+            titleRes = R.string.management_group_planning,
+            destinations = listOf(
+                ManagementDestination.BUDGETS,
+                ManagementDestination.RECURRING,
+            ),
+        ),
+        ManagementSection(
+            titleRes = R.string.management_group_shared,
             destinations = listOf(
                 ManagementDestination.PEOPLE,
                 ManagementDestination.EVENTS,
                 ManagementDestination.TAGS,
-                ManagementDestination.RECURRING,
             ),
         ),
         ManagementSection(
@@ -87,47 +89,22 @@ fun ManagementSheet(
             selectedDestination?.let(onDestinationSelected)
         },
         dismissRequested = selectedDestination != null,
-        maxHeightFraction = 0.9f,
+        maxHeightFraction = 0.72f,
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .padding(start = 20.dp, top = 2.dp, end = 20.dp, bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp),
+                .navigationBarsPadding()
+                .padding(start = 20.dp, top = 4.dp, end = 20.dp, bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            ManagementHero()
             sections.forEach { section ->
                 ManagementSection(
                     section = section,
                     onDestinationSelected = { selectedDestination = it },
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun ManagementHero() {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.primaryContainer,
-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(5.dp),
-        ) {
-            Text(
-                text = stringResource(R.string.management_sheet_title),
-                style = MaterialTheme.typography.headlineMedium,
-            )
-            Text(
-                text = stringResource(R.string.management_sheet_subtitle),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.78f),
-            )
         }
     }
 }
@@ -160,7 +137,7 @@ private fun ManagementSection(
                     )
                     if (index < section.destinations.lastIndex) {
                         HorizontalDivider(
-                            modifier = Modifier.padding(start = 68.dp),
+                            modifier = Modifier.padding(start = 62.dp),
                             color = MaterialTheme.colorScheme.outlineVariant,
                         )
                     }
@@ -178,25 +155,25 @@ private fun ManagementRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 72.dp)
+            .heightIn(min = 60.dp)
             .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconChip(
             icon = destination.icon,
             contentDescription = null,
-            color = MaterialTheme.colorScheme.primary,
-            size = 40.dp,
+            color = destination.tintColor(),
+            size = 36.dp,
         )
-        Spacer(Modifier.width(14.dp))
+        Spacer(Modifier.width(12.dp))
         Column(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
+            verticalArrangement = Arrangement.spacedBy(1.dp),
         ) {
             Text(
                 text = stringResource(destination.titleRes),
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleSmall,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -208,21 +185,20 @@ private fun ManagementRow(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        Spacer(Modifier.width(10.dp))
-        Box(
-            modifier = Modifier
-                .size(32.dp)
-                .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                contentDescription = null,
-                modifier = Modifier.size(17.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+        Icon(
+            imageVector = Icons.Filled.ChevronRight,
+            contentDescription = null,
+            tint = FinanceTheme.colors.mutedText,
+        )
     }
+}
+
+@Composable
+private fun ManagementDestination.tintColor() = when (this) {
+    ManagementDestination.ACCOUNTS, ManagementDestination.BUDGETS -> MaterialTheme.colorScheme.primary
+    ManagementDestination.CATEGORIES, ManagementDestination.TAGS -> MaterialTheme.colorScheme.tertiary
+    ManagementDestination.PEOPLE, ManagementDestination.EVENTS -> MaterialTheme.colorScheme.secondary
+    ManagementDestination.RECURRING, ManagementDestination.SETTINGS -> FinanceTheme.colors.mutedText
 }
 
 private data class ManagementSection(
