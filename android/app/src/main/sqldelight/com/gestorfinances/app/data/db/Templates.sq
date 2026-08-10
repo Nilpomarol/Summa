@@ -9,6 +9,10 @@ SELECT
     destination_accounts.name AS destination_account_name,
     templates.category_id,
     categories.name AS category_name,
+    templates.trip_id,
+    trips.name AS trip_name,
+    templates.tag_id,
+    tags.name AS tag_name,
     templates.name,
     templates.payee,
     templates.notes,
@@ -34,6 +38,10 @@ LEFT JOIN accounts AS destination_accounts
     ON destination_accounts.id = templates.dest_account_id
 LEFT JOIN categories
     ON categories.id = templates.category_id
+LEFT JOIN trips
+    ON trips.id = templates.trip_id
+LEFT JOIN tags
+    ON tags.id = templates.tag_id
 WHERE templates.archived_at IS NULL
 ORDER BY
     CASE templates.status WHEN 'active' THEN 0 WHEN 'paused' THEN 1 ELSE 2 END ASC,
@@ -51,6 +59,10 @@ SELECT
     destination_accounts.name AS destination_account_name,
     templates.category_id,
     categories.name AS category_name,
+    templates.trip_id,
+    trips.name AS trip_name,
+    templates.tag_id,
+    tags.name AS tag_name,
     templates.name,
     templates.payee,
     templates.notes,
@@ -76,6 +88,10 @@ LEFT JOIN accounts AS destination_accounts
     ON destination_accounts.id = templates.dest_account_id
 LEFT JOIN categories
     ON categories.id = templates.category_id
+LEFT JOIN trips
+    ON trips.id = templates.trip_id
+LEFT JOIN tags
+    ON tags.id = templates.tag_id
 WHERE templates.id = :id
   AND templates.archived_at IS NULL;
 
@@ -87,6 +103,8 @@ INSERT INTO templates(
     account_id,
     dest_account_id,
     category_id,
+    trip_id,
+    tag_id,
     name,
     payee,
     notes,
@@ -111,6 +129,8 @@ INSERT INTO templates(
     :account_id,
     :dest_account_id,
     :category_id,
+    :trip_id,
+    :tag_id,
     :name,
     :payee,
     :notes,
@@ -138,6 +158,8 @@ SET
     account_id = :account_id,
     dest_account_id = :dest_account_id,
     category_id = :category_id,
+    trip_id = :trip_id,
+    tag_id = :tag_id,
     name = :name,
     payee = :payee,
     notes = :notes,

@@ -23,6 +23,12 @@ import com.gestorfinances.app.data.repository.TemplateRepository
 import com.gestorfinances.app.data.repository.TemplateSplitConfig
 import com.gestorfinances.app.data.repository.TemplateSplitConfigLine
 import com.gestorfinances.app.data.repository.TemplateStatus
+import com.gestorfinances.app.data.repository.TagRepository
+import com.gestorfinances.app.data.repository.TagDraft
+import com.gestorfinances.app.data.repository.TripRepository
+import com.gestorfinances.app.data.repository.TripDraft
+import com.gestorfinances.app.data.repository.TripStatus
+import com.gestorfinances.app.data.repository.TripType
 import com.gestorfinances.app.domain.rules.CustomRecurrenceUnit
 import com.gestorfinances.app.domain.rules.DetectedTemplateAction
 import com.gestorfinances.app.domain.rules.RecurrenceFrequency
@@ -323,7 +329,15 @@ class RecurringViewModelTest {
     fun confirmingDuePromptCreatesLinkedMovementAndAdvancesCursor() = runTest(dispatcher) {
         freshStore().use { store ->
             store.accounts.create(accountDraft("checking"), createdAt = NOW)
-            store.templates.create(monthlyTemplateDraft("rent", nextDueDate = "2026-01-01"), createdAt = NOW)
+            store.trips.create(
+                TripDraft("trip", "Viatge", TripType.TRIP, TripStatus.ACTIVE, null, null, null, null, null, "checking"),
+                createdAt = NOW,
+            )
+            store.tags.create(TagDraft("tag", "Platja", null, null, "trip"), createdAt = NOW)
+            store.templates.create(
+                monthlyTemplateDraft("rent", nextDueDate = "2026-01-01").copy(tripId = "trip", tagId = "tag"),
+                createdAt = NOW,
+            )
             val viewModel = viewModel(store, today = LocalDate.parse("2026-01-15"))
             viewModel.onScreenShown()
             advanceUntilIdle()
@@ -339,6 +353,8 @@ class RecurringViewModelTest {
             val movement = store.movements.listActive().single()
             assertEquals(8_000L, movement.amountCents)
             assertEquals("2026-01-01", movement.date)
+            assertEquals("trip", movement.tripId)
+            assertEquals("tag", movement.tagId)
             assertEquals("2026-02-01", store.templates.getActive("rent")!!.nextDueDate)
             assertTrue(viewModel.state.value.duePrompts.isEmpty())
             assertEquals(8_000L, viewModel.state.value.monthlyPaidCents)
@@ -1006,6 +1022,8 @@ class RecurringViewModelTest {
             templateRepository = store.templates,
             accountRepository = store.accounts,
             categoryRepository = store.categories,
+            tripRepository = store.trips,
+            tagRepository = store.tags,
             movementRepository = store.movements,
             splitRepository = store.splits,
             personRepository = store.people,
@@ -1060,6 +1078,8 @@ class RecurringViewModelTest {
             driver = driver,
             accounts = AccountRepository(database.accountsQueries),
             categories = CategoryRepository(database.categoriesQueries),
+            trips = TripRepository(database.tripsQueries),
+            tags = TagRepository(database.tagsQueries),
             templates = TemplateRepository(database.templatesQueries),
             movements = MovementRepository(database.movementsQueries, database.splitsQueries),
             people = PersonRepository(database.peopleQueries),
@@ -1071,6 +1091,8 @@ class RecurringViewModelTest {
         val driver: JdbcSqliteDriver,
         val accounts: AccountRepository,
         val categories: CategoryRepository,
+        val trips: TripRepository,
+        val tags: TagRepository,
         val templates: TemplateRepository,
         val movements: MovementRepository,
         val people: PersonRepository,

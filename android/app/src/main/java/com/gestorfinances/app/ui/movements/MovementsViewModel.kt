@@ -950,6 +950,8 @@ class MovementsViewModel(
             accountId = requireNotNull(form.accountId),
             destAccountId = form.destinationAccountId.takeIf { form.type == MovementType.TRANSFER },
             categoryId = form.categoryId.takeIf { form.type != MovementType.TRANSFER },
+            tripId = form.tripId.takeIf { form.type != MovementType.TRANSFER },
+            tagId = form.tagId.takeIf { form.type != MovementType.TRANSFER },
             name = form.name.nullIfBlank(),
             payee = form.payee.nullIfBlank(),
             notes = form.notes.nullIfBlank(),

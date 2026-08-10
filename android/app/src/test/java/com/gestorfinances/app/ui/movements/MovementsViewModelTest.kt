@@ -948,7 +948,11 @@ class MovementsViewModelTest {
     fun quickCreateViaTheFormCarriesFormNotesIntoTheCreatedTemplate() = runTest(dispatcher) {
         freshStore().use { store ->
             store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            store.trips.create(tripDraft("trip"), createdAt = NOW)
+            store.tags.create(TagDraft("tag", "Etiqueta", null, null, "trip"), createdAt = NOW)
             val viewModel = viewModel(store)
+            viewModel.onScreenShown()
+            advanceUntilIdle()
             viewModel.onAddClicked()
             advanceUntilIdle()
             viewModel.onFormChanged(
@@ -956,6 +960,8 @@ class MovementsViewModelTest {
                     amount = "20",
                     date = "2026-01-05",
                     accountId = "checking",
+                    tripId = "trip",
+                    tagId = "tag",
                     name = "Gimnàs",
                     notes = "Paga religiosament",
                     isRecurring = true,
@@ -967,7 +973,10 @@ class MovementsViewModelTest {
 
             val movement = store.movements.listActive().single()
             val templateId = requireNotNull(movement.templateId)
-            assertEquals("Paga religiosament", store.templates.getActive(templateId)!!.notes)
+            val template = store.templates.getActive(templateId)!!
+            assertEquals("Paga religiosament", template.notes)
+            assertEquals("trip", template.tripId)
+            assertEquals("tag", template.tagId)
         }
     }
 
