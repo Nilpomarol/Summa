@@ -324,6 +324,11 @@ class SettingsViewModel(
                 SettingsMessageKind.ERROR,
                 R.string.settings_backup_error_integrity,
             )
+            BackupValidationError.FOREIGN_KEYS_FAILED,
+            BackupValidationError.INVALID_SCHEMA_SHAPE -> SettingsMessage(
+                SettingsMessageKind.ERROR,
+                R.string.settings_backup_error_not_app_database,
+            )
             BackupValidationError.UNSUPPORTED_SCHEMA -> SettingsMessage(
                 SettingsMessageKind.ERROR,
                 R.string.settings_backup_error_schema,

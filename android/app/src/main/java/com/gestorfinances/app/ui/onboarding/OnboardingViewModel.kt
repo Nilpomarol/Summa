@@ -56,8 +56,9 @@ class OnboardingViewModel(
             val result = withContext(Dispatchers.IO) {
                 runCatching {
                     val now = Instant.now().toString()
-                    accountRepository.create(
-                        draft = AccountDraft(
+                    accountRepository.runInTransaction {
+                        accountRepository.create(
+                            draft = AccountDraft(
                             id = UUID.randomUUID().toString(),
                             name = accountName,
                             startingBalanceCents = requireNotNull(startingBalance),
@@ -68,10 +69,11 @@ class OnboardingViewModel(
                             displayOrder = 0L,
                             lowBalanceThresholdCents = null,
                         ),
-                        createdAt = now,
-                    )
-                    if (form.seedCategories && categoryRepository.listActive().isEmpty()) {
-                        categoryRepository.createAll(defaultCategories.map { it.toDraft() }, createdAt = now)
+                            createdAt = now,
+                        )
+                        if (form.seedCategories && categoryRepository.listActive().isEmpty()) {
+                            categoryRepository.createAll(defaultCategories.map { it.toDraft() }, createdAt = now)
+                        }
                     }
                 }
             }

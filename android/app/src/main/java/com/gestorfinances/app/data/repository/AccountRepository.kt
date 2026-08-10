@@ -47,6 +47,10 @@ data class AccountDraft(
 class AccountRepository(
     private val queries: AccountsQueries,
 ) {
+    fun runInTransaction(block: () -> Unit) {
+        queries.transaction { block() }
+    }
+
     fun listActive(): List<AccountSummary> =
         queries.activeAccountSummaries(::mapAccountSummary).executeAsList()
 
