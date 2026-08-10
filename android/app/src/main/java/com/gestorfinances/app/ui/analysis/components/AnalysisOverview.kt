@@ -60,6 +60,7 @@ import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.AppDropdownMenu
 import com.gestorfinances.app.ui.common.IconChip
 import com.gestorfinances.app.ui.common.InlineBanner
+import com.gestorfinances.app.ui.common.InlineFailureBanner
 import com.gestorfinances.app.ui.common.BannerKind
 import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.MonthPickerContent
@@ -88,11 +89,12 @@ internal fun AnalysisOverview(
     onMonthSelected: (YearMonth) -> Unit,
     onYearSelected: (Int) -> Unit,
     onOpenFilters: () -> Unit,
+    onRetry: () -> Unit,
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
 ) {
     val current = state.resum
-    val comparison = state.comparativa
+    val comparison = state.comparison
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = contentPadding,
@@ -130,11 +132,17 @@ internal fun AnalysisOverview(
         }
 
         state.errorMessage?.let { message ->
-            item { InlineBanner(kind = BannerKind.Error, text = message) }
+            item {
+                InlineFailureBanner(
+                    diagnostic = message,
+                    messageRes = R.string.failure_load_analysis,
+                    onRetry = onRetry,
+                )
+            }
         }
 
         if (current == null) {
-            if (state.errorMessage == null) item { TabLoading() }
+            if (state.errorMessage == null) item { AnalysisLoading() }
             return@LazyColumn
         }
 
@@ -161,7 +169,7 @@ internal fun AnalysisOverview(
             val comparisonIsPartial = comparison.comparisonRange.toDateExclusive < when (state.scope) {
                 AnalysisScope.MONTH -> comparison.comparisonRange.fromDate.plusMonths(1)
                 AnalysisScope.YEAR -> comparison.comparisonRange.fromDate.plusYears(1)
-                AnalysisScope.ALL_TIME, AnalysisScope.CUSTOM -> comparison.comparisonRange.toDateExclusive
+                AnalysisScope.ALL_TIME -> comparison.comparisonRange.toDateExclusive
             }
             val visibleCurrent = if (comparisonIsPartial) currentPoints.take(previousPoints.size) else currentPoints
             item {
@@ -252,7 +260,6 @@ private fun PeriodNavigator(
         AnalysisScope.ALL_TIME -> state.activityMonths.minOrNull()?.let { first ->
             stringResource(R.string.analysis_mobile_since, formatMonthYear(first))
         } ?: stringResource(R.string.analysis_scope_all_time)
-        AnalysisScope.CUSTOM -> state.currentRange?.formatForScope(state.scope).orEmpty()
     }
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -320,7 +327,7 @@ private fun PeriodNavigator(
                             )
                         }
                     }
-                    AnalysisScope.ALL_TIME, AnalysisScope.CUSTOM -> Unit
+                    AnalysisScope.ALL_TIME -> Unit
                 }
             }
         }
@@ -612,7 +619,6 @@ private fun AnalysisScope.mobileLabelRes(): Int = when (this) {
     AnalysisScope.MONTH -> R.string.analysis_scope_month
     AnalysisScope.YEAR -> R.string.analysis_scope_year
     AnalysisScope.ALL_TIME -> R.string.analysis_mobile_history
-    AnalysisScope.CUSTOM -> labelRes()
 }
 
 private fun com.gestorfinances.app.ui.common.IncomeExpenseChartPoint.evolutionLabel(
@@ -625,4 +631,33 @@ private fun com.gestorfinances.app.ui.common.IncomeExpenseChartPoint.evolutionLa
         ?.let { monthLabels.getOrNull(it - 1) }
         ?: label
     else -> label
+}
+
+@Composable
+private fun AnalysisLoading() {
+    Text(
+        text = stringResource(R.string.movement_loading),
+        color = FinanceTheme.colors.mutedText,
+        style = MaterialTheme.typography.bodyMedium,
+    )
+}
+
+@Composable
+private fun EmptyAnalysisCard() {
+    FinanceCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.analysis_empty_title),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Text(
+                text = stringResource(R.string.analysis_empty_body),
+                color = FinanceTheme.colors.mutedText,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+    }
 }

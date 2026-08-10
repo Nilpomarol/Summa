@@ -125,7 +125,7 @@ class BudgetsViewModel(
         _state.value = _state.value.copy(archiveCandidate = null)
     }
 
-    fun onArchiveConfirmed() {
+    fun onArchiveConfirmed(onSuccess: (undo: () -> Unit) -> Unit = {}) {
         val budget = _state.value.archiveCandidate ?: return
         val now = Instant.now().toString()
         viewModelScope.launch {
@@ -136,6 +136,7 @@ class BudgetsViewModel(
                 onSuccess = {
                     _state.value = _state.value.copy(archiveCandidate = null)
                     refresh()
+                    onSuccess { undoDelete(budget.id, deletedAt = now) }
                 },
                 onFailure = {
                     _state.value = _state.value.copy(
@@ -147,6 +148,22 @@ class BudgetsViewModel(
             if (result.isSuccess) {
                 refreshNotifications()
             }
+        }
+    }
+
+    private fun undoDelete(budgetId: String, deletedAt: String) {
+        val restoredAt = Instant.now().toString()
+        viewModelScope.launch {
+            val result = withContext(ioDispatcher) {
+                runCatching { budgetRepository.restore(budgetId, deletedAt, restoredAt) }
+            }
+            result.fold(
+                onSuccess = {
+                    refresh()
+                    refreshNotifications()
+                },
+                onFailure = { _state.value = _state.value.copy(errorMessage = it.message ?: it.javaClass.simpleName) },
+            )
         }
     }
 

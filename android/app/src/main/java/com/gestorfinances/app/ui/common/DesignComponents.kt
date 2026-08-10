@@ -4,7 +4,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -58,8 +57,10 @@ import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.BudgetEvaluation
 import com.gestorfinances.app.data.repository.BudgetStatus
 import com.gestorfinances.app.ui.theme.FinanceTheme
+import com.gestorfinances.app.ui.theme.isDark
 import com.gestorfinances.app.ui.theme.TokenColor
 import com.gestorfinances.app.ui.theme.categoryTint
+import com.gestorfinances.app.ui.theme.themedIdentityColor
 
 private val PillShape = RoundedCornerShape(percent = 50)
 
@@ -117,19 +118,20 @@ fun IconChip(
     contentDescription: String?,
     color: Color,
     modifier: Modifier = Modifier,
-    tint: Color = categoryTint(color),
     size: Dp = 40.dp,
 ) {
+    val visibleColor = themedIdentityColor(color)
+    val visibleTint = categoryTint(visibleColor)
     Box(
         modifier = modifier
             .size(size)
-            .background(tint, MaterialTheme.shapes.small),
+            .background(visibleTint, MaterialTheme.shapes.small),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
             imageVector = icon,
             contentDescription = contentDescription,
-            tint = color,
+            tint = visibleColor,
             modifier = Modifier.size(size * 0.5f),
         )
     }
@@ -660,6 +662,8 @@ enum class BannerKind { Info, Alert, Error }
 fun InlineBanner(
     kind: BannerKind,
     text: String,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val colors = bannerColors(kind)
@@ -685,6 +689,11 @@ fun InlineBanner(
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.bodyMedium,
             )
+            if (actionLabel != null && onAction != null) {
+                TextButton(onClick = onAction) {
+                    Text(actionLabel)
+                }
+            }
         }
     }
 }
@@ -697,7 +706,7 @@ private data class BannerPalette(
 
 @Composable
 private fun bannerColors(kind: BannerKind): BannerPalette {
-    if (!isSystemInDarkTheme()) {
+    if (!FinanceTheme.isDark) {
         return when (kind) {
             BannerKind.Info -> BannerPalette(
                 TokenColor.BannerInfoBg,

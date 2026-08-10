@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.Error
@@ -33,6 +34,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -66,7 +69,9 @@ import com.gestorfinances.app.ui.categories.CategoriesScreen
 import com.gestorfinances.app.ui.categories.CategoriesViewModel
 import com.gestorfinances.app.ui.categories.CategoryFlowSheet
 import com.gestorfinances.app.ui.common.BannerKind
+import com.gestorfinances.app.ui.common.DeleteUndoHandler
 import com.gestorfinances.app.ui.common.InlineBanner
+import com.gestorfinances.app.ui.common.rememberFormDismissGuard
 import com.gestorfinances.app.ui.dashboard.DashboardScreen
 import com.gestorfinances.app.ui.dashboard.DashboardViewModel
 import com.gestorfinances.app.ui.management.ManagementDestination
@@ -95,6 +100,7 @@ import com.gestorfinances.app.ui.tags.TagsScreen
 import com.gestorfinances.app.ui.tags.TagsViewModel
 import com.gestorfinances.app.ui.theme.GestorFinancesTheme
 import com.gestorfinances.app.ui.theme.FinanceTheme
+import com.gestorfinances.app.ui.theme.ThemeMode
 import com.gestorfinances.app.ui.trips.TripDetailScreen
 import com.gestorfinances.app.ui.trips.TripsScreen
 import com.gestorfinances.app.ui.trips.TripsViewModel
@@ -118,6 +124,12 @@ class MainActivity : ComponentActivity() {
         val appContainer = app.container
         val pendingSnackbarMessage = app.consumePendingSnackbarMessage()
         setContent {
+            val themeMode by appContainer.themePreferences.mode.collectAsState()
+            val darkTheme = when (themeMode) {
+                ThemeMode.SYSTEM -> isSystemInDarkTheme()
+                ThemeMode.LIGHT -> false
+                ThemeMode.DARK -> true
+            }
             var databaseState: DatabaseState by remember { mutableStateOf(DatabaseState.Checking) }
             var notificationPermissionGranted by remember {
                 mutableStateOf(canPostFinanceNotifications())
@@ -147,7 +159,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            GestorFinancesTheme {
+            GestorFinancesTheme(darkTheme = darkTheme) {
                 AppShell(
                     appContainer = appContainer,
                     databaseState = databaseState,
@@ -300,10 +312,8 @@ private fun LedgerShell(
             viewModelStoreOwner,
             AnalysisViewModel.Factory(
                 analysisRepository = appContainer.analysisRepository,
-                templateRepository = appContainer.templateRepository,
                 accountRepository = appContainer.accountRepository,
                 categoryRepository = appContainer.categoryRepository,
-                movementRepository = appContainer.movementRepository,
             ),
         )[AnalysisViewModel::class.java]
     }
@@ -372,6 +382,7 @@ private fun LedgerShell(
                 backupOperations = appContainer.backupSnapshotService,
                 autoBackupSettings = appContainer.autoBackupPreferences,
                 autoBackupScheduler = appContainer.autoBackupScheduler,
+                themePreferences = appContainer.themePreferences,
                 notificationRefresher = appContainer.notificationCoordinator,
             ),
         )[SettingsViewModel::class.java]
@@ -406,6 +417,19 @@ private fun LedgerShell(
     }
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
+    val deletedMessage = stringResource(R.string.common_deleted)
+    val undoLabel = stringResource(R.string.common_undo)
+    val showDeleteUndo: DeleteUndoHandler = { undo ->
+        coroutineScope.launch {
+            val result = snackbarHostState.showSnackbar(
+                message = deletedMessage,
+                actionLabel = undoLabel,
+                withDismissAction = true,
+                duration = SnackbarDuration.Long,
+            )
+            if (result == SnackbarResult.ActionPerformed) undo()
+        }
+    }
     val pendingSnackbarText = pendingSnackbarMessage?.let { message ->
         message.arg?.let { stringResource(message.messageRes, it) }
             ?: stringResource(message.messageRes)
@@ -624,6 +648,7 @@ private fun LedgerShell(
                     viewModel = tagsViewModel,
                     contextTripId = overlay.tripId,
                     onBack = { nav = nav.back() },
+                    onDeleteCommitted = showDeleteUndo,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),
@@ -634,6 +659,7 @@ private fun LedgerShell(
                     viewModel = budgetsViewModel,
                     onBack = { nav = nav.back() },
                     contextTripId = overlay.tripId,
+                    onDeleteCommitted = showDeleteUndo,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),
@@ -718,6 +744,7 @@ private fun LedgerShell(
                         showTopLevel(TopLevelSection.ANALYSIS)
                     },
                     onMovementDetail = openMovementDetail,
+                    onDeleteCommitted = showDeleteUndo,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),
@@ -733,6 +760,7 @@ private fun LedgerShell(
                         showManagement(ManagementDestination.BUDGETS)
                     },
                     onMovementDetail = openMovementDetail,
+                    onDeleteCommitted = showDeleteUndo,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),
@@ -746,6 +774,7 @@ private fun LedgerShell(
                             snackbarHostState.showSnackbar(message)
                         }
                     },
+                    onDeleteCommitted = showDeleteUndo,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),
@@ -753,6 +782,7 @@ private fun LedgerShell(
                 ManagementDestination.EVENTS -> TripsScreen(
                     viewModel = tripsViewModel,
                     onOpenDetail = { trip -> nav = nav.copy(overlay = AppOverlay.TripDetail(tripId = trip.id)) },
+                    onDeleteCommitted = showDeleteUndo,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),
@@ -761,6 +791,7 @@ private fun LedgerShell(
                     viewModel = tagsViewModel,
                     contextTripId = null,
                     onBack = { nav = nav.back() },
+                    onDeleteCommitted = showDeleteUndo,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),
@@ -779,6 +810,7 @@ private fun LedgerShell(
                         categoriesViewModel.onFlowClicked(category)
                     },
                     contextTripId = null,
+                    onDeleteCommitted = showDeleteUndo,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),
@@ -807,6 +839,7 @@ private fun LedgerShell(
                 CategoryFlowSheet(
                     detail = detail,
                     onDismiss = categoriesViewModel::onFlowDismissed,
+                    onRetry = { categoriesViewModel.onFlowClicked(detail.category) },
                     onViewAnalysis = {
                         categoriesViewModel.onFlowDismissed()
                         analysisViewModel.setCategoryFilter(detail.category.id, detail.category.name)
@@ -835,6 +868,7 @@ private fun LedgerShell(
                         )
                     }
                 },
+                onDeleteCommitted = showDeleteUndo,
             )
         }
 
@@ -847,6 +881,40 @@ private fun LedgerShell(
                 movementsState.form?.let { retainedForm = it }
             }
             (movementsState.form ?: retainedForm)?.let { form ->
+                val closeMovementForm: () -> Unit = {
+                    val savedEdit = movementsState.form == null &&
+                        overlay.returnTo is AppOverlay.MovementDetail
+                    movementsViewModel.onFormDismissed()
+                    nav = if (savedEdit) {
+                        nav.copy(overlay = (overlay.returnTo as AppOverlay.MovementDetail).returnTo)
+                    } else {
+                        nav.back()
+                    }
+                }
+                val requestMovementFormDismissal = rememberFormDismissGuard(
+                    formKey = form.movementId ?: form.externalSplitId ?: "new-movement",
+                    currentValue = form,
+                    hasMeaningfulChanges = { initial, current ->
+                        initial.copy(
+                            duplicateWarning = false,
+                            pendingDataLossWarning = null,
+                            errorRes = null,
+                            errorField = null,
+                            errorMessage = null,
+                            showOptional = false,
+                            showAdvanced = false,
+                        ) != current.copy(
+                            duplicateWarning = false,
+                            pendingDataLossWarning = null,
+                            errorRes = null,
+                            errorField = null,
+                            errorMessage = null,
+                            showOptional = false,
+                            showAdvanced = false,
+                        )
+                    },
+                    onDiscard = closeMovementForm,
+                )
                 MovementFormScreen(
                     form = form,
                     accounts = movementsState.accounts,
@@ -868,16 +936,8 @@ private fun LedgerShell(
                     onAdvancedToggled = movementsViewModel::onAdvancedToggled,
                     onCreatePersonInSplit = movementsViewModel::onCreatePersonInSplit,
                     onDismiss = {
-                        val savedEdit = movementsState.form == null &&
-                            overlay.returnTo is AppOverlay.MovementDetail
-                        movementsViewModel.onFormDismissed()
-                        // A completed edit returns to the source page rather than reopening a
-                        // stale detail sheet. Cancelling still restores the untouched detail.
-                        nav = if (savedEdit) {
-                            nav.copy(overlay = (overlay.returnTo as AppOverlay.MovementDetail).returnTo)
-                        } else {
-                            nav.back()
-                        }
+                        if (movementsState.form == null) closeMovementForm()
+                        else requestMovementFormDismissal()
                     },
                     onSave = movementsViewModel::onSaveClicked,
                     onOverride = movementsViewModel::onDuplicateOverrideClicked,
@@ -897,7 +957,10 @@ private fun LedgerShell(
             onDismiss = { managementMenuVisible = false },
         )
     }
-    RecurringOverlays(viewModel = recurringViewModel)
+    RecurringOverlays(
+        viewModel = recurringViewModel,
+        onDeleteCommitted = showDeleteUndo,
+    )
 
     // Surfaces due recurring items proactively instead of requiring a manual visit to
     // Management > Recurring. `recurringState.hasOpenDialog` makes the sheet step aside whenever
@@ -1104,7 +1167,7 @@ private fun DatabaseState.message(): String =
             meta.schemaVersion,
             meta.snapshotVersion,
         )
-        is DatabaseState.Failed -> stringResource(R.string.home_database_failed, message)
+        is DatabaseState.Failed -> stringResource(R.string.home_database_failed)
     }
 
 private sealed interface DatabaseState {

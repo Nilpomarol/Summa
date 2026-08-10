@@ -79,13 +79,16 @@ import com.gestorfinances.app.ui.common.doneKeyboardActions
 import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.IconChip
 import com.gestorfinances.app.ui.common.IconPickerRow
+import com.gestorfinances.app.ui.common.DeleteUndoHandler
 import com.gestorfinances.app.ui.common.LabeledSegmentedControl
 import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.MovementListItem
 import com.gestorfinances.app.ui.common.PageHeaderRow
 import com.gestorfinances.app.ui.common.RootPageHeader
 import com.gestorfinances.app.ui.common.PrimaryButton
+import com.gestorfinances.app.ui.common.rememberFormDismissGuard
 import com.gestorfinances.app.ui.common.InlineBanner
+import com.gestorfinances.app.ui.common.InlineFailureBanner
 import com.gestorfinances.app.ui.common.categoryIcon
 import com.gestorfinances.app.ui.common.color
 import com.gestorfinances.app.ui.common.formatEuroCents
@@ -94,6 +97,7 @@ import com.gestorfinances.app.ui.common.scrollToWhen
 import com.gestorfinances.app.ui.common.sortedByDisplayOrderThenName
 import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.categoryColor
+import com.gestorfinances.app.ui.theme.themedIdentityColor
 
 @Composable
 fun CategoriesScreen(
@@ -101,6 +105,7 @@ fun CategoriesScreen(
     onViewAnalysis: (categoryId: String, categoryName: String) -> Unit = { _, _ -> },
     onDefineBudget: (categoryId: String) -> Unit = {},
     onMovementDetail: (MovementSummary) -> Unit = {},
+    onDeleteCommitted: DeleteUndoHandler = {},
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsState()
@@ -112,12 +117,21 @@ fun CategoriesScreen(
     val form = state.form
     when {
         form != null -> {
-            BackHandler(onBack = viewModel::onFormDismissed)
+            val requestFormDismissal = rememberFormDismissGuard(
+                formKey = form.id ?: "new-category",
+                currentValue = form,
+                hasMeaningfulChanges = { initial, current ->
+                    initial.copy(errorRes = null, errorField = null, errorMessage = null) !=
+                        current.copy(errorRes = null, errorField = null, errorMessage = null)
+                },
+                onDiscard = viewModel::onFormDismissed,
+            )
+            BackHandler(onBack = requestFormDismissal)
             CategoryFormScreen(
                 form = form,
                 categories = state.categories,
                 onFormChange = viewModel::onFormChanged,
-                onBack = viewModel::onFormDismissed,
+                onBack = requestFormDismissal,
                 onSave = viewModel::onSaveClicked,
                 modifier = modifier,
             )
@@ -130,6 +144,7 @@ fun CategoriesScreen(
                 onEdit = viewModel::onEditClicked,
                 onArchive = viewModel::onArchiveClicked,
                 onFlow = viewModel::onFlowClicked,
+                onRetry = viewModel::onScreenShown,
             )
         }
     }
@@ -138,6 +153,7 @@ fun CategoriesScreen(
         CategoryFlowSheet(
             detail = detail,
             onDismiss = viewModel::onFlowDismissed,
+            onRetry = { viewModel.onFlowClicked(detail.category) },
             onViewAnalysis = {
                 viewModel.onFlowDismissed()
                 onViewAnalysis(detail.category.id, detail.category.name)
@@ -169,7 +185,9 @@ fun CategoriesScreen(
                 )
             },
             confirmButton = {
-                DestructiveTextButton(onClick = viewModel::onArchiveConfirmed) {
+                DestructiveTextButton(
+                    onClick = { viewModel.onArchiveConfirmed(onSuccess = onDeleteCommitted) },
+                ) {
                     Text(
                         text = if (it.activeTemplateCount + it.budgetCount + it.childCount == 0) {
                             stringResource(R.string.common_archive)
@@ -196,6 +214,7 @@ private fun CategoriesContent(
     onEdit: (CategoryRecord) -> Unit,
     onArchive: (CategoryRecord) -> Unit,
     onFlow: (CategoryRecord) -> Unit,
+    onRetry: () -> Unit,
 ) {
     val expenseParents = state.categories.filter {
         it.parentId == null && (it.kind == CategoryKind.EXPENSE || it.kind == CategoryKind.BOTH)
@@ -237,7 +256,11 @@ private fun CategoriesContent(
 
         state.errorMessage?.let { message ->
             item {
-                InlineBanner(kind = BannerKind.Error, text = message)
+                InlineFailureBanner(
+                    diagnostic = message,
+                    messageRes = R.string.failure_load_categories,
+                    onRetry = onRetry,
+                )
             }
         }
 
@@ -381,7 +404,7 @@ private fun CategoryParentCard(
         fraction < 0.01f -> "<1%"
         else -> "${(fraction * 100).toInt()}%"
     }
-    val catColor = categoryColor(category.color)
+    val catColor = themedIdentityColor(categoryColor(category.color))
 
     // Secondary line: kind + optional child count, e.g. "Despesa · 3 subcategories"
     val kindLabel = category.kind.label()
@@ -719,11 +742,7 @@ private fun CategoryFormScreen(
         )
 
         form.errorMessage?.let {
-            Text(
-                text = it,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            InlineFailureBanner(diagnostic = it, messageRes = R.string.failure_save_category)
         }
 
         // Live preview
@@ -744,7 +763,7 @@ private fun CategoryFormScreen(
             } else null,
             shape = MaterialTheme.shapes.small,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-            keyboardActions = doneKeyboardActions(),
+            keyboardActions = doneKeyboardActions(onSave),
             modifier = Modifier
                 .fillMaxWidth()
                 .scrollToWhen(nameError),
@@ -1032,6 +1051,7 @@ private fun ParentOptionRow(
 fun CategoryFlowSheet(
     detail: CategoryFlowDetailState,
     onDismiss: () -> Unit,
+    onRetry: () -> Unit,
     onViewAnalysis: () -> Unit,
     onDefineBudget: () -> Unit,
     onMovementDetail: (MovementSummary) -> Unit,
@@ -1040,6 +1060,7 @@ fun CategoryFlowSheet(
         CategoryFlowContent(
             detail = detail,
             onBack = onDismiss,
+            onRetry = onRetry,
             onViewAnalysis = onViewAnalysis,
             onDefineBudget = onDefineBudget,
             onMovementDetail = onMovementDetail,
@@ -1051,6 +1072,7 @@ fun CategoryFlowSheet(
 private fun CategoryFlowContent(
     detail: CategoryFlowDetailState,
     onBack: () -> Unit,
+    onRetry: () -> Unit,
     onViewAnalysis: () -> Unit,
     onDefineBudget: () -> Unit,
     onMovementDetail: (MovementSummary) -> Unit,
@@ -1216,11 +1238,11 @@ private fun CategoryFlowContent(
             }
         }
 
-        detail.errorMessage?.let { msg ->
-            Text(
-                text = msg,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyMedium,
+        detail.errorMessage?.let { message ->
+            InlineFailureBanner(
+                diagnostic = message,
+                messageRes = R.string.failure_load_categories,
+                onRetry = onRetry,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
             )
         }

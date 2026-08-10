@@ -1,9 +1,7 @@
 package com.gestorfinances.app.ui.common
 
 import com.gestorfinances.app.data.repository.AnalysisBreakdownKind
-import com.gestorfinances.app.data.repository.AnalysisCategoryFrequency
 import com.gestorfinances.app.data.repository.AnalysisCategoryTotal
-import com.gestorfinances.app.data.repository.AnalysisCategoryTrendPoint
 import com.gestorfinances.app.data.repository.CategoryRecord
 import kotlin.math.abs
 
@@ -32,7 +30,6 @@ fun List<CategoryRecord>.inPickerHierarchyOrder(): List<Pair<CategoryRecord, Boo
         }
     }
 }
-
 /**
  * Rolls each child category's totals up into its parent (container) row, so a parent appears
  * once with its own spend plus all of its children's. Trip rows and the uncategorized bucket
@@ -78,54 +75,4 @@ fun List<AnalysisCategoryTotal>.rollUpToParents(
         compareByDescending<AnalysisCategoryTotal> { abs(it.expenseCents) + abs(it.incomeCents) }
             .thenBy { (it.tripName ?: it.categoryName ?: "").lowercase() },
     )
-}
-
-/**
- * Rolls per-bucket category trend points up into their container, summing children into the
- * parent per time bucket so a rolled-up breakdown row's sparkline reflects own + children spend.
- * The uncategorized bucket passes through untouched.
- */
-@JvmName("rollUpCategoryTrends")
-fun List<AnalysisCategoryTrendPoint>.rollUpToParents(
-    categoriesById: Map<String, CategoryRecord>,
-): List<AnalysisCategoryTrendPoint> {
-    val merged = LinkedHashMap<Pair<String?, String>, AnalysisCategoryTrendPoint>()
-    for (point in this) {
-        val effectiveId = point.categoryId?.let { effectiveCategoryId(it, categoriesById) }
-        val identity = effectiveId?.let { categoriesById[it] }
-        val key = effectiveId to point.bucket
-        val existing = merged[key]
-        merged[key] = existing?.copy(expenseCents = existing.expenseCents + point.expenseCents)
-            ?: point.copy(
-                categoryId = effectiveId,
-                categoryName = identity?.name ?: point.categoryName,
-                categoryColor = identity?.color ?: point.categoryColor,
-            )
-    }
-    return merged.values.toList()
-}
-
-/**
- * Rolls per-category expense frequency up into containers, summing children's movement counts
- * and totals into the parent so the frequency-vs-volume scatter matches the rolled-up breakdown.
- */
-@JvmName("rollUpCategoryFrequency")
-fun List<AnalysisCategoryFrequency>.rollUpToParents(
-    categoriesById: Map<String, CategoryRecord>,
-): List<AnalysisCategoryFrequency> {
-    val merged = LinkedHashMap<String?, AnalysisCategoryFrequency>()
-    for (point in this) {
-        val effectiveId = point.categoryId?.let { effectiveCategoryId(it, categoriesById) }
-        val identity = effectiveId?.let { categoriesById[it] }
-        val existing = merged[effectiveId]
-        merged[effectiveId] = existing?.copy(
-            movementCount = existing.movementCount + point.movementCount,
-            totalCents = existing.totalCents + point.totalCents,
-        ) ?: point.copy(
-            categoryId = effectiveId,
-            categoryName = identity?.name ?: point.categoryName,
-            categoryColor = identity?.color ?: point.categoryColor,
-        )
-    }
-    return merged.values.toList()
 }

@@ -62,6 +62,7 @@ import com.gestorfinances.app.ui.common.BudgetForecastCard
 import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.IconChip
 import com.gestorfinances.app.ui.common.InlineBanner
+import com.gestorfinances.app.ui.common.InlineFailureBanner
 import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.MovementListItem
 import com.gestorfinances.app.ui.common.RootPageHeader
@@ -109,6 +110,7 @@ fun DashboardScreen(
         onViewTrip = onViewTrip,
         onAddTripMovement = onAddTripMovement,
         onViewBudgets = onViewBudgets,
+        onRetry = viewModel::onScreenShown,
         modifier = modifier,
     )
 }
@@ -123,6 +125,7 @@ private fun DashboardContent(
     onViewTrip: (TripSummary) -> Unit,
     onAddTripMovement: (TripSummary) -> Unit,
     onViewBudgets: () -> Unit,
+    onRetry: () -> Unit,
     modifier: Modifier,
 ) {
     LazyColumn(
@@ -136,7 +139,11 @@ private fun DashboardContent(
 
         state.errorMessage?.let { message ->
             item {
-                InlineBanner(kind = BannerKind.Error, text = message)
+                InlineFailureBanner(
+                    diagnostic = message,
+                    messageRes = R.string.failure_load_dashboard,
+                    onRetry = onRetry,
+                )
             }
         }
 

@@ -202,3 +202,31 @@ SET
     updated_at = :updated_at
 WHERE id = :id
   AND archived_at IS NULL;
+
+restoreTemplate:
+UPDATE templates
+SET
+    archived_at = NULL,
+    updated_at = :updated_at
+WHERE id = :id
+  AND archived_at = :archived_at;
+
+restoreTemplateStatusAfterDelete:
+UPDATE templates
+SET
+    status = 'active',
+    updated_at = :updated_at
+WHERE id = :id
+  AND status = 'paused'
+  AND updated_at = :deleted_at
+  AND archived_at IS NULL;
+
+restoreTemplateCursorAfterDelete:
+UPDATE templates
+SET
+    next_due_date = :next_due_date,
+    updated_at = :updated_at
+WHERE id = :id
+  AND next_due_date = :deleted_due_date
+  AND updated_at = :deleted_at
+  AND archived_at IS NULL;

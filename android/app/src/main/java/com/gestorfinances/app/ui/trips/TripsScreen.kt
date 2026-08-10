@@ -104,6 +104,7 @@ import com.gestorfinances.app.ui.common.formatEuroCents
 import com.gestorfinances.app.ui.common.formatCompactDate
 import com.gestorfinances.app.ui.common.formatExpandedDate
 import com.gestorfinances.app.ui.common.formatPercentLabel
+import com.gestorfinances.app.ui.common.DeleteUndoHandler
 import com.gestorfinances.app.ui.common.formatWeekdayDate
 import com.gestorfinances.app.ui.common.chartBalanceLabel
 import com.gestorfinances.app.ui.common.chartTrendLabel
@@ -116,6 +117,8 @@ import com.gestorfinances.app.ui.movements.SelectOption
 import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.categoryColor
 import com.gestorfinances.app.ui.common.categoryIcon
+import com.gestorfinances.app.ui.common.rememberFormDismissGuard
+import com.gestorfinances.app.ui.common.InlineFailureBanner
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 import java.time.temporal.ChronoUnit
@@ -125,6 +128,7 @@ import kotlin.math.abs
 fun TripsScreen(
     viewModel: TripsViewModel,
     onOpenDetail: (TripSummary) -> Unit,
+    onDeleteCommitted: DeleteUndoHandler = {},
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsState()
@@ -135,12 +139,21 @@ fun TripsScreen(
 
     val form = state.form
     if (form != null) {
-        BackHandler(onBack = viewModel::onFormDismissed)
+        val requestFormDismissal = rememberFormDismissGuard(
+            formKey = form.id ?: "new-trip",
+            currentValue = form,
+            hasMeaningfulChanges = { initial, current ->
+                initial.copy(errorRes = null, errorField = null, errorMessage = null) !=
+                    current.copy(errorRes = null, errorField = null, errorMessage = null)
+            },
+            onDiscard = viewModel::onFormDismissed,
+        )
+        BackHandler(onBack = requestFormDismissal)
         TripFormScreen(
             form = form,
             accounts = state.accounts,
             onFormChange = viewModel::onFormChanged,
-            onBack = viewModel::onFormDismissed,
+            onBack = requestFormDismissal,
             onSave = viewModel::onSaveClicked,
             modifier = modifier,
         )
@@ -153,6 +166,7 @@ fun TripsScreen(
             onEdit = viewModel::onEditClicked,
             onArchive = viewModel::onArchiveClicked,
             onDetail = onOpenDetail,
+            onRetry = viewModel::onScreenShown,
         )
     }
 
@@ -162,7 +176,9 @@ fun TripsScreen(
             title = { Text(text = stringResource(R.string.trip_archive_confirm_title)) },
             text = { Text(text = stringResource(R.string.trip_archive_warning)) },
             confirmButton = {
-                DestructiveTextButton(onClick = viewModel::onArchiveConfirmed) {
+                DestructiveTextButton(
+                    onClick = { viewModel.onArchiveConfirmed(onSuccess = onDeleteCommitted) },
+                ) {
                     Text(text = stringResource(R.string.common_archive))
                 }
             },
@@ -184,6 +200,7 @@ private fun TripsContent(
     onEdit: (TripSummary) -> Unit,
     onArchive: (TripSummary) -> Unit,
     onDetail: (TripSummary) -> Unit,
+    onRetry: () -> Unit,
 ) {
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -196,7 +213,11 @@ private fun TripsContent(
 
         state.errorMessage?.let { message ->
             item {
-                InlineBanner(kind = BannerKind.Error, text = message)
+                InlineFailureBanner(
+                    diagnostic = message,
+                    messageRes = R.string.failure_load_trips,
+                    onRetry = onRetry,
+                )
             }
         }
 
@@ -397,6 +418,7 @@ fun TripDetailScreen(
     onManageBudget: (String) -> Unit,
     onAddMovement: () -> Unit,
     onMovementDetail: (MovementSummary) -> Unit,
+    onDeleteCommitted: DeleteUndoHandler = {},
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsState()
@@ -406,12 +428,21 @@ fun TripDetailScreen(
     Box(modifier = modifier.fillMaxSize()) {
         when {
             form != null -> {
-                BackHandler(onBack = viewModel::onFormDismissed)
+                val requestFormDismissal = rememberFormDismissGuard(
+                    formKey = form.id ?: "new-trip",
+                    currentValue = form,
+                    hasMeaningfulChanges = { initial, current ->
+                        initial.copy(errorRes = null, errorField = null, errorMessage = null) !=
+                            current.copy(errorRes = null, errorField = null, errorMessage = null)
+                    },
+                    onDiscard = viewModel::onFormDismissed,
+                )
+                BackHandler(onBack = requestFormDismissal)
                 TripFormScreen(
                     form = form,
                     accounts = state.accounts,
                     onFormChange = viewModel::onFormChanged,
-                    onBack = viewModel::onFormDismissed,
+                    onBack = requestFormDismissal,
                     onSave = viewModel::onSaveClicked,
                 )
             }
@@ -435,6 +466,7 @@ fun TripDetailScreen(
                 TripDetailContent(
                     detail = detail,
                     onBack = onBack,
+                    onRetry = { viewModel.onDetailOpened(detail.trip.id) },
                     onEdit = { viewModel.onEditClicked(detail.trip) },
                     onArchive = { viewModel.onArchiveClicked(detail.trip) },
                     onManageBudget = { onManageBudget(detail.trip.id) },
@@ -458,7 +490,12 @@ fun TripDetailScreen(
                     // firing the coroutine) keeps the user on this page with the failure shown
                     // inline (`detail.errorMessage`) instead of silently landing back on
                     // whatever screen this page was opened from.
-                    onClick = { viewModel.onArchiveConfirmed(onSuccess = onBack) },
+                    onClick = {
+                        viewModel.onArchiveConfirmed { undo ->
+                            onDeleteCommitted(undo)
+                            onBack()
+                        }
+                    },
                 ) {
                     Text(text = stringResource(R.string.common_archive))
                 }
@@ -476,6 +513,7 @@ fun TripDetailScreen(
 private fun TripDetailContent(
     detail: TripDetailState,
     onBack: () -> Unit,
+    onRetry: () -> Unit,
     onEdit: () -> Unit,
     onArchive: () -> Unit,
     onManageBudget: () -> Unit,
@@ -503,9 +541,10 @@ private fun TripDetailContent(
         )
 
         detail.errorMessage?.let { message ->
-            InlineBanner(
-                kind = BannerKind.Error,
-                text = message,
+            InlineFailureBanner(
+                diagnostic = message,
+                messageRes = R.string.failure_load_trips,
+                onRetry = onRetry,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
             )
         }
@@ -1333,7 +1372,7 @@ private fun TripFormScreen(
             ),
         )
         form.errorMessage?.let {
-            InlineBanner(kind = BannerKind.Error, text = it)
+            InlineFailureBanner(diagnostic = it, messageRes = R.string.failure_save_trip)
         }
         val nameError = form.errorField == TripFormField.NAME
         OutlinedTextField(
@@ -1347,7 +1386,7 @@ private fun TripFormScreen(
             } else null,
             shape = MaterialTheme.shapes.small,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-            keyboardActions = doneKeyboardActions(),
+            keyboardActions = doneKeyboardActions(onSave),
             modifier = Modifier
                 .fillMaxWidth()
                 .scrollToWhen(nameError),

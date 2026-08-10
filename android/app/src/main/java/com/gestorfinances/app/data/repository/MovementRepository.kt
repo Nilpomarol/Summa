@@ -279,6 +279,24 @@ class MovementRepository(
         queries.linkToTemplate(template_id = templateId, updated_at = updatedAt, ids = movementIds)
     }
 
+    fun activeMovementIdsForTemplate(templateId: String): List<String> =
+        queries.activeMovementIdsForTemplate(template_id = templateId).executeAsList()
+
+    fun restoreTemplateLinksAfterDelete(
+        movementIds: List<String>,
+        templateId: String,
+        deletedAt: String,
+        restoredAt: String,
+    ) {
+        if (movementIds.isEmpty()) return
+        queries.restoreTemplateLinksAfterDelete(
+            ids = movementIds,
+            template_id = templateId,
+            deleted_at = deletedAt,
+            updated_at = restoredAt,
+        )
+    }
+
     /** Severs every movement's link to a template (e.g. when the template itself is deleted) so
      * they stop showing as recurring and become eligible for detection again. */
     fun unlinkAllForTemplate(templateId: String, updatedAt: String) {
@@ -352,6 +370,22 @@ class MovementRepository(
                 updated_at = archivedAt,
             )
             archiveMovementSplit(id, timestamp = archivedAt)
+        }
+    }
+
+    fun restore(
+        id: String,
+        deletedAt: String,
+        restoredAt: String,
+    ) {
+        queries.transaction {
+            queries.restoreMovement(id = id, archived_at = deletedAt, updated_at = restoredAt)
+            queries.restoreRefundsForExpense(
+                expense_id = id,
+                archived_at = deletedAt,
+                updated_at = restoredAt,
+            )
+            restoreMovementSplit(id, deletedAt = deletedAt, restoredAt = restoredAt)
         }
     }
 
@@ -433,6 +467,17 @@ class MovementRepository(
             archived_at = timestamp,
             updated_at = timestamp,
         )
+    }
+
+    private fun restoreMovementSplit(
+        movementId: String,
+        deletedAt: String,
+        restoredAt: String,
+    ) {
+        val splits = splitQueries ?: return
+        val splitId = splits.splitIdForMovement(movementId).executeAsOneOrNull() ?: return
+        splits.restoreMovementSplit(id = splitId, archived_at = deletedAt, updated_at = restoredAt)
+        splits.restoreSplitLines(split_id = splitId, archived_at = deletedAt, updated_at = restoredAt)
     }
 }
 

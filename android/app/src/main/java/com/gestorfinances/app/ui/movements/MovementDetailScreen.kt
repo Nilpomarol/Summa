@@ -57,6 +57,7 @@ import com.gestorfinances.app.ui.common.DestructiveButton
 import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.FinanceFilterChip
 import com.gestorfinances.app.ui.common.InlineBanner
+import com.gestorfinances.app.ui.common.InlineFailureBanner
 import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.AppModalBottomSheet
 import com.gestorfinances.app.ui.common.PageHeaderRow
@@ -69,6 +70,8 @@ import com.gestorfinances.app.ui.common.formatEuroCents
 import com.gestorfinances.app.ui.common.formatExpandedDate
 import com.gestorfinances.app.ui.common.movementTitle
 import com.gestorfinances.app.ui.common.parseEuroCents
+import com.gestorfinances.app.ui.common.DeleteUndoHandler
+import com.gestorfinances.app.ui.common.rememberFormDismissGuard
 import com.gestorfinances.app.ui.common.scrollToWhen
 import com.gestorfinances.app.ui.common.signedAmountCents
 import com.gestorfinances.app.ui.theme.FinanceTheme
@@ -90,22 +93,34 @@ fun MovementDetailScreen(
     viewModel: MovementsViewModel,
     onBack: () -> Unit,
     onEdit: (MovementSummary) -> Unit,
+    onDeleteCommitted: DeleteUndoHandler = {},
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsState()
     val refundForm = state.refundForm
     val movement = state.detailMovement
+    val requestRefundDismissal = refundForm?.let { form ->
+        rememberFormDismissGuard(
+            formKey = form.expenseId,
+            currentValue = form,
+            hasMeaningfulChanges = { initial, current ->
+                initial.copy(errorRes = null, errorField = null, errorMessage = null) !=
+                    current.copy(errorRes = null, errorField = null, errorMessage = null)
+            },
+            onDiscard = viewModel::onRefundDismissed,
+        )
+    }
 
     if (refundForm != null) {
         // System/gesture back must reveal the movement detail again, not exit the whole
         // AppOverlay.MovementDetail page -- the global BackHandler in MainActivity only pops
         // the overlay, so this nested swap needs its own handler (mirrors TripFormScreen nested
         // in TripDetailScreen, SettlementScreen nested in PersonDetailScreen).
-        BackHandler(onBack = viewModel::onRefundDismissed)
+        BackHandler(onBack = requireNotNull(requestRefundDismissal))
     }
 
     AppModalBottomSheet(
-        onDismissRequest = onBack,
+        onDismissRequest = requestRefundDismissal ?: onBack,
         modifier = modifier,
         maxHeightFraction = MovementDetailSheetMaxHeightFraction,
     ) {
@@ -115,7 +130,7 @@ fun MovementDetailScreen(
                 accounts = state.accounts,
                 categories = state.categories,
                 onFormChange = viewModel::onRefundFormChanged,
-                onBack = viewModel::onRefundDismissed,
+                onBack = requireNotNull(requestRefundDismissal),
                 onSave = viewModel::onRefundSaveClicked,
             )
             movement != null -> MovementDetailContent(
@@ -166,7 +181,10 @@ fun MovementDetailScreen(
             confirmButton = {
                 DestructiveTextButton(
                     onClick = {
-                        viewModel.onArchiveConfirmed(revertDueDate = revertDueDate, onSuccess = onBack)
+                        viewModel.onArchiveConfirmed(revertDueDate = revertDueDate) { undo ->
+                            onDeleteCommitted(undo)
+                            onBack()
+                        }
                     },
                 ) {
                     Text(text = stringResource(R.string.common_archive))
@@ -525,7 +543,7 @@ private fun RefundFormContent(
         // Top-of-form text is reserved for save/repository failures -- field-level validation
         // errors render next to the offending control instead (field-level validation).
         form.errorMessage?.let {
-            InlineBanner(kind = BannerKind.Error, text = it)
+            InlineFailureBanner(diagnostic = it, messageRes = R.string.failure_save_movement)
         }
         val amountError = form.errorField == RefundFormField.AMOUNT
         OutlinedTextField(

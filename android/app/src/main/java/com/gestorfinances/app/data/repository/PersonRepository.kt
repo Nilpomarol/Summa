@@ -96,6 +96,10 @@ class PersonRepository(
             updated_at = archivedAt,
         )
     }
+
+    fun restore(id: String, deletedAt: String, restoredAt: String) {
+        queries.restorePerson(id = id, archived_at = deletedAt, updated_at = restoredAt)
+    }
 }
 
 private fun mapPersonSummary(

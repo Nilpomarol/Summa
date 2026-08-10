@@ -195,6 +195,30 @@ class TemplateRepository(
     ) {
         queries.archiveTemplate(id = id, archived_at = archivedAt, updated_at = archivedAt)
     }
+
+    fun restore(id: String, deletedAt: String, restoredAt: String) {
+        queries.restoreTemplate(id = id, archived_at = deletedAt, updated_at = restoredAt)
+    }
+
+    fun restoreActiveStatusAfterDelete(id: String, deletedAt: String, restoredAt: String) {
+        queries.restoreTemplateStatusAfterDelete(id = id, deleted_at = deletedAt, updated_at = restoredAt)
+    }
+
+    fun restoreCursorAfterDelete(
+        id: String,
+        deletedDueDate: String,
+        nextDueDate: String,
+        deletedAt: String,
+        restoredAt: String,
+    ) {
+        queries.restoreTemplateCursorAfterDelete(
+            id = id,
+            deleted_due_date = deletedDueDate,
+            next_due_date = nextDueDate,
+            deleted_at = deletedAt,
+            updated_at = restoredAt,
+        )
+    }
 }
 
 private val templateJson = Json { encodeDefaults = true }
@@ -222,8 +246,8 @@ internal fun MovementSplitWrite.toTemplateSplitConfig(): TemplateSplitConfig? {
                 owedAmountCents = line.owedAmountCents,
             )
         },
-    )
-}
+        )
+    }
 
 /** Mirrors the templates CHECK constraints so app code fails fast with a clear message. */
 private fun validate(draft: TemplateDraft) {

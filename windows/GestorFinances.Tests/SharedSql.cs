@@ -24,13 +24,7 @@ internal static class SharedSql
         "analysis_actual_by_category.sql",
         "analysis_account_flow_over_time.sql",
         "analysis_income_vs_expense.sql",
-        "analysis_period_totals.sql",
-        "analysis_category_trends.sql",
-        "analysis_largest_expenses.sql",
-        "analysis_net_worth_over_time.sql",
-        "analysis_top_merchants.sql",
-        "analysis_category_frequency.sql",
-        "analysis_weekday_spend.sql"
+        "analysis_period_totals.sql"
     ];
 
     private static readonly string[] UpgradeMigrationFiles =

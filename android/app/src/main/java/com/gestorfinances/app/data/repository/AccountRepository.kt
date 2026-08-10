@@ -114,6 +114,22 @@ class AccountRepository(
             updated_at = archivedAt,
         )
     }
+
+    fun restore(
+        id: String,
+        deletedAt: String,
+        restoredAt: String,
+        wasDefault: Boolean,
+    ) {
+        queries.transaction {
+            queries.restoreAccount(
+                id = id,
+                archived_at = deletedAt,
+                updated_at = restoredAt,
+                is_default = if (wasDefault) 1L else 0L,
+            )
+        }
+    }
 }
 
 private fun mapAccountSummary(

@@ -26,17 +26,12 @@ ANALYSIS_QUERY_FILES = [
     "analysis_account_flow_over_time.sql",
     "analysis_income_vs_expense.sql",
     "analysis_period_totals.sql",
-    "analysis_category_trends.sql",
-    "analysis_largest_expenses.sql",
-    "analysis_net_worth_over_time.sql",
-    "analysis_top_merchants.sql",
-    "analysis_category_frequency.sql",
-    "analysis_weekday_spend.sql",
 ]
 UPGRADE_MIGRATION_FILES = [
     "007_simplify_budget_rules.sql",
     "008_add_budget_inclusion_rules.sql",
     "009_derive_refund_attribution.sql",
+    "010_remove_auto_categorization.sql",
 ]
 VIEW_NAMES = [path.removesuffix(".sql") for path in VIEW_FILES]
 
@@ -173,48 +168,6 @@ def validate_analysis_queries() -> None:
         if transfer_bucket_totals != {"2026-06-15": 0}:
             fail("analysis_account_flow_over_time.sql: unexpected transfer bucket total")
 
-        largest = conn.execute(
-            analysis_query("analysis_largest_expenses.sql"),
-            {**params, "limit": 10},
-        ).fetchall()
-        if [(row["source_id"], row["label"], row["amount_cents"]) for row in largest] != [
-            ("laptop", "Laptop", 5_000),
-            ("groceries-1", "Groceries", 2_000),
-        ]:
-            fail(f"analysis_largest_expenses.sql: unexpected rows {[dict(r) for r in largest]}")
-
-        merchants = conn.execute(
-            analysis_query("analysis_top_merchants.sql"),
-            {**params, "limit": 10},
-        ).fetchall()
-        if [(row["merchant_label"], row["total_cents"], row["movement_count"]) for row in merchants] != [
-            ("Laptop", 5_000, 1),
-            ("Groceries", 2_000, 1),
-        ]:
-            fail(f"analysis_top_merchants.sql: unexpected rows {[dict(r) for r in merchants]}")
-
-        trends = conn.execute(
-            analysis_query("analysis_category_trends.sql"),
-            params,
-        ).fetchall()
-        trend_totals = {
-            (row["category_id"], row["bucket"]): row["expense_cents"] for row in trends
-        }
-        if trend_totals != {
-            ("electronics", "2026-06"): 5_000,
-            ("groceries", "2026-06"): 1_500,
-        }:
-            fail(f"analysis_category_trends.sql: unexpected rows {trend_totals}")
-
-        net_worth = conn.execute(
-            analysis_query("analysis_net_worth_over_time.sql"),
-            params,
-        ).fetchall()
-        if [(row["bucket"], row["net_worth_cents"]) for row in net_worth] != [
-            ("2026-06", 258_500),
-        ]:
-            fail(f"analysis_net_worth_over_time.sql: unexpected rows {[dict(r) for r in net_worth]}")
-
         breakdown = conn.execute(
             analysis_query("analysis_actual_breakdown.sql"),
             {**params, "group_trips": 0},
@@ -229,30 +182,6 @@ def validate_analysis_queries() -> None:
             "groceries": ("category", 1_500, 0, -1_500),
         }:
             fail(f"analysis_actual_breakdown.sql: unexpected rows {breakdown_totals}")
-
-        # Frequency vs volume: expense-only counts (the -500 refund is excluded by amount > 0).
-        frequency = conn.execute(
-            analysis_query("analysis_category_frequency.sql"),
-            params,
-        ).fetchall()
-        frequency_totals = {
-            row["category_id"]: (row["movement_count"], row["total_cents"]) for row in frequency
-        }
-        if frequency_totals != {
-            "electronics": (1, 5_000),
-            "groceries": (1, 2_000),
-        }:
-            fail(f"analysis_category_frequency.sql: unexpected rows {frequency_totals}")
-
-        # Weekday spend nets refunds: groceries (06-05) and its refund (06-12) fall on the same
-        # weekday → 1_500; the laptop (06-10) lands on another weekday → 5_000.
-        weekday = conn.execute(
-            analysis_query("analysis_weekday_spend.sql"),
-            params,
-        ).fetchall()
-        weekday_totals = sorted(row["expense_cents"] for row in weekday)
-        if weekday_totals != [1_500, 5_000]:
-            fail(f"analysis_weekday_spend.sql: unexpected rows {weekday_totals}")
 
         # Account filter: every actual row lives on 'checking', so 'savings' narrows to nothing.
         savings_rows = conn.execute(
@@ -343,7 +272,7 @@ def main() -> None:
         for name in UPGRADE_MIGRATION_FILES:
             conn.executescript(read_sql(ROOT / "shared" / "migrations" / name))
         meta = dict(conn.execute("SELECT key, value FROM meta").fetchall())
-        expected = {"schema_version": "9", "snapshot_version": "0"}
+        expected = {"schema_version": "10", "snapshot_version": "0"}
         if meta != expected:
             fail(f"upgrade migrations: expected meta {expected}, got {meta}")
     except sqlite3.Error as exc:

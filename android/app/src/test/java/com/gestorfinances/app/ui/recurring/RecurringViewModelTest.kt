@@ -237,7 +237,7 @@ class RecurringViewModelTest {
     // badge forever and stayed excluded from `RecurringPatternDetector` (which only considers
     // `templateId == null`), orphaned from both systems with no way back.
     @Test
-    fun `deleting a template unlinks its movements so they stop being recurring`() = runTest(dispatcher) {
+    fun `deleting a template unlinks its movements and undo restores the exact links`() = runTest(dispatcher) {
         freshStore().use { store ->
             store.accounts.create(accountDraft("checking"), createdAt = NOW)
             store.templates.create(monthlyTemplateDraft("rent", nextDueDate = "2026-02-01"), createdAt = NOW)
@@ -249,15 +249,26 @@ class RecurringViewModelTest {
             }
             val viewModel = viewModel(store)
             val template = store.templates.listActive().single()
+            var undo: (() -> Unit)? = null
 
             viewModel.onDeleteClicked(template)
-            viewModel.onDeleteConfirmed()
+            viewModel.onDeleteConfirmed { undo = it }
             advanceUntilIdle()
 
             assertNull(store.templates.getActive("rent"))
             val linkedMovements = store.movements.listActive().filter { it.name == "Lloguer" }
             assertEquals(3, linkedMovements.size)
             assertTrue(linkedMovements.all { it.templateId == null })
+
+            requireNotNull(undo).invoke()
+            advanceUntilIdle()
+
+            assertEquals(TemplateStatus.ACTIVE, store.templates.getActive("rent")!!.status)
+            assertTrue(
+                store.movements.listActive()
+                    .filter { it.name == "Lloguer" }
+                    .all { it.templateId == "rent" },
+            )
         }
     }
 

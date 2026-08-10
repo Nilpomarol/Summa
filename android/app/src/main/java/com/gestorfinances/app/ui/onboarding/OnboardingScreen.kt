@@ -30,6 +30,7 @@ import com.gestorfinances.app.ui.common.ChipFlowSection
 import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.FinanceFilterChip
 import com.gestorfinances.app.ui.common.PrimaryButton
+import com.gestorfinances.app.ui.common.InlineFailureBanner
 import com.gestorfinances.app.ui.common.label
 import com.gestorfinances.app.ui.theme.FinanceTheme
 
@@ -98,11 +99,7 @@ private fun OnboardingContent(
                     )
                 }
                 state.form.errorMessage?.let {
-                    Text(
-                        text = it,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
+                    InlineFailureBanner(diagnostic = it, messageRes = R.string.failure_save_account)
                 }
                 OutlinedTextField(
                     value = state.form.accountName,

@@ -297,23 +297,30 @@ class RecurringViewModel(
      * archived template is "treated as absent" (invariant #6), so nothing should still claim a
      * relationship to it — the movements themselves are kept, just as plain non-recurring entries,
      * and become eligible for [RecurringPatternDetector] again. */
-    fun onDeleteConfirmed() {
+    fun onDeleteConfirmed(onSuccess: (undo: () -> Unit) -> Unit = {}) {
         val template = _state.value.deleteCandidate ?: return
         _state.value = _state.value.copy(deleteCandidate = null)
         val now = Instant.now().toString()
         viewModelScope.launch {
             val result = withContext(ioDispatcher) {
                 runCatching {
+                    val linkedMovementIds = movementRepository.activeMovementIdsForTemplate(template.id)
                     movementRepository.runInTransaction {
                         movementRepository.unlinkAllForTemplate(template.id, updatedAt = now)
                         templateRepository.archive(template.id, archivedAt = now)
                     }
+                    RecurringDeleteOperation(
+                        templateId = template.id,
+                        deletedAt = now,
+                        linkedMovementIds = linkedMovementIds,
+                    )
                 }
             }
             result.fold(
-                onSuccess = {
+                onSuccess = { operation ->
                     refresh()
                     refreshNotifications()
+                    onSuccess { undoDelete(operation) }
                 },
                 onFailure = ::showError,
             )
@@ -632,6 +639,32 @@ class RecurringViewModel(
             ?.let { MovementSplitWrite.Replace(it).toTemplateSplitConfig() }
     }
 
+    private fun undoDelete(operation: RecurringDeleteOperation) {
+        val restoredAt = Instant.now().toString()
+        viewModelScope.launch {
+            val result = withContext(ioDispatcher) {
+                runCatching {
+                    movementRepository.runInTransaction {
+                        templateRepository.restore(operation.templateId, operation.deletedAt, restoredAt)
+                        movementRepository.restoreTemplateLinksAfterDelete(
+                            movementIds = operation.linkedMovementIds,
+                            templateId = operation.templateId,
+                            deletedAt = operation.deletedAt,
+                            restoredAt = restoredAt,
+                        )
+                    }
+                }
+            }
+            result.fold(
+                onSuccess = {
+                    refresh()
+                    refreshNotifications()
+                },
+                onFailure = ::showError,
+            )
+        }
+    }
+
     private fun refreshNotifications() {
         viewModelScope.launch {
             withContext(ioDispatcher) {
@@ -844,6 +877,12 @@ enum class TemplateMonthPaymentState {
     PARTIALLY_PAID,
 }
 
+private data class RecurringDeleteOperation(
+    val templateId: String,
+    val deletedAt: String,
+    val linkedMovementIds: List<String>,
+)
+
 data class RecurringHistoryDetailState(
     val template: TemplateSummary,
     val movements: List<MovementSummary> = emptyList(),
@@ -907,6 +946,7 @@ private fun List<TemplateSummary>.monthlyCalendar(
             else -> Unit
         }
     }
+
     return MonthlyRecurringCalendar(
         scheduledExpenseCents = expense,
         scheduledIncomeCents = income,

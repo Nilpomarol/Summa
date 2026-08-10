@@ -20,6 +20,8 @@ import com.gestorfinances.app.notifications.NotificationPreferences
 import com.gestorfinances.app.notifications.NotificationRefresher
 import com.gestorfinances.app.notifications.NotificationSettings
 import com.gestorfinances.app.notifications.NotificationSettingsRepository
+import com.gestorfinances.app.ui.theme.ThemeMode
+import com.gestorfinances.app.ui.theme.ThemeSettingsRepository
 import java.io.File
 import java.time.Instant
 import kotlinx.coroutines.CoroutineDispatcher
@@ -39,6 +41,7 @@ class SettingsViewModel(
     private val backupOperations: BackupOperations,
     private val autoBackupSettings: AutoBackupSettingsRepository,
     private val autoBackupScheduler: AutoBackupScheduler,
+    private val themePreferences: ThemeSettingsRepository,
     private val notificationRefresher: NotificationRefresher = NotificationRefresher.NoOp,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
@@ -52,6 +55,7 @@ class SettingsViewModel(
         val folder = backupFolderRepository.loadSelectedFolder()
         val autoBackup = autoBackupSettings.load()
         _state.value = SettingsUiState.fromSettings(settings).copy(
+            themeMode = themePreferences.mode.value,
             backupFolder = folder,
             autoBackupEnabled = autoBackup.enabled,
             autoBackupInterval = autoBackup.interval,
@@ -80,6 +84,11 @@ class SettingsViewModel(
 
     fun onLowBalanceAlertsChanged(enabled: Boolean) {
         saveSettings(preferences.loadSettings().copy(lowBalanceAlertsEnabled = enabled))
+    }
+
+    fun onThemeModeChanged(mode: ThemeMode) {
+        themePreferences.setMode(mode)
+        _state.value = _state.value.copy(themeMode = mode)
     }
 
     fun onBackupChooseFolderClicked() {
@@ -279,6 +288,7 @@ class SettingsViewModel(
     private fun saveSettings(settings: NotificationSettings) {
         preferences.saveSettings(settings)
         _state.value = SettingsUiState.fromSettings(settings).copy(
+            themeMode = _state.value.themeMode,
             backupFolder = _state.value.backupFolder,
             isBackupBusy = _state.value.isBackupBusy,
             backupMessage = _state.value.backupMessage,
@@ -361,6 +371,7 @@ class SettingsViewModel(
         private val backupOperations: BackupOperations,
         private val autoBackupSettings: AutoBackupSettingsRepository,
         private val autoBackupScheduler: AutoBackupScheduler,
+        private val themePreferences: ThemeSettingsRepository,
         private val notificationRefresher: NotificationRefresher,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
@@ -372,6 +383,7 @@ class SettingsViewModel(
                     backupOperations = backupOperations,
                     autoBackupSettings = autoBackupSettings,
                     autoBackupScheduler = autoBackupScheduler,
+                    themePreferences = themePreferences,
                     notificationRefresher = notificationRefresher,
                 ) as T
             }
@@ -381,6 +393,7 @@ class SettingsViewModel(
 }
 
 data class SettingsUiState(
+    val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val recurringLeadDays: String = "",
     val budgetAlertsEnabled: Boolean = true,
     val lowBalanceAlertsEnabled: Boolean = true,

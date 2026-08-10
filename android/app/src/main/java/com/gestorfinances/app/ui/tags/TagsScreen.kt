@@ -64,6 +64,7 @@ import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.IconChip
 import com.gestorfinances.app.ui.common.IconPickerRow
 import com.gestorfinances.app.ui.common.CategoryIconPalette
+import com.gestorfinances.app.ui.common.DeleteUndoHandler
 import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.LabeledSegmentedControl
 import com.gestorfinances.app.ui.common.NeutralPill
@@ -73,6 +74,8 @@ import com.gestorfinances.app.ui.common.PageHeaderRow
 import com.gestorfinances.app.ui.common.PrimaryButton
 import com.gestorfinances.app.ui.common.categoryIcon
 import com.gestorfinances.app.ui.common.scrollToWhen
+import com.gestorfinances.app.ui.common.rememberFormDismissGuard
+import com.gestorfinances.app.ui.common.InlineFailureBanner
 import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.categoryColor
 
@@ -81,6 +84,7 @@ fun TagsScreen(
     viewModel: TagsViewModel,
     contextTripId: String?,
     onBack: () -> Unit,
+    onDeleteCommitted: DeleteUndoHandler = {},
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsState()
@@ -97,16 +101,26 @@ fun TagsScreen(
         onSearchChanged = viewModel::onSearchChanged,
         onEdit = viewModel::onEditClicked,
         onArchive = viewModel::onArchiveClicked,
+        onRetry = { viewModel.onScreenShown(contextTripId) },
     )
 
     state.form?.let { form ->
-        BackHandler(onBack = viewModel::onFormDismissed)
+        val requestFormDismissal = rememberFormDismissGuard(
+            formKey = form.id ?: "new-tag",
+            currentValue = form,
+            hasMeaningfulChanges = { initial, current ->
+                initial.copy(errorRes = null, errorField = null, errorMessage = null) !=
+                    current.copy(errorRes = null, errorField = null, errorMessage = null)
+            },
+            onDiscard = viewModel::onFormDismissed,
+        )
+        BackHandler(onBack = requestFormDismissal)
         TagFormSheet(
             form = form,
             trips = state.trips,
             categories = state.categories,
             onFormChange = viewModel::onFormChanged,
-            onDismiss = viewModel::onFormDismissed,
+            onDismiss = requestFormDismissal,
             onSave = viewModel::onSaveClicked,
         )
     }
@@ -117,7 +131,9 @@ fun TagsScreen(
             title = { Text(text = stringResource(R.string.tag_archive_confirm_title)) },
             text = { Text(text = stringResource(R.string.tag_archive_warning)) },
             confirmButton = {
-                DestructiveTextButton(onClick = viewModel::onArchiveConfirmed) {
+                DestructiveTextButton(
+                    onClick = { viewModel.onArchiveConfirmed(onSuccess = onDeleteCommitted) },
+                ) {
                     Text(text = stringResource(R.string.common_archive))
                 }
             },
@@ -187,6 +203,7 @@ private fun TagsContent(
     onSearchChanged: (String) -> Unit,
     onEdit: (TagSummary) -> Unit,
     onArchive: (TagSummary) -> Unit,
+    onRetry: () -> Unit,
 ) {
     val sections = buildTagSections(state)
     // Every section starts expanded; a key only ends up here once toggled shut.
@@ -206,7 +223,11 @@ private fun TagsContent(
 
         state.errorMessage?.let { message ->
             item {
-                InlineBanner(kind = BannerKind.Error, text = message)
+                InlineFailureBanner(
+                    diagnostic = message,
+                    messageRes = R.string.failure_load_tags,
+                    onRetry = onRetry,
+                )
             }
         }
 
@@ -435,7 +456,7 @@ private fun TagFormSheet(
                 )
 
                 form.errorMessage?.let {
-                    InlineBanner(kind = BannerKind.Error, text = it)
+                    InlineFailureBanner(diagnostic = it, messageRes = R.string.failure_save_tag)
                 }
 
                 val nameError = form.errorField == TagFormField.NAME
@@ -450,7 +471,7 @@ private fun TagFormSheet(
                     } else null,
                     shape = MaterialTheme.shapes.small,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = doneKeyboardActions(),
+                    keyboardActions = doneKeyboardActions(onSave),
                     modifier = Modifier
                         .fillMaxWidth()
                         .scrollToWhen(nameError),

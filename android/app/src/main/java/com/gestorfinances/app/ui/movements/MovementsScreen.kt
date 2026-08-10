@@ -71,10 +71,13 @@ import com.gestorfinances.app.data.repository.TagSummary
 import com.gestorfinances.app.data.repository.TripSummary
 import com.gestorfinances.app.ui.common.BannerKind
 import com.gestorfinances.app.ui.common.AppModalBottomSheet
+import com.gestorfinances.app.ui.common.AppDropdownMenu
+import com.gestorfinances.app.ui.common.AppDropdownMenuItem
 import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.FinanceFilterChip
 import com.gestorfinances.app.ui.common.IconChip
 import com.gestorfinances.app.ui.common.InlineBanner
+import com.gestorfinances.app.ui.common.InlineFailureBanner
 import com.gestorfinances.app.ui.common.MovementListItem
 import com.gestorfinances.app.ui.common.PrimaryButton
 import com.gestorfinances.app.ui.common.label
@@ -114,6 +117,7 @@ fun MovementsScreen(
         onClearFilters = viewModel::onClearFiltersClicked,
         onDetail = onDetail,
         onAdd = onAdd,
+        onRetry = viewModel::onScreenShown,
     )
 }
 
@@ -274,6 +278,7 @@ private fun MovementsContent(
     onClearFilters: () -> Unit,
     onDetail: (MovementSummary) -> Unit,
     onAdd: () -> Unit,
+    onRetry: () -> Unit,
 ) {
     var filtersExpanded by remember { mutableStateOf(false) }
     val visibleMovements = state.visibleMovements
@@ -325,7 +330,11 @@ private fun MovementsContent(
 
         state.errorMessage?.let { message ->
             item {
-                InlineBanner(kind = BannerKind.Error, text = message)
+                InlineFailureBanner(
+                    diagnostic = message,
+                    messageRes = R.string.failure_load_movements,
+                    onRetry = onRetry,
+                )
             }
         }
 
@@ -411,16 +420,25 @@ private fun MovementsContent(
 }
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 private fun MovementTypeFilterRow(
     selected: MovementType?,
     onSelected: (MovementType?) -> Unit,
 ) {
     val colors = FinanceTheme.colors
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    var moreTypesExpanded by remember { mutableStateOf(false) }
+    val rareTypeSelected = selected in rareMovementTypes
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
         FinanceFilterChip(
             selected = selected == null,
             label = stringResource(R.string.movement_filter_all_types),
-            onClick = { onSelected(null) },
+            onClick = {
+                moreTypesExpanded = false
+                onSelected(null)
+            },
         )
         phaseOneTypes.forEach { type ->
             FinanceFilterChip(
@@ -434,6 +452,29 @@ private fun MovementTypeFilterRow(
                     else -> MaterialTheme.colorScheme.onSurface
                 }
             )
+        }
+        Box {
+            FinanceFilterChip(
+                selected = rareTypeSelected,
+                label = stringResource(R.string.movement_filter_more_types),
+                onClick = { moreTypesExpanded = true },
+                selectedColor = MaterialTheme.colorScheme.primary,
+            )
+            AppDropdownMenu(
+                expanded = moreTypesExpanded,
+                onDismissRequest = { moreTypesExpanded = false },
+            ) {
+                rareMovementTypes.forEach { type ->
+                    AppDropdownMenuItem(
+                        text = { Text(type.filterLabel()) },
+                        selected = selected == type,
+                        onClick = {
+                            onSelected(type)
+                            moreTypesExpanded = false
+                        },
+                    )
+                }
+            }
         }
     }
 }
@@ -724,6 +765,12 @@ private val phaseOneTypes = listOf(
     MovementType.EXPENSE,
     MovementType.INCOME,
     MovementType.TRANSFER,
+)
+
+private val rareMovementTypes = listOf(
+    MovementType.SETTLEMENT,
+    MovementType.REFUND,
+    MovementType.EXTERNAL_EXPENSE,
 )
 
 private enum class FilterSheetType {

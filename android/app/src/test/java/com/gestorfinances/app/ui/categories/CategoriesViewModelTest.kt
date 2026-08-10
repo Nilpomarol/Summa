@@ -11,6 +11,7 @@ import com.gestorfinances.app.data.repository.CategoryNature
 import com.gestorfinances.app.data.repository.CategoryRepository
 import com.gestorfinances.app.data.repository.MovementRepository
 import com.gestorfinances.app.data.repository.TemplateRepository
+import com.gestorfinances.app.data.repository.TemplateStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -120,6 +121,63 @@ class CategoriesViewModelTest {
             // Tapping the leaf child stays scoped to itself.
             val leafEntries = store.movements.listActiveForCategory("restaurants")
             assertEquals(setOf("m-child"), leafEntries.map { it.id }.toSet())
+        }
+    }
+
+    @Test
+    fun deletingAParentAndUndoingRestoresItsDependentBudgetTemplateAndChild() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.categories.create(categoryDraft("food"), createdAt = NOW)
+            store.categories.create(
+                categoryDraft("restaurants").copy(parentId = "food"),
+                createdAt = NOW,
+            )
+            store.exec(
+                """
+                INSERT INTO accounts (id, name, starting_balance_cents, type, display_order, created_at, updated_at)
+                VALUES ('checking', 'Checking', 0, 'bank', 0, '$NOW', '$NOW');
+                """.trimIndent(),
+            )
+            store.exec(
+                """
+                INSERT INTO templates
+                    (id, type, amount_cents, account_id, category_id, name, frequency,
+                     next_due_date, status, created_at, updated_at)
+                VALUES
+                    ('food-monthly', 'expense', 1000, 'checking', 'food', 'Compra', 'monthly',
+                     '2026-02-01', 'active', '$NOW', '$NOW');
+                """.trimIndent(),
+            )
+            store.exec(
+                """
+                INSERT INTO budgets
+                    (id, scope, category_id, period, limit_amount_cents, created_at, updated_at)
+                VALUES ('food-budget', 'category', 'food', 'monthly', 20000, '$NOW', '$NOW');
+                """.trimIndent(),
+            )
+            val viewModel = viewModel(store)
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+            val parent = viewModel.state.value.categories.single { it.id == "food" }
+            var undo: (() -> Unit)? = null
+
+            viewModel.onArchiveClicked(parent)
+            advanceUntilIdle()
+            viewModel.onArchiveConfirmed { undo = it }
+            advanceUntilIdle()
+
+            assertTrue(store.categories.listActive().none { it.id == "food" })
+            assertEquals(null, store.categories.listActive().single { it.id == "restaurants" }.parentId)
+            assertTrue(store.budgets.listActive().none { it.id == "food-budget" })
+            assertEquals(TemplateStatus.PAUSED, store.templates.getActive("food-monthly")!!.status)
+
+            requireNotNull(undo).invoke()
+            advanceUntilIdle()
+
+            assertEquals("food", store.categories.listActive().single { it.id == "food" }.id)
+            assertEquals("food", store.categories.listActive().single { it.id == "restaurants" }.parentId)
+            assertEquals("food-budget", store.budgets.listActive().single { it.id == "food-budget" }.id)
+            assertEquals(TemplateStatus.ACTIVE, store.templates.getActive("food-monthly")!!.status)
         }
     }
 

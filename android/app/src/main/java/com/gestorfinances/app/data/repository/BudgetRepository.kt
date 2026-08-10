@@ -275,6 +275,10 @@ class BudgetRepository(
         queries.archiveBudget(id = id, archived_at = archivedAt, updated_at = archivedAt)
     }
 
+    fun restore(id: String, deletedAt: String, restoredAt: String) {
+        queries.restoreBudget(id = id, archived_at = deletedAt, updated_at = restoredAt)
+    }
+
     private fun requireNoDuplicate(draft: BudgetDraft) {
         val duplicate = listActive().any { existing ->
             existing.id != draft.id &&

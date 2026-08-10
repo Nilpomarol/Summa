@@ -206,7 +206,7 @@ class PeopleViewModel(
         _state.value = _state.value.copy(archiveCandidate = null)
     }
 
-    fun onArchiveConfirmed() {
+    fun onArchiveConfirmed(onSuccess: (undo: () -> Unit) -> Unit = {}) {
         val person = _state.value.archiveCandidate ?: return
         val now = Instant.now().toString()
         viewModelScope.launch {
@@ -217,6 +217,7 @@ class PeopleViewModel(
                 onSuccess = {
                     _state.value = _state.value.copy(archiveCandidate = null)
                     refreshPeople()
+                    onSuccess { undoDelete(person.id, deletedAt = now) }
                 },
                 onFailure = {
                     _state.value = _state.value.copy(
@@ -224,6 +225,22 @@ class PeopleViewModel(
                         errorMessage = it.message ?: it.javaClass.simpleName,
                     )
                 },
+            )
+        }
+    }
+
+    private fun undoDelete(personId: String, deletedAt: String) {
+        val restoredAt = Instant.now().toString()
+        viewModelScope.launch {
+            val result = withContext(ioDispatcher) {
+                runCatching { personRepository.restore(personId, deletedAt, restoredAt) }
+            }
+            result.fold(
+                onSuccess = {
+                    refreshPeople()
+                    refreshNotifications()
+                },
+                onFailure = { _state.value = _state.value.copy(errorMessage = it.message ?: it.javaClass.simpleName) },
             )
         }
     }

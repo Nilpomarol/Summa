@@ -123,6 +123,17 @@ class SplitRepository(
         }
     }
 
+    fun restoreExternalSplit(
+        id: String,
+        deletedAt: String,
+        restoredAt: String,
+    ) {
+        queries.transaction {
+            queries.restoreMovementSplit(id = id, archived_at = deletedAt, updated_at = restoredAt)
+            queries.restoreSplitLines(split_id = id, archived_at = deletedAt, updated_at = restoredAt)
+        }
+    }
+
     fun getForMovement(movementId: String): MovementSplitDraft? =
         buildSplitDraft(
             queries.splitWithLinesByMovementId(movement_id = movementId, mapper = ::mapSplitLineRow).executeAsList(),

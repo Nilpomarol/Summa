@@ -26,17 +26,12 @@ ANALYSIS_QUERY_FILES = [
     "analysis_account_flow_over_time.sql",
     "analysis_income_vs_expense.sql",
     "analysis_period_totals.sql",
-    "analysis_category_trends.sql",
-    "analysis_largest_expenses.sql",
-    "analysis_net_worth_over_time.sql",
-    "analysis_top_merchants.sql",
-    "analysis_category_frequency.sql",
-    "analysis_weekday_spend.sql",
 ]
 UPGRADE_MIGRATION_FILES = [
     "007_simplify_budget_rules.sql",
     "008_add_budget_inclusion_rules.sql",
     "009_derive_refund_attribution.sql",
+    "010_remove_auto_categorization.sql",
 ]
 
 

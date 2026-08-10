@@ -64,8 +64,10 @@ import com.gestorfinances.app.ui.common.AppDropdownMenuItem
 import com.gestorfinances.app.ui.common.PrimaryButton
 import com.gestorfinances.app.ui.common.SecondaryButton
 import com.gestorfinances.app.ui.common.SectionHeader
+import com.gestorfinances.app.ui.common.SegmentedControl
 import com.gestorfinances.app.ui.common.NeutralPill
 import com.gestorfinances.app.ui.theme.FinanceTheme
+import com.gestorfinances.app.ui.theme.ThemeMode
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -102,6 +104,13 @@ fun SettingsScreen(
     ) {
         item {
             RootPageHeader(title = stringResource(R.string.settings_title))
+        }
+
+        item {
+            ThemeSettingsCard(
+                selected = state.themeMode,
+                onSelect = viewModel::onThemeModeChanged,
+            )
         }
 
         item {
@@ -260,6 +269,42 @@ private fun BackupSettingsCard(
         }
     }
 }
+
+@Composable
+private fun ThemeSettingsCard(
+    selected: ThemeMode,
+    onSelect: (ThemeMode) -> Unit,
+) {
+    FinanceCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.settings_theme_title),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Text(
+                text = stringResource(R.string.settings_theme_body),
+                color = FinanceTheme.colors.mutedText,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            SegmentedControl(
+                options = ThemeMode.entries,
+                selected = selected,
+                label = { mode -> stringResource(mode.labelRes()) },
+                onSelect = onSelect,
+            )
+        }
+    }
+}
+
+private fun ThemeMode.labelRes(): Int =
+    when (this) {
+        ThemeMode.SYSTEM -> R.string.settings_theme_system
+        ThemeMode.LIGHT -> R.string.settings_theme_light
+        ThemeMode.DARK -> R.string.settings_theme_dark
+    }
 
 @Composable
 private fun AutoBackupRow(
