@@ -1,5 +1,9 @@
 -- Generated from ../../shared/migrations/007_simplify_budget_rules.sql.
+-- Do not edit directly; edit the shared SQL file instead.
+
+-- Gestor finances v6 -> v7 migration.
 -- Budget rules recur by their period; their legacy activation date is removed.
+-- Existing rows, including any older duplicate rules, are preserved.
 
 CREATE TABLE budgets_new (
     id                      TEXT    PRIMARY KEY,

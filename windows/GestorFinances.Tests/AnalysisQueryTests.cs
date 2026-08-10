@@ -31,6 +31,17 @@ public sealed class AnalysisQueryTests
     }
 
     [TestMethod]
+    public void ActivityMonthsListsActiveLedgerMonths()
+    {
+        using var connection = SeededConnection();
+
+        var months = connection.Query<string>(
+            SharedSql.ReadAnalysisQuery("analysis_activity_months.sql")).ToArray();
+
+        CollectionAssert.AreEqual(new[] { "2026-06" }, months);
+    }
+
+    [TestMethod]
     public void PeriodTotalsMatchFixedDataset()
     {
         using var connection = SeededConnection();
@@ -413,7 +424,7 @@ public sealed class AnalysisQueryTests
                  NULL, @Now, @Now),
                 ('laptop', 'expense', 5000, '2026-06-10', 'checking', NULL, 'Laptop', 1, 'electronics', 'mallorca',
                  NULL, @Now, @Now),
-                ('grocery-refund', 'refund', 500, '2026-06-12', 'checking', NULL, 'Refund', 0, 'groceries', NULL,
+                ('grocery-refund', 'refund', 500, '2026-06-12', 'checking', NULL, 'Refund', 0, 'electronics', NULL,
                  'groceries-1', @Now, @Now),
                 ('to-savings', 'transfer', 10000, '2026-06-15', 'checking', 'savings', 'Savings transfer', 0, NULL, NULL,
                  NULL, @Now, @Now);

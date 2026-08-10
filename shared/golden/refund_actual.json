@@ -1,6 +1,6 @@
 {
   "rule": "refund_actual",
-  "description": "A refund affects account flow and actual spending differently. Flow always gains the full cash inflow (amount_cents). Actual spending is reduced by COALESCE(actual_refund_cents, amount_cents) in the refund's own category and period.",
+  "description": "A refund affects account flow and actual spending differently. Flow always gains the full cash inflow (amount_cents). Actual spending is reduced by COALESCE(actual_refund_cents, amount_cents) in the linked expense's category, trip, tag, and one-time classification, using the refund's own date.",
   "cases": [
     {
       "name": "ordinary refund / actual_refund_cents null -> equals cash",

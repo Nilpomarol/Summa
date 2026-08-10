@@ -28,22 +28,17 @@ UNION ALL
 SELECT
     m.id AS source_id,
     m.date,
-    m.category_id,
-    m.trip_id,
-    (
-        SELECT e.tag_id
-        FROM movements e
-        WHERE e.id = m.refunds_expense_id
-    ) AS tag_id,
+    e.category_id,
+    e.trip_id,
+    e.tag_id,
     -COALESCE(m.actual_refund_cents, m.amount_cents) AS amount_cents,
-    COALESCE((
-        SELECT e.is_one_time
-        FROM movements e
-        WHERE e.id = m.refunds_expense_id
-    ), 0) AS is_one_time
+    e.is_one_time
 FROM movements m
+JOIN movements e
+    ON e.id = m.refunds_expense_id
 WHERE m.type = 'refund'
   AND m.archived_at IS NULL
+  AND e.archived_at IS NULL
 
 UNION ALL
 

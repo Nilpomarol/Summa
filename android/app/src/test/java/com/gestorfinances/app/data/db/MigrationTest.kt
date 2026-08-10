@@ -12,6 +12,74 @@ import org.junit.Test
 class MigrationTest {
 
     @Test
+    fun `v8 to v9 migration applies derived refund attribution view`() {
+        val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+        GestorDatabase.Schema.create(driver)
+        driver.execute(null, "UPDATE meta SET value = '8' WHERE key = 'schema_version'", 0)
+        driver.execute(null, "PRAGMA user_version = 8", 0)
+
+        GestorDatabase.Schema.migrate(driver, 8, 9)
+
+        val schemaVersion = driver.executeQuery(
+            null,
+            "SELECT value FROM meta WHERE key = 'schema_version'",
+            { cursor -> cursor.next(); QueryResult.Value(cursor.getString(0)!!) },
+            0,
+        ).value
+        assertEquals("9", schemaVersion)
+    }
+
+    @Test
+    fun `v7 to v8 migration adds budget inclusion rules with safe defaults`() {
+        val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+        driver.execute(null, "PRAGMA foreign_keys = OFF", 0)
+        driver.execute(null, "CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)", 0)
+        driver.execute(null, "INSERT INTO meta VALUES ('schema_version', '7')", 0)
+        driver.execute(
+            null,
+            """
+            CREATE TABLE budgets (
+                id TEXT PRIMARY KEY, scope TEXT NOT NULL, category_id TEXT, trip_id TEXT,
+                period TEXT NOT NULL, limit_amount_cents INTEGER NOT NULL,
+                alert_threshold_percent INTEGER, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+                archived_at TEXT
+            )
+            """.trimIndent(),
+            0,
+        )
+        driver.execute(
+            null,
+            """
+            INSERT INTO budgets VALUES
+                ('food-monthly', 'category', 'food', NULL, 'monthly', 30000, NULL,
+                 '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', NULL)
+            """.trimIndent(),
+            0,
+        )
+        driver.execute(null, "PRAGMA user_version = 7", 0)
+
+        GestorDatabase.Schema.migrate(driver, 7, 8)
+
+        val inclusion = driver.executeQuery(
+            null,
+            "SELECT include_trip_expenses, include_extraordinary_expenses FROM budgets WHERE id = 'food-monthly'",
+            { cursor ->
+                cursor.next()
+                QueryResult.Value(cursor.getLong(0)!! to cursor.getLong(1)!!)
+            },
+            0,
+        ).value
+        assertEquals(1L to 1L, inclusion)
+        val schemaVersion = driver.executeQuery(
+            null,
+            "SELECT value FROM meta WHERE key = 'schema_version'",
+            { cursor -> cursor.next(); QueryResult.Value(cursor.getString(0)!!) },
+            0,
+        ).value
+        assertEquals("8", schemaVersion)
+    }
+
+    @Test
     fun `v6 to v7 migration preserves rules and removes their legacy start date`() {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         driver.execute(null, "PRAGMA foreign_keys = OFF", 0)
