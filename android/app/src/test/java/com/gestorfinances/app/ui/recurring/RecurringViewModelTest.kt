@@ -1003,6 +1003,73 @@ class RecurringViewModelTest {
         }
     }
 
+    @Test
+    fun newTemplateStartsWithACompleteMonthlySchedule() = runTest(dispatcher) {
+        freshStore().use { store ->
+            val viewModel = viewModel(store, today = LocalDate.parse("2026-08-10"))
+
+            viewModel.onAddClicked()
+
+            val form = viewModel.state.value.form!!
+            assertEquals("2026-08-10", form.nextDueDate)
+            assertEquals("10", form.dayOfMonth)
+            assertEquals(0, form.weekday)
+        }
+    }
+
+    @Test
+    fun changingTemplateTypeClearsFieldsThatNoLongerApply() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            val viewModel = viewModel(store)
+            viewModel.onAddClicked()
+
+            viewModel.onFormChanged(
+                viewModel.state.value.form!!.copy(
+                    type = MovementType.TRANSFER,
+                    categoryId = "old-category",
+                    tripId = "old-trip",
+                    tagId = "old-tag",
+                    destinationAccountId = "savings",
+                ),
+            )
+            val transfer = viewModel.state.value.form!!
+            assertNull(transfer.categoryId)
+            assertNull(transfer.tripId)
+            assertNull(transfer.tagId)
+            assertEquals("savings", transfer.destinationAccountId)
+
+            viewModel.onFormChanged(transfer.copy(type = MovementType.EXPENSE))
+            assertNull(viewModel.state.value.form!!.destinationAccountId)
+        }
+    }
+
+    @Test
+    fun advancedValidationErrorExpandsItsSection() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            val viewModel = viewModel(store)
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+            viewModel.onAddClicked()
+            viewModel.onFormChanged(
+                viewModel.state.value.form!!.copy(
+                    amount = "10",
+                    accountId = "checking",
+                    dayOfMonth = "1",
+                    nextDueDate = "2026-02-01",
+                    leadDays = "-1",
+                    showAdvanced = false,
+                ),
+            )
+
+            viewModel.onSaveClicked()
+
+            assertEquals(TemplateFormField.LEAD_DAYS, viewModel.state.value.form!!.errorField)
+            assertTrue(viewModel.state.value.form!!.showAdvanced)
+        }
+    }
+
     /** [months] consecutive monthly dates starting at [startDate], same day-of-month. */
     private fun monthlyMovementDates(startDate: String, months: Int): List<String> {
         val start = LocalDate.parse(startDate)

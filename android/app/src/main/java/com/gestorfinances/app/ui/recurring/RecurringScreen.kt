@@ -128,7 +128,7 @@ fun RecurringScreen(
     val form = state.form
     if (form != null) {
         BackHandler(onBack = viewModel::onFormDismissed)
-        TemplateFormScreen(
+        RecurringFormScreen(
             form = form,
             accounts = state.accounts,
             categories = state.categories,

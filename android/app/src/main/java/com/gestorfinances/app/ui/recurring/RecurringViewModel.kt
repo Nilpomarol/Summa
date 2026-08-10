@@ -85,8 +85,13 @@ class RecurringViewModel(
     }
 
     fun onAddClicked() {
+        val startDate = today()
         _state.value = _state.value.copy(
-            form = TemplateFormState(nextDueDate = today().toString()),
+            form = TemplateFormState(
+                nextDueDate = startDate.toString(),
+                dayOfMonth = startDate.dayOfMonth.toString(),
+                weekday = startDate.dayOfWeek.value - 1,
+            ),
         )
     }
 
@@ -131,10 +136,14 @@ class RecurringViewModel(
     fun onFormChanged(form: TemplateFormState) {
         val trip = form.tripId?.let { id -> _state.value.trips.firstOrNull { it.id == id } }
         val tag = form.tagId?.let { id -> _state.value.tags.firstOrNull { it.id == id } }
+        val supportsCategory = form.type == MovementType.EXPENSE || form.type == MovementType.INCOME
+        val isTransfer = form.type == MovementType.TRANSFER
         _state.value = _state.value.copy(
             form = form.copy(
-                tripId = form.tripId.takeIf { form.type != MovementType.TRANSFER },
-                tagId = form.tagId.takeIf { form.type != MovementType.TRANSFER && tag?.supportsTrip(trip) == true },
+                destinationAccountId = form.destinationAccountId.takeIf { isTransfer },
+                categoryId = form.categoryId.takeIf { supportsCategory },
+                tripId = form.tripId.takeIf { !isTransfer },
+                tagId = form.tagId.takeIf { !isTransfer && tag?.supportsTrip(trip) == true },
                 errorRes = null,
                 errorField = null,
                 errorMessage = null,
@@ -356,7 +365,16 @@ class RecurringViewModel(
             else -> null to null
         }
         if (errorRes != null) {
-            _state.value = _state.value.copy(form = form.copy(errorRes = errorRes, errorField = errorField))
+            val advancedError = errorField == TemplateFormField.AMOUNT_FLEX ||
+                errorField == TemplateFormField.DATE_FLEX ||
+                errorField == TemplateFormField.LEAD_DAYS
+            _state.value = _state.value.copy(
+                form = form.copy(
+                    errorRes = errorRes,
+                    errorField = errorField,
+                    showAdvanced = form.showAdvanced || advancedError,
+                ),
+            )
             return
         }
 
@@ -771,6 +789,8 @@ data class TemplateFormState(
     val dateFlex: String = "",
     val leadDays: String = "",
     val status: TemplateStatus = TemplateStatus.ACTIVE,
+    val showOptional: Boolean = false,
+    val showAdvanced: Boolean = false,
     val errorRes: Int? = null,
     val errorField: TemplateFormField? = null,
     val errorMessage: String? = null,
@@ -1032,6 +1052,9 @@ private fun TemplateSummary.toFormState(): TemplateFormState =
         dateFlex = dateFlexDays?.toString().orEmpty(),
         leadDays = leadNotificationDays?.toString().orEmpty(),
         status = status,
+        showOptional = tripId != null || tagId != null || !payee.isNullOrBlank() || !notes.isNullOrBlank(),
+        showAdvanced = amountFlexCents != null || dateFlexDays != null || leadNotificationDays != null ||
+            status != TemplateStatus.ACTIVE,
     )
 
 /** Pattern-detection candidates are scoped to EXPENSE/INCOME (product rule) — a recurring
