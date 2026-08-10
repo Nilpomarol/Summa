@@ -607,6 +607,8 @@
     <string name="recurring_transfers_section_title">Transferències recurrents</string>
     <string name="recurring_active_count">%1$d actius</string>
     <string name="recurring_occurrence_count">%1$d aparicions</string>
+    <string name="recurring_history_loading">Carregant moviments...</string>
+    <string name="recurring_history_empty">Aquest recurrent encara no té moviments.</string>
     <string name="recurring_payment_paid">Pagat aquest mes</string>
     <string name="recurring_payment_pending">Pendent aquest mes</string>
     <string name="recurring_payment_partial">Pagat i pendent aquest mes</string>

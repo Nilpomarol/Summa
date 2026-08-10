@@ -23,6 +23,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Autorenew
 import androidx.compose.material.icons.outlined.Cancel
@@ -37,6 +38,7 @@ import com.gestorfinances.app.ui.common.AppDropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -53,6 +55,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringArrayResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
@@ -64,6 +67,7 @@ import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountSummary
 import com.gestorfinances.app.data.repository.CategoryRecord
 import com.gestorfinances.app.data.repository.MovementType
+import com.gestorfinances.app.data.repository.MovementSummary
 import com.gestorfinances.app.data.repository.PersonSummary
 import com.gestorfinances.app.data.repository.TemplateSplitConfig
 import com.gestorfinances.app.data.repository.TemplateStatus
@@ -88,6 +92,7 @@ import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.LabeledSegmentedControl
 import com.gestorfinances.app.ui.common.label
 import com.gestorfinances.app.ui.common.MoneyText
+import com.gestorfinances.app.ui.common.MovementListItem
 import com.gestorfinances.app.ui.common.NeutralPill
 import com.gestorfinances.app.ui.common.PageHeaderRow
 import com.gestorfinances.app.ui.common.PrimaryButton
@@ -111,6 +116,7 @@ import com.gestorfinances.app.ui.theme.amountColor
 @Composable
 fun RecurringScreen(
     viewModel: RecurringViewModel,
+    onMovementDetail: (MovementSummary) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsState()
@@ -147,6 +153,15 @@ fun RecurringScreen(
             onSkip = viewModel::onSkipClicked,
             onSkipAll = viewModel::onSkipAllClicked,
             onDetectRecurring = viewModel::onDetectRecurringClicked,
+            onHistory = viewModel::onHistoryClicked,
+        )
+    }
+
+    state.historyDetail?.let { detail ->
+        RecurringHistorySheet(
+            detail = detail,
+            onDismiss = viewModel::onHistoryDismissed,
+            onMovementDetail = onMovementDetail,
         )
     }
 }
@@ -234,6 +249,7 @@ private fun RecurringContent(
     onSkip: (DuePrompt) -> Unit,
     onSkipAll: (DuePrompt) -> Unit,
     onDetectRecurring: () -> Unit,
+    onHistory: (TemplateSummary) -> Unit,
 ) {
     val active = state.templates
         .filter { it.status == TemplateStatus.ACTIVE }
@@ -303,6 +319,7 @@ private fun RecurringContent(
         } else {
             templateSection(
                 titleRes = R.string.recurring_scheduled_section_title,
+                onHistory = onHistory,
                 templates = active,
                 occurrenceCounts = state.occurrenceCounts,
                 paymentStates = state.monthlyPaymentStates,
@@ -314,6 +331,7 @@ private fun RecurringContent(
             )
             templateSection(
                 titleRes = R.string.recurring_paused_section_title,
+                onHistory = onHistory,
                 templates = paused,
                 occurrenceCounts = state.occurrenceCounts,
                 paymentStates = state.monthlyPaymentStates,
@@ -336,6 +354,7 @@ private fun RecurringContent(
                     items(items = ended, key = { it.id }) { template ->
                         TemplateRow(
                             template = template,
+                            onHistory = { onHistory(template) },
                             occurrenceCount = state.occurrenceCounts[template.id] ?: 0L,
                             paymentState = state.monthlyPaymentStates[template.id] ?: TemplateMonthPaymentState.NONE,
                             onEdit = { onEdit(template) },
@@ -360,6 +379,7 @@ private fun RecurringContent(
 
 private fun androidx.compose.foundation.lazy.LazyListScope.templateSection(
     titleRes: Int,
+    onHistory: (TemplateSummary) -> Unit,
     templates: List<TemplateSummary>,
     occurrenceCounts: Map<String, Long>,
     paymentStates: Map<String, TemplateMonthPaymentState>,
@@ -380,6 +400,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.templateSection(
     items(items = templates, key = { it.id }) { template ->
         TemplateRow(
             template = template,
+            onHistory = { onHistory(template) },
             occurrenceCount = occurrenceCounts[template.id] ?: 0L,
             paymentState = paymentStates[template.id] ?: TemplateMonthPaymentState.NONE,
             onEdit = { onEdit(template) },
@@ -431,6 +452,7 @@ private fun TemplateAmountDisplay(template: TemplateSummary, style: TextStyle = 
 @Composable
 private fun TemplateRow(
     template: TemplateSummary,
+    onHistory: () -> Unit,
     occurrenceCount: Long,
     paymentState: TemplateMonthPaymentState,
     onEdit: () -> Unit,
@@ -442,7 +464,7 @@ private fun TemplateRow(
     FinanceCard(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onEdit)
+            .clickable(onClick = onHistory)
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
@@ -489,6 +511,119 @@ private fun TemplateRow(
                 onEnd = onEnd,
                 onDelete = onDelete,
             )
+        }
+    }
+}
+
+@Composable
+private fun RecurringHistorySheet(
+    detail: RecurringHistoryDetailState,
+    onDismiss: () -> Unit,
+    onMovementDetail: (MovementSummary) -> Unit,
+) {
+    AppModalBottomSheet(onDismissRequest = onDismiss, maxHeightFraction = 0.88f) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(bottom = 8.dp),
+        ) {
+            val movementCountText = if (!detail.isLoading) {
+                pluralStringResource(
+                    R.plurals.account_flow_movement_count,
+                    detail.movements.size,
+                    detail.movements.size,
+                )
+            } else {
+                null
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 4.dp, end = 20.dp, top = 6.dp, bottom = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                IconButton(onClick = onDismiss) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = stringResource(R.string.common_back),
+                    )
+                }
+                Icon(
+                    imageVector = Icons.Outlined.Autorenew,
+                    contentDescription = null,
+                    tint = FinanceTheme.colors.mutedText,
+                    modifier = Modifier.size(32.dp),
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = detail.template.name ?: detail.template.type.label(),
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    movementCountText?.let { count ->
+                        Text(
+                            text = count,
+                            color = FinanceTheme.colors.mutedText,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
+            }
+
+            HorizontalDivider()
+
+            when {
+                detail.isLoading -> Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 48.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = stringResource(R.string.recurring_history_loading),
+                        color = FinanceTheme.colors.mutedText,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                detail.movements.isEmpty() -> Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 48.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = stringResource(R.string.recurring_history_empty),
+                        color = FinanceTheme.colors.mutedText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+                else -> LazyColumn(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
+                ) {
+                    items(detail.movements, key = { it.id }) { movement ->
+                        MovementListItem(
+                            movement = movement,
+                            onClick = { onMovementDetail(movement) },
+                        )
+                    }
+                }
+            }
+
+            detail.errorMessage?.let { message ->
+                Text(
+                    text = message,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                )
+            }
         }
     }
 }
