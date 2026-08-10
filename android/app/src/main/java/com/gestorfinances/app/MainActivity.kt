@@ -320,7 +320,6 @@ private fun LedgerShell(
                 splitRepository = appContainer.splitRepository,
                 notificationRefresher = appContainer.notificationCoordinator,
                 templateRepository = appContainer.templateRepository,
-                autoCatRuleRepository = appContainer.autoCatRuleRepository,
             ),
         )[MovementsViewModel::class.java]
     }

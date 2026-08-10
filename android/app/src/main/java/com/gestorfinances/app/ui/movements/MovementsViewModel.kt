@@ -6,7 +6,6 @@ import androidx.lifecycle.viewModelScope
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountRepository
 import com.gestorfinances.app.data.repository.AccountSummary
-import com.gestorfinances.app.data.repository.AutoCatRuleRepository
 import com.gestorfinances.app.data.repository.CategoryNature
 import com.gestorfinances.app.data.repository.CategoryRecord
 import com.gestorfinances.app.data.repository.CategoryRepository
@@ -38,9 +37,6 @@ import com.gestorfinances.app.data.repository.toTemplateSplitConfig
 import com.gestorfinances.app.data.repository.TripRepository
 import com.gestorfinances.app.data.repository.TripSummary
 import com.gestorfinances.app.data.repository.supports
-import com.gestorfinances.app.domain.rules.AutoCategorizeMovement
-import com.gestorfinances.app.domain.rules.AutoCategorizeRule
-import com.gestorfinances.app.domain.rules.AutoCategorizer
 import com.gestorfinances.app.domain.rules.DuplicateDetector
 import com.gestorfinances.app.domain.rules.DuplicateMovement
 import com.gestorfinances.app.domain.rules.RecurrenceFrequency
@@ -73,7 +69,6 @@ class MovementsViewModel(
     private val notificationRefresher: NotificationRefresher = NotificationRefresher.NoOp,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val templateRepository: TemplateRepository? = null,
-    private val autoCatRuleRepository: AutoCatRuleRepository? = null,
 ) : ViewModel() {
     private val _state = MutableStateFlow(MovementsUiState())
     val state: StateFlow<MovementsUiState> = _state.asStateFlow()
@@ -121,7 +116,6 @@ class MovementsViewModel(
                         people = it.people,
                         trips = it.trips,
                         tags = it.tags,
-                        autoCatRules = it.autoCatRules,
                         isLoading = false,
                         errorMessage = null,
                         form = form,
@@ -989,7 +983,6 @@ class MovementsViewModel(
                         people = it.people,
                         trips = it.trips,
                         tags = it.tags,
-                        autoCatRules = it.autoCatRules,
                         isLoading = false,
                         dataVersion = dataVersion,
                     )
@@ -1015,7 +1008,6 @@ class MovementsViewModel(
                     people = personRepository.listActive(),
                     trips = tripRepository.listActive(),
                     tags = tagRepository.listActive(),
-                    autoCatRules = autoCatRuleRepository?.listActive().orEmpty(),
                 )
             }
         }
@@ -1039,7 +1031,7 @@ class MovementsViewModel(
      * Incompatible values are stripped only at draft-build time in [saveDirectMovement]; a stored split
      * that the final kind can't carry goes through [MovementFormState.pendingDataLossWarning]
      * instead of being silently dropped here. The only normalization left is read-only:
-     * category/tag compatibility against the current type, the auto-cat suggestion, and clearing
+     * category/tag compatibility against the current type and clearing
      * transient error/warning flags so a fresh edit re-evaluates them from scratch.
      */
     private fun normalizeForm(form: MovementFormState): MovementFormState {
@@ -1064,32 +1056,12 @@ class MovementsViewModel(
         return form.copy(
             categoryId = finalCategoryId,
             tagId = finalTagId,
-            suggestedCategoryId = suggestCategoryId(form),
             errorRes = null,
             errorField = null,
             errorMessage = null,
             duplicateWarning = false,
             pendingDataLossWarning = null,
         )
-    }
-
-    /** Read-only category suggestion (category suggestion): matches active `auto_cat_rules` against the
-     * in-progress form. Returns null unless enough fields are filled in to run a match. */
-    private fun suggestCategoryId(form: MovementFormState): String? {
-        if (form.type != MovementType.EXPENSE && form.type != MovementType.INCOME) return null
-        val rules = _state.value.autoCatRules
-        if (rules.isEmpty()) return null
-        val accountId = form.accountId ?: return null
-        val amountCents = parseEuroCents(form.amount, allowNegative = false) ?: return null
-        val date = parseDate(form.date) ?: return null
-        val movement = AutoCategorizeMovement(
-            name = form.name.nullIfBlank(),
-            payee = form.payee.nullIfBlank(),
-            amountCents = amountCents,
-            date = date,
-            accountId = accountId,
-        )
-        return AutoCategorizer.findMatch(movement, rules)?.action?.categoryId
     }
 
     // Warn (never block) when an active movement matches account + amount + date(±1) + name.
@@ -1127,7 +1099,6 @@ class MovementsViewModel(
         private val splitRepository: SplitRepository? = null,
         private val notificationRefresher: NotificationRefresher = NotificationRefresher.NoOp,
         private val templateRepository: TemplateRepository? = null,
-        private val autoCatRuleRepository: AutoCatRuleRepository? = null,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -1142,7 +1113,6 @@ class MovementsViewModel(
                     splitRepository = splitRepository,
                     notificationRefresher = notificationRefresher,
                     templateRepository = templateRepository,
-                    autoCatRuleRepository = autoCatRuleRepository,
                 ) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
@@ -1157,7 +1127,6 @@ data class MovementsUiState(
     val people: List<PersonSummary> = emptyList(),
     val trips: List<TripSummary> = emptyList(),
     val tags: List<TagSummary> = emptyList(),
-    val autoCatRules: List<AutoCategorizeRule> = emptyList(),
     val filters: MovementFilters = MovementFilters(),
     val isLoading: Boolean = true,
     val errorMessage: String? = null,
@@ -1319,8 +1288,6 @@ data class MovementFormState(
     val showOptional: Boolean = false,
     val showAdvanced: Boolean = false,
     /** Stable UI disclosure for the expense payer/beneficiary controls. */
-    /** Read-only auto-categorization hint (category suggestion); never applied without the user tapping it. */
-    val suggestedCategoryId: String? = null,
 ) {
     /** True for a fresh "add" flow with no backing entity yet, as opposed to editing an existing
      * movement or external split. */
@@ -1357,7 +1324,6 @@ private data class LoadedMovementData(
     val people: List<PersonSummary>,
     val trips: List<TripSummary>,
     val tags: List<TagSummary>,
-    val autoCatRules: List<AutoCategorizeRule> = emptyList(),
 )
 
 private fun defaultAccountId(accounts: List<AccountSummary>): String? =

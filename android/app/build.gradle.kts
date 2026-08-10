@@ -36,6 +36,9 @@ val generatedMigration7 = layout.projectDirectory.file(
 val generatedMigration8 = layout.projectDirectory.file(
     "src/main/sqldelight/com/gestorfinances/app/data/db/8.sqm",
 )
+val generatedMigration9 = layout.projectDirectory.file(
+    "src/main/sqldelight/com/gestorfinances/app/data/db/9.sqm",
+)
 
 val sharedViewFiles = listOf(
     "v_movement_shared.sql",
@@ -74,6 +77,7 @@ val syncSharedSqlForSqlDelight by tasks.registering {
     val sharedMigration007 = sharedRoot.file("migrations/007_simplify_budget_rules.sql")
     val sharedMigration008 = sharedRoot.file("migrations/008_add_budget_inclusion_rules.sql")
     val sharedMigration009 = sharedRoot.file("migrations/009_derive_refund_attribution.sql")
+    val sharedMigration010 = sharedRoot.file("migrations/010_remove_auto_categorization.sql")
     val sharedViews = sharedViewFiles.map { sharedRoot.file("queries/$it") }
     val sharedAnalysisQueries = sharedAnalysisQueryFiles.map { sharedRoot.file("queries/${it.first}") }
 
@@ -87,6 +91,7 @@ val syncSharedSqlForSqlDelight by tasks.registering {
     inputs.file(sharedMigration007)
     inputs.file(sharedMigration008)
     inputs.file(sharedMigration009)
+    inputs.file(sharedMigration010)
     inputs.files(sharedViews)
     inputs.files(sharedAnalysisQueries)
     outputs.file(generatedSharedSql)
@@ -99,6 +104,7 @@ val syncSharedSqlForSqlDelight by tasks.registering {
     outputs.file(generatedMigration6)
     outputs.file(generatedMigration7)
     outputs.file(generatedMigration8)
+    outputs.file(generatedMigration9)
 
     doLast {
         val sharedOutputFile = generatedSharedSql.asFile
@@ -118,7 +124,7 @@ val syncSharedSqlForSqlDelight by tasks.registering {
                 appendLine()
                 appendLine()
                 appendLine("INSERT INTO meta (key, value) VALUES")
-                appendLine("    ('schema_version', '9'),")
+                appendLine("    ('schema_version', '10'),")
                 appendLine("    ('snapshot_version', '0');")
                 sharedViews.forEach { queryFile ->
                     appendLine()
@@ -204,6 +210,14 @@ val syncSharedSqlForSqlDelight by tasks.registering {
                 appendLine("-- Do not edit directly; edit the shared SQL file instead.")
                 appendLine()
                 append(sharedMigration009.asFile.readText())
+            },
+        )
+        generatedMigration9.asFile.writeText(
+            buildString {
+                appendLine("-- Generated from ../../shared/migrations/010_remove_auto_categorization.sql.")
+                appendLine("-- Do not edit directly; edit the shared SQL file instead.")
+                appendLine()
+                append(sharedMigration010.asFile.readText())
             },
         )
     }

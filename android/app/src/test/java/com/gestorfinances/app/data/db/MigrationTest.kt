@@ -12,6 +12,50 @@ import org.junit.Test
 class MigrationTest {
 
     @Test
+    fun `v9 to v10 migration removes dormant auto-categorization rules`() {
+        val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+        GestorDatabase.Schema.create(driver)
+        driver.execute(
+            null,
+            """
+            CREATE TABLE auto_cat_rules (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                priority INTEGER NOT NULL,
+                conditions TEXT NOT NULL,
+                active INTEGER NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """.trimIndent(),
+            0,
+        )
+        driver.execute(
+            null,
+            "INSERT INTO auto_cat_rules VALUES ('rule', 'Rule', 1, '{}', 1, '2026-01-01T00:00:00Z')",
+            0,
+        )
+        driver.execute(null, "UPDATE meta SET value = '9' WHERE key = 'schema_version'", 0)
+        driver.execute(null, "PRAGMA user_version = 9", 0)
+
+        GestorDatabase.Schema.migrate(driver, 9, 10)
+
+        val tableCount = driver.executeQuery(
+            null,
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'auto_cat_rules'",
+            { cursor -> cursor.next(); QueryResult.Value(cursor.getLong(0)!!) },
+            0,
+        ).value
+        val schemaVersion = driver.executeQuery(
+            null,
+            "SELECT value FROM meta WHERE key = 'schema_version'",
+            { cursor -> cursor.next(); QueryResult.Value(cursor.getString(0)!!) },
+            0,
+        ).value
+        assertEquals(0L, tableCount)
+        assertEquals("10", schemaVersion)
+    }
+
+    @Test
     fun `v8 to v9 migration applies derived refund attribution view`() {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         GestorDatabase.Schema.create(driver)

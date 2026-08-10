@@ -15,13 +15,13 @@ Android consumes the SQL through SQLDelight. Windows uses Microsoft.Data.Sqlite 
 
 ## Schema snapshot
 
-The current schema version is `9`. Principal tables are:
+The current schema version is `10`. Principal tables are:
 
 | Area | Tables |
 |---|---|
 | Reference data | `accounts`, `categories`, `people`, `trips`, `tags` |
 | Ledger | `movements`, `splits`, `split_lines` |
-| Automation | `templates`, `auto_cat_rules` |
+| Automation | `templates` |
 | Planning/import | `budgets`, `import_batches` |
 | System | `meta` |
 
@@ -61,7 +61,6 @@ Rules that are awkward or inappropriate to encode as SQL are implemented nativel
 - `split_rounding.json` — deterministic cent allocation;
 - `template_split_rescale.json` — recurring split rescaling;
 - `recurring_advance.json` — recurrence advancement;
-- `auto_categorize.json` — rule matching and precedence;
 - `duplicate_detection.json` — duplicate-warning candidates;
 - `refund_actual.json` — expense net of refunds;
 - `debt_balance.json` — person balance derivation;

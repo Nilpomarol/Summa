@@ -1,10 +1,5 @@
 package com.gestorfinances.app.golden
 
-import com.gestorfinances.app.domain.rules.AutoCategorizeAction
-import com.gestorfinances.app.domain.rules.AutoCategorizeConditions
-import com.gestorfinances.app.domain.rules.AutoCategorizeMovement
-import com.gestorfinances.app.domain.rules.AutoCategorizeRule
-import com.gestorfinances.app.domain.rules.AutoCategorizer
 import com.gestorfinances.app.domain.rules.CustomRecurrenceUnit
 import com.gestorfinances.app.domain.rules.DuplicateDetector
 import com.gestorfinances.app.domain.rules.DuplicateMovement
@@ -41,7 +36,6 @@ class GoldenVectorTest {
     fun allGoldenFilesAreCovered() {
         val covered = setOf(
             "account_flow.json",
-            "auto_categorize.json",
             "debt_balance.json",
             "duplicate_detection.json",
             "recurring_advance.json",
@@ -121,21 +115,6 @@ class GoldenVectorTest {
             val expected = case.obj("expected")
             assertEquals(case.name(), expected.stringArray("due"), result.dueDates.map { it.toString() })
             assertEquals(case.name(), expected.string("new_cursor"), result.newCursor.toString())
-        }
-    }
-
-    @Test
-    fun autoCategorizeMatchesGoldenVectors() {
-        golden("auto_categorize.json").cases().forEach { case ->
-            val input = case.obj("input")
-            val match = AutoCategorizer.findMatch(
-                movement = input.obj("movement").toAutoCategorizeMovement(),
-                rules = input.array("rules").map { it.jsonObject.toAutoCategorizeRule() },
-            )
-
-            val expected = case.obj("expected")
-            assertEquals(case.name(), expected.optionalString("winning_rule_id"), match?.ruleId)
-            assertEquals(case.name(), expected.optionalAction("action"), match?.action)
         }
     }
 
@@ -491,51 +470,6 @@ class GoldenVectorTest {
                 else -> error("Unknown custom unit $it")
             }
         }
-
-    private fun JsonObject.toAutoCategorizeMovement(): AutoCategorizeMovement =
-        AutoCategorizeMovement(
-            name = optionalString("name"),
-            payee = optionalString("payee"),
-            amountCents = long("amount_cents"),
-            date = LocalDate.parse(string("date")),
-            accountId = string("account_id"),
-        )
-
-    private fun JsonObject.toAutoCategorizeRule(): AutoCategorizeRule =
-        AutoCategorizeRule(
-            id = string("id"),
-            priority = int("priority"),
-            createdAt = string("created_at"),
-            active = int("active") == 1,
-            conditions = obj("conditions").toAutoCategorizeConditions(),
-            action = obj("action").toAutoCategorizeAction(),
-        )
-
-    private fun JsonObject.toAutoCategorizeConditions(): AutoCategorizeConditions =
-        AutoCategorizeConditions(
-            textContains = optionalString("text_contains"),
-            amountMinCents = optionalLong("amount_min_cents"),
-            amountMaxCents = optionalLong("amount_max_cents"),
-            accountId = optionalString("account_id"),
-            dayOfMonthIn = get("day_of_month_in")
-                ?.takeUnless { it is JsonNull }
-                ?.jsonArray
-                ?.map { it.jsonPrimitive.int }
-                ?.toSet()
-                ?: emptySet(),
-        )
-
-    private fun JsonObject.toAutoCategorizeAction(): AutoCategorizeAction =
-        AutoCategorizeAction(
-            categoryId = optionalString("set_category_id"),
-            tripId = optionalString("set_trip_id"),
-        )
-
-    private fun JsonObject.optionalAction(key: String): AutoCategorizeAction? {
-        val value: JsonElement = get(key) ?: return null
-        if (value is JsonNull) return null
-        return value.jsonObject.toAutoCategorizeAction()
-    }
 
     private fun JsonObject.toDuplicateMovement(): DuplicateMovement =
         DuplicateMovement(

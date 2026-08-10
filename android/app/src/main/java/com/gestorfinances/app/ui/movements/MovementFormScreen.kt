@@ -241,20 +241,6 @@ fun MovementFormScreen(
             }
         }
 
-        // Read-only auto-categorization hint (category suggestion): tap to apply, never auto-applied.
-        if (form.suggestedCategoryId != null && form.suggestedCategoryId != form.categoryId) {
-            val suggestedCategory = remember(form.suggestedCategoryId, categories) {
-                categories.firstOrNull { it.id == form.suggestedCategoryId }
-            }
-            suggestedCategory?.let { category ->
-                FinanceFilterChip(
-                    selected = false,
-                    label = stringResource(R.string.movement_category_suggestion, category.name),
-                    onClick = { onFormChange(form.copy(categoryId = category.id)) },
-                )
-            }
-        }
-
         // Type-specific body. Optional metadata is disclosed below so the required variant fields
         // stay in the primary flow.
         when (form.type) {

@@ -1,0 +1,9 @@
+-- Generated from ../../shared/migrations/010_remove_auto_categorization.sql.
+-- Do not edit directly; edit the shared SQL file instead.
+
+-- Gestor finances v9 -> v10 migration.
+-- Auto-categorization was never manageable by users, so remove its dormant rule store.
+
+DROP TABLE IF EXISTS auto_cat_rules;
+
+UPDATE meta SET value = '10' WHERE key = 'schema_version';
