@@ -175,9 +175,9 @@ class AnalysisViewModel(
 
         viewModelScope.launch {
             val divisor = withContext(ioDispatcher) { computeAverageDivisor(snapshot, range) }
-            update { it.copy(currentAverageDivisor = divisor) }
+            update { state -> if (loadedSignature == signature) state.copy(currentAverageDivisor = divisor) else state }
             loadTab(AnalysisTab.RESUM)
-            if (_state.value.scope != AnalysisScope.ALL_TIME) {
+            if (loadedSignature == signature && _state.value.scope != AnalysisScope.ALL_TIME) {
                 loadTab(AnalysisTab.COMPARATIVA)
             }
         }
@@ -345,6 +345,7 @@ class AnalysisViewModel(
     private fun loadTab(tab: AnalysisTab) {
         val snapshot = _state.value
         val range = snapshot.currentRange ?: return
+        val signature = signatureOf(snapshot, range)
         if (tab in snapshot.loadingTabs || tab.isLoaded(snapshot)) return
         _state.value = snapshot.copy(loadingTabs = snapshot.loadingTabs + tab)
         viewModelScope.launch {
@@ -352,29 +353,29 @@ class AnalysisViewModel(
                 when (tab) {
                     AnalysisTab.RESUM -> {
                         val data = withContext(ioDispatcher) { loadResum(snapshot, range) }
-                        update { it.copy(resum = data, errorMessage = null) }
+                        update { state -> if (loadedSignature == signature) state.copy(resum = data, errorMessage = null) else state }
                     }
                     AnalysisTab.CATEGORIES -> {
                         val data = withContext(ioDispatcher) { loadCategories(snapshot, range) }
-                        update { it.copy(categories = data, errorMessage = null) }
+                        update { state -> if (loadedSignature == signature) state.copy(categories = data, errorMessage = null) else state }
                     }
                     AnalysisTab.COMPARATIVA -> {
                         val data = withContext(ioDispatcher) { loadComparativa(snapshot, range) }
-                        update { it.copy(comparativa = data, errorMessage = null) }
+                        update { state -> if (loadedSignature == signature) state.copy(comparativa = data, errorMessage = null) else state }
                     }
                     AnalysisTab.HISTORIC -> {
                         val data = withContext(ioDispatcher) { loadHistoric(snapshot, range) }
-                        update { it.copy(historic = data, errorMessage = null) }
+                        update { state -> if (loadedSignature == signature) state.copy(historic = data, errorMessage = null) else state }
                     }
                     AnalysisTab.FIX_VARIABLE -> {
                         val data = withContext(ioDispatcher) { loadFixVariable(snapshot, range) }
-                        update { it.copy(fixVariable = data, errorMessage = null) }
+                        update { state -> if (loadedSignature == signature) state.copy(fixVariable = data, errorMessage = null) else state }
                     }
                 }
             } catch (error: Throwable) {
-                update { it.copy(errorMessage = error.message ?: error.javaClass.simpleName) }
+                update { state -> if (loadedSignature == signature) state.copy(errorMessage = error.message ?: error.javaClass.simpleName) else state }
             } finally {
-                update { it.copy(loadingTabs = it.loadingTabs - tab) }
+                update { state -> if (loadedSignature == signature) state.copy(loadingTabs = state.loadingTabs - tab) else state }
             }
         }
     }
