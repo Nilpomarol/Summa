@@ -24,8 +24,25 @@ data class BackupFileCandidate(
 object BackupRetention {
     const val MAX_FILES = 5
 
+    /**
+     * Newest first, ordered by when each snapshot was taken rather than by snapshot version.
+     * Restoring an older backup rewinds `meta.snapshot_version`, so version order stops tracking
+     * recency: every backup made after such a restore would rank below the stale higher-numbered
+     * files that outlived it, and retention would prune the fresh ones first.
+     */
+    fun newestFirst(candidates: List<BackupFileCandidate>): List<BackupFileCandidate> =
+        candidates.sortedWith(
+            compareByDescending<BackupFileCandidate> { it.recencyMillis() ?: Long.MIN_VALUE }
+                .thenByDescending { it.parsedSnapshotVersion ?: Long.MIN_VALUE },
+        )
+
     fun filesToDelete(candidatesNewestFirst: List<BackupFileCandidate>): List<BackupFileCandidate> =
         candidatesNewestFirst.drop(MAX_FILES)
+
+    // The filename timestamp is when the snapshot was taken; the document's last-modified time
+    // only says when it landed in the folder, so it is the fallback for unparseable names.
+    private fun BackupFileCandidate.recencyMillis(): Long? =
+        parsedCreatedAtUtc?.toEpochMilli() ?: lastModifiedMillis
 }
 
 data class PendingBackupRestore(

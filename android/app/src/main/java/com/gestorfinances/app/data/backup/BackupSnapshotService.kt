@@ -67,7 +67,7 @@ class BackupSnapshotService(
         val snapshotFile = File(appContext.cacheDir, "backup-export-$snapshotVersion.db")
         var snapshotCreation: BackupSnapshotCreation? = null
         var documentUri: Uri? = null
-        try {
+        val exportResult = try {
             snapshotCreation = createSnapshot(snapshotFile, allowDatabaseReset)
             documentUri = createBackupDocument(folderUri, displayName)
             resolver.openOutputStream(documentUri, "w")?.use { output ->
@@ -80,8 +80,7 @@ class BackupSnapshotService(
                 lastModifiedMillis = null,
                 currentSnapshotVersion = previousSnapshotVersion,
             ).also { it.deleteSourceFile() }.metadata
-            pruneBackups(folderUri)
-            return BackupExportResult(
+            BackupExportResult(
                 metadata = metadata,
                 fallbackUsed = snapshotCreation?.fallbackUsed ?: false,
                 requiresAppReset = snapshotCreation?.requiresAppReset ?: false,
@@ -99,6 +98,10 @@ class BackupSnapshotService(
         } finally {
             snapshotFile.delete()
         }
+        // Retention is housekeeping, and it runs against a provider that may refuse to delete an
+        // old document. Never let that failure roll back — and delete — the backup just written.
+        runCatching { pruneBackups(folderUri) }
+        return exportResult
     }
 
     override fun listBackups(folderUriString: String): List<BackupFileCandidate> {
@@ -134,10 +137,7 @@ class BackupSnapshotService(
                         ),
                     )
                 }
-            }.sortedWith(
-                compareByDescending<BackupFileCandidate> { it.parsedSnapshotVersion ?: Long.MIN_VALUE }
-                    .thenByDescending { it.lastModifiedMillis ?: Long.MIN_VALUE },
-            )
+            }.let(BackupRetention::newestFirst)
         }
     }
 
@@ -173,31 +173,49 @@ class BackupSnapshotService(
             currentSnapshotVersion = currentSnapshotVersion(),
         )
 
-        // Prevent Android's SQLiteOpenHelper from falsely assuming the DB is empty (user_version = 0)
-        // and attempting to run onCreate() which would crash with "table already exists".
-        val database = android.database.sqlite.SQLiteDatabase.openDatabase(
-            source.absolutePath,
-            null,
-            android.database.sqlite.SQLiteDatabase.OPEN_READWRITE,
-        )
         try {
-            database.disableWriteAheadLogging()
-            database.version = validation.metadata.schemaVersion.toInt()
-        } finally {
-            database.close()
-        }
-
-        val databaseFile = DatabaseDriverFactory.databaseFile(appContext)
-        try {
+            stampSchemaVersion(source, validation.metadata.schemaVersion)
             fileOperations.replaceDatabaseFromBackup(
                 preparedBackup = source,
-                databaseFile = databaseFile,
+                databaseFile = DatabaseDriverFactory.databaseFile(appContext),
                 closeDatabase = guardedCloseDatabase,
             )
         } finally {
+            // Covers the preparation step too: without this a failure before the swap would strand
+            // a full copy of the database in the cache, with no pending restore left to clean it.
             source.delete()
         }
         return validation.metadata
+    }
+
+    /**
+     * Prevents Android's SQLiteOpenHelper from falsely assuming the DB is empty (user_version = 0)
+     * and attempting to run onCreate(), which would crash with "table already exists".
+     *
+     * Runs before anything touches the live database, so a failure here leaves the app untouched
+     * and must not be reported as a half-applied restore.
+     */
+    private fun stampSchemaVersion(
+        source: File,
+        schemaVersion: Long,
+    ) {
+        val database = try {
+            android.database.sqlite.SQLiteDatabase.openDatabase(
+                source.absolutePath,
+                null,
+                android.database.sqlite.SQLiteDatabase.OPEN_READWRITE,
+            )
+        } catch (error: Exception) {
+            throw BackupException(BackupValidationError.UNREADABLE, error)
+        }
+        try {
+            database.disableWriteAheadLogging()
+            database.version = schemaVersion.toInt()
+        } catch (error: Exception) {
+            throw BackupException(BackupValidationError.UNREADABLE, error)
+        } finally {
+            database.close()
+        }
     }
 
     private fun createSnapshot(

@@ -93,6 +93,7 @@ import com.gestorfinances.app.ui.recurring.DueRemindersSheet
 import com.gestorfinances.app.ui.recurring.RecurringOverlays
 import com.gestorfinances.app.ui.recurring.RecurringScreen
 import com.gestorfinances.app.ui.recurring.RecurringViewModel
+import com.gestorfinances.app.ui.settings.SettingsEffect
 import com.gestorfinances.app.ui.settings.SettingsMessage
 import com.gestorfinances.app.ui.settings.SettingsScreen
 import com.gestorfinances.app.ui.settings.SettingsViewModel
@@ -250,6 +251,40 @@ private fun LedgerShell(
     // LaunchedEffect can touch the closed driver in the meantime.
     val isDatabaseBeingReplaced by appContainer.backupSnapshotService.isDatabaseBeingReplaced
         .collectAsState()
+
+    // Settings owns the only effects that outlive its own screen: closing the shared driver pulls
+    // SettingsScreen out of composition before the restore reports back, so collecting there lost
+    // the RecreateApp effect (MutableSharedFlow drops emissions with no subscriber) and left the
+    // overlay up forever on an otherwise successful restore. Collect above the early return, where
+    // the subscriber survives the swap.
+    val settingsViewModel = remember(viewModelStoreOwner) {
+        ViewModelProvider(
+            viewModelStoreOwner,
+            SettingsViewModel.Factory(
+                preferences = appContainer.notificationPreferences,
+                backupFolderRepository = appContainer.backupFolderStore,
+                backupOperations = appContainer.backupSnapshotService,
+                autoBackupSettings = appContainer.autoBackupPreferences,
+                autoBackupScheduler = appContainer.autoBackupScheduler,
+                themePreferences = appContainer.themePreferences,
+                notificationRefresher = appContainer.notificationCoordinator,
+            ),
+        )[SettingsViewModel::class.java]
+    }
+    val backupFolderLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree(),
+    ) { uri ->
+        settingsViewModel.onBackupFolderSelected(uri?.toString())
+    }
+    LaunchedEffect(settingsViewModel) {
+        settingsViewModel.effects.collect { effect ->
+            when (effect) {
+                SettingsEffect.PickBackupFolder -> backupFolderLauncher.launch(null)
+                is SettingsEffect.RecreateApp -> onRecreateApp(effect.message)
+            }
+        }
+    }
+
     if (isDatabaseBeingReplaced) {
         DatabaseReplacementOverlay(modifier = Modifier.fillMaxSize())
         return
@@ -372,25 +407,6 @@ private fun LedgerShell(
                 notificationRefresher = appContainer.notificationCoordinator,
             ),
         )[BudgetsViewModel::class.java]
-    }
-    val settingsViewModel = remember(viewModelStoreOwner) {
-        ViewModelProvider(
-            viewModelStoreOwner,
-            SettingsViewModel.Factory(
-                preferences = appContainer.notificationPreferences,
-                backupFolderRepository = appContainer.backupFolderStore,
-                backupOperations = appContainer.backupSnapshotService,
-                autoBackupSettings = appContainer.autoBackupPreferences,
-                autoBackupScheduler = appContainer.autoBackupScheduler,
-                themePreferences = appContainer.themePreferences,
-                notificationRefresher = appContainer.notificationCoordinator,
-            ),
-        )[SettingsViewModel::class.java]
-    }
-    val backupFolderLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocumentTree(),
-    ) { uri ->
-        settingsViewModel.onBackupFolderSelected(uri?.toString())
     }
     val tripsViewModel = remember(viewModelStoreOwner) {
         ViewModelProvider(
@@ -819,8 +835,6 @@ private fun LedgerShell(
                     viewModel = settingsViewModel,
                     notificationPermissionGranted = notificationPermissionGranted,
                     onRequestNotificationPermission = onRequestNotificationPermission,
-                    onPickBackupFolder = { backupFolderLauncher.launch(null) },
-                    onRecreateApp = onRecreateApp,
                     onBack = { nav = nav.back() },
                     modifier = Modifier
                         .fillMaxSize()
