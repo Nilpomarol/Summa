@@ -186,7 +186,14 @@ class MovementsViewModel(
                     }?.id
                 }
             }
-            _state.value = _state.value.copy(archiveCandidate = ArchiveCandidate(movement, revertibleTemplateId))
+            val activeRefundCount = if (movement.type == MovementType.EXPENSE) {
+                withContext(ioDispatcher) { movementRepository.refundsForExpense(movement.id).size }
+            } else {
+                0
+            }
+            _state.value = _state.value.copy(
+                archiveCandidate = ArchiveCandidate(movement, revertibleTemplateId, activeRefundCount),
+            )
         }
     }
 
@@ -258,7 +265,6 @@ class MovementsViewModel(
                 expenseIsShared = expense.isShared,
                 remainingCents = (expense.amountCents - refundedSoFar).coerceAtLeast(0L),
                 accountId = expense.accountId,
-                categoryId = expense.categoryId,
                 date = LocalDate.now().toString(),
             ),
         )
@@ -306,7 +312,6 @@ class MovementsViewModel(
             refundsExpenseId = form.expenseId,
             amountCents = requireNotNull(amount),
             accountId = requireNotNull(form.accountId),
-            categoryId = form.categoryId,
             date = requireNotNull(date).toString(),
             name = null,
             payee = null,
@@ -1178,6 +1183,7 @@ data class ArchiveCandidate(
     /** Non-null iff [movement] is provably the template's immediate prior occurrence -- offers
      * the "mark it as due again" choice in the archive-confirmation dialog. */
     val revertibleTemplateId: String? = null,
+    val activeRefundCount: Int = 0,
 )
 
 data class MovementFilters(
@@ -1335,7 +1341,6 @@ data class RefundFormState(
     val amount: String = "",
     val actualAmount: String = "",
     val accountId: String? = null,
-    val categoryId: String? = null,
     val date: String = "",
     val notes: String = "",
     val errorRes: Int? = null,

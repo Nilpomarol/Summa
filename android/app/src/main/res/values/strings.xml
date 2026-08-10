@@ -281,6 +281,7 @@
     <string name="movement_filter_empty_body">Canvia o neteja els filtres per tornar a veure moviments.</string>
     <string name="movement_archive_confirm_title">Eliminar moviment?</string>
     <string name="movement_archive_warning">El moviment es deixarà de mostrar a les llistes i no comptarà als saldos.</string>
+    <string name="movement_archive_refunds_warning">També s\'arxivaran %1$d devolució(ns) vinculada(es).</string>
     <string name="movement_archive_revert_due_checkbox">Marca «%1$s» com a pendent una altra vegada</string>
     <string name="movement_type_expense">Despesa</string>
     <string name="movement_type_income">Ingrés</string>

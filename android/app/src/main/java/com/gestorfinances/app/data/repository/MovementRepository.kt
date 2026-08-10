@@ -110,7 +110,6 @@ data class RefundDraft(
     val refundsExpenseId: String,
     val amountCents: Long,
     val accountId: String,
-    val categoryId: String?,
     val date: String,
     val name: String?,
     val payee: String?,
@@ -330,7 +329,6 @@ class MovementRepository(
             name = draft.name,
             payee = draft.payee,
             notes = draft.notes,
-            category_id = draft.categoryId,
             refunds_expense_id = draft.refundsExpenseId,
             actual_refund_cents = draft.actualRefundCents,
             created_at = createdAt,
@@ -345,6 +343,11 @@ class MovementRepository(
         queries.transaction {
             queries.archiveMovement(
                 id = id,
+                archived_at = archivedAt,
+                updated_at = archivedAt,
+            )
+            queries.archiveRefundsForExpense(
+                expense_id = id,
                 archived_at = archivedAt,
                 updated_at = archivedAt,
             )
