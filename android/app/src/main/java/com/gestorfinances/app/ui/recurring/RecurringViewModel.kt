@@ -94,6 +94,40 @@ class RecurringViewModel(
         _state.value = _state.value.copy(form = template.toFormState())
     }
 
+    fun onHistoryClicked(template: TemplateSummary) {
+        _state.value = _state.value.copy(
+            historyDetail = RecurringHistoryDetailState(template = template, isLoading = true),
+        )
+        viewModelScope.launch {
+            val result = withContext(ioDispatcher) {
+                runCatching { movementRepository.listActive().filter { it.templateId == template.id } }
+            }
+            if (_state.value.historyDetail?.template?.id != template.id) return@launch
+            _state.value = result.fold(
+                onSuccess = { movements ->
+                    _state.value.copy(
+                        historyDetail = RecurringHistoryDetailState(
+                            template = template,
+                            movements = movements,
+                        ),
+                    )
+                },
+                onFailure = { error ->
+                    _state.value.copy(
+                        historyDetail = RecurringHistoryDetailState(
+                            template = template,
+                            errorMessage = error.message ?: error.javaClass.simpleName,
+                        ),
+                    )
+                },
+            )
+        }
+    }
+
+    fun onHistoryDismissed() {
+        _state.value = _state.value.copy(historyDetail = null)
+    }
+
     fun onFormChanged(form: TemplateFormState) {
         val trip = form.tripId?.let { id -> _state.value.trips.firstOrNull { it.id == id } }
         val tag = form.tagId?.let { id -> _state.value.tags.firstOrNull { it.id == id } }
@@ -648,6 +682,7 @@ data class RecurringUiState(
     val deleteCandidate: TemplateSummary? = null,
     val isDetecting: Boolean = false,
     val detectionReview: DetectionReviewState? = null,
+    val historyDetail: RecurringHistoryDetailState? = null,
 ) {
     val monthlyNetCents: Long get() = monthlyIncomeCents - monthlyExpenseCents
     val hasMonthlySummary: Boolean get() = templates.isNotEmpty()
@@ -788,6 +823,13 @@ enum class TemplateMonthPaymentState {
     PENDING,
     PARTIALLY_PAID,
 }
+
+data class RecurringHistoryDetailState(
+    val template: TemplateSummary,
+    val movements: List<MovementSummary> = emptyList(),
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null,
+)
 
 /**
  * Display-only current-month calendar. Posted linked movements are "paid"; the schedule cursor

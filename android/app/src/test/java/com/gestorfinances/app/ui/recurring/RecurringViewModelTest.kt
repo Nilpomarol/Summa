@@ -968,6 +968,41 @@ class RecurringViewModelTest {
         }
     }
 
+    @Test
+    fun openingHistoryShowsOnlyMovementsLinkedToTheSelectedTemplate() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            store.templates.create(monthlyTemplateDraft("rent", "2026-02-01"), createdAt = NOW)
+            store.templates.create(monthlyTemplateDraft("gym", "2026-02-05"), createdAt = NOW)
+            store.movements.create(
+                movementDraft("rent-jan", "2026-01-01", 8_000, "Lloguer").copy(templateId = "rent"),
+                createdAt = NOW,
+            )
+            store.movements.create(
+                movementDraft("gym-jan", "2026-01-05", 1_500, "Gimnàs").copy(templateId = "gym"),
+                createdAt = NOW,
+            )
+            val viewModel = viewModel(store)
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+
+            viewModel.onHistoryClicked(viewModel.state.value.templates.single { it.id == "rent" })
+            advanceUntilIdle()
+
+            val detail = viewModel.state.value.historyDetail!!
+            assertEquals("rent", detail.template.id)
+            assertEquals(listOf("rent-jan"), detail.movements.map { it.id })
+
+            viewModel.onHistoryDismissed()
+            assertNull(viewModel.state.value.historyDetail)
+
+            viewModel.onHistoryClicked(viewModel.state.value.templates.single { it.id == "rent" })
+            viewModel.onHistoryDismissed()
+            advanceUntilIdle()
+            assertNull(viewModel.state.value.historyDetail)
+        }
+    }
+
     /** [months] consecutive monthly dates starting at [startDate], same day-of-month. */
     private fun monthlyMovementDates(startDate: String, months: Int): List<String> {
         val start = LocalDate.parse(startDate)

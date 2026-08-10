@@ -767,6 +767,7 @@ private fun LedgerShell(
                 )
                 ManagementDestination.RECURRING -> RecurringScreen(
                     viewModel = recurringViewModel,
+                    onMovementDetail = openMovementDetail,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),
