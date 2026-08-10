@@ -20,6 +20,7 @@ VIEW_FILES = [
     "v_trip_actual_total.sql",
 ]
 ANALYSIS_QUERY_FILES = [
+    "analysis_activity_months.sql",
     "analysis_actual_breakdown.sql",
     "analysis_actual_by_category.sql",
     "analysis_account_flow_over_time.sql",
@@ -31,6 +32,11 @@ ANALYSIS_QUERY_FILES = [
     "analysis_top_merchants.sql",
     "analysis_category_frequency.sql",
     "analysis_weekday_spend.sql",
+]
+UPGRADE_MIGRATION_FILES = [
+    "007_simplify_budget_rules.sql",
+    "008_add_budget_inclusion_rules.sql",
+    "009_derive_refund_attribution.sql",
 ]
 
 
@@ -64,6 +70,9 @@ def validate_shared_inventory() -> None:
         fail(f"missing shared schema: {schema}")
     if not migration.exists():
         fail(f"missing shared migration: {migration}")
+    for file_name in UPGRADE_MIGRATION_FILES:
+        if not (ROOT / "shared" / "migrations" / file_name).exists():
+            fail(f"missing shared migration: {file_name}")
 
     actual_queries = sorted(path.name for path in (ROOT / "shared" / "queries").glob("*.sql"))
     expected_queries = sorted(VIEW_FILES + ANALYSIS_QUERY_FILES)
@@ -92,6 +101,9 @@ def validate_android_wiring() -> None:
         )
     if 'sharedRoot.file("migrations/001_initial.sql")' not in build_gradle:
         fail("Android SQLDelight wiring must read shared/migrations/001_initial.sql")
+    for file_name in UPGRADE_MIGRATION_FILES:
+        if f'sharedRoot.file("migrations/{file_name}")' not in build_gradle:
+            fail(f"Android SQLDelight wiring must read shared/migrations/{file_name}")
     if 'sharedRoot.file("queries/$it")' not in build_gradle:
         fail("Android SQLDelight wiring must read shared/queries entries")
     if 'sharedRoot.file("queries/${it.first}")' not in build_gradle:
@@ -119,6 +131,18 @@ def validate_windows_wiring() -> None:
         )
     if 'ReadSharedFile("migrations", "001_initial.sql")' not in shared_sql:
         fail("Windows SQL loader must read shared/migrations/001_initial.sql")
+    windows_migrations = extract_strings(
+        "windows/GestorFinances.Tests/SharedSql.cs",
+        shared_sql,
+        r"UpgradeMigrationFiles\s*=\s*\[(.*?)\]",
+    )
+    if windows_migrations != UPGRADE_MIGRATION_FILES:
+        fail(
+            "Windows UpgradeMigrationFiles mismatch: "
+            f"expected {UPGRADE_MIGRATION_FILES}, got {windows_migrations}"
+        )
+    if 'ReadSharedFile("migrations", migrationFile)' not in shared_sql:
+        fail("Windows SQL loader must apply upgrade migrations")
     if 'ReadSharedFile("queries", viewFile)' not in shared_sql:
         fail("Windows SQL loader must read shared/queries entries")
 

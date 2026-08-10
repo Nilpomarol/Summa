@@ -20,6 +20,7 @@ VIEW_FILES = [
     "v_trip_actual_total.sql",
 ]
 ANALYSIS_QUERY_FILES = [
+    "analysis_activity_months.sql",
     "analysis_actual_by_category.sql",
     "analysis_actual_breakdown.sql",
     "analysis_account_flow_over_time.sql",
@@ -31,6 +32,11 @@ ANALYSIS_QUERY_FILES = [
     "analysis_top_merchants.sql",
     "analysis_category_frequency.sql",
     "analysis_weekday_spend.sql",
+]
+UPGRADE_MIGRATION_FILES = [
+    "007_simplify_budget_rules.sql",
+    "008_add_budget_inclusion_rules.sql",
+    "009_derive_refund_attribution.sql",
 ]
 VIEW_NAMES = [path.removesuffix(".sql") for path in VIEW_FILES]
 
@@ -63,7 +69,15 @@ def validate_analysis_queries() -> None:
     try:
         conn.executescript(read_sql(ROOT / "shared" / "migrations" / "001_initial.sql"))
         apply_views(conn)
+        for name in UPGRADE_MIGRATION_FILES:
+            conn.executescript(read_sql(ROOT / "shared" / "migrations" / name))
         seed_analysis_fixture(conn)
+
+        activity_months = conn.execute(
+            analysis_query("analysis_activity_months.sql"),
+        ).fetchall()
+        if [row["month"] for row in activity_months] != ["2026-06"]:
+            fail(f"analysis_activity_months.sql: unexpected rows {[dict(r) for r in activity_months]}")
 
         params = {
             "from_date": "2026-06-01",
@@ -292,7 +306,7 @@ def seed_analysis_fixture(conn: sqlite3.Connection) -> None:
              NULL, '{now}', '{now}'),
             ('laptop', 'expense', 5000, '2026-06-10', 'checking', NULL, 'Laptop', 1, 'electronics',
              NULL, '{now}', '{now}'),
-            ('grocery-refund', 'refund', 500, '2026-06-12', 'checking', NULL, 'Refund', 0, 'groceries',
+            ('grocery-refund', 'refund', 500, '2026-06-12', 'checking', NULL, 'Refund', 0, 'electronics',
              'groceries-1', '{now}', '{now}'),
             ('to-savings', 'transfer', 10000, '2026-06-15', 'checking', 'savings', 'Savings transfer', 0, NULL,
              NULL, '{now}', '{now}');
@@ -312,7 +326,7 @@ def validate_entrypoint(label: str, path: Path, expect_seeded_meta: bool) -> Non
         conn.close()
 
     if expect_seeded_meta:
-        expected = {"schema_version": "5", "snapshot_version": "0"}
+        expected = {"schema_version": "6", "snapshot_version": "0"}
         if meta != expected:
             fail(f"{label}: expected meta seed {expected}, got {meta}")
     elif meta:
@@ -322,6 +336,20 @@ def validate_entrypoint(label: str, path: Path, expect_seeded_meta: bool) -> Non
 def main() -> None:
     validate_entrypoint("schema", ROOT / "shared" / "schema" / "schema.sql", False)
     validate_entrypoint("migration", ROOT / "shared" / "migrations" / "001_initial.sql", True)
+    conn = sqlite3.connect(":memory:")
+    try:
+        conn.executescript(read_sql(ROOT / "shared" / "migrations" / "001_initial.sql"))
+        apply_views(conn)
+        for name in UPGRADE_MIGRATION_FILES:
+            conn.executescript(read_sql(ROOT / "shared" / "migrations" / name))
+        meta = dict(conn.execute("SELECT key, value FROM meta").fetchall())
+        expected = {"schema_version": "9", "snapshot_version": "0"}
+        if meta != expected:
+            fail(f"upgrade migrations: expected meta {expected}, got {meta}")
+    except sqlite3.Error as exc:
+        fail(f"upgrade migrations: {exc}")
+    finally:
+        conn.close()
     validate_analysis_queries()
     print("validated shared SQL schema, migration, views, and analysis queries")
 

@@ -19,6 +19,7 @@ internal static class SharedSql
 
     private static readonly string[] AnalysisQueryFiles =
     [
+        "analysis_activity_months.sql",
         "analysis_actual_breakdown.sql",
         "analysis_actual_by_category.sql",
         "analysis_account_flow_over_time.sql",
@@ -32,6 +33,13 @@ internal static class SharedSql
         "analysis_weekday_spend.sql"
     ];
 
+    private static readonly string[] UpgradeMigrationFiles =
+    [
+        "007_simplify_budget_rules.sql",
+        "008_add_budget_inclusion_rules.sql",
+        "009_derive_refund_attribution.sql"
+    ];
+
     public static string RepositoryRoot { get; } = FindRepositoryRoot();
 
     public static IReadOnlyList<string> AnalysisFiles => AnalysisQueryFiles;
@@ -43,6 +51,11 @@ internal static class SharedSql
         foreach (var viewFile in ViewFiles)
         {
             connection.Execute(ReadSharedFile("queries", viewFile));
+        }
+
+        foreach (var migrationFile in UpgradeMigrationFiles)
+        {
+            connection.Execute(ReadSharedFile("migrations", migrationFile));
         }
     }
 

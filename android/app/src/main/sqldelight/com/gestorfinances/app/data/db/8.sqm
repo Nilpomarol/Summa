@@ -1,0 +1,57 @@
+-- Generated from ../../shared/migrations/009_derive_refund_attribution.sql.
+-- Do not edit directly; edit the shared SQL file instead.
+
+-- Gestor finances v8 -> v9 migration.
+-- Refund actual spending always inherits the linked expense's attribution.
+
+UPDATE movements AS refund
+SET archived_at = (
+        SELECT expense.archived_at FROM movements AS expense
+        WHERE expense.id = refund.refunds_expense_id
+    ),
+    updated_at = (
+        SELECT expense.archived_at FROM movements AS expense
+        WHERE expense.id = refund.refunds_expense_id
+    )
+WHERE refund.type = 'refund'
+  AND refund.archived_at IS NULL
+  AND EXISTS (
+      SELECT 1 FROM movements AS expense
+      WHERE expense.id = refund.refunds_expense_id
+        AND expense.archived_at IS NOT NULL
+  );
+
+DROP VIEW IF EXISTS v_actual_expense;
+
+CREATE VIEW v_actual_expense AS
+SELECT m.id AS source_id, m.date, m.category_id, m.trip_id, m.tag_id,
+    CASE WHEN s.id IS NULL THEN m.amount_cents ELSE COALESCE((
+        SELECT sl.owed_amount_cents FROM split_lines sl
+        WHERE sl.split_id = s.id AND sl.participant_kind = 'user' AND sl.archived_at IS NULL
+    ), 0) END AS amount_cents,
+    m.is_one_time
+FROM movements m
+LEFT JOIN splits s ON s.movement_id = m.id AND s.archived_at IS NULL
+WHERE m.type = 'expense' AND m.archived_at IS NULL
+
+UNION ALL
+
+SELECT m.id AS source_id, m.date, e.category_id, e.trip_id, e.tag_id,
+    -COALESCE(m.actual_refund_cents, m.amount_cents) AS amount_cents,
+    e.is_one_time
+FROM movements m
+JOIN movements e ON e.id = m.refunds_expense_id
+WHERE m.type = 'refund' AND m.archived_at IS NULL AND e.archived_at IS NULL
+
+UNION ALL
+
+SELECT s.id AS source_id, s.date, s.category_id, s.trip_id, s.tag_id,
+    COALESCE((
+        SELECT sl.owed_amount_cents FROM split_lines sl
+        WHERE sl.split_id = s.id AND sl.participant_kind = 'user' AND sl.archived_at IS NULL
+    ), 0) AS amount_cents,
+    0 AS is_one_time
+FROM splits s
+WHERE s.payer_person_id IS NOT NULL AND s.movement_id IS NULL AND s.archived_at IS NULL;
+
+UPDATE meta SET value = '9' WHERE key = 'schema_version';

@@ -55,7 +55,7 @@ Debt is derived from active splits and settlements. It is not an editable balanc
 
 ### Refunds
 
-A refund links to an expense. Actual expense is net of eligible refunds through the canonical view. Over-refunds are allowed after a warning because historic or imported records can legitimately need them.
+A refund links to an expense and inherits its category, trip, tag, and extraordinary classification for actual spending; archiving an expense archives its active refunds. Actual expense is net of eligible refunds through the canonical view. Over-refunds are allowed after a warning because historic or imported records can legitimately need them.
 
 ### Recurring activity
 

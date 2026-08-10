@@ -27,6 +27,15 @@ val generatedMigration4 = layout.projectDirectory.file(
 val generatedMigration5 = layout.projectDirectory.file(
     "src/main/sqldelight/com/gestorfinances/app/data/db/5.sqm",
 )
+val generatedMigration6 = layout.projectDirectory.file(
+    "src/main/sqldelight/com/gestorfinances/app/data/db/6.sqm",
+)
+val generatedMigration7 = layout.projectDirectory.file(
+    "src/main/sqldelight/com/gestorfinances/app/data/db/7.sqm",
+)
+val generatedMigration8 = layout.projectDirectory.file(
+    "src/main/sqldelight/com/gestorfinances/app/data/db/8.sqm",
+)
 
 val sharedViewFiles = listOf(
     "v_movement_shared.sql",
@@ -62,6 +71,9 @@ val syncSharedSqlForSqlDelight by tasks.registering {
     val sharedMigration004 = sharedRoot.file("migrations/004_add_v_trip_actual_total_view.sql")
     val sharedMigration005 = sharedRoot.file("migrations/005_fix_v_movement_summary_external_amount.sql")
     val sharedMigration006 = sharedRoot.file("migrations/006_add_yearly_budget_period.sql")
+    val sharedMigration007 = sharedRoot.file("migrations/007_simplify_budget_rules.sql")
+    val sharedMigration008 = sharedRoot.file("migrations/008_add_budget_inclusion_rules.sql")
+    val sharedMigration009 = sharedRoot.file("migrations/009_derive_refund_attribution.sql")
     val sharedViews = sharedViewFiles.map { sharedRoot.file("queries/$it") }
     val sharedAnalysisQueries = sharedAnalysisQueryFiles.map { sharedRoot.file("queries/${it.first}") }
 
@@ -72,6 +84,9 @@ val syncSharedSqlForSqlDelight by tasks.registering {
     inputs.file(sharedMigration004)
     inputs.file(sharedMigration005)
     inputs.file(sharedMigration006)
+    inputs.file(sharedMigration007)
+    inputs.file(sharedMigration008)
+    inputs.file(sharedMigration009)
     inputs.files(sharedViews)
     inputs.files(sharedAnalysisQueries)
     outputs.file(generatedSharedSql)
@@ -81,6 +96,9 @@ val syncSharedSqlForSqlDelight by tasks.registering {
     outputs.file(generatedMigration3)
     outputs.file(generatedMigration4)
     outputs.file(generatedMigration5)
+    outputs.file(generatedMigration6)
+    outputs.file(generatedMigration7)
+    outputs.file(generatedMigration8)
 
     doLast {
         val sharedOutputFile = generatedSharedSql.asFile
@@ -100,7 +118,7 @@ val syncSharedSqlForSqlDelight by tasks.registering {
                 appendLine()
                 appendLine()
                 appendLine("INSERT INTO meta (key, value) VALUES")
-                appendLine("    ('schema_version', '8'),")
+                appendLine("    ('schema_version', '9'),")
                 appendLine("    ('snapshot_version', '0');")
                 sharedViews.forEach { queryFile ->
                     appendLine()
@@ -162,6 +180,30 @@ val syncSharedSqlForSqlDelight by tasks.registering {
                 appendLine("-- Do not edit directly; edit the shared SQL file instead.")
                 appendLine()
                 append(sharedMigration006.asFile.readText())
+            },
+        )
+        generatedMigration6.asFile.writeText(
+            buildString {
+                appendLine("-- Generated from ../../shared/migrations/007_simplify_budget_rules.sql.")
+                appendLine("-- Do not edit directly; edit the shared SQL file instead.")
+                appendLine()
+                append(sharedMigration007.asFile.readText())
+            },
+        )
+        generatedMigration7.asFile.writeText(
+            buildString {
+                appendLine("-- Generated from ../../shared/migrations/008_add_budget_inclusion_rules.sql.")
+                appendLine("-- Do not edit directly; edit the shared SQL file instead.")
+                appendLine()
+                append(sharedMigration008.asFile.readText())
+            },
+        )
+        generatedMigration8.asFile.writeText(
+            buildString {
+                appendLine("-- Generated from ../../shared/migrations/009_derive_refund_attribution.sql.")
+                appendLine("-- Do not edit directly; edit the shared SQL file instead.")
+                appendLine()
+                append(sharedMigration009.asFile.readText())
             },
         )
     }

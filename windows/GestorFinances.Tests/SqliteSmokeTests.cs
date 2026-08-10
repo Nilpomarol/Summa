@@ -42,8 +42,13 @@ public sealed class SqliteSmokeTests
 
         var meta = connection.Query<MetaRow>("SELECT key AS Key, value AS Value FROM meta ORDER BY key;").ToList();
         CollectionAssert.AreEqual(
-            new[] { "schema_version=6", "snapshot_version=0" },
+            new[] { "schema_version=9", "snapshot_version=0" },
             meta.Select(row => $"{row.Key}={row.Value}").ToArray());
+
+        var budgetColumns = connection.Query<string>("SELECT name FROM pragma_table_info('budgets');").ToArray();
+        CollectionAssert.IsSubsetOf(
+            new[] { "include_trip_expenses", "include_extraordinary_expenses" },
+            budgetColumns);
 
         var viewNames = connection.Query<string>(
             """
