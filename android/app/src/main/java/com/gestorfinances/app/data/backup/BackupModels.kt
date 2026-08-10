@@ -101,6 +101,8 @@ data class BackupInspection(
     val snapshotVersion: String?,
     val integrityOk: Boolean,
     val hasRequiredAppObjects: Boolean = true,
+    val foreignKeysOk: Boolean = true,
+    val hasRequiredColumns: Boolean = true,
 )
 
 interface BackupDatabaseInspector {
@@ -123,6 +125,8 @@ class BackupSnapshotValidator(
         if (!inspection.integrityOk) {
             return BackupValidationResult.Invalid(BackupValidationError.INTEGRITY_FAILED)
         }
+        if (!inspection.foreignKeysOk) return BackupValidationResult.Invalid(BackupValidationError.FOREIGN_KEYS_FAILED)
+        if (!inspection.hasRequiredColumns) return BackupValidationResult.Invalid(BackupValidationError.INVALID_SCHEMA_SHAPE)
         val schemaVersionText = inspection.schemaVersion
             ?: return BackupValidationResult.Invalid(BackupValidationError.MISSING_META)
         val snapshotVersionText = inspection.snapshotVersion
@@ -131,7 +135,7 @@ class BackupSnapshotValidator(
             ?: return BackupValidationResult.Invalid(BackupValidationError.NON_NUMERIC_META)
         val snapshotVersion = snapshotVersionText.toLongOrNull()
             ?: return BackupValidationResult.Invalid(BackupValidationError.NON_NUMERIC_META)
-        if (schemaVersion > supportedSchemaVersion) {
+        if (schemaVersion !in 1..supportedSchemaVersion) {
             return BackupValidationResult.Invalid(BackupValidationError.UNSUPPORTED_SCHEMA)
         }
         if (!inspection.hasRequiredAppObjects) {
@@ -169,6 +173,8 @@ enum class BackupValidationError {
     INTEGRITY_FAILED,
     UNSUPPORTED_SCHEMA,
     NOT_APP_DATABASE,
+    FOREIGN_KEYS_FAILED,
+    INVALID_SCHEMA_SHAPE,
     RESTORE_APPLY_FAILED,
     EXPORT_DESTINATION_UNAVAILABLE,
 }

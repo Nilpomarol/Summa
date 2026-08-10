@@ -19,6 +19,8 @@ class AndroidBackupDatabaseInspector : BackupDatabaseInspector {
                 snapshotVersion = database.metaValue("snapshot_version"),
                 integrityOk = integrityOk,
                 hasRequiredAppObjects = database.hasRequiredAppObjects(),
+                foreignKeysOk = database.foreignKeysOk(),
+                hasRequiredColumns = database.hasRequiredColumns(),
             )
         } catch (error: SQLiteException) {
             throw BackupException(BackupValidationError.UNREADABLE, error)
@@ -46,6 +48,18 @@ class AndroidBackupDatabaseInspector : BackupDatabaseInspector {
         return REQUIRED_APP_OBJECTS.all(found::contains)
     }
 
+    private fun SQLiteDatabase.foreignKeysOk(): Boolean =
+        rawQuery("PRAGMA foreign_key_check", emptyArray()).use { !it.moveToFirst() }
+
+    private fun SQLiteDatabase.hasRequiredColumns(): Boolean =
+        REQUIRED_TABLE_COLUMNS.all { (table, columns) ->
+            val found = mutableSetOf<String>()
+            rawQuery("PRAGMA table_info($table)", emptyArray()).use { cursor ->
+                while (cursor.moveToNext()) found += cursor.getString(1)
+            }
+            columns.all(found::contains)
+        }
+
     companion object {
         // Kept in sync with shared/schema/schema.sql (tables) and shared/queries/*.sql (views).
         // See BackupDatabaseInspectorTest for a drift guard against GestorDatabase.Schema.create().
@@ -71,6 +85,17 @@ class AndroidBackupDatabaseInspector : BackupDatabaseInspector {
             "v_movement_shared",
             "v_movement_summary",
             "v_trip_actual_total",
+        )
+
+        val REQUIRED_TABLE_COLUMNS = mapOf(
+            "meta" to setOf("key", "value"),
+            "accounts" to setOf("id", "name", "starting_balance_cents", "archived_at"),
+            "categories" to setOf("id", "name", "kind", "archived_at"),
+            "movements" to setOf("id", "type", "amount_cents", "date", "archived_at"),
+            "templates" to setOf("id", "type", "account_id", "status", "archived_at"),
+            "budgets" to setOf("id", "scope", "archived_at"),
+            "auto_cat_rules" to setOf("id", "archived_at"),
+            "import_batches" to setOf("id", "archived_at"),
         )
     }
 }
