@@ -853,8 +853,8 @@ data class RecurringHistoryDetailState(
 
 /**
  * Display-only current-month calendar. Posted linked movements are "paid"; the schedule cursor
- * supplies the remaining fixed occurrences. Their sum is the amount represented on this page,
- * without changing any finance or recurrence rule.
+ * supplies the remaining fixed occurrences. Shared entries use the user's share, so the summary
+ * represents the user's amount without changing any finance or recurrence rule.
  */
 private fun List<TemplateSummary>.monthlyCalendar(
     today: LocalDate,
@@ -872,11 +872,11 @@ private fun List<TemplateSummary>.monthlyCalendar(
         .forEach { movement ->
             when (movement.type) {
                 MovementType.EXPENSE -> {
-                    paidExpense += movement.amountCents
+                    paidExpense += movement.userRecurringAmountCents()
                     movement.templateId?.let { id -> postedOccurrences[id] = (postedOccurrences[id] ?: 0) + 1 }
                 }
                 MovementType.INCOME -> {
-                    paidIncome += movement.amountCents
+                    paidIncome += movement.userRecurringAmountCents()
                     movement.templateId?.let { id -> postedOccurrences[id] = (postedOccurrences[id] ?: 0) + 1 }
                 }
                 else -> Unit
@@ -893,8 +893,8 @@ private fun List<TemplateSummary>.monthlyCalendar(
         }.getOrNull() ?: return@forEach
         val count = occurrences.count { YearMonth.from(it) == month }
         pendingOccurrences[template.id] = count
-        val amount = template.amountCents
-        if (template.amountIsVariable || amount == null) return@forEach
+        if (template.amountIsVariable) return@forEach
+        val amount = template.userRecurringAmountCents() ?: return@forEach
         when (template.type) {
             MovementType.EXPENSE -> {
                 expense += amount * count
@@ -928,6 +928,12 @@ private fun List<TemplateSummary>.monthlyCalendar(
         },
     )
 }
+
+private fun MovementSummary.userRecurringAmountCents(): Long =
+    if (isShared) userShareCents else amountCents
+
+private fun TemplateSummary.userRecurringAmountCents(): Long? =
+    amountCents?.let { amount -> splitConfig?.userShareCents(amount) ?: amount }
 
 /** Day a scheduled template lands on, for day-ordered listing. */
 fun TemplateSummary.effectiveDayOfMonth(): Int =
