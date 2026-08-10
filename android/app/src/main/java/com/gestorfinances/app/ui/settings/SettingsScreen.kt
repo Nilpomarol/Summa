@@ -77,8 +77,6 @@ fun SettingsScreen(
     viewModel: SettingsViewModel,
     notificationPermissionGranted: Boolean,
     onRequestNotificationPermission: () -> Unit,
-    onPickBackupFolder: () -> Unit,
-    onRecreateApp: (SettingsMessage) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -86,15 +84,6 @@ fun SettingsScreen(
 
     LaunchedEffect(viewModel) {
         viewModel.onScreenShown()
-    }
-
-    LaunchedEffect(viewModel) {
-        viewModel.effects.collect { effect ->
-            when (effect) {
-                SettingsEffect.PickBackupFolder -> onPickBackupFolder()
-                is SettingsEffect.RecreateApp -> onRecreateApp(effect.message)
-            }
-        }
     }
 
     LazyColumn(
