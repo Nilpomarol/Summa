@@ -40,8 +40,6 @@
     <string name="management_recurring_title">Recurrents</string>
     <string name="management_budgets_title">Pressupostos</string>
     <string name="management_settings_title">Configuració</string>
-    <string name="management_sheet_title">Més</string>
-    <string name="management_sheet_subtitle">Organitza els teus diners i posa ordre al teu espai financer.</string>
     <string name="management_accounts_description">Saldos, tipus i comptes actius</string>
     <string name="management_categories_description">Classifica els teus ingressos i despeses</string>
     <string name="management_people_description">Despeses compartides i deutes pendents</string>
@@ -53,6 +51,10 @@
     <string name="management_group_finances">Finances</string>
     <string name="management_group_organization">Organització</string>
     <string name="management_group_app">Aplicació</string>
+    <string name="management_group_money">Diners i planificació</string>
+    <string name="management_group_shared">Compartir i viatges</string>
+    <string name="management_group_setup">Comptes i classificació</string>
+    <string name="management_group_planning">Planificació</string>
 
     <!-- Onboarding -->
     <string name="onboarding_loading">Preparant l\'inici...</string>
