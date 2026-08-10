@@ -68,6 +68,8 @@ import com.gestorfinances.app.data.repository.PersonSummary
 import com.gestorfinances.app.data.repository.TemplateSplitConfig
 import com.gestorfinances.app.data.repository.TemplateStatus
 import com.gestorfinances.app.data.repository.TemplateSummary
+import com.gestorfinances.app.data.repository.TagSummary
+import com.gestorfinances.app.data.repository.TripSummary
 import com.gestorfinances.app.domain.rules.CustomRecurrenceUnit
 import com.gestorfinances.app.domain.rules.DetectedRecurringCandidate
 import com.gestorfinances.app.domain.rules.DetectedTemplateAction
@@ -100,6 +102,7 @@ import com.gestorfinances.app.ui.movements.CategorySelect
 import com.gestorfinances.app.ui.movements.FormDatePicker
 import com.gestorfinances.app.ui.movements.FormSelect
 import com.gestorfinances.app.ui.movements.FormToggleRow
+import com.gestorfinances.app.ui.movements.FormTripTagSection
 import com.gestorfinances.app.ui.movements.MovementTypeSelector
 import com.gestorfinances.app.ui.movements.SelectOption
 import com.gestorfinances.app.ui.theme.FinanceTheme
@@ -123,6 +126,8 @@ fun RecurringScreen(
             form = form,
             accounts = state.accounts,
             categories = state.categories,
+            trips = state.trips,
+            tags = state.tags,
             onFormChange = viewModel::onFormChanged,
             onBack = viewModel::onFormDismissed,
             onSave = viewModel::onSaveClicked,
@@ -986,6 +991,8 @@ private fun TemplateFormScreen(
     form: TemplateFormState,
     accounts: List<AccountSummary>,
     categories: List<CategoryRecord>,
+    trips: List<TripSummary>,
+    tags: List<TagSummary>,
     onFormChange: (TemplateFormState) -> Unit,
     onBack: () -> Unit,
     onSave: () -> Unit,
@@ -1159,6 +1166,17 @@ private fun TemplateFormScreen(
                     .scrollToWhen(accountError),
                 isError = accountError,
                 supportingText = if (accountError) accountErrorText else null,
+            )
+        }
+
+        if (form.type != MovementType.TRANSFER) {
+            FormTripTagSection(
+                trips = trips,
+                tags = tags,
+                tripId = form.tripId,
+                tagId = form.tagId,
+                onTripSelected = { onFormChange(form.copy(tripId = it)) },
+                onTagSelected = { onFormChange(form.copy(tagId = it)) },
             )
         }
 

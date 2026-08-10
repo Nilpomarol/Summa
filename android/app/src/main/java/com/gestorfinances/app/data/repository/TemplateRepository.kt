@@ -44,6 +44,8 @@ data class TemplateDraft(
     val accountId: String,
     val destAccountId: String?,
     val categoryId: String?,
+    val tripId: String? = null,
+    val tagId: String? = null,
     val name: String?,
     val payee: String?,
     val notes: String?,
@@ -71,6 +73,10 @@ data class TemplateSummary(
     val destAccountName: String?,
     val categoryId: String?,
     val categoryName: String?,
+    val tripId: String? = null,
+    val tripName: String? = null,
+    val tagId: String? = null,
+    val tagName: String? = null,
     val name: String?,
     val payee: String?,
     val notes: String?,
@@ -112,6 +118,8 @@ class TemplateRepository(
             account_id = draft.accountId,
             dest_account_id = draft.destAccountId,
             category_id = draft.categoryId,
+            trip_id = draft.tripId,
+            tag_id = draft.tagId,
             name = draft.name,
             payee = draft.payee,
             notes = draft.notes,
@@ -144,6 +152,8 @@ class TemplateRepository(
             account_id = draft.accountId,
             dest_account_id = draft.destAccountId,
             category_id = draft.categoryId,
+            trip_id = draft.tripId,
+            tag_id = draft.tagId,
             name = draft.name,
             payee = draft.payee,
             notes = draft.notes,
@@ -229,6 +239,9 @@ private fun validate(draft: TemplateDraft) {
     require(draft.categoryId == null || draft.type == MovementType.EXPENSE || draft.type == MovementType.INCOME) {
         "Only expense and income templates carry a category."
     }
+    require(draft.tagId == null || draft.tripId != null) {
+        "A template tag requires a trip."
+    }
     require(draft.amountIsVariable || draft.amountCents != null) {
         "A fixed-amount template needs an amount."
     }
@@ -270,6 +283,10 @@ private fun mapTemplateSummary(
     destAccountName: String?,
     categoryId: String?,
     categoryName: String?,
+    tripId: String?,
+    tripName: String?,
+    tagId: String?,
+    tagName: String?,
     name: String?,
     payee: String?,
     notes: String?,
@@ -299,6 +316,10 @@ private fun mapTemplateSummary(
         destAccountName = destAccountName,
         categoryId = categoryId,
         categoryName = categoryName,
+        tripId = tripId,
+        tripName = tripName,
+        tagId = tagId,
+        tagName = tagName,
         name = name,
         payee = payee,
         notes = notes,

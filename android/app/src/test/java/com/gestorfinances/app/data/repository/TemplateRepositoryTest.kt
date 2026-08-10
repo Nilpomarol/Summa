@@ -35,6 +35,26 @@ class TemplateRepositoryTest {
     }
 
     @Test
+    fun persistsTripAndTagAttributionOnCreateAndUpdate() {
+        freshStore().use { store ->
+            seedAccountAndCategory(store)
+            store.trips.create(
+                TripDraft("trip", "Viatge", TripType.TRIP, TripStatus.ACTIVE, null, null, null, null, null, "checking"),
+                createdAt = NOW,
+            )
+            store.tags.create(TagDraft("tag", "Platja", null, null, "trip"), createdAt = NOW)
+
+            store.templates.create(monthlyRentDraft().copy(tripId = "trip", tagId = "tag"), createdAt = NOW)
+            assertEquals("trip", store.templates.getActive("rent")!!.tripId)
+            assertEquals("tag", store.templates.getActive("rent")!!.tagId)
+
+            store.templates.update(monthlyRentDraft().copy(tripId = "trip", tagId = null), updatedAt = LATER)
+            assertEquals("trip", store.templates.getActive("rent")!!.tripId)
+            assertNull(store.templates.getActive("rent")!!.tagId)
+        }
+    }
+
+    @Test
     fun roundTripsSplitConfigJsonForSharedRecurring() {
         freshStore().use { store ->
             seedAccountAndCategory(store)
@@ -219,6 +239,8 @@ class TemplateRepositoryTest {
             driver = driver,
             accounts = AccountRepository(database.accountsQueries),
             categories = CategoryRepository(database.categoriesQueries),
+            trips = TripRepository(database.tripsQueries),
+            tags = TagRepository(database.tagsQueries),
             templates = TemplateRepository(database.templatesQueries),
         )
     }
@@ -227,6 +249,8 @@ class TemplateRepositoryTest {
         private val driver: JdbcSqliteDriver,
         val accounts: AccountRepository,
         val categories: CategoryRepository,
+        val trips: TripRepository,
+        val tags: TagRepository,
         val templates: TemplateRepository,
     ) : AutoCloseable {
         override fun close() {

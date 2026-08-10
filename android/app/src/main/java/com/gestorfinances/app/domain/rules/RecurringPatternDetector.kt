@@ -23,6 +23,8 @@ data class RecurringCandidateMovement(
     val date: LocalDate,
     /** Non-null means this movement is already linked to a template — excluded from grouping. */
     val templateId: String?,
+    val tripId: String? = null,
+    val tagId: String? = null,
 )
 
 /** The subset of an existing template needed to decide whether a detected group already has one. */
@@ -33,6 +35,8 @@ data class ExistingTemplateSignature(
     val categoryId: String?,
     val name: String?,
     val payee: String?,
+    val tripId: String? = null,
+    val tagId: String? = null,
 )
 
 enum class DetectedTemplateAction { NEW, UPDATE }
@@ -64,6 +68,8 @@ data class DetectedRecurringCandidate(
      * them to the resulting template — otherwise they'd stay unlinked and be re-proposed by
      * every future scan even though nothing about them changed. */
     val sourceMovementIds: List<String>,
+    val tripId: String? = null,
+    val tagId: String? = null,
 )
 
 /**
@@ -114,6 +120,8 @@ object RecurringPatternDetector {
         val accountId: String,
         val type: MovementType,
         val categoryId: String?,
+        val tripId: String?,
+        val tagId: String?,
         val normalizedNameOrPayee: String,
     )
 
@@ -121,6 +129,8 @@ object RecurringPatternDetector {
         accountId = m.accountId,
         type = m.type,
         categoryId = m.categoryId,
+        tripId = m.tripId,
+        tagId = m.tagId,
         normalizedNameOrPayee = normalizeMovementName(m.name?.takeIf { it.isNotBlank() } ?: m.payee.orEmpty()),
     )
 
@@ -142,6 +152,8 @@ object RecurringPatternDetector {
             sig.accountId == key.accountId &&
                 sig.type == key.type &&
                 sig.categoryId == key.categoryId &&
+                sig.tripId == key.tripId &&
+                sig.tagId == key.tagId &&
                 normalizeMovementName(sig.name?.takeIf { it.isNotBlank() } ?: sig.payee.orEmpty()) ==
                     key.normalizedNameOrPayee
         }
@@ -163,6 +175,8 @@ object RecurringPatternDetector {
             accountId = key.accountId,
             type = key.type,
             categoryId = key.categoryId,
+            tripId = key.tripId,
+            tagId = key.tagId,
             name = last.name,
             payee = last.payee,
             occurrenceCount = sorted.size,

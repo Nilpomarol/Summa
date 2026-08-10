@@ -25,6 +25,10 @@ import com.gestorfinances.app.data.repository.TemplateRepository
 import com.gestorfinances.app.data.repository.TemplateSplitConfig
 import com.gestorfinances.app.data.repository.TemplateStatus
 import com.gestorfinances.app.data.repository.TemplateSummary
+import com.gestorfinances.app.data.repository.TagRepository
+import com.gestorfinances.app.data.repository.TagSummary
+import com.gestorfinances.app.data.repository.TripRepository
+import com.gestorfinances.app.data.repository.TripSummary
 import com.gestorfinances.app.data.repository.supportsExpense
 import com.gestorfinances.app.data.repository.supportsIncome
 import com.gestorfinances.app.data.repository.toTemplateSplitConfig
@@ -41,6 +45,7 @@ import com.gestorfinances.app.domain.rules.toRecurrenceRule
 import com.gestorfinances.app.notifications.NotificationRefresher
 import com.gestorfinances.app.ui.common.formatEuroInput
 import com.gestorfinances.app.ui.common.parseEuroCents
+import com.gestorfinances.app.ui.movements.supportsTrip
 import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
@@ -58,6 +63,8 @@ class RecurringViewModel(
     private val templateRepository: TemplateRepository,
     private val accountRepository: AccountRepository,
     private val categoryRepository: CategoryRepository,
+    private val tripRepository: TripRepository,
+    private val tagRepository: TagRepository,
     private val movementRepository: MovementRepository,
     private val splitRepository: SplitRepository,
     private val personRepository: PersonRepository,
@@ -88,8 +95,16 @@ class RecurringViewModel(
     }
 
     fun onFormChanged(form: TemplateFormState) {
+        val trip = form.tripId?.let { id -> _state.value.trips.firstOrNull { it.id == id } }
+        val tag = form.tagId?.let { id -> _state.value.tags.firstOrNull { it.id == id } }
         _state.value = _state.value.copy(
-            form = form.copy(errorRes = null, errorField = null, errorMessage = null),
+            form = form.copy(
+                tripId = form.tripId.takeIf { form.type != MovementType.TRANSFER },
+                tagId = form.tagId.takeIf { form.type != MovementType.TRANSFER && tag?.supportsTrip(trip) == true },
+                errorRes = null,
+                errorField = null,
+                errorMessage = null,
+            ),
         )
     }
 
@@ -166,6 +181,8 @@ class RecurringViewModel(
             accountId = template.accountId,
             destinationAccountId = template.destAccountId,
             categoryId = template.categoryId,
+            tripId = template.tripId,
+            tagId = template.tagId,
             name = template.name,
             payee = template.payee,
             notes = template.notes,
@@ -323,6 +340,8 @@ class RecurringViewModel(
             accountId = requireNotNull(account).id,
             destAccountId = if (isTransfer) form.destinationAccountId else null,
             categoryId = if (isTransfer) null else form.categoryId,
+            tripId = if (isTransfer) null else form.tripId,
+            tagId = if (isTransfer) null else form.tagId,
             name = form.name.trim().ifBlank { null },
             payee = form.payee.trim().ifBlank { null },
             notes = form.notes.trim().ifBlank { null },
@@ -395,6 +414,8 @@ class RecurringViewModel(
                         templates = templateRepository.listActive(),
                         accounts = accountRepository.listActive(),
                         categories = categoryRepository.listActive(),
+                        trips = tripRepository.listActive(),
+                        tags = tagRepository.listActive(),
                         people = personRepository.listActive(),
                         movements = movementRepository.listActive(),
                         occurrenceCounts = movementRepository.countsByTemplate(),
@@ -408,6 +429,8 @@ class RecurringViewModel(
                         templates = it.templates,
                         accounts = it.accounts,
                         categories = it.categories,
+                        trips = it.trips,
+                        tags = it.tags,
                         people = it.people,
                         duePrompts = it.templates.toDuePrompts(today()),
                         monthlyExpenseCents = calendar.scheduledExpenseCents,
@@ -569,6 +592,8 @@ class RecurringViewModel(
         private val templateRepository: TemplateRepository,
         private val accountRepository: AccountRepository,
         private val categoryRepository: CategoryRepository,
+        private val tripRepository: TripRepository,
+        private val tagRepository: TagRepository,
         private val movementRepository: MovementRepository,
         private val splitRepository: SplitRepository,
         private val personRepository: PersonRepository,
@@ -581,6 +606,8 @@ class RecurringViewModel(
                     templateRepository = templateRepository,
                     accountRepository = accountRepository,
                     categoryRepository = categoryRepository,
+                    tripRepository = tripRepository,
+                    tagRepository = tagRepository,
                     movementRepository = movementRepository,
                     splitRepository = splitRepository,
                     personRepository = personRepository,
@@ -596,6 +623,8 @@ data class RecurringUiState(
     val templates: List<TemplateSummary> = emptyList(),
     val accounts: List<AccountSummary> = emptyList(),
     val categories: List<CategoryRecord> = emptyList(),
+    val trips: List<TripSummary> = emptyList(),
+    val tags: List<TagSummary> = emptyList(),
     val people: List<PersonSummary> = emptyList(),
     val duePrompts: List<DuePrompt> = emptyList(),
     val monthlyExpenseCents: Long = 0L,
@@ -692,6 +721,8 @@ data class TemplateFormState(
     val accountId: String? = null,
     val destinationAccountId: String? = null,
     val categoryId: String? = null,
+    val tripId: String? = null,
+    val tagId: String? = null,
     val name: String = "",
     val payee: String = "",
     val notes: String = "",
@@ -714,6 +745,8 @@ private data class LoadedRecurringData(
     val templates: List<TemplateSummary>,
     val accounts: List<AccountSummary>,
     val categories: List<CategoryRecord>,
+    val trips: List<TripSummary>,
+    val tags: List<TagSummary>,
     val people: List<PersonSummary>,
     val movements: List<MovementSummary>,
     val occurrenceCounts: Map<String, Long>,
@@ -942,6 +975,8 @@ private fun TemplateSummary.toFormState(): TemplateFormState =
         accountId = accountId,
         destinationAccountId = destAccountId,
         categoryId = categoryId,
+        tripId = tripId,
+        tagId = tagId,
         name = name.orEmpty(),
         payee = payee.orEmpty(),
         notes = notes.orEmpty(),
@@ -967,6 +1002,8 @@ private fun MovementSummary.toRecurringCandidateMovementOrNull(): RecurringCandi
         accountId = account,
         type = type,
         categoryId = categoryId,
+        tripId = tripId,
+        tagId = tagId,
         name = name,
         payee = payee,
         amountCents = amountCents,
@@ -981,6 +1018,8 @@ private fun TemplateSummary.toExistingTemplateSignature(): ExistingTemplateSigna
         accountId = accountId,
         type = type,
         categoryId = categoryId,
+        tripId = tripId,
+        tagId = tagId,
         name = name,
         payee = payee,
     )
@@ -1007,6 +1046,8 @@ private fun DetectedRecurringCandidate.toTemplateDraft(existing: TemplateSummary
         accountId = accountId,
         destAccountId = null,
         categoryId = categoryId,
+        tripId = existing?.tripId ?: tripId,
+        tagId = existing?.tagId ?: tagId,
         name = name,
         payee = payee,
         notes = existing?.notes,

@@ -340,6 +340,8 @@ private fun LedgerShell(
                 templateRepository = appContainer.templateRepository,
                 accountRepository = appContainer.accountRepository,
                 categoryRepository = appContainer.categoryRepository,
+                tripRepository = appContainer.tripRepository,
+                tagRepository = appContainer.tagRepository,
                 movementRepository = appContainer.movementRepository,
                 splitRepository = appContainer.splitRepository,
                 personRepository = appContainer.personRepository,
