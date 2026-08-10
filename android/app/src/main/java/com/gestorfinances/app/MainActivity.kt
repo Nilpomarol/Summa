@@ -626,7 +626,6 @@ private fun LedgerShell(
                         .fillMaxSize()
                         .padding(innerPadding),
                 )
-                if (movementFormOverlay == null) return@Scaffold
             }
             is AppOverlay.Budgets -> {
                 BudgetsScreen(
@@ -637,7 +636,6 @@ private fun LedgerShell(
                         .fillMaxSize()
                         .padding(innerPadding),
                 )
-                if (movementFormOverlay == null) return@Scaffold
             }
             is AppOverlay.TripDetail -> {
                 LaunchedEffect(overlay.tripId) {
@@ -660,7 +658,6 @@ private fun LedgerShell(
                         .fillMaxSize()
                         .padding(innerPadding),
                 )
-                if (movementFormOverlay == null) return@Scaffold
             }
             is AppOverlay.MovementForm -> Unit
             is AppOverlay.MovementDetail -> Unit
