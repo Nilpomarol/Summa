@@ -168,7 +168,7 @@ class MovementsViewModel(
     fun onArchiveClicked(movement: MovementSummary) {
         _state.value = _state.value.copy(detailMovement = null)
         viewModelScope.launch {
-            val revertibleTemplateId = withContext(ioDispatcher) {
+            val revertibleTemplate = withContext(ioDispatcher) {
                 movement.templateId?.let { templateId ->
                     templateRepository?.getActive(templateId)?.takeIf { template ->
                         template.status == TemplateStatus.ACTIVE &&
@@ -177,7 +177,7 @@ class MovementsViewModel(
                                 LocalDate.parse(movement.date),
                                 LocalDate.parse(template.nextDueDate),
                             )
-                    }?.id
+                    }
                 }
             }
             val activeRefundCount = if (movement.type == MovementType.EXPENSE) {
@@ -186,7 +186,12 @@ class MovementsViewModel(
                 0
             }
             _state.value = _state.value.copy(
-                archiveCandidate = ArchiveCandidate(movement, revertibleTemplateId, activeRefundCount),
+                archiveCandidate = ArchiveCandidate(
+                    movement = movement,
+                    revertibleTemplateId = revertibleTemplate?.id,
+                    revertibleTemplateNextDueDate = revertibleTemplate?.nextDueDate,
+                    activeRefundCount = activeRefundCount,
+                ),
             )
         }
     }
@@ -352,7 +357,10 @@ class MovementsViewModel(
         _state.value = _state.value.copy(archiveCandidate = null)
     }
 
-    fun onArchiveConfirmed(revertDueDate: Boolean = false, onSuccess: () -> Unit = {}) {
+    fun onArchiveConfirmed(
+        revertDueDate: Boolean = false,
+        onSuccess: (undo: () -> Unit) -> Unit = {},
+    ) {
         val candidate = _state.value.archiveCandidate ?: return
         val movement = candidate.movement
         val now = Instant.now().toString()
@@ -376,14 +384,22 @@ class MovementsViewModel(
                             }
                         }
                     }
+                    MovementDeleteOperation(
+                        movementId = movement.id,
+                        movementType = movement.type,
+                        deletedAt = now,
+                        revertedTemplateId = candidate.revertibleTemplateId.takeIf { revertDueDate },
+                        revertedTemplateDueDate = movement.date.takeIf { revertDueDate },
+                        originalTemplateNextDueDate = candidate.revertibleTemplateNextDueDate.takeIf { revertDueDate },
+                    )
                 }
             }
             result.fold(
-                onSuccess = {
+                onSuccess = { operation ->
                     _state.value = _state.value.copy(archiveCandidate = null, detailMovement = null)
                     refresh(dataChanged = true)
                     refreshNotifications()
-                    onSuccess()
+                    onSuccess { undoDelete(operation) }
                 },
                 onFailure = {
                     _state.value = _state.value.copy(
@@ -554,6 +570,44 @@ class MovementsViewModel(
             form.type == MovementType.EXPENSE && form.expenseKind == ExpenseKind.DEBT ->
                 saveExternalDebt(form, acceptDataLoss)
             else -> saveDirectMovement(form, forceSave, acceptDataLoss, endTemplate)
+        }
+    }
+
+    private fun undoDelete(operation: MovementDeleteOperation) {
+        val restoredAt = Instant.now().toString()
+        viewModelScope.launch {
+            val result = withContext(ioDispatcher) {
+                runCatching {
+                    movementRepository.runInTransaction {
+                        if (operation.movementType == MovementType.EXTERNAL_EXPENSE) {
+                            requireNotNull(splitRepository) { "split repository unavailable" }
+                                .restoreExternalSplit(operation.movementId, operation.deletedAt, restoredAt)
+                        } else {
+                            movementRepository.restore(operation.movementId, operation.deletedAt, restoredAt)
+                        }
+                        val templateId = operation.revertedTemplateId
+                        val deletedDueDate = operation.revertedTemplateDueDate
+                        val nextDueDate = operation.originalTemplateNextDueDate
+                        if (templateId != null && deletedDueDate != null && nextDueDate != null) {
+                            requireNotNull(templateRepository) { "template repository unavailable" }
+                                .restoreCursorAfterDelete(
+                                    id = templateId,
+                                    deletedDueDate = deletedDueDate,
+                                    nextDueDate = nextDueDate,
+                                    deletedAt = operation.deletedAt,
+                                    restoredAt = restoredAt,
+                                )
+                        }
+                    }
+                }
+            }
+            result.fold(
+                onSuccess = {
+                    refresh(dataChanged = true)
+                    refreshNotifications()
+                },
+                onFailure = { _state.value = _state.value.copy(errorMessage = it.message ?: it.javaClass.simpleName) },
+            )
         }
     }
 
@@ -1154,7 +1208,17 @@ data class ArchiveCandidate(
     /** Non-null iff [movement] is provably the template's immediate prior occurrence -- offers
      * the "mark it as due again" choice in the archive-confirmation dialog. */
     val revertibleTemplateId: String? = null,
+    val revertibleTemplateNextDueDate: String? = null,
     val activeRefundCount: Int = 0,
+)
+
+private data class MovementDeleteOperation(
+    val movementId: String,
+    val movementType: MovementType,
+    val deletedAt: String,
+    val revertedTemplateId: String?,
+    val revertedTemplateDueDate: String?,
+    val originalTemplateNextDueDate: String?,
 )
 
 data class MovementFilters(

@@ -19,11 +19,7 @@ import com.gestorfinances.app.data.repository.AnalysisCategoryTotal
 import com.gestorfinances.app.data.repository.AnalysisIncomeExpenseBucket
 import com.gestorfinances.app.ui.analysis.components.AnalysisFilterSheet
 import com.gestorfinances.app.ui.analysis.components.AnalysisOverview
-import com.gestorfinances.app.ui.common.HeatmapCell
 import com.gestorfinances.app.ui.common.IncomeExpenseChartPoint
-import com.gestorfinances.app.ui.common.formatCompactDateRange
-import com.gestorfinances.app.ui.common.formatExpandedDate
-import com.gestorfinances.app.ui.common.formatMonth
 import com.gestorfinances.app.ui.common.formatMonthYear
 import java.time.YearMonth
 
@@ -53,6 +49,7 @@ internal fun AnalysisScreen(
         onCategorySelected = viewModel::setCategoryFilter,
         onClearCategoryFilter = viewModel::clearCategoryFilter,
         onResetFilters = viewModel::resetFilters,
+        onRetry = viewModel::onScreenShown,
         modifier = modifier,
     )
 }
@@ -73,6 +70,7 @@ internal fun AnalysisContent(
     onCategorySelected: (String, String) -> Unit,
     onClearCategoryFilter: () -> Unit,
     onResetFilters: () -> Unit,
+    onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showFilters by remember { mutableStateOf(false) }
@@ -84,7 +82,8 @@ internal fun AnalysisContent(
         onMonthSelected = onMonthSelected,
         onYearSelected = onYearSelected,
         onOpenFilters = { showFilters = true },
-        contentPadding = tabPadding,
+        onRetry = onRetry,
+        contentPadding = contentPadding,
         modifier = modifier,
     )
 
@@ -104,37 +103,7 @@ internal fun AnalysisContent(
     }
 }
 
-private val tabPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 96.dp)
-
-// ---------------------------------------------------------------------------
-// Shared helpers used across the tabs
-// ---------------------------------------------------------------------------
-
-@StringRes
-internal fun AnalysisTab.labelRes(): Int =
-    when (this) {
-        AnalysisTab.RESUM -> R.string.analysis_tab_resum
-        AnalysisTab.CATEGORIES -> R.string.analysis_tab_categories
-        AnalysisTab.COMPARATIVA -> R.string.analysis_tab_comparativa
-        AnalysisTab.HISTORIC -> R.string.analysis_tab_historic
-        AnalysisTab.FIX_VARIABLE -> R.string.analysis_tab_fix_variable
-    }
-
-@StringRes
-internal fun AnalysisScope.labelRes(): Int =
-    when (this) {
-        AnalysisScope.MONTH -> R.string.analysis_scope_month
-        AnalysisScope.YEAR -> R.string.analysis_scope_year
-        AnalysisScope.ALL_TIME -> R.string.analysis_scope_all_time
-        AnalysisScope.CUSTOM -> R.string.analysis_scope_custom
-    }
-
-@StringRes
-internal fun AnalysisValueMode.labelRes(): Int =
-    when (this) {
-        AnalysisValueMode.TOTALS -> R.string.analysis_mode_total
-        AnalysisValueMode.AVERAGES -> R.string.analysis_mode_average
-    }
+private val contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 96.dp)
 
 @StringRes
 internal fun AnalysisNatureFilter.labelRes(): Int =
@@ -158,60 +127,7 @@ internal fun AnalysisPeriodRange.formatForScope(scope: AnalysisScope): String =
         AnalysisScope.MONTH -> formatMonthYear(YearMonth.from(fromDate))
         AnalysisScope.YEAR -> fromDate.year.toString()
         AnalysisScope.ALL_TIME -> stringResource(R.string.analysis_scope_all_time)
-        AnalysisScope.CUSTOM ->
-            "${formatExpandedDate(fromDate.toString())} - ${formatExpandedDate(toDateExclusive.minusDays(1).toString())}"
     }
-
-@Composable
-internal fun AnalysisUiState.fallbackPeriodLabel(): String =
-    when (scope) {
-        AnalysisScope.MONTH -> formatMonthYear(month)
-        AnalysisScope.YEAR -> year.toString()
-        AnalysisScope.ALL_TIME -> stringResource(R.string.analysis_scope_all_time)
-        AnalysisScope.CUSTOM -> "${formatExpandedDate(customFrom)} - ${formatExpandedDate(customTo)}"
-    }
-
-/**
- * Current vs comparison period labels (Comparativa tab: KPI captions, chart legend). For month
- * scope, when both months fall in the same year the year is dropped from both labels ("Juliol" /
- * "Juny" instead of "Juliol 2026" / "Juny 2026") since repeating it twice is redundant. For custom
- * scope, uses the compact `d MMM` date form (instead of the expanded date pair, which
- * overflows KPI cards) and likewise drops the year from both labels when all four endpoints share
- * one common year.
- */
-@Composable
-internal fun periodComparisonLabels(
-    scope: AnalysisScope,
-    currentRange: AnalysisPeriodRange?,
-    comparisonRange: AnalysisPeriodRange,
-    fallbackCurrentLabel: String,
-): Pair<String, String> {
-    if (scope == AnalysisScope.MONTH && currentRange != null) {
-        val currentMonth = YearMonth.from(currentRange.fromDate)
-        val comparisonMonth = YearMonth.from(comparisonRange.fromDate)
-        if (currentMonth.year == comparisonMonth.year) {
-            return formatMonth(currentMonth) to formatMonth(comparisonMonth)
-        }
-    }
-    if (scope == AnalysisScope.CUSTOM && currentRange != null) {
-        val currentTo = currentRange.toDateExclusive.minusDays(1)
-        val comparisonTo = comparisonRange.toDateExclusive.minusDays(1)
-        val commonYear = currentRange.fromDate.year == currentTo.year &&
-            currentTo.year == comparisonRange.fromDate.year &&
-            comparisonRange.fromDate.year == comparisonTo.year
-        return formatCompactDateRange(currentRange.fromDate, currentTo, includeYear = !commonYear) to
-            formatCompactDateRange(comparisonRange.fromDate, comparisonTo, includeYear = !commonYear)
-    }
-    val currentLabel = currentRange?.formatForScope(scope) ?: fallbackCurrentLabel
-    return currentLabel to comparisonRange.formatForScope(scope)
-}
-
-internal fun AnalysisUiState.currentDisplayDivisor(): Long =
-    if (valueMode == AnalysisValueMode.AVERAGES) currentAverageDivisor else 1L
-
-internal fun AnalysisUiState.displayCents(cents: Long): Long = cents.divideCents(currentDisplayDivisor())
-
-internal fun Long.divideCents(divisor: Long): Long = if (divisor <= 1) this else this / divisor
 
 internal fun AnalysisCategoryTotal.rowKey(): String =
     when (rowKind) {
@@ -282,18 +198,3 @@ private fun AnalysisIncomeExpenseBucket.toChartPoint(): IncomeExpenseChartPoint 
         incomeCents = incomeCents,
         expenseCents = expenseCents,
     )
-
-/** Builds the day-by-day heatmap cells for a bounded range, filling zero-spend days. */
-internal fun heatmapCellsFor(
-    range: AnalysisPeriodRange,
-    days: List<AnalysisIncomeExpenseBucket>,
-): List<HeatmapCell> {
-    val byDay = days.associate { it.bucket to it.expenseCents }
-    val cells = mutableListOf<HeatmapCell>()
-    var cursor = range.fromDate
-    while (cursor < range.toDateExclusive) {
-        cells += HeatmapCell(date = cursor, expenseCents = byDay[cursor.toString()] ?: 0L)
-        cursor = cursor.plusDays(1)
-    }
-    return cells
-}

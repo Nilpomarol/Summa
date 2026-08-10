@@ -89,6 +89,7 @@ import com.gestorfinances.app.ui.common.nextFieldKeyboardActions
 import com.gestorfinances.app.ui.common.formatEuroCents
 import com.gestorfinances.app.ui.common.formatCompactDate
 import com.gestorfinances.app.ui.common.InlineBanner
+import com.gestorfinances.app.ui.common.InlineFailureBanner
 import com.gestorfinances.app.ui.common.LabeledSegmentedControl
 import com.gestorfinances.app.ui.common.label
 import com.gestorfinances.app.ui.common.MoneyText
@@ -99,9 +100,11 @@ import com.gestorfinances.app.ui.common.PrimaryButton
 import com.gestorfinances.app.ui.common.RootPageHeader
 import com.gestorfinances.app.ui.common.SectionHeader
 import com.gestorfinances.app.ui.common.TopBarIconButton
+import com.gestorfinances.app.ui.common.DeleteUndoHandler
 import com.gestorfinances.app.ui.common.parseEuroCents
 import com.gestorfinances.app.ui.common.scrollToWhen
 import com.gestorfinances.app.ui.common.parseIsoDateOrNull
+import com.gestorfinances.app.ui.common.rememberFormDismissGuard
 import com.gestorfinances.app.ui.movements.AccountSelect
 import com.gestorfinances.app.ui.movements.CategorySelect
 import com.gestorfinances.app.ui.movements.FormDatePicker
@@ -128,7 +131,27 @@ fun RecurringScreen(
 
     val form = state.form
     if (form != null) {
-        BackHandler(onBack = viewModel::onFormDismissed)
+        val requestFormDismissal = rememberFormDismissGuard(
+            formKey = form.id ?: "new-template",
+            currentValue = form,
+            hasMeaningfulChanges = { initial, current ->
+                initial.copy(
+                    showOptional = false,
+                    showAdvanced = false,
+                    errorRes = null,
+                    errorField = null,
+                    errorMessage = null,
+                ) != current.copy(
+                    showOptional = false,
+                    showAdvanced = false,
+                    errorRes = null,
+                    errorField = null,
+                    errorMessage = null,
+                )
+            },
+            onDiscard = viewModel::onFormDismissed,
+        )
+        BackHandler(onBack = requestFormDismissal)
         RecurringFormScreen(
             form = form,
             accounts = state.accounts,
@@ -136,7 +159,7 @@ fun RecurringScreen(
             trips = state.trips,
             tags = state.tags,
             onFormChange = viewModel::onFormChanged,
-            onBack = viewModel::onFormDismissed,
+            onBack = requestFormDismissal,
             onSave = viewModel::onSaveClicked,
             modifier = modifier,
         )
@@ -155,6 +178,7 @@ fun RecurringScreen(
             onSkipAll = viewModel::onSkipAllClicked,
             onDetectRecurring = viewModel::onDetectRecurringClicked,
             onHistory = viewModel::onHistoryClicked,
+            onRetry = viewModel::onScreenShown,
         )
     }
 
@@ -162,6 +186,7 @@ fun RecurringScreen(
         RecurringHistorySheet(
             detail = detail,
             onDismiss = viewModel::onHistoryDismissed,
+            onRetry = { viewModel.onHistoryClicked(detail.template) },
             onMovementDetail = onMovementDetail,
         )
     }
@@ -177,7 +202,10 @@ fun RecurringScreen(
  * only ever opened from [RecurringScreen] itself, so it renders as a local full-page swap there
  * instead (see [RecurringScreen]), not here. */
 @Composable
-internal fun RecurringOverlays(viewModel: RecurringViewModel) {
+internal fun RecurringOverlays(
+    viewModel: RecurringViewModel,
+    onDeleteCommitted: DeleteUndoHandler = {},
+) {
     val state by viewModel.state.collectAsState()
 
     state.confirmPrompt?.let { prompt ->
@@ -223,7 +251,9 @@ internal fun RecurringOverlays(viewModel: RecurringViewModel) {
             title = { Text(text = stringResource(R.string.template_delete_confirm_title)) },
             text = { Text(text = stringResource(R.string.template_delete_confirm_body)) },
             confirmButton = {
-                DestructiveTextButton(onClick = viewModel::onDeleteConfirmed) {
+                DestructiveTextButton(
+                    onClick = { viewModel.onDeleteConfirmed(onSuccess = onDeleteCommitted) },
+                ) {
                     Text(text = stringResource(R.string.common_archive))
                 }
             },
@@ -251,6 +281,7 @@ private fun RecurringContent(
     onSkipAll: (DuePrompt) -> Unit,
     onDetectRecurring: () -> Unit,
     onHistory: (TemplateSummary) -> Unit,
+    onRetry: () -> Unit,
 ) {
     val active = state.templates
         .filter { it.status == TemplateStatus.ACTIVE }
@@ -315,7 +346,11 @@ private fun RecurringContent(
 
         state.errorMessage?.let { message ->
             item {
-                InlineBanner(kind = BannerKind.Error, text = message)
+                InlineFailureBanner(
+                    diagnostic = message,
+                    messageRes = R.string.failure_load_recurring,
+                    onRetry = onRetry,
+                )
             }
         }
 
@@ -539,6 +574,7 @@ private fun TemplateRow(
 private fun RecurringHistorySheet(
     detail: RecurringHistoryDetailState,
     onDismiss: () -> Unit,
+    onRetry: () -> Unit,
     onMovementDetail: (MovementSummary) -> Unit,
 ) {
     AppModalBottomSheet(onDismissRequest = onDismiss, maxHeightFraction = 0.88f) {
@@ -637,10 +673,10 @@ private fun RecurringHistorySheet(
             }
 
             detail.errorMessage?.let { message ->
-                Text(
-                    text = message,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
+                InlineFailureBanner(
+                    diagnostic = message,
+                    messageRes = R.string.failure_load_recurring,
+                    onRetry = onRetry,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
                 )
             }
@@ -1020,7 +1056,7 @@ private fun ConfirmPromptDialog(
                 )
             }
             prompt.errorMessage?.let {
-                InlineBanner(kind = BannerKind.Error, text = it)
+                InlineFailureBanner(diagnostic = it, messageRes = R.string.failure_save_recurring)
             }
             val amountError = prompt.errorField == ConfirmPromptField.AMOUNT
             OutlinedTextField(
@@ -1179,7 +1215,7 @@ private fun TemplateFormScreen(
             ),
         )
         form.errorMessage?.let {
-            InlineBanner(kind = BannerKind.Error, text = it)
+            InlineFailureBanner(diagnostic = it, messageRes = R.string.failure_save_recurring)
         }
 
         FinanceCard(modifier = Modifier.fillMaxWidth()) {
@@ -1466,7 +1502,7 @@ private fun DetectionReviewSheet(
                 style = MaterialTheme.typography.titleLarge,
             )
             review.errorMessage?.let {
-                InlineBanner(kind = BannerKind.Error, text = it)
+                InlineFailureBanner(diagnostic = it, messageRes = R.string.failure_save_recurring)
             }
             if (review.items.isEmpty()) {
                 Text(

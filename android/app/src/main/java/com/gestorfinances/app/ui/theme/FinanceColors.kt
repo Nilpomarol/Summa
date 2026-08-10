@@ -1,7 +1,11 @@
 package com.gestorfinances.app.ui.theme
 
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.toArgb
+import androidx.core.graphics.ColorUtils
 import com.gestorfinances.app.data.repository.MovementType
 
 /**
@@ -66,6 +70,16 @@ fun categoryColor(hex: String?): Color {
 
 /** Soft tint background for a category icon chip, derived from its color. */
 fun categoryTint(color: Color): Color = color.copy(alpha = 0.16f)
+
+/** Keeps saved identity hues legible on dark surfaces without changing stored values. */
+@Composable
+fun themedIdentityColor(color: Color): Color {
+    if (!FinanceTheme.isDark || color.luminance() >= 0.28f) return color
+    val hsl = FloatArray(3)
+    ColorUtils.colorToHSL(color.toArgb(), hsl)
+    hsl[2] = maxOf(hsl[2], 0.62f)
+    return Color(ColorUtils.HSLToColor(hsl))
+}
 
 internal val LightFinanceColors = FinanceColors(
     income = TokenColor.IncomeLight,

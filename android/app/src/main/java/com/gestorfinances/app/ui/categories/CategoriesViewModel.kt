@@ -89,30 +89,44 @@ class CategoriesViewModel(
         _state.value = _state.value.copy(archiveCandidate = null)
     }
 
-    fun onArchiveConfirmed() {
+    fun onArchiveConfirmed(onSuccess: (undo: () -> Unit) -> Unit = {}) {
         val category = _state.value.archiveCandidate?.category ?: return
         val now = Instant.now().toString()
         viewModelScope.launch {
             val result = withContext(ioDispatcher) {
                 runCatching {
+                    val pausedTemplateIds = templateRepository.listActive()
+                        .filter { it.status == TemplateStatus.ACTIVE && it.categoryId == category.id }
+                        .map { it.id }
+                    val archivedBudgetIds = budgetRepository.listActive()
+                        .filter { it.categoryId == category.id }
+                        .map { it.id }
+                    val movedChildren = categoryRepository.listActive()
+                        .filter { it.parentId == category.id }
                     movementRepository.runInTransaction {
-                        templateRepository.listActive()
-                            .filter { it.status == TemplateStatus.ACTIVE && it.categoryId == category.id }
-                            .forEach { templateRepository.setStatus(it.id, TemplateStatus.PAUSED, updatedAt = now) }
-                        budgetRepository.listActive()
-                            .filter { it.categoryId == category.id }
-                            .forEach { budgetRepository.archive(it.id, archivedAt = now) }
-                        categoryRepository.listActive()
-                            .filter { it.parentId == category.id }
-                            .forEach { child -> categoryRepository.update(child.toDraft(parentId = null), updatedAt = now) }
+                        pausedTemplateIds.forEach {
+                            templateRepository.setStatus(it, TemplateStatus.PAUSED, updatedAt = now)
+                        }
+                        archivedBudgetIds.forEach { budgetRepository.archive(it, archivedAt = now) }
+                        movedChildren.forEach { child ->
+                            categoryRepository.update(child.toDraft(parentId = null), updatedAt = now)
+                        }
                         categoryRepository.archive(category.id, archivedAt = now)
                     }
+                    CategoryDeleteOperation(
+                        categoryId = category.id,
+                        deletedAt = now,
+                        pausedTemplateIds = pausedTemplateIds,
+                        archivedBudgetIds = archivedBudgetIds,
+                        movedChildren = movedChildren,
+                    )
                 }
             }
             result.fold(
-                onSuccess = {
+                onSuccess = { operation ->
                     _state.value = _state.value.copy(archiveCandidate = null)
                     refreshCategories()
+                    onSuccess { undoDelete(operation) }
                 },
                 onFailure = {
                     _state.value = _state.value.copy(
@@ -120,6 +134,41 @@ class CategoriesViewModel(
                         errorMessage = it.message ?: it.javaClass.simpleName,
                     )
                 },
+            )
+        }
+    }
+
+    private fun undoDelete(operation: CategoryDeleteOperation) {
+        val restoredAt = Instant.now().toString()
+        viewModelScope.launch {
+            val result = withContext(ioDispatcher) {
+                runCatching {
+                    movementRepository.runInTransaction {
+                        categoryRepository.restore(operation.categoryId, operation.deletedAt, restoredAt)
+                        operation.movedChildren.forEach { child ->
+                            categoryRepository.restoreParentAfterDelete(
+                                id = child.id,
+                                parentId = operation.categoryId,
+                                deletedAt = operation.deletedAt,
+                                restoredAt = restoredAt,
+                            )
+                        }
+                        operation.archivedBudgetIds.forEach {
+                            budgetRepository.restore(it, operation.deletedAt, restoredAt)
+                        }
+                        operation.pausedTemplateIds.forEach {
+                            templateRepository.restoreActiveStatusAfterDelete(
+                                id = it,
+                                deletedAt = operation.deletedAt,
+                                restoredAt = restoredAt,
+                            )
+                        }
+                    }
+                }
+            }
+            result.fold(
+                onSuccess = { refreshCategories() },
+                onFailure = { _state.value = _state.value.copy(errorMessage = it.message ?: it.javaClass.simpleName) },
             )
         }
     }
@@ -343,6 +392,14 @@ data class CategoryArchiveCandidate(
     val activeTemplateCount: Int,
     val budgetCount: Int,
     val childCount: Int,
+)
+
+private data class CategoryDeleteOperation(
+    val categoryId: String,
+    val deletedAt: String,
+    val pausedTemplateIds: List<String>,
+    val archivedBudgetIds: List<String>,
+    val movedChildren: List<CategoryRecord>,
 )
 
 data class CategoryFlowDetailState(

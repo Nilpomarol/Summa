@@ -14,12 +14,15 @@ The current Android shell uses:
 
 - root destinations `Inici`, `Moviments`, centered new-movement action, `Anàlisi`, and `Més`;
 - a Més sheet for accounts, categories, people, trips, recurring activity, budgets, and settings;
+- an intentionally compact, single-page Analysis overview for month, year, and all-time periods, without legacy tabs or drill-down navigation;
 - focused full-page movement, trip, and contextual flows;
 - Compose components and semantic colours built from the shared token file;
 - externalized Catalan copy;
-- light and dark token mappings, although the present app may choose one default theme.
+- a locally saved System, Light, or Dark appearance choice applied across the app.
 
 This describes the implemented starting point, not a constraint on future navigation or presentation.
+
+Selecting a destination through the bottom bar or Més intentionally resets it to its default context. Contextual links remain separate flows and may preserve caller-specific state and Back behavior.
 
 ## Established visual direction — Personal Compass
 
@@ -62,8 +65,14 @@ Until deliberately changed for a specific redesign decision:
 - risky actions show understandable warnings near the relevant action;
 - primary actions remain reachable with the keyboard open;
 - empty, loading, error, disabled, and read-only states are explicit;
+- failed loads explain the affected action in Catalan and offer Retry; save failures keep the entered form values and use concise action-specific copy, never raw technical exception text;
 - layouts support narrow Android widths, text scaling, TalkBack, and dark surfaces;
-- destructive confirmation may use a dialog; compact editing generally prefers a sheet or focused page;
+- Settings offers System (default), Light, and Dark appearance modes. The saved choice drives the root palette, system bars, banners, charts, dialogs, sheets, and semantic component colours as one theme;
+- saved account and category identity hues remain unchanged; dark rendering raises only overly dark hues so icons and proportional bars stay legible on dark surfaces;
+- movement filtering keeps expense, income, and transfer immediately visible; settlement, refund, and external expense sit in one compact “More types” menu rather than enlarging the filter sheet;
+- destructive confirmation may use a dialog; user-facing copy consistently says Delete, and a completed normal finance deletion offers snackbar Undo for the whole operation; compact editing generally prefers a sheet or focused page;
+- every editable form compares its current values with the values it opened with: Back, Cancel, sheet swipe-away, and outside-tap close untouched forms immediately and ask before discarding meaningful changes; validation and disclosure-only state does not count as a change;
+- focused, longer forms and bounded short sheets both keep their save action reachable while the body scrolls; IME Next advances, Done submits, and field validation scrolls to and focuses the first invalid control;
 - modal sheets use the shared Android sheet contract: one content-sized expanded state with
   optional screen-relative height bounds; long forms scroll their body while keeping the primary action
   reachable, with standard safe-area and keyboard handling, token-aligned shape and scrim, and

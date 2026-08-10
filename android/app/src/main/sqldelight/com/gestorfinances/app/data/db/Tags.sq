@@ -98,3 +98,11 @@ SET
     updated_at = :updated_at
 WHERE id = :id
   AND archived_at IS NULL;
+
+restoreTag:
+UPDATE tags
+SET
+    archived_at = NULL,
+    updated_at = :updated_at
+WHERE id = :id
+  AND archived_at = :archived_at;

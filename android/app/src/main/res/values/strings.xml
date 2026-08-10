@@ -2,12 +2,14 @@
     <string name="app_name">Gestor de finances</string>
     <string name="home_database_checking">Obrint la base de dades...</string>
     <string name="home_database_ready">Base de dades oberta. Esquema %1$s, instantània %2$s.</string>
-    <string name="home_database_failed">No s\'ha pogut obrir la base de dades: %1$s</string>
+    <string name="home_database_failed">No s\'ha pogut obrir la base de dades. Torna-ho a provar.</string>
     <!-- Common actions -->
     <string name="common_save">Desa</string>
     <string name="common_cancel">Cancel·la</string>
     <string name="common_edit">Edita</string>
     <string name="common_archive">Elimina</string>
+    <string name="common_deleted">Element eliminat</string>
+    <string name="common_undo">Desfés</string>
     <string name="common_back">Enrere</string>
     <string name="common_close">Tanca</string>
     <string name="common_next">Següent</string>
@@ -20,6 +22,28 @@
     <string name="common_review">Revisa</string>
     <string name="common_clear">Neteja</string>
     <string name="common_no_date">Sense data</string>
+    <string name="form_discard_confirm_title">Descartar els canvis?</string>
+    <string name="form_discard_confirm_body">Els canvis que no hagis desat es perdran.</string>
+    <string name="form_discard_confirm_action">Descarta</string>
+    <string name="common_retry">Torna-ho a provar</string>
+    <string name="failure_load_dashboard">No s\'ha pogut carregar el resum.</string>
+    <string name="failure_load_accounts">No s\'han pogut carregar els comptes.</string>
+    <string name="failure_load_categories">No s\'han pogut carregar les categories.</string>
+    <string name="failure_load_movements">No s\'han pogut carregar els moviments.</string>
+    <string name="failure_load_people">No s\'han pogut carregar les persones.</string>
+    <string name="failure_load_budgets">No s\'han pogut carregar els pressupostos.</string>
+    <string name="failure_load_tags">No s\'han pogut carregar les etiquetes.</string>
+    <string name="failure_load_trips">No s\'han pogut carregar els viatges.</string>
+    <string name="failure_load_recurring">No s\'han pogut carregar els recurrents.</string>
+    <string name="failure_load_analysis">No s\'ha pogut carregar l\'anàlisi.</string>
+    <string name="failure_save_account">No s\'ha pogut desar el compte. Torna-ho a provar.</string>
+    <string name="failure_save_category">No s\'ha pogut desar la categoria. Torna-ho a provar.</string>
+    <string name="failure_save_person">No s\'ha pogut desar la persona. Torna-ho a provar.</string>
+    <string name="failure_save_budget">No s\'ha pogut desar el pressupost. Torna-ho a provar.</string>
+    <string name="failure_save_tag">No s\'ha pogut desar l\'etiqueta. Torna-ho a provar.</string>
+    <string name="failure_save_trip">No s\'ha pogut desar el viatge. Torna-ho a provar.</string>
+    <string name="failure_save_movement">No s\'ha pogut desar el moviment. Torna-ho a provar.</string>
+    <string name="failure_save_recurring">No s\'ha pogut desar el recurrent. Torna-ho a provar.</string>
 
     <!-- Relative dates -->
 
@@ -87,10 +111,10 @@
     <string name="account_archive_confirm_title">Eliminar compte?</string>
     <string name="account_archive_warning">El compte es deixarà de mostrar a les llistes. Els moviments i l\'historial intern es conservaran.</string>
     <plurals name="account_archive_active_templates_warning">
-        <item quantity="one">Aquest compte s\'utilitza en %d plantilla activa. Si continues, la plantilla es pausarà abans d\'arxivar el compte.</item>
-        <item quantity="other">Aquest compte s\'utilitza en %d plantilles actives. Si continues, les plantilles es pausaran abans d\'arxivar el compte.</item>
+        <item quantity="one">Aquest compte s\'utilitza en %d plantilla activa. Si continues, la plantilla es pausarà abans d\'eliminar el compte.</item>
+        <item quantity="other">Aquest compte s\'utilitza en %d plantilles actives. Si continues, les plantilles es pausaran abans d\'eliminar el compte.</item>
     </plurals>
-    <string name="account_archive_pause_and_archive">Pausa i arxiva</string>
+    <string name="account_archive_pause_and_archive">Pausa i elimina</string>
     <string name="account_form_new_title">Nou compte</string>
     <string name="account_form_edit_title">Edita compte</string>
     <string name="account_save_new">Crea compte</string>
@@ -145,8 +169,8 @@
     <string name="category_parent_disabled_has_children">Una categoria amb subcategories no pot passar a ser subcategoria.</string>
     <string name="category_archive_confirm_title">Eliminar categoria?</string>
     <string name="category_archive_warning">La categoria es deixarà de mostrar a les llistes. Les subcategories i moviments existents es conservaran.</string>
-    <string name="category_archive_dependencies_warning">Hi ha %1$d plantilles actives, %2$d pressupostos i %3$d subcategories. Si continues, les plantilles es pausaran, els pressupostos s\'arxivaran i les subcategories passaran al nivell principal.</string>
-    <string name="category_archive_resolve_and_archive">Resol i arxiva</string>
+    <string name="category_archive_dependencies_warning">Hi ha %1$d plantilles actives, %2$d pressupostos i %3$d subcategories. Si continues, les plantilles es pausaran, els pressupostos s\'eliminaran i les subcategories passaran al nivell principal.</string>
+    <string name="category_archive_resolve_and_archive">Resol i elimina</string>
     <string name="category_validation_name_required">Introdueix el nom de la categoria.</string>
     <string name="category_validation_parent_invalid">Tria una categoria superior de primer nivell.</string>
     <string name="category_validation_parent_has_children">Una categoria amb subcategories no pot tenir categoria superior.</string>
@@ -262,6 +286,7 @@
     <string name="movement_filter_expenses">Despeses</string>
     <string name="movement_filter_income">Ingressos</string>
     <string name="movement_filter_transfers">Transferències</string>
+    <string name="movement_filter_more_types">Més tipus</string>
     <string name="movement_filter_account">Compte</string>
     <string name="movement_filter_category">Categoria</string>
     <string name="movement_filter_period">Període</string>
@@ -288,7 +313,7 @@
     <string name="movement_filter_empty_body">Canvia o neteja els filtres per tornar a veure moviments.</string>
     <string name="movement_archive_confirm_title">Eliminar moviment?</string>
     <string name="movement_archive_warning">El moviment es deixarà de mostrar a les llistes i no comptarà als saldos.</string>
-    <string name="movement_archive_refunds_warning">També s\'arxivaran %1$d devolució(ns) vinculada(es).</string>
+    <string name="movement_archive_refunds_warning">També s\'eliminaran %1$d devolució(ns) vinculada(es).</string>
     <string name="movement_archive_revert_due_checkbox">Marca «%1$s» com a pendent una altra vegada</string>
     <string name="movement_type_expense">Despesa</string>
     <string name="movement_type_income">Ingrés</string>
@@ -420,18 +445,11 @@
     <string name="dashboard_active_trip_add_movement">Afegeix moviment</string>
 
     <!-- Analysis -->
-    <string name="analysis_scope_label">Abast</string>
     <string name="analysis_scope_month">Mes</string>
     <string name="analysis_scope_year">Any</string>
     <string name="analysis_scope_all_time">Tot</string>
-    <string name="analysis_scope_custom">Personalitzat</string>
-    <string name="analysis_period_current">Període actual</string>
-    <string name="analysis_period_previous">Període anterior</string>
     <string name="analysis_mode_actual">Actual</string>
     <string name="analysis_mode_flow">Flux</string>
-    <string name="analysis_value_mode_label">Valors</string>
-    <string name="analysis_mode_total">Total</string>
-    <string name="analysis_mode_average">Mitjana</string>
     <string name="analysis_one_time_include">Inclou extraordinàries</string>
     <string name="analysis_one_time_exclude">Exclou extraordinàries</string>
     <string name="analysis_one_time_only">Només extraordinàries</string>
@@ -442,14 +460,8 @@
     <string name="analysis_filter_variable">Variables</string>
     <string name="analysis_summary_expense">Despesa actual</string>
     <string name="analysis_summary_income">Ingrés actual</string>
-    <string name="analysis_breakdown_title">Desglossament</string>
-    <string name="analysis_income_vs_expense_title">Ingressos i despeses acumulats</string>
-    <string name="analysis_heatmap_title">Mapa de despesa</string>
-    <string name="analysis_net_worth_title">Patrimoni net</string>
-    <string name="analysis_savings_rate_title">Taxa d\'estalvi</string>
     <string name="analysis_empty_title">Sense dades per analitzar</string>
     <string name="analysis_empty_body">Canvia el període o afegeix moviments per veure l\'anàlisi.</string>
-    <string name="analysis_savings_rate_period_title">Estalvi per període</string>
     <string name="analysis_heatmap_legend_less">Menys</string>
     <string name="analysis_heatmap_legend_more">Més</string>
     <string name="analysis_mobile_history">Històric</string>
@@ -466,11 +478,6 @@
     <string name="analysis_mobile_percent_amount_vs_short">%1$s · %2$s vs. anterior</string>
 
     <!-- Analysis tabs -->
-    <string name="analysis_tab_resum">Resum</string>
-    <string name="analysis_tab_categories">Categories</string>
-    <string name="analysis_tab_comparativa">Compara</string>
-    <string name="analysis_tab_historic">Històric</string>
-    <string name="analysis_tab_fix_variable">Fix/Var</string>
     <string name="analysis_filters_open">Obre filtres</string>
     <string name="analysis_filter_account">Compte</string>
     <string name="analysis_filter_category">Categoria</string>
@@ -478,59 +485,12 @@
     <string name="analysis_filter_category_all">Totes les categories</string>
     <string name="analysis_filter_reset">Restableix els filtres</string>
     <string name="analysis_top_categories_title">Categories principals</string>
-    <string name="analysis_treemap_title">Distribució de despesa</string>
-    <string name="analysis_scatter_title">Freqüència vs volum</string>
-    <string name="analysis_scatter_x">Nombre de moviments</string>
-    <string name="analysis_scatter_y">Import total</string>
-    <string name="analysis_scatter_bubble_hint">Mida = mitjana per moviment</string>
-    <string name="analysis_waterfall_title">Pont del període</string>
-    <string name="analysis_comparativa_deltas_title">Canvis principals</string>
-    <string name="analysis_comparativa_unavailable">La comparativa no està disponible per a tot l\'històric.</string>
-    <string name="analysis_compare_with_label">Compara amb</string>
-    <string name="analysis_compare_reset">Restableix</string>
-    <string name="analysis_comparison_chart_title">Acumulat comparat</string>
-    <string name="analysis_comparison_expense_label">Despeses</string>
-    <string name="analysis_comparison_income_label">Ingressos</string>
     <string name="analysis_comparison_net_label">Net</string>
-    <string name="analysis_notable_swings_title">Canvis destacats</string>
-    <string name="analysis_category_comparison_title">Per categoria</string>
-    <string name="analysis_kpi_vs_previous">vs %1$s</string>
-    <string name="analysis_delta_new">Nou</string>
-    <string name="analysis_delta_eliminated">-100%</string>
-    <string name="analysis_savings_rate_delta_suffix">" pp"</string>
-    <string name="analysis_stacked_title">Evolució per categoria</string>
-    <string name="analysis_weekday_title">Despesa per dia de la setmana</string>
-    <string name="analysis_sankey_title">Flux de diners</string>
-    <string name="analysis_sankey_income">Ingressos</string>
-    <string name="analysis_sankey_fixed">Fix</string>
-    <string name="analysis_sankey_variable">Variable</string>
-    <string name="analysis_sankey_savings">Estalvi</string>
-    <string name="analysis_fixvar_gauge_title">Fix vs variable</string>
-    <string name="analysis_fixvar_fixed">Fix</string>
-    <string name="analysis_fixvar_variable">Variable</string>
-    <string name="analysis_fixvar_income_ratio">%1$s dels ingressos</string>
-    <string name="analysis_fixvar_income_unavailable">Ingressos no disponibles</string>
-    <string name="analysis_fixvar_insight_ok">Dins del marge</string>
-    <string name="analysis_fixvar_insight_warning">Supera el 50%%</string>
-    <string name="analysis_fixvar_oldest_title">Recurrents més antics</string>
-    <string name="analysis_fixvar_oldest_active_since">Des de: %1$s</string>
-    <string name="analysis_fixvar_oldest_empty">No hi ha recurrents actius per mostrar.</string>
-    <string name="analysis_fixvar_group_fixed">Fixes</string>
-    <string name="analysis_fixvar_group_variable">Variables</string>
-    <string name="analysis_fixvar_group_pct_of_expenses">%1$s de les despeses</string>
-    <string name="analysis_buffer_title">Dies de marge</string>
-    <string name="analysis_buffer_days_value">%1$d dies</string>
-    <string name="analysis_buffer_no_expense_data">Sense dades de despesa suficients per calcular-ho.</string>
-    <string name="analysis_buffer_basis_caption">Basat en la despesa mitjana total del període</string>
-    <string name="analysis_savings_rate_average_title">Taxa d\'estalvi mitjana</string>
-    <string name="analysis_savings_rate_surplus">Superàvit</string>
-    <string name="analysis_savings_rate_deficit">Dèficit</string>
     <string name="accessibility_chart_show_data">Mostra dades detallades</string>
     <string name="accessibility_chart_hide_data">Amaga dades detallades</string>
     <string name="accessibility_chart_data_title">Dades del gràfic</string>
     <string name="accessibility_chart_data_visible">Dades detallades visibles</string>
     <string name="accessibility_chart_data_hidden">Dades detallades ocultes</string>
-    <string name="accessibility_chart_period_summary">%1$s. Període: %2$s. Total: %3$s. %4$s. Tendència: %5$s.</string>
     <string name="accessibility_chart_income_expense_summary">%1$s. Període: %2$s. Ingressos: %3$s. Despeses: %4$s. %5$s. Tendència: %6$s.</string>
     <string name="accessibility_chart_no_trend">sense canvis materials</string>
     <string name="accessibility_chart_trend_up">augmenta</string>
@@ -538,28 +498,7 @@
     <string name="accessibility_chart_expenses_exceed_income">les despeses superen els ingressos</string>
     <string name="accessibility_chart_income_exceed_expenses">els ingressos superen les despeses</string>
     <string name="accessibility_chart_balanced">ingressos i despeses estan equilibrats</string>
-    <string name="accessibility_chart_result_positive">el resultat és positiu</string>
-    <string name="accessibility_chart_result_negative">el resultat és negatiu</string>
-    <string name="accessibility_chart_category_leader">la categoria principal és %1$s</string>
-    <string name="accessibility_chart_savings_summary">%1$s. Període: %2$s. El millor resultat és %3$s i el pitjor %4$s. %5$s. Tendència: %6$s.</string>
-    <string name="accessibility_chart_heatmap_summary">%1$s. Període: %2$s. Despesa total: %3$s. Dia amb més despesa: %4$s. Tendència: %5$s.</string>
-    <string name="accessibility_chart_radar_summary">%1$s. Període: %2$s. Despesa total: %3$s. Dia més car: %4$s. Tendència: %5$s.</string>
-    <string name="accessibility_chart_waterfall_summary">%1$s. Període: %2$s. De %3$s a %4$s, un canvi de %5$s. Tendència: %6$s.</string>
-    <string name="accessibility_chart_flow_summary">%1$s. Període: %2$s. Ingressos: %3$s. Despeses fixes: %4$s. Variables: %5$s. Estalvi: %6$s. Tendència: %7$s.</string>
-    <string name="accessibility_chart_fixed_variable_summary">%1$s. Període: %2$s. Fixes: %3$s. Variables: %4$s. %5$s. Tendència: %6$s.</string>
-    <string name="accessibility_chart_bubble_summary">%1$s. Període: %2$s. Categories: %3$d. Més despesa: %4$s. Tendència: %5$s.</string>
-    <string name="accessibility_chart_sparkline_summary">Tendència de %1$s: %2$s, de %3$s a %4$s.</string>
     <string name="analysis_other">Altres</string>
-    <string name="analysis_delta_percent">%1$s%%</string>
-    <string-array name="analysis_weekday_short">
-        <item>Dg</item>
-        <item>Dl</item>
-        <item>Dt</item>
-        <item>Dc</item>
-        <item>Dj</item>
-        <item>Dv</item>
-        <item>Ds</item>
-    </string-array>
     <string-array name="analysis_month_short">
         <item>Gen</item>
         <item>Feb</item>
@@ -806,6 +745,11 @@
     <string name="alert_low_balance_body">Avisa quan un compte baixi del seu llindar.</string>
     <string name="nav_settings">Configuració</string>
     <string name="settings_title">Configuració</string>
+    <string name="settings_theme_title">Aspecte</string>
+    <string name="settings_theme_body">Tria com es mostra l\'aplicació.</string>
+    <string name="settings_theme_system">Sistema</string>
+    <string name="settings_theme_light">Clar</string>
+    <string name="settings_theme_dark">Fosc</string>
     <string name="notification_recurring_lead_help">S\'aplica als recurrents que no tenen un avís propi.</string>
     <string name="notification_validation_lead_days">Introdueix un nombre de dies igual o superior a zero.</string>
     <string name="notification_permission_body">Android necessita permís per mostrar avisos locals.</string>

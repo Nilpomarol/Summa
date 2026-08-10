@@ -185,7 +185,7 @@ class TripsViewModel(
      * the dialog closes), and to the top-level `errorMessage` otherwise (the Trips list renders
      * that one).
      */
-    fun onArchiveConfirmed(onSuccess: () -> Unit = {}) {
+    fun onArchiveConfirmed(onSuccess: (undo: () -> Unit) -> Unit = {}) {
         val trip = _state.value.archiveCandidate ?: return
         val now = Instant.now().toString()
         viewModelScope.launch {
@@ -196,7 +196,7 @@ class TripsViewModel(
                 onSuccess = {
                     _state.value = _state.value.copy(archiveCandidate = null)
                     refresh()
-                    onSuccess()
+                    onSuccess { undoDelete(trip.id, deletedAt = now) }
                 },
                 onFailure = {
                     val message = it.message ?: it.javaClass.simpleName
@@ -213,6 +213,19 @@ class TripsViewModel(
                         )
                     }
                 },
+            )
+        }
+    }
+
+    private fun undoDelete(tripId: String, deletedAt: String) {
+        val restoredAt = Instant.now().toString()
+        viewModelScope.launch {
+            val result = withContext(ioDispatcher) {
+                runCatching { tripRepository.restore(tripId, deletedAt, restoredAt) }
+            }
+            result.fold(
+                onSuccess = { refresh() },
+                onFailure = { _state.value = _state.value.copy(errorMessage = it.message ?: it.javaClass.simpleName) },
             )
         }
     }

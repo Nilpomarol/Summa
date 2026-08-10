@@ -68,6 +68,7 @@ import com.gestorfinances.app.ui.common.DestructiveTextButton
 import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.FinanceSwitch
 import com.gestorfinances.app.ui.common.FinanceFilterChip
+import com.gestorfinances.app.ui.common.rememberFormDismissGuard
 import com.gestorfinances.app.ui.common.IconChip
 import com.gestorfinances.app.ui.common.IconPickerRow
 import com.gestorfinances.app.ui.common.MoneyText
@@ -76,9 +77,11 @@ import com.gestorfinances.app.ui.common.MovementListItem
 import com.gestorfinances.app.ui.common.PageHeaderRow
 import com.gestorfinances.app.ui.common.RootPageHeader
 import com.gestorfinances.app.ui.common.DistributionSegment
+import com.gestorfinances.app.ui.common.DeleteUndoHandler
 import com.gestorfinances.app.ui.common.PrimaryButton
 import com.gestorfinances.app.ui.common.BannerKind
 import com.gestorfinances.app.ui.common.InlineBanner
+import com.gestorfinances.app.ui.common.InlineFailureBanner
 import com.gestorfinances.app.ui.common.SegmentedDistributionBar
 import com.gestorfinances.app.ui.common.scrollToWhen
 import com.gestorfinances.app.ui.common.accountIcon
@@ -89,12 +92,14 @@ import com.gestorfinances.app.ui.common.nextFieldKeyboardActions
 import com.gestorfinances.app.ui.common.parseEuroCents
 import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.categoryColor
+import com.gestorfinances.app.ui.theme.themedIdentityColor
 
 @Composable
 fun AccountsScreen(
     viewModel: AccountsViewModel,
     onViewAnalysis: (accountId: String, accountName: String) -> Unit = { _, _ -> },
     onMovementDetail: (MovementSummary) -> Unit = {},
+    onDeleteCommitted: DeleteUndoHandler = {},
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsState()
@@ -107,11 +112,20 @@ fun AccountsScreen(
     val flowDetail = state.flowDetail
     when {
         form != null -> {
-            BackHandler(onBack = viewModel::onFormDismissed)
+            val requestFormDismissal = rememberFormDismissGuard(
+                formKey = form.id ?: "new-account",
+                currentValue = form,
+                hasMeaningfulChanges = { initial, current ->
+                    initial.copy(showAdvanced = false, errorRes = null, errorField = null, errorMessage = null) !=
+                        current.copy(showAdvanced = false, errorRes = null, errorField = null, errorMessage = null)
+                },
+                onDiscard = viewModel::onFormDismissed,
+            )
+            BackHandler(onBack = requestFormDismissal)
             AccountFormScreen(
                 form = form,
                 onFormChange = viewModel::onFormChanged,
-                onBack = viewModel::onFormDismissed,
+                onBack = requestFormDismissal,
                 onSave = viewModel::onSaveClicked,
                 modifier = modifier,
             )
@@ -121,6 +135,7 @@ fun AccountsScreen(
             AccountFlowScreen(
                 detail = flowDetail,
                 onBack = viewModel::onFlowDismissed,
+                onRetry = { viewModel.onFlowClicked(flowDetail.account) },
                 onViewAnalysis = {
                     viewModel.onFlowDismissed()
                     onViewAnalysis(flowDetail.account.id, flowDetail.account.name)
@@ -137,6 +152,7 @@ fun AccountsScreen(
                 onEdit = viewModel::onEditClicked,
                 onArchive = viewModel::onArchiveClicked,
                 onFlow = viewModel::onFlowClicked,
+                onRetry = viewModel::onScreenShown,
                 onMoveUp = viewModel::onMoveUpClicked,
                 onMoveDown = viewModel::onMoveDownClicked,
             )
@@ -161,7 +177,9 @@ fun AccountsScreen(
                 )
             },
             confirmButton = {
-                DestructiveTextButton(onClick = viewModel::onArchiveConfirmed) {
+                DestructiveTextButton(
+                    onClick = { viewModel.onArchiveConfirmed(onSuccess = onDeleteCommitted) },
+                ) {
                     Text(
                         text = if (it.activeTemplateCount == 0) {
                             stringResource(R.string.common_archive)
@@ -188,6 +206,7 @@ private fun AccountsContent(
     onEdit: (AccountSummary) -> Unit,
     onArchive: (AccountSummary) -> Unit,
     onFlow: (AccountSummary) -> Unit,
+    onRetry: () -> Unit,
     onMoveUp: (AccountSummary) -> Unit,
     onMoveDown: (AccountSummary) -> Unit,
 ) {
@@ -206,7 +225,11 @@ private fun AccountsContent(
 
         state.errorMessage?.let { message ->
             item {
-                InlineBanner(kind = BannerKind.Error, text = message)
+                InlineFailureBanner(
+                    diagnostic = message,
+                    messageRes = R.string.failure_load_accounts,
+                    onRetry = onRetry,
+                )
             }
         }
 
@@ -279,7 +302,7 @@ private fun AccountSummaryCard(accounts: List<AccountSummary>) {
                 SegmentedDistributionBar(
                     segments = positiveAccounts.map { account ->
                         DistributionSegment(
-                            color = categoryColor(account.color),
+                            color = themedIdentityColor(categoryColor(account.color)),
                             fraction = account.currentBalanceCents.toFloat() /
                                 positiveBalanceCents.toFloat(),
                         )
@@ -303,7 +326,7 @@ private fun AccountSummaryCard(accounts: List<AccountSummary>) {
 
 @Composable
 private fun AccountBreakdownRow(account: AccountSummary, netWorthCents: Long) {
-    val accountColor = categoryColor(account.color)
+    val accountColor = themedIdentityColor(categoryColor(account.color))
     val fraction = if (netWorthCents > 0 && account.currentBalanceCents > 0) {
         account.currentBalanceCents.toFloat() / netWorthCents.toFloat()
     } else 0f
@@ -386,7 +409,7 @@ private fun AccountCard(
     val belowThreshold = account.lowBalanceThresholdCents?.let {
         account.currentBalanceCents < it
     } ?: false
-    val accountColor = categoryColor(account.color)
+    val accountColor = themedIdentityColor(categoryColor(account.color))
     FinanceCard(
         modifier = Modifier
             .fillMaxWidth()
@@ -517,11 +540,7 @@ private fun AccountFormScreen(
         )
 
         form.errorMessage?.let {
-            Text(
-                text = it,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            InlineFailureBanner(diagnostic = it, messageRes = R.string.failure_save_account)
         }
 
         // Live preview
@@ -560,7 +579,7 @@ private fun AccountFormScreen(
             label = { Text(text = stringResource(R.string.account_field_starting_balance)) },
             prefix = { Text(text = "€") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
-            keyboardActions = doneKeyboardActions(),
+            keyboardActions = doneKeyboardActions(onSave),
             singleLine = true,
             isError = startingBalanceError,
             supportingText = if (startingBalanceError && form.errorRes != null) {
@@ -615,7 +634,7 @@ private fun AccountFormScreen(
         }
 
         // Advanced options (low balance threshold)
-        AdvancedAccountOptions(form = form, onFormChange = onFormChange)
+        AdvancedAccountOptions(form = form, onFormChange = onFormChange, onSave = onSave)
 
         // Action buttons
         Row(
@@ -696,6 +715,7 @@ private fun AccountPreviewCard(form: AccountFormState) {
 private fun AdvancedAccountOptions(
     form: AccountFormState,
     onFormChange: (AccountFormState) -> Unit,
+    onSave: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         HorizontalDivider()
@@ -735,7 +755,7 @@ private fun AdvancedAccountOptions(
                 label = { Text(text = stringResource(R.string.account_field_low_balance_threshold)) },
                 prefix = { Text(text = "€") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
-                keyboardActions = doneKeyboardActions(),
+                keyboardActions = doneKeyboardActions(onSave),
                 singleLine = true,
                 isError = thresholdError,
                 supportingText = if (thresholdError && form.errorRes != null) {
@@ -759,6 +779,7 @@ private fun AdvancedAccountOptions(
 private fun AccountFlowScreen(
     detail: AccountFlowDetailState,
     onBack: () -> Unit,
+    onRetry: () -> Unit,
     onViewAnalysis: () -> Unit,
     onMovementDetail: (MovementSummary) -> Unit,
     modifier: Modifier = Modifier,
@@ -875,11 +896,11 @@ private fun AccountFlowScreen(
             }
         }
 
-        detail.errorMessage?.let { msg ->
-            Text(
-                text = msg,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyMedium,
+        detail.errorMessage?.let { message ->
+            InlineFailureBanner(
+                diagnostic = message,
+                messageRes = R.string.failure_load_accounts,
+                onRetry = onRetry,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
             )
         }

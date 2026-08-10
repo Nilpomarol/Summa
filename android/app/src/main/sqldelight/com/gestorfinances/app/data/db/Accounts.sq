@@ -98,3 +98,20 @@ SET
     is_default = 0
 WHERE id = :id
   AND archived_at IS NULL;
+
+restoreAccount:
+UPDATE accounts
+SET
+    archived_at = NULL,
+    updated_at = :updated_at,
+    is_default = CASE
+        WHEN :is_default = 1 AND NOT EXISTS (
+            SELECT 1 FROM accounts current_default
+            WHERE current_default.is_default = 1
+              AND current_default.archived_at IS NULL
+              AND current_default.id <> :id
+        ) THEN 1
+        ELSE 0
+    END
+WHERE id = :id
+  AND archived_at = :archived_at;

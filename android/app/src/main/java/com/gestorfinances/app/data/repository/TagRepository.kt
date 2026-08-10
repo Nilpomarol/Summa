@@ -87,6 +87,10 @@ class TagRepository(
             updated_at = archivedAt,
         )
     }
+
+    fun restore(id: String, deletedAt: String, restoredAt: String) {
+        queries.restoreTag(id = id, archived_at = deletedAt, updated_at = restoredAt)
+    }
 }
 
 private fun mapTagSummary(

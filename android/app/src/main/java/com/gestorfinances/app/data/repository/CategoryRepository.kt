@@ -139,6 +139,24 @@ class CategoryRepository(
             updated_at = archivedAt,
         )
     }
+
+    fun restore(id: String, deletedAt: String, restoredAt: String) {
+        queries.restoreCategory(id = id, archived_at = deletedAt, updated_at = restoredAt)
+    }
+
+    fun restoreParentAfterDelete(
+        id: String,
+        parentId: String,
+        deletedAt: String,
+        restoredAt: String,
+    ) {
+        queries.restoreCategoryParentAfterDelete(
+            id = id,
+            parent_id = parentId,
+            deleted_at = deletedAt,
+            updated_at = restoredAt,
+        )
+    }
 }
 
 private fun mapCategoryRecord(

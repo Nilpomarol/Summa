@@ -17,10 +17,14 @@ import com.gestorfinances.app.data.backup.AutoBackupSettingsRepository
 import com.gestorfinances.app.data.backup.AutoBackupInterval
 import com.gestorfinances.app.notifications.NotificationSettings
 import com.gestorfinances.app.notifications.NotificationSettingsRepository
+import com.gestorfinances.app.ui.theme.ThemeMode
+import com.gestorfinances.app.ui.theme.ThemeSettingsRepository
 import java.time.Instant
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -91,6 +95,17 @@ class SettingsViewModelTest {
         assertTrue(preferences.settings.enabled)
         assertTrue(scheduler.settings?.enabled == true)
         assertTrue(scheduler.runImmediately)
+    }
+
+    @Test
+    fun changingThemePersistsAndUpdatesTheSettingsState() {
+        val themePreferences = FakeThemeSettingsRepository()
+        val viewModel = viewModel(themePreferences = themePreferences)
+
+        viewModel.onThemeModeChanged(ThemeMode.DARK)
+
+        assertEquals(ThemeMode.DARK, themePreferences.mode.value)
+        assertEquals(ThemeMode.DARK, viewModel.state.value.themeMode)
     }
 
     @Test
@@ -412,6 +427,7 @@ class SettingsViewModelTest {
         operations: FakeBackupOperations = FakeBackupOperations(),
         autoBackupSettings: FakeAutoBackupSettingsRepository = FakeAutoBackupSettingsRepository(),
         autoBackupScheduler: FakeAutoBackupScheduler = FakeAutoBackupScheduler(),
+        themePreferences: FakeThemeSettingsRepository = FakeThemeSettingsRepository(),
     ): SettingsViewModel =
         SettingsViewModel(
             preferences = FakeNotificationSettingsRepository(),
@@ -419,6 +435,7 @@ class SettingsViewModelTest {
             backupOperations = operations,
             autoBackupSettings = autoBackupSettings,
             autoBackupScheduler = autoBackupScheduler,
+            themePreferences = themePreferences,
             ioDispatcher = dispatcher,
         )
 
@@ -429,6 +446,15 @@ class SettingsViewModelTest {
 
         override fun saveSettings(settings: NotificationSettings) {
             this.settings = settings
+        }
+    }
+
+    private class FakeThemeSettingsRepository : ThemeSettingsRepository {
+        private val mutableMode = MutableStateFlow(ThemeMode.SYSTEM)
+        override val mode = mutableMode.asStateFlow()
+
+        override fun setMode(mode: ThemeMode) {
+            mutableMode.value = mode
         }
     }
 

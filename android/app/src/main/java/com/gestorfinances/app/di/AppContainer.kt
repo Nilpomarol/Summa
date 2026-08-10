@@ -22,6 +22,7 @@ import com.gestorfinances.app.data.repository.TripRepository
 import com.gestorfinances.app.data.sync.DeviceAccessState
 import com.gestorfinances.app.notifications.FinanceNotificationCoordinator
 import com.gestorfinances.app.notifications.NotificationPreferences
+import com.gestorfinances.app.ui.theme.ThemePreferences
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -94,6 +95,10 @@ class AppContainer(context: Context) {
 
     val notificationPreferences: NotificationPreferences by lazy {
         NotificationPreferences(appContext)
+    }
+
+    val themePreferences: ThemePreferences by lazy {
+        ThemePreferences(appContext)
     }
 
     val backupFolderStore: BackupFolderStore by lazy {

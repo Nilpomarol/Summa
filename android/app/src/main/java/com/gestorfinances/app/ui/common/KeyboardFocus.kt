@@ -14,7 +14,10 @@ fun nextFieldKeyboardActions(): KeyboardActions {
 
 /** Clears focus (dismissing the keyboard) on IME "Done". */
 @Composable
-fun doneKeyboardActions(): KeyboardActions {
+fun doneKeyboardActions(onDone: () -> Unit = {}): KeyboardActions {
     val focusManager = LocalFocusManager.current
-    return KeyboardActions(onDone = { focusManager.clearFocus() })
+    return KeyboardActions(onDone = {
+        focusManager.clearFocus()
+        onDone()
+    })
 }

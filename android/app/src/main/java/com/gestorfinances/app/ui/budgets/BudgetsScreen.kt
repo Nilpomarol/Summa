@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -37,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.BudgetEvaluation
@@ -60,10 +62,12 @@ import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.FinanceSwitch
 import com.gestorfinances.app.ui.common.IconChip
 import com.gestorfinances.app.ui.common.InlineBanner
+import com.gestorfinances.app.ui.common.InlineFailureBanner
 import com.gestorfinances.app.ui.common.NeutralPill
 import com.gestorfinances.app.ui.common.PrimaryButton
 import com.gestorfinances.app.ui.common.SecondaryButton
 import com.gestorfinances.app.ui.common.SectionHeader
+import com.gestorfinances.app.ui.common.DeleteUndoHandler
 import com.gestorfinances.app.ui.common.RootPageHeader
 import com.gestorfinances.app.ui.common.SegmentedControl
 import com.gestorfinances.app.ui.common.categoryIcon
@@ -71,6 +75,9 @@ import com.gestorfinances.app.ui.common.formatEuroCents
 import com.gestorfinances.app.ui.common.MonthDropdownPicker
 import com.gestorfinances.app.ui.common.inPickerHierarchyOrder
 import com.gestorfinances.app.ui.common.scrollToWhen
+import com.gestorfinances.app.ui.common.rememberFormDismissGuard
+import com.gestorfinances.app.ui.common.doneKeyboardActions
+import com.gestorfinances.app.ui.common.nextFieldKeyboardActions
 import com.gestorfinances.app.ui.movements.FormSelect
 import com.gestorfinances.app.ui.movements.SelectOption
 import com.gestorfinances.app.ui.theme.FinanceTheme
@@ -83,6 +90,7 @@ fun BudgetsScreen(
     onBack: () -> Unit,
     onOpenCategoryMovements: (CategoryRecord) -> Unit = {},
     contextTripId: String? = null,
+    onDeleteCommitted: DeleteUndoHandler = {},
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsState()
@@ -102,15 +110,25 @@ fun BudgetsScreen(
         onDelete = viewModel::onDeleteClicked,
         onOpenCategoryMovements = onOpenCategoryMovements,
         onTogglePastTrips = viewModel::onPastTripsExpandedToggled,
+        onRetry = { viewModel.onScreenShown(contextTripId) },
     )
 
     state.form?.let { form ->
+        val requestFormDismissal = rememberFormDismissGuard(
+            formKey = form.id ?: "new-budget",
+            currentValue = form,
+            hasMeaningfulChanges = { initial, current ->
+                initial.copy(errorRes = null, errorField = null, errorMessage = null) !=
+                    current.copy(errorRes = null, errorField = null, errorMessage = null)
+            },
+            onDiscard = viewModel::onFormDismissed,
+        )
         BudgetFormSheet(
             form = form,
             categories = state.categories,
             trips = state.trips,
             onFormChange = viewModel::onFormChanged,
-            onDismiss = viewModel::onFormDismissed,
+            onDismiss = requestFormDismissal,
             onSave = viewModel::onSaveClicked,
             onDelete = viewModel::onDeleteEditingBudgetClicked,
         )
@@ -122,7 +140,9 @@ fun BudgetsScreen(
             title = { Text(text = stringResource(R.string.budget_archive_confirm_title)) },
             text = { Text(text = stringResource(R.string.budget_archive_warning)) },
             confirmButton = {
-                DestructiveTextButton(onClick = viewModel::onArchiveConfirmed) {
+                DestructiveTextButton(
+                    onClick = { viewModel.onArchiveConfirmed(onSuccess = onDeleteCommitted) },
+                ) {
                     Text(text = stringResource(R.string.common_archive))
                 }
             },
@@ -147,6 +167,7 @@ private fun BudgetsContent(
     onDelete: (BudgetSummary) -> Unit,
     onOpenCategoryMovements: (CategoryRecord) -> Unit,
     onTogglePastTrips: () -> Unit,
+    onRetry: () -> Unit,
 ) {
     LazyColumn(
         modifier = modifier.fillMaxWidth(),
@@ -159,7 +180,11 @@ private fun BudgetsContent(
 
         state.errorMessage?.let { message ->
             item {
-                InlineBanner(kind = BannerKind.Error, text = message)
+                InlineFailureBanner(
+                    diagnostic = message,
+                    messageRes = R.string.failure_load_budgets,
+                    onRetry = onRetry,
+                )
             }
         }
 
@@ -489,6 +514,12 @@ private fun BudgetFormSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .fillMaxHeight(),
+        ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
                 .navigationBarsPadding()
@@ -502,8 +533,8 @@ private fun BudgetFormSheet(
                 style = MaterialTheme.typography.titleLarge,
             )
             form.errorMessage?.let {
-            InlineBanner(kind = BannerKind.Error, text = it)
-        }
+                InlineFailureBanner(diagnostic = it, messageRes = R.string.failure_save_budget)
+            }
         if (form.errorField == null && form.errorRes != null) {
             InlineBanner(kind = BannerKind.Error, text = stringResource(form.errorRes))
         }
@@ -631,7 +662,8 @@ private fun BudgetFormSheet(
             supportingText = if (limitError && form.errorRes != null) {
                 { Text(text = stringResource(form.errorRes)) }
             } else null,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
+            keyboardActions = nextFieldKeyboardActions(),
             shape = MaterialTheme.shapes.small,
             modifier = Modifier
                 .fillMaxWidth()
@@ -648,7 +680,8 @@ private fun BudgetFormSheet(
             supportingText = if (thresholdError && form.errorRes != null) {
                 { Text(text = stringResource(form.errorRes)) }
             } else null,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+            keyboardActions = doneKeyboardActions(onSave),
             shape = MaterialTheme.shapes.small,
             modifier = Modifier
                 .fillMaxWidth()
@@ -664,6 +697,8 @@ private fun BudgetFormSheet(
                 },
             )
         }
+        }
+        HorizontalDivider(color = FinanceTheme.colors.cardBorder)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -689,8 +724,8 @@ private fun BudgetFormSheet(
             )
         }
         }
+        }
     }
-}
 
 @Composable
 private fun BudgetInclusionSection(

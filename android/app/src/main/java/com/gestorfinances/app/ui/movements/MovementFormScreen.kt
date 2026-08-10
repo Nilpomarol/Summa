@@ -38,6 +38,7 @@ import com.gestorfinances.app.ui.common.AppModalBottomSheet
 import com.gestorfinances.app.ui.common.AppSheetHandleTouchHeight
 import com.gestorfinances.app.ui.common.FinanceFilterChip
 import com.gestorfinances.app.ui.common.InlineBanner
+import com.gestorfinances.app.ui.common.InlineFailureBanner
 import com.gestorfinances.app.ui.common.PrimaryButton
 import com.gestorfinances.app.ui.common.categoryIcon
 import com.gestorfinances.app.ui.common.movementTypeIcon
@@ -157,11 +158,7 @@ fun MovementFormScreen(
         // validation errors (errorRes) render next to the offending control, while duplicate and
         // data-loss warnings render next to the Save button below.
         form.errorMessage?.let {
-            Text(
-                text = it,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            InlineFailureBanner(diagnostic = it, messageRes = R.string.failure_save_movement)
         }
 
         // Type row leads (no redundant "Tipus" label -- the hero title already names the type),

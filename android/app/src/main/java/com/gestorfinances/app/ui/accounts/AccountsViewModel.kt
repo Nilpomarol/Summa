@@ -128,21 +128,30 @@ class AccountsViewModel(
         _state.value = _state.value.copy(archiveCandidate = null)
     }
 
-    fun onArchiveConfirmed() {
+    fun onArchiveConfirmed(onSuccess: (undo: () -> Unit) -> Unit = {}) {
         val account = _state.value.archiveCandidate?.account ?: return
         val now = Instant.now().toString()
         viewModelScope.launch {
             val result = withContext(Dispatchers.IO) {
                 runCatching {
+                    val pausedTemplateIds = templateRepository.listActive()
+                        .filter {
+                            it.status == TemplateStatus.ACTIVE &&
+                                (it.accountId == account.id || it.destAccountId == account.id)
+                        }
+                        .map { it.id }
                     movementRepository.runInTransaction {
-                        templateRepository.listActive()
-                            .filter {
-                                it.status == TemplateStatus.ACTIVE &&
-                                    (it.accountId == account.id || it.destAccountId == account.id)
-                            }
-                            .forEach { templateRepository.setStatus(it.id, TemplateStatus.PAUSED, updatedAt = now) }
+                        pausedTemplateIds.forEach {
+                            templateRepository.setStatus(it, TemplateStatus.PAUSED, updatedAt = now)
+                        }
                         accountRepository.archive(account.id, archivedAt = now)
                     }
+                    AccountDeleteOperation(
+                        accountId = account.id,
+                        deletedAt = now,
+                        wasDefault = account.isDefault,
+                        pausedTemplateIds = pausedTemplateIds,
+                    )
                 }
             }
             result.fold(
@@ -150,6 +159,7 @@ class AccountsViewModel(
                     _state.value = _state.value.copy(archiveCandidate = null)
                     refreshAccounts()
                     refreshNotifications()
+                    onSuccess { undoDelete(it) }
                 },
                 onFailure = {
                     _state.value = _state.value.copy(
@@ -157,6 +167,38 @@ class AccountsViewModel(
                         errorMessage = it.message ?: it.javaClass.simpleName,
                     )
                 },
+            )
+        }
+    }
+
+    private fun undoDelete(operation: AccountDeleteOperation) {
+        val restoredAt = Instant.now().toString()
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    movementRepository.runInTransaction {
+                        accountRepository.restore(
+                            id = operation.accountId,
+                            deletedAt = operation.deletedAt,
+                            restoredAt = restoredAt,
+                            wasDefault = operation.wasDefault,
+                        )
+                        operation.pausedTemplateIds.forEach {
+                            templateRepository.restoreActiveStatusAfterDelete(
+                                id = it,
+                                deletedAt = operation.deletedAt,
+                                restoredAt = restoredAt,
+                            )
+                        }
+                    }
+                }
+            }
+            result.fold(
+                onSuccess = {
+                    refreshAccounts()
+                    refreshNotifications()
+                },
+                onFailure = { _state.value = _state.value.copy(errorMessage = it.message ?: it.javaClass.simpleName) },
             )
         }
     }
@@ -312,6 +354,13 @@ data class AccountsUiState(
 data class AccountArchiveCandidate(
     val account: AccountSummary,
     val activeTemplateCount: Int,
+)
+
+private data class AccountDeleteOperation(
+    val accountId: String,
+    val deletedAt: String,
+    val wasDefault: Boolean,
+    val pausedTemplateIds: List<String>,
 )
 
 data class AccountFlowDetailState(

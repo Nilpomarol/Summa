@@ -42,6 +42,7 @@ import com.gestorfinances.app.domain.rules.RecurrenceFrequency
 import com.gestorfinances.app.ui.common.BannerKind
 import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.InlineBanner
+import com.gestorfinances.app.ui.common.InlineFailureBanner
 import com.gestorfinances.app.ui.common.LabeledSegmentedControl
 import com.gestorfinances.app.ui.common.PageHeaderRow
 import com.gestorfinances.app.ui.common.PrimaryButton
@@ -89,7 +90,9 @@ internal fun RecurringFormScreen(
                 .padding(bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            form.errorMessage?.let { InlineBanner(kind = BannerKind.Error, text = it) }
+            form.errorMessage?.let {
+                InlineFailureBanner(diagnostic = it, messageRes = R.string.failure_save_recurring)
+            }
 
             FormCard(
                 title = stringResource(R.string.recurring_form_movement_title),

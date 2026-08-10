@@ -76,11 +76,14 @@ import com.gestorfinances.app.ui.common.EntityColorPalette
 import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.FinanceFilterChip
 import com.gestorfinances.app.ui.common.InlineBanner
+import com.gestorfinances.app.ui.common.InlineFailureBanner
 import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.MovementListItem
 import com.gestorfinances.app.ui.common.AppModalBottomSheet
+import com.gestorfinances.app.ui.common.DeleteUndoHandler
 import com.gestorfinances.app.ui.common.PageHeaderRow
 import com.gestorfinances.app.ui.common.RootPageHeader
+import com.gestorfinances.app.ui.common.rememberFormDismissGuard
 import com.gestorfinances.app.ui.common.PrimaryButton
 import com.gestorfinances.app.ui.common.NeutralPill
 import com.gestorfinances.app.ui.common.SectionHeader
@@ -101,6 +104,7 @@ fun PeopleScreen(
     onOpenDebtSource: (String) -> Unit,
     onAddDebtForPerson: (PersonSummary) -> Unit,
     onMessageCopied: (String) -> Unit,
+    onDeleteCommitted: DeleteUndoHandler = {},
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsState()
@@ -113,12 +117,21 @@ fun PeopleScreen(
     val settlementForm = state.settlementForm
     when {
         settlementForm != null && detail != null -> {
-            BackHandler(onBack = viewModel::onSettlementDismissed)
+            val requestSettlementDismissal = rememberFormDismissGuard(
+                formKey = settlementForm.personId,
+                currentValue = settlementForm,
+                hasMeaningfulChanges = { initial, current ->
+                    initial.copy(errorRes = null, errorField = null, errorMessage = null) !=
+                        current.copy(errorRes = null, errorField = null, errorMessage = null)
+                },
+                onDiscard = viewModel::onSettlementDismissed,
+            )
+            BackHandler(onBack = requestSettlementDismissal)
             SettlementScreen(
                 form = settlementForm,
                 accounts = state.accounts,
                 onFormChange = viewModel::onSettlementFormChanged,
-                onBack = viewModel::onSettlementDismissed,
+                onBack = requestSettlementDismissal,
                 onSave = viewModel::onSettlementSaveClicked,
                 modifier = modifier,
             )
@@ -128,6 +141,7 @@ fun PeopleScreen(
             PersonDetailScreen(
                 detail = detail,
                 onBack = viewModel::onPersonDetailDismissed,
+                onRetry = { viewModel.onPersonDetailClicked(detail.person) },
                 onOpenDebtSource = onOpenDebtSource,
                 onExternalSplit = {
                     viewModel.onPersonDetailDismissed()
@@ -153,15 +167,25 @@ fun PeopleScreen(
                 onArchive = viewModel::onArchiveClicked,
                 onExternalSplit = onAddDebtForPerson,
                 onOpenDetail = viewModel::onPersonDetailClicked,
+                onRetry = viewModel::onScreenShown,
             )
         }
     }
 
     state.form?.let { form ->
+        val requestFormDismissal = rememberFormDismissGuard(
+            formKey = form.id ?: "new-person",
+            currentValue = form,
+            hasMeaningfulChanges = { initial, current ->
+                initial.copy(errorRes = null, errorField = null, errorMessage = null) !=
+                    current.copy(errorRes = null, errorField = null, errorMessage = null)
+            },
+            onDiscard = viewModel::onFormDismissed,
+        )
         PersonFormSheet(
             form = form,
             onFormChange = viewModel::onFormChanged,
-            onDismiss = viewModel::onFormDismissed,
+            onDismiss = requestFormDismissal,
             onSave = viewModel::onSaveClicked,
         )
     }
@@ -182,7 +206,9 @@ fun PeopleScreen(
                 }
             },
             confirmButton = {
-                DestructiveTextButton(onClick = viewModel::onArchiveConfirmed) {
+                DestructiveTextButton(
+                    onClick = { viewModel.onArchiveConfirmed(onSuccess = onDeleteCommitted) },
+                ) {
                     Text(text = stringResource(R.string.common_archive))
                 }
             },
@@ -204,6 +230,7 @@ private fun PeopleContent(
     onArchive: (PersonSummary) -> Unit,
     onExternalSplit: (PersonSummary) -> Unit,
     onOpenDetail: (PersonSummary) -> Unit,
+    onRetry: () -> Unit,
 ) {
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -220,7 +247,11 @@ private fun PeopleContent(
 
         state.errorMessage?.let { message ->
             item {
-                InlineBanner(kind = BannerKind.Error, text = message)
+                InlineFailureBanner(
+                    diagnostic = message,
+                    messageRes = R.string.failure_load_people,
+                    onRetry = onRetry,
+                )
             }
         }
 
@@ -485,6 +516,7 @@ private fun PersonRow(
 private fun PersonDetailScreen(
     detail: PersonDetailState,
     onBack: () -> Unit,
+    onRetry: () -> Unit,
     onOpenDebtSource: (String) -> Unit,
     onExternalSplit: () -> Unit,
     onSettleUp: () -> Unit,
@@ -596,10 +628,10 @@ private fun PersonDetailScreen(
             }
 
             detail.errorMessage?.let { message ->
-                Text(
-                    text = message,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
+                InlineFailureBanner(
+                    diagnostic = message,
+                    messageRes = R.string.failure_load_people,
+                    onRetry = onRetry,
                 )
             }
         }
@@ -840,11 +872,7 @@ private fun SettlementScreen(
             )
         }
         form.errorMessage?.let {
-            Text(
-                text = it,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            InlineFailureBanner(diagnostic = it, messageRes = R.string.failure_save_person)
         }
         val amountError = form.errorField == SettlementFormField.AMOUNT
         OutlinedTextField(
@@ -858,7 +886,7 @@ private fun SettlementScreen(
                 { Text(text = stringResource(form.errorRes)) }
             } else null,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
-            keyboardActions = doneKeyboardActions(),
+            keyboardActions = doneKeyboardActions(onSave),
             shape = MaterialTheme.shapes.small,
             modifier = Modifier
                 .fillMaxWidth()
@@ -963,11 +991,7 @@ private fun PersonFormSheet(
             )
 
             form.errorMessage?.let {
-                Text(
-                    text = it,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+                InlineFailureBanner(diagnostic = it, messageRes = R.string.failure_save_person)
             }
 
             PersonPreviewCard(form = form)

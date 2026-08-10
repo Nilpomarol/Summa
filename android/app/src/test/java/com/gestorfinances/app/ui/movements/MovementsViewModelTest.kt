@@ -1017,11 +1017,18 @@ class MovementsViewModelTest {
 
             viewModel.onArchiveClicked(movement)
             advanceUntilIdle()
-            viewModel.onArchiveConfirmed(revertDueDate = true)
+            var undo: (() -> Unit)? = null
+            viewModel.onArchiveConfirmed(revertDueDate = true) { undo = it }
             advanceUntilIdle()
 
             assertEquals("2026-01-05", store.templates.getActive(templateId)!!.nextDueDate)
             assertNull(store.movements.getActive(movement.id))
+
+            requireNotNull(undo).invoke()
+            advanceUntilIdle()
+
+            assertEquals("2026-02-05", store.templates.getActive(templateId)!!.nextDueDate)
+            assertEquals(movement.id, store.movements.getActive(movement.id)!!.id)
         }
     }
 
@@ -1266,6 +1273,45 @@ class MovementsViewModelTest {
 
             assertNull(viewModel.state.value.refundForm)
             assertEquals(1, store.movements.refundsForExpense("exp").size)
+        }
+    }
+
+    @Test
+    fun deletingAnExpenseAndUndoingRestoresItsLinkedRefund() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            store.movements.create(
+                movementDraft(id = "exp", amountCents = 5_000, name = "Sabates"),
+                createdAt = NOW,
+            )
+            val viewModel = viewModel(store)
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+
+            val expense = store.movements.getActive("exp")!!
+            viewModel.onDetailClicked(expense)
+            advanceUntilIdle()
+            viewModel.onAddRefundClicked(expense)
+            val refundForm = viewModel.state.value.refundForm!!
+            viewModel.onRefundFormChanged(refundForm.copy(amount = "20", date = "2026-01-02"))
+            viewModel.onRefundSaveClicked()
+            advanceUntilIdle()
+            val refundId = store.movements.refundsForExpense("exp").single().id
+
+            viewModel.onArchiveClicked(store.movements.getActive("exp")!!)
+            advanceUntilIdle()
+            var undo: (() -> Unit)? = null
+            viewModel.onArchiveConfirmed(revertDueDate = false) { undo = it }
+            advanceUntilIdle()
+
+            assertNull(store.movements.getActive("exp"))
+            assertNull(store.movements.getActive(refundId))
+
+            requireNotNull(undo).invoke()
+            advanceUntilIdle()
+
+            assertEquals("exp", store.movements.getActive("exp")!!.id)
+            assertEquals(refundId, store.movements.getActive(refundId)!!.id)
         }
     }
 

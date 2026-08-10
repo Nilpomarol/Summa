@@ -6,6 +6,8 @@ import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.Modifier
 
 /**
@@ -18,10 +20,14 @@ import androidx.compose.ui.Modifier
 @Composable
 fun Modifier.scrollToWhen(condition: Boolean): Modifier {
     val requester = remember { BringIntoViewRequester() }
+    val focusRequester = remember { FocusRequester() }
     LaunchedEffect(condition) {
         if (condition) {
             requester.bringIntoView()
+            focusRequester.requestFocus()
         }
     }
-    return this.bringIntoViewRequester(requester)
+    return this
+        .bringIntoViewRequester(requester)
+        .focusRequester(focusRequester)
 }

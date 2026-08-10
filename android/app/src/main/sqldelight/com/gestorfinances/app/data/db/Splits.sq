@@ -79,6 +79,14 @@ SET
 WHERE id = :id
   AND archived_at IS NULL;
 
+restoreMovementSplit:
+UPDATE splits
+SET
+    archived_at = NULL,
+    updated_at = :updated_at
+WHERE id = :id
+  AND archived_at = :archived_at;
+
 archiveSplitLines:
 UPDATE split_lines
 SET
@@ -86,6 +94,14 @@ SET
     updated_at = :updated_at
 WHERE split_id = :split_id
   AND archived_at IS NULL;
+
+restoreSplitLines:
+UPDATE split_lines
+SET
+    archived_at = NULL,
+    updated_at = :updated_at
+WHERE split_id = :split_id
+  AND archived_at = :archived_at;
 
 insertSplitLine:
 INSERT INTO split_lines(

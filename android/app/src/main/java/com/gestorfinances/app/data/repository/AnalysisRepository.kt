@@ -41,51 +41,6 @@ data class AnalysisAccountFlowBucket(
     val bucketDeltaCents: Long,
 )
 
-data class AnalysisLargestExpense(
-    val sourceId: String,
-    val date: String,
-    val label: String?,
-    val categoryId: String?,
-    val categoryName: String?,
-    val categoryIcon: String?,
-    val categoryColor: String?,
-    val amountCents: Long,
-)
-
-data class AnalysisMerchantTotal(
-    val merchantLabel: String?,
-    val totalCents: Long,
-    val movementCount: Long,
-)
-
-data class AnalysisCategoryTrendPoint(
-    val categoryId: String?,
-    val categoryName: String?,
-    val categoryColor: String?,
-    val bucket: String,
-    val expenseCents: Long,
-)
-
-data class AnalysisNetWorthPoint(
-    val bucket: String,
-    val netWorthCents: Long,
-)
-
-/** Total actual expense for a single weekday (0 = Sunday … 6 = Saturday), net of refunds. */
-data class AnalysisWeekdaySpend(
-    val weekday: Int,
-    val expenseCents: Long,
-)
-
-/** Per-category purchase count and spend volume, for the frequency-vs-volume scatter. */
-data class AnalysisCategoryFrequency(
-    val categoryId: String?,
-    val categoryName: String?,
-    val categoryColor: String?,
-    val movementCount: Long,
-    val totalCents: Long,
-)
-
 enum class AnalysisBucket(val queryValue: String) {
     DAY("day"),
     MONTH("month"),
@@ -201,42 +156,6 @@ class AnalysisRepository(
             mapper = ::mapIncomeExpenseBucket,
         ).executeAsList()
 
-    fun weekdaySpend(
-        fromDate: String,
-        toDate: String,
-        oneTimeMode: AnalysisOneTimeMode = AnalysisOneTimeMode.INCLUDE,
-        categoryNature: AnalysisCategoryNature? = null,
-        accountId: String? = null,
-        categoryId: String? = null,
-    ): List<AnalysisWeekdaySpend> =
-        queries.analysisWeekdaySpend(
-            from_date = fromDate,
-            to_date = toDate,
-            one_time_mode = oneTimeMode.queryValue,
-            category_nature = categoryNature?.queryValue,
-            account_id = accountId,
-            category_id = categoryId,
-            mapper = ::mapWeekdaySpend,
-        ).executeAsList()
-
-    fun categoryFrequency(
-        fromDate: String,
-        toDate: String,
-        oneTimeMode: AnalysisOneTimeMode = AnalysisOneTimeMode.INCLUDE,
-        categoryNature: AnalysisCategoryNature? = null,
-        accountId: String? = null,
-        categoryId: String? = null,
-    ): List<AnalysisCategoryFrequency> =
-        queries.analysisCategoryFrequency(
-            from_date = fromDate,
-            to_date = toDate,
-            one_time_mode = oneTimeMode.queryValue,
-            category_nature = categoryNature?.queryValue,
-            account_id = accountId,
-            category_id = categoryId,
-            mapper = ::mapCategoryFrequency,
-        ).executeAsList()
-
     fun accountFlowOverTime(
         fromDate: String,
         toDate: String,
@@ -251,73 +170,6 @@ class AnalysisRepository(
             mapper = ::mapAccountFlowBucket,
         ).executeAsList()
 
-    fun largestExpenses(
-        fromDate: String,
-        toDate: String,
-        limit: Long = WIDGET_LIMIT,
-        oneTimeMode: AnalysisOneTimeMode = AnalysisOneTimeMode.INCLUDE,
-        categoryNature: AnalysisCategoryNature? = null,
-    ): List<AnalysisLargestExpense> =
-        queries.analysisLargestExpenses(
-            from_date = fromDate,
-            to_date = toDate,
-            one_time_mode = oneTimeMode.queryValue,
-            category_nature = categoryNature?.queryValue,
-            limit = limit,
-            mapper = ::mapLargestExpense,
-        ).executeAsList()
-
-    fun topMerchants(
-        fromDate: String,
-        toDate: String,
-        limit: Long = WIDGET_LIMIT,
-        oneTimeMode: AnalysisOneTimeMode = AnalysisOneTimeMode.INCLUDE,
-        categoryNature: AnalysisCategoryNature? = null,
-    ): List<AnalysisMerchantTotal> =
-        queries.analysisTopMerchants(
-            from_date = fromDate,
-            to_date = toDate,
-            one_time_mode = oneTimeMode.queryValue,
-            category_nature = categoryNature?.queryValue,
-            limit = limit,
-            mapper = ::mapMerchantTotal,
-        ).executeAsList()
-
-    fun categoryTrends(
-        fromDate: String,
-        toDate: String,
-        bucket: AnalysisBucket = AnalysisBucket.MONTH,
-        oneTimeMode: AnalysisOneTimeMode = AnalysisOneTimeMode.INCLUDE,
-        categoryNature: AnalysisCategoryNature? = null,
-        accountId: String? = null,
-        categoryId: String? = null,
-    ): List<AnalysisCategoryTrendPoint> =
-        queries.analysisCategoryTrends(
-            bucket = bucket.queryValue,
-            from_date = fromDate,
-            to_date = toDate,
-            one_time_mode = oneTimeMode.queryValue,
-            category_nature = categoryNature?.queryValue,
-            account_id = accountId,
-            category_id = categoryId,
-            mapper = ::mapCategoryTrendPoint,
-        ).executeAsList()
-
-    fun netWorthOverTime(
-        fromDate: String,
-        toDate: String,
-        bucket: AnalysisBucket = AnalysisBucket.MONTH,
-    ): List<AnalysisNetWorthPoint> =
-        queries.analysisNetWorthOverTime(
-            bucket = bucket.queryValue,
-            from_date = fromDate,
-            to_date = toDate,
-            mapper = ::mapNetWorthPoint,
-        ).executeAsList()
-
-    private companion object {
-        const val WIDGET_LIMIT = 8L
-    }
 }
 
 private fun mapPeriodTotals(
@@ -336,7 +188,6 @@ private fun mapPeriodTotals(
         accountFlowCents = accountFlowCents,
         savingsRateBasisPoints = savingsRateBasisPoints,
     )
-
 private fun mapBreakdownTotal(
     rowKind: String,
     categoryId: String?,
@@ -414,84 +265,4 @@ private fun mapAccountFlowBucket(
         accountName = accountName,
         deltaCents = deltaCents ?: 0L,
         bucketDeltaCents = bucketDeltaCents ?: 0L,
-    )
-
-private fun mapLargestExpense(
-    sourceId: String,
-    date: String?,
-    label: String?,
-    categoryId: String?,
-    categoryName: String?,
-    categoryIcon: String?,
-    categoryColor: String?,
-    amountCents: Long,
-): AnalysisLargestExpense =
-    AnalysisLargestExpense(
-        sourceId = sourceId,
-        date = date.orEmpty(),
-        label = label,
-        categoryId = categoryId,
-        categoryName = categoryName,
-        categoryIcon = categoryIcon,
-        categoryColor = categoryColor,
-        amountCents = amountCents,
-    )
-
-private fun mapMerchantTotal(
-    merchantLabel: String?,
-    totalCents: Long?,
-    movementCount: Long,
-): AnalysisMerchantTotal =
-    AnalysisMerchantTotal(
-        merchantLabel = merchantLabel,
-        totalCents = totalCents ?: 0L,
-        movementCount = movementCount,
-    )
-
-private fun mapCategoryTrendPoint(
-    categoryId: String?,
-    categoryName: String?,
-    categoryColor: String?,
-    bucket: String,
-    expenseCents: Long?,
-): AnalysisCategoryTrendPoint =
-    AnalysisCategoryTrendPoint(
-        categoryId = categoryId,
-        categoryName = categoryName,
-        categoryColor = categoryColor,
-        bucket = bucket,
-        expenseCents = expenseCents ?: 0L,
-    )
-
-private fun mapNetWorthPoint(
-    bucket: String,
-    netWorthCents: Long?,
-): AnalysisNetWorthPoint =
-    AnalysisNetWorthPoint(
-        bucket = bucket,
-        netWorthCents = netWorthCents ?: 0L,
-    )
-
-private fun mapWeekdaySpend(
-    weekday: Long?,
-    expenseCents: Long?,
-): AnalysisWeekdaySpend =
-    AnalysisWeekdaySpend(
-        weekday = (weekday ?: 0L).toInt(),
-        expenseCents = expenseCents ?: 0L,
-    )
-
-private fun mapCategoryFrequency(
-    categoryId: String?,
-    categoryName: String?,
-    categoryColor: String?,
-    movementCount: Long,
-    totalCents: Long?,
-): AnalysisCategoryFrequency =
-    AnalysisCategoryFrequency(
-        categoryId = categoryId,
-        categoryName = categoryName,
-        categoryColor = categoryColor,
-        movementCount = movementCount,
-        totalCents = totalCents ?: 0L,
     )

@@ -78,3 +78,21 @@ SET
     updated_at = :updated_at
 WHERE id = :id
   AND archived_at IS NULL;
+
+restoreCategory:
+UPDATE categories
+SET
+    archived_at = NULL,
+    updated_at = :updated_at
+WHERE id = :id
+  AND archived_at = :archived_at;
+
+restoreCategoryParentAfterDelete:
+UPDATE categories
+SET
+    parent_id = :parent_id,
+    updated_at = :updated_at
+WHERE id = :id
+  AND parent_id IS NULL
+  AND updated_at = :deleted_at
+  AND archived_at IS NULL;

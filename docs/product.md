@@ -17,8 +17,9 @@ The Android application currently supports:
 - recurring templates, due-instance confirmation, skipping, and recurrence suggestions;
 - central overall-month and category monthly/yearly budgets with forecasted spending, plus independent trip budgets;
 - trips, trip types, scoped tags, trip budgets, and trip analysis;
-- dashboard and multi-period analysis using canonical derived data;
-- duplicate warnings and category suggestions;
+- dashboard and a compact analysis overview for month, year, or all-time periods, with previous-period context and focused account, category, nature, extraordinary-expense, and trip-grouping filters;
+- a locally saved System, Light, or Dark appearance setting;
+- duplicate warnings;
 - local notifications;
 - unencrypted whole-database backup and restore to a user-selected Android folder, with optional automatic daily, weekly, monthly, or quarterly backups that retain the five newest files.
 
@@ -32,12 +33,14 @@ These rules survive visual redesigns unless the user explicitly changes the prod
 2. Movement `date` is a local calendar date (`YYYY-MM-DD`). Audit fields ending in `_at` are UTC instants.
 3. The ledger stores positive `amount_cents`; movement type and related fields determine direction and meaning.
 4. Account balances, account flow, actual income/expense, debts, and trip actual totals are derived from canonical SQL. They are never stored as independent truth.
-5. Archived records use `archived_at`. Normal product flows do not hard-delete finance data.
-6. Risky but valid actions warn and allow confirmation. Warnings such as duplicates, over-refunds, excess settlements, or archiving with dependencies do not become unexplained hard blocks.
+5. The UI consistently calls the action **Delete**, while normal finance deletion remains recoverable soft deletion through `archived_at`; it never hard-deletes finance data. A successful deletion offers a short Undo action that reverses that complete operation, including dependency changes made by its confirmation flow.
+6. Risky but valid actions warn and allow confirmation. Warnings such as duplicates, over-refunds, excess settlements, or deleting items with dependencies do not become unexplained hard blocks.
 7. Android and Windows must produce the same financial result from the same database and golden vectors.
 8. User-facing copy is externalized Catalan; code, identifiers, comments, and technical documentation are English.
 9. The product remains single-user, euro-only, and local-first. No authentication, profiles, currency field, or hosted cloud database is in scope.
 10. CSV bank import belongs to Windows only.
+
+Analysis is intentionally a single overview rather than a tabbed exploration workspace. It does not expose custom ranges or drill-down navigation. Choosing a root destination from the bottom bar or Més starts that destination from its default context; contextual links may preserve their caller-specific state and Back path.
 
 Database constraints may reject structurally invalid records. “Warn, do not block” applies to valid but potentially surprising user decisions, not to corrupt ledger shapes.
 
@@ -74,5 +77,7 @@ A movement can belong to one trip and have at most one compatible tag. Tags may 
 - The Android database may contain real user data. Do not clear, replace, or seed it during development unless the user explicitly approves an isolated test-data flow.
 - Android backup/restore is implemented; encrypted token-based Android/Windows synchronization is not.
 - The Windows application, Windows CSV importer, packaging, and distribution do not exist yet.
+- Category suggestions are neither a current capability nor a promise for Android; their future scope is deliberately undecided rather than mobile-only.
+- No responsive-layout work is currently selected. The existing narrow-width, text-scaling, and accessibility guidance remains the baseline.
 
 These are boundaries, not an active backlog. Work is selected explicitly during the redesign or Windows phases.

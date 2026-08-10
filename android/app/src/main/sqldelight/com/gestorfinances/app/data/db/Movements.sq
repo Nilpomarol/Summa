@@ -225,12 +225,35 @@ WHERE type = 'refund'
   AND refunds_expense_id = :expense_id
   AND archived_at IS NULL;
 
+restoreRefundsForExpense:
+UPDATE movements
+SET
+    archived_at = NULL,
+    updated_at = :updated_at
+WHERE type = 'refund'
+  AND refunds_expense_id = :expense_id
+  AND archived_at = :archived_at;
+
 archiveMovement:
 UPDATE movements
 SET
     archived_at = :archived_at,
     updated_at = :updated_at
 WHERE id = :id
+  AND archived_at IS NULL;
+
+restoreMovement:
+UPDATE movements
+SET
+    archived_at = NULL,
+    updated_at = :updated_at
+WHERE id = :id
+  AND archived_at = :archived_at;
+
+activeMovementIdsForTemplate:
+SELECT id
+FROM movements
+WHERE template_id = :template_id
   AND archived_at IS NULL;
 
 linkToTemplate:
@@ -247,4 +270,14 @@ SET
     template_id = NULL,
     updated_at = :updated_at
 WHERE template_id = :template_id
+  AND archived_at IS NULL;
+
+restoreTemplateLinksAfterDelete:
+UPDATE movements
+SET
+    template_id = :template_id,
+    updated_at = :updated_at
+WHERE id IN :ids
+  AND template_id IS NULL
+  AND updated_at = :deleted_at
   AND archived_at IS NULL;
