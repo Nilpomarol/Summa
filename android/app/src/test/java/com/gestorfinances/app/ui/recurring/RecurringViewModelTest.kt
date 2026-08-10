@@ -396,6 +396,9 @@ class RecurringViewModelTest {
             viewModel.onScreenShown()
             advanceUntilIdle()
 
+            assertEquals(500L, viewModel.state.value.monthlyExpenseCents)
+            assertEquals(500L, viewModel.state.value.monthlyRemainingExpenseCents)
+
             val prompt = viewModel.state.value.duePrompts.single()
             viewModel.onConfirmClicked(prompt)
             viewModel.onConfirmSaveClicked()
@@ -404,6 +407,8 @@ class RecurringViewModelTest {
             val movement = store.movements.listActive().single()
             assertTrue("confirmed occurrence must be shared, not a plain expense", movement.isShared)
             assertEquals(500L, store.people.getActive("laura")!!.balanceCents)
+            assertEquals(500L, viewModel.state.value.monthlyPaidCents)
+            assertEquals(500L, viewModel.state.value.monthlyPaidExpenseCents)
         }
     }
 

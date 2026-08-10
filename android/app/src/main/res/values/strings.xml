@@ -612,6 +612,9 @@
     <string name="recurring_payment_paid">Pagat aquest mes</string>
     <string name="recurring_payment_pending">Pendent aquest mes</string>
     <string name="recurring_payment_partial">Pagat i pendent aquest mes</string>
+    <string name="recurring_payment_paid_yearly">Pagat aquest any</string>
+    <string name="recurring_payment_pending_yearly">Pendent aquest any</string>
+    <string name="recurring_payment_partial_yearly">Pagat i pendent aquest any</string>
     <string name="recurring_form_details_section">Detalls</string>
     <string name="recurring_form_amount_section">Import</string>
     <string name="recurring_form_schedule_section">Calendari i avisos</string>
@@ -642,6 +645,7 @@
     <string name="recurring_detect_confirm_selected">Confirma els seleccionats</string>
     <string name="recurring_detect_occurrences">%1$d aparicions</string>
     <string name="recurring_scheduled_section_title">Programats</string>
+    <string name="recurring_order_next_due">Per proper venciment</string>
     <string name="recurring_paused_section_title">En pausa</string>
     <string name="recurring_due_badge">Pendent</string>
     <string name="recurring_amount_variable">Variable</string>

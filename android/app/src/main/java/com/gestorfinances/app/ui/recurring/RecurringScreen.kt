@@ -112,6 +112,7 @@ import com.gestorfinances.app.ui.movements.MovementTypeSelector
 import com.gestorfinances.app.ui.movements.SelectOption
 import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.amountColor
+import java.time.LocalDate
 
 @Composable
 fun RecurringScreen(
@@ -253,10 +254,14 @@ private fun RecurringContent(
 ) {
     val active = state.templates
         .filter { it.status == TemplateStatus.ACTIVE }
-        .sortedWith(compareBy({ it.effectiveDayOfMonth() }, { it.name?.lowercase() ?: "" }))
+        .sortedWith(compareBy<TemplateSummary>({ it.nextDueDateSortKey() }, { it.name?.lowercase() ?: "" }))
     var endedExpanded by remember { mutableStateOf(false) }
-    val paused = state.templates.filter { it.status == TemplateStatus.PAUSED }
-    val ended = state.templates.filter { it.status == TemplateStatus.ENDED }
+    val paused = state.templates
+        .filter { it.status == TemplateStatus.PAUSED }
+        .sortedWith(compareBy<TemplateSummary>({ it.nextDueDateSortKey() }, { it.name?.lowercase() ?: "" }))
+    val ended = state.templates
+        .filter { it.status == TemplateStatus.ENDED }
+        .sortedWith(compareBy<TemplateSummary>({ it.nextDueDateSortKey() }, { it.name?.lowercase() ?: "" }))
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -319,6 +324,7 @@ private fun RecurringContent(
         } else {
             templateSection(
                 titleRes = R.string.recurring_scheduled_section_title,
+                orderHintRes = R.string.recurring_order_next_due,
                 onHistory = onHistory,
                 templates = active,
                 occurrenceCounts = state.occurrenceCounts,
@@ -379,6 +385,7 @@ private fun RecurringContent(
 
 private fun androidx.compose.foundation.lazy.LazyListScope.templateSection(
     titleRes: Int,
+    orderHintRes: Int? = null,
     onHistory: (TemplateSummary) -> Unit,
     templates: List<TemplateSummary>,
     occurrenceCounts: Map<String, Long>,
@@ -391,11 +398,24 @@ private fun androidx.compose.foundation.lazy.LazyListScope.templateSection(
 ) {
     if (templates.isEmpty()) return
     item(key = "header-$titleRes") {
-        Text(
-            text = stringResource(titleRes),
-            color = FinanceTheme.colors.mutedText,
-            style = MaterialTheme.typography.labelMedium,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(titleRes),
+                color = FinanceTheme.colors.mutedText,
+                style = MaterialTheme.typography.labelMedium,
+            )
+            orderHintRes?.let { hintRes ->
+                Text(
+                    text = stringResource(hintRes),
+                    color = FinanceTheme.colors.mutedText,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
+        }
     }
     items(items = templates, key = { it.id }) { template ->
         TemplateRow(
@@ -495,7 +515,7 @@ private fun TemplateRow(
                 Text(
                     text = listOf(
                         stringResource(R.string.recurring_occurrence_count, occurrenceCount),
-                        paymentState.label(),
+                        paymentState.label(template.frequency),
                     ).filter { it.isNotBlank() }.joinToString(separator = " · "),
                     color = FinanceTheme.colors.mutedText,
                     style = MaterialTheme.typography.labelSmall,
@@ -699,13 +719,22 @@ private fun RecurringDateBadge(
 }
 
 @Composable
-private fun TemplateMonthPaymentState.label(): String =
+private fun TemplateMonthPaymentState.label(frequency: RecurrenceFrequency): String =
     when (this) {
         TemplateMonthPaymentState.NONE -> ""
-        TemplateMonthPaymentState.PAID -> stringResource(R.string.recurring_payment_paid)
-        TemplateMonthPaymentState.PENDING -> stringResource(R.string.recurring_payment_pending)
-        TemplateMonthPaymentState.PARTIALLY_PAID -> stringResource(R.string.recurring_payment_partial)
+        TemplateMonthPaymentState.PAID -> stringResource(
+            if (frequency == RecurrenceFrequency.YEARLY) R.string.recurring_payment_paid_yearly else R.string.recurring_payment_paid,
+        )
+        TemplateMonthPaymentState.PENDING -> stringResource(
+            if (frequency == RecurrenceFrequency.YEARLY) R.string.recurring_payment_pending_yearly else R.string.recurring_payment_pending,
+        )
+        TemplateMonthPaymentState.PARTIALLY_PAID -> stringResource(
+            if (frequency == RecurrenceFrequency.YEARLY) R.string.recurring_payment_partial_yearly else R.string.recurring_payment_partial,
+        )
     }
+
+private fun TemplateSummary.nextDueDateSortKey(): LocalDate =
+    parseIsoDateOrNull(nextDueDate) ?: LocalDate.MAX
 
 @Composable
 private fun TemplateRowMenu(
