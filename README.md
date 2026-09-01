@@ -1,4 +1,4 @@
-# Gestor Finances
+# Summa
 
 Local-first personal finance software for one person, in euros, with a Catalan interface.
 
@@ -6,11 +6,11 @@ Android is the working application and owns the primary SQLite database. Windows
 
 ## Current direction
 
-The project has entered a fresh Android redesign phase. It intentionally has no predefined backlog, target aesthetic, or completion checklist. Work is chosen one page, feature, interaction, or supporting code area at a time, and may expand into related side work when useful.
+The Android UI redesign is complete. Personal Compass, the current navigation, shared components, light/dark themes, and durable interaction rules are the stable mobile baseline. Earlier redesign roadmaps, audits, and remediation trackers remain retired and must not be revived.
 
-Earlier Android roadmaps and remediation trackers have been retired. Their unfinished items are not obligations. The implemented code, the shared data contract, and the current concise documentation are the starting point.
+Development now follows the mandatory [pre-Windows plan](docs/pre-windows-plan.md): recurring settlements and explainable debt messages, savings goals, shared accounts, and investment valuations. Windows product work begins only after those four gates are implemented, migrated, tested, and documented.
 
-The future Windows implementation remains planned and unchanged in intent. It begins when the Android product is considered stable enough to port.
+Optional cloud-linked multiwriter synchronization remains a later phase after Windows core. The existing encrypted single-writer snapshot design remains the Local only mode.
 
 ## What exists
 
@@ -38,8 +38,9 @@ docs/      Small set of current project contracts
 - [Product](docs/product.md) — current scope, capabilities, and durable behaviour.
 - [Data contract](docs/data-contract.md) — schema, canonical SQL, migrations, and golden rules.
 - [Architecture](docs/architecture.md) — app boundaries, shared wiring, backup, and future sync.
-- [Design](docs/design.md) — current UI baseline and the open-ended redesign working model.
-- [Windows plan](docs/windows-plan.md) — the preserved desktop implementation plan.
+- [Design](docs/design.md) — completed Android UI baseline and durable design rules.
+- [Pre-Windows plan](docs/pre-windows-plan.md) — mandatory ordered feature gates before desktop work.
+- [Windows plan](docs/windows-plan.md) — desktop implementation after the pre-Windows gates.
 - [AGENTS.md](AGENTS.md) — concise operating rules for coding agents.
 
 ## Build and test

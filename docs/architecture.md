@@ -2,7 +2,7 @@
 
 ## Topology
 
-Gestor Finances uses two native applications around one SQLite contract:
+Summa uses two native applications around one SQLite contract:
 
 ```text
 Android (current writer) ─┐
@@ -10,7 +10,7 @@ Android (current writer) ─┐
 Windows (future surface) ─┘
 ```
 
-There is no server database. Each platform opens a local SQLite file. Android is currently the only product surface and therefore the only writer in practice.
+Each platform opens a local SQLite file. Android is currently the only product surface and therefore the only writer in practice. No server is required for normal use.
 
 ## Shared logic strategy
 
@@ -66,9 +66,9 @@ Android can export and restore an unencrypted `.gfbackup` SQLite snapshot throug
 - An optional Android WorkManager job requests an immediate export when first enabled, then repeats daily, weekly, monthly, or quarterly in the selected folder. Every successful export retains only the five newest `.gfbackup` files. Automatic work only uses the live `VACUUM INTO` path; if that safe path is unavailable, it retries later rather than closing the active database for the compatibility fallback.
 - This format is not the future encrypted sync format.
 
-## Future sync contract
+## Local only synchronization contract
 
-Android/Windows synchronization is manual handoff, not merging:
+The preserved Local only Android/Windows mode is manual handoff, not merging:
 
 - Exactly one device holds the control token and may write; the other is strictly read-only.
 - The writer sends monotonically versioned, consistent SQLite snapshots. A receiver rejects a sync snapshot whose version is not newer.
@@ -87,3 +87,30 @@ The current Android `DeviceAccessState` is only a shell seam and always reports 
 - Build vertical slices and change the deepest correct layer when a UI discovery exposes a logic problem.
 - Shared-contract changes follow [data-contract.md](data-contract.md) atomically.
 - Treat the Android database as potentially real user data: do not clear or seed it casually.
+
+
+## Planned account-value boundary
+
+The pre-Windows investment slice introduces two meanings that must not be collapsed:
+
+- ledger cash-flow balance: opening balance plus canonical account flow;
+- account value: cash-flow balance for normal accounts, latest valuation for investment accounts.
+
+Net worth consumes account value. Income and expense continue to consume the existing actual-value views, so market movement never becomes ledger activity. Savings goals consume account value or planning allocations and never write finance flow.
+
+Shared accounts add ownership and payer semantics without adding another authenticated app user. The physical balance remains an account fact; the app owner's patrimonial share is a separate derived meaning.
+
+## Later Cloud linked mode
+
+Cloud-linked synchronization is deliberately after Windows core, when two real clients can validate it. It does not replace the local database:
+
+```text
+Android SQLite ↔ change sync ↔ Summa Server ↔ change sync ↔ Windows SQLite
+```
+
+- The server is the synchronization authority and the only process that opens its own server-side SQLite database.
+- Clients stay local-first and work offline; they push mutations and pull revisions when connected.
+- Logical operations such as movement plus split lines remain atomic.
+- Rows use optimistic concurrency. A stale revision produces an explicit conflict; financial edits are never silently resolved with last-write-wins.
+- Local only and Cloud linked are explicit alternative modes for one dataset. Enabling cloud performs an initial upload; detaching performs a final sync/download and prevents an old local snapshot from overwriting cloud state.
+- The snapshot/token contract above remains supported for Local only mode.

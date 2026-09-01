@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Gestor Finances is a private, offline-first personal finance app. It helps one person understand account flow, actual income and spending, shared expenses and debts, recurring activity, budgets, and trip spending without requiring a hosted account or cloud database.
+Summa is a private, offline-first personal finance app. It helps one person understand account flow, actual income and spending, shared expenses and debts, recurring activity, budgets, and trip spending without requiring a hosted account or cloud database.
 
 The application is single-user, euro-only, and Catalan-first. Android is the primary product. Windows will become a secondary desktop surface over the same finance contract.
 
@@ -37,7 +37,7 @@ These rules survive visual redesigns unless the user explicitly changes the prod
 6. Risky but valid actions warn and allow confirmation. Warnings such as duplicates, over-refunds, excess settlements, or deleting items with dependencies do not become unexplained hard blocks.
 7. Android and Windows must produce the same financial result from the same database and golden vectors.
 8. User-facing copy is externalized Catalan; code, identifiers, comments, and technical documentation are English.
-9. The product remains single-user, euro-only, and local-first. No authentication, profiles, currency field, or hosted cloud database is in scope.
+9. The product has one app owner, is euro-only, and remains local-first. Shared accounts may model ownership by known people, but do not create app users, authentication, or profiles. Optional cloud-linked synchronization is a later deployment mode, not a requirement for local use.
 10. CSV bank import belongs to Windows only.
 
 Analysis is intentionally a single overview rather than a tabbed exploration workspace. It does not expose custom ranges or drill-down navigation. Choosing a root destination from the bottom bar or Més starts that destination from its default context; contextual links may preserve their caller-specific state and Back path.
@@ -72,6 +72,21 @@ Budgets evaluate actual expense over their active period: an optional overall mo
 
 A movement can belong to one trip and have at most one compatible tag. Tags may be global, limited to a trip type, or local to one trip. Category and tag remain different dimensions.
 
+## Committed pre-Windows capabilities
+
+The following capabilities are approved but not implemented. Their detailed order and acceptance gates live in [pre-windows-plan.md](pre-windows-plan.md).
+
+- Recurring settlement templates and an explainable debt message that chronologically consumes eligible debts instead of collapsing everything before the last settlement into a carry-forward.
+- Savings goals as planning allocations over existing money, optionally linked to a dedicated account, without creating income, expense, or account flow.
+- Shared accounts that separate physical account balance, ownership, expense allocation, payer identity, and contributions.
+- Investment account valuations that separate net contributions/withdrawals from market value and unrealized performance.
+
+These capabilities must be stable in the shared contract and Android before Windows product implementation starts.
+
+## Later cross-device direction
+
+After Windows core exists, Summa may add an optional Cloud linked mode using a Summa server and change-based optimistic synchronization. Local SQLite remains authoritative on each device for offline use. The existing encrypted snapshot/token handoff remains the Local only mode. The two synchronization modes are explicit and are not mixed in one dataset.
+
 ## Current boundaries
 
 - The Android database may contain real user data. Do not clear, replace, or seed it during development unless the user explicitly approves an isolated test-data flow.
@@ -79,5 +94,7 @@ A movement can belong to one trip and have at most one compatible tag. Tags may 
 - The Windows application, Windows CSV importer, packaging, and distribution do not exist yet.
 - Category suggestions are neither a current capability nor a promise for Android; their future scope is deliberately undecided rather than mobile-only.
 - No responsive-layout work is currently selected. The existing narrow-width, text-scaling, and accessibility guidance remains the baseline.
+- Portfolio positions, trades, units, live quotes, dividends, corporate actions, and multi-currency investment tracking are outside the approved investment-valuation scope.
+- Cloud-linked synchronization is not a pre-Windows gate.
 
-These are boundaries, not an active backlog. Work is selected explicitly during the redesign or Windows phases.
+The only active Android feature backlog is [pre-windows-plan.md](pre-windows-plan.md).

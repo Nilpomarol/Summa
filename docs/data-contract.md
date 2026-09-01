@@ -97,3 +97,43 @@ dotnet test .\windows\GestorFinances.Tests\GestorFinances.Tests.csproj
 ```
 
 Any red golden test blocks delivery of a money-rule or shared-contract change.
+
+
+## Approved pre-Windows contract changes
+
+Schema version `10` remains the implemented authority until each vertical slice ships. The following changes are approved targets; exact names may be refined during implementation, but their meanings and invariants are fixed by [pre-windows-plan.md](pre-windows-plan.md).
+
+### Recurring settlements and debt explanation
+
+- Extend recurring templates to materialize `settlement` movements with person and direction invariants equivalent to normal settlements.
+- Support settlement scope `all` or `recurring`. A recurring-scoped settlement consumes only eligible debt items originating from recurring templates.
+- Replace last-settlement cutoff/carry-forward message logic with a chronological debt-consumption projection.
+- A settlement consumes only eligible debt already present at its date, oldest first. Excess remains directional credit and may affect later items.
+- `v_person_balance` remains the authority for the total. The consumption projection explains the residual per source item and must reconcile exactly with that total.
+- Do not add persisted settlement allocations in this version.
+
+### Savings goals
+
+- Add goals with target amount, optional target date, optional linked account, visual identity, and active/completed/paused state.
+- A dedicated-account goal may derive progress from that account's canonical value.
+- Goals sharing an account use dated planning allocations. Allocations reserve meaning only: they never create ledger flow, income, expense, or debt.
+- Active allocations for one account must not exceed the funds available for allocation; the UI exposes any unallocated remainder.
+
+### Shared accounts
+
+- Add account membership/ownership data for the app owner and known people.
+- Separate physical account balance from the owner's patrimonial share.
+- Record whether an expense was financed by the app owner, a person, or the shared account itself; keep economic allocation in split lines.
+- Add contributions for money placed into a shared account without treating them as income, expense, transfer between owned accounts, or debt settlement.
+- Ownership percentages and default expense splits are explicit configuration. Do not attempt member capital-account accounting or infer exact historical ownership from deposits and consumption.
+
+### Investment valuations
+
+- Keep contributions and withdrawals as ledger transfers.
+- Add dated absolute account valuations with source metadata; manual entry is the first version.
+- Preserve separate canonical meanings for ledger cash-flow balance, current account value, net contributed capital, and unrealized gain/loss.
+- Normal accounts derive current value from opening balance plus flow. Investment accounts derive current value from their latest valuation.
+- Net worth uses current account value; market variation is not income or expense.
+- Holdings, trades, units, live prices, dividends, corporate actions, and multiple currencies remain out of scope.
+
+Each slice requires fresh DDL, a forward migration, canonical queries/views, Android bindings and UI, golden vectors where money behaviour changes, and passing Android plus .NET contract tests before its gate closes.
