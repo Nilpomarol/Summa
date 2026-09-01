@@ -1,14 +1,12 @@
-# Design and Redesign
+# Design
 
 ## Status
 
-The Android app is in a fresh, intentionally open-ended redesign phase.
+The Android UI redesign is **complete**. Personal Compass and the implemented Android navigation, component vocabulary, themes, forms, sheets, feedback states, and accessibility behaviour are the stable product baseline.
 
-There is no predefined redesign backlog, required page order, or promise that every screen will be replaced. The visual foundation is **Personal Compass**: warm, calm, structured personal finance software that leads with understandable actions and evidence. A change may be a complete makeover, a small polish, a behaviour correction, a component cleanup, or a related sidequest. The user chooses the next area as work progresses.
+Past redesign plans, audits, remediation checklists, phase labels, and unchecked items are retired. They are historical context only and must not be used as active requirements. Future UI changes are normal feature work or targeted maintenance, not continuation of a redesign phase.
 
-Past Android redesign plans, audits, and remediation checklists are retired. Their unchecked items are not carried forward.
-
-## Starting point
+## Implemented baseline
 
 The current Android shell uses:
 
@@ -20,7 +18,7 @@ The current Android shell uses:
 - externalized Catalan copy;
 - a locally saved System, Light, or Dark appearance choice applied across the app.
 
-This describes the implemented starting point, not a constraint on future navigation or presentation.
+This describes the completed Android baseline. It may evolve deliberately with product needs, but new work starts from it rather than from retired redesign material.
 
 Selecting a destination through the bottom bar or Més intentionally resets it to its default context. Contextual links remain separate flows and may preserve caller-specific state and Back behavior.
 
@@ -52,7 +50,7 @@ The current baseline contains:
 - Geist for interface text and IBM Plex Mono for financial figures;
 - shared spacing, radii, elevations, sizes, icon guidance, and minimum 44 dp touch targets.
 
-Tokens are not sacred during redesign. When a visual decision becomes part of the product, update the JSON and native mapping together. Avoid adding a second undocumented token system in a screen.
+Tokens are not sacred during future feature work. When a visual decision becomes part of the product, update the JSON and native mapping together. Avoid adding a second undocumented token system in a screen.
 
 The foundation deliberately leaves layouts, information priority within a page, components not yet shared, interaction patterns, and copy open for focused page/form work. Record a decision here only once it has proved useful beyond that page.
 
@@ -81,13 +79,13 @@ Until deliberately changed for a specific redesign decision:
 
 ## Working method
 
-For each chosen page, feature, or component:
+For each new feature or targeted UI change:
 
 1. Inspect the current screen, behaviour, data source, and tests.
-2. Use the established foundation, then decide only the outcome needed for that page or form. Do not invent a phase-wide layout backlog.
-3. Follow useful sidequests when they improve the selected outcome, including logic or code cleanup.
-4. Preserve the product and data invariants in [product.md](product.md) and [data-contract.md](data-contract.md).
-5. Validate proportionally: focused tests and a real-device check when presentation or interaction matters.
-6. Update this document only for a durable cross-app design decision. Do not turn it into a task tracker.
+2. Extend the established baseline with the smallest coherent product change.
+3. Preserve the product and data invariants in [product.md](product.md) and [data-contract.md](data-contract.md).
+4. Reuse proven semantic components and keep mobile and desktop layouts platform-appropriate.
+5. Validate proportionally with focused tests and a real-device check when presentation or interaction matters.
+6. Update this document only for a durable cross-app design decision; task status belongs in the relevant plan.
 
-Code cleanup may happen before or during redesign. It is not a mandatory gate unless the selected work genuinely needs it.
+Code cleanup is not a standing phase or gate. Do it only when required by the selected outcome.

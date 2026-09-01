@@ -1,12 +1,14 @@
-# AGENTS.md — Gestor Finances
+# AGENTS.md — Summa
 
 Canonical operating guide for coding agents. `CLAUDE.md` imports this file.
 
 ## Project state
 
-Gestor Finances is an offline-first, local-first personal finance app for one person, euros only, with a Catalan UI. Android (Kotlin/Compose) is the working primary app and database owner. Windows currently has a .NET contract test harness; the WinUI app is future work.
+Summa is an offline-first, local-first personal finance app for one person, euros only, with a Catalan UI. Android (Kotlin/Compose) is the working primary app and database owner. Windows currently has a .NET contract test harness; the WinUI app is future work.
 
-Android is in an intentionally open-ended redesign phase. There is no phase backlog or mandatory page order. Work on the page, feature, component, or sidequest the user selects. Do not resurrect retired roadmap or audit tasks.
+The Android UI redesign is complete. Personal Compass and the implemented Android interaction patterns are the stable baseline for new work. Do not resurrect retired redesign roadmaps, audits, remediation tasks, or unchecked phase checklists.
+
+Before Windows UI work begins, complete the ordered product backlog in `docs/pre-windows-plan.md`. Do not start Windows product implementation while any of its four gates remains open. The .NET shared-contract harness remains active and must stay green.
 
 The Android database may contain real user data. Never clear, replace, or seed it unless the user explicitly approves an isolated test-data operation.
 
@@ -16,8 +18,9 @@ The Android database may contain real user data. Never clear, replace, or seed i
 - `docs/product.md` — current capabilities and durable product behaviour.
 - `docs/data-contract.md` — shared schema, SQL, migrations, and golden rules.
 - `docs/architecture.md` — native app boundaries, backup, and future sync.
-- `docs/design.md` — current baseline and redesign working method.
-- `docs/windows-plan.md` — preserved Windows implementation plan.
+- `docs/design.md` — completed Android design baseline and durable interaction rules.
+- `docs/pre-windows-plan.md` — ordered, mandatory product work before Windows.
+- `docs/windows-plan.md` — desktop implementation plan after the pre-Windows gates.
 - `shared/design/tokens/design-tokens.json` — machine-readable visual tokens.
 
 Keep documentation concise and current. Record durable behaviour or decisions, not implementation diaries, completed-task histories, speculative backlogs, or per-session checklists.
@@ -31,7 +34,7 @@ Keep documentation concise and current. Record durable behaviour or decisions, n
 5. **Date types:** movement `date` is a local `YYYY-MM-DD` calendar date; `*_at` fields are UTC instants.
 6. **Soft deletion:** normal flows archive with `archived_at`; they do not hard-delete finance data.
 7. **Warn for risky valid actions:** duplicates, over-refunds, excess settlements, and dependency warnings remain dismissible. Structural database invalidity is still an error.
-8. **Product scope:** single user, euros, offline/local database, no auth/profiles, no cloud DB, and CSV import on Windows only.
+8. **Product scope:** one app owner, euros, and local-first storage. Shared accounts model co-ownership with known people without adding app users or authentication. An optional cloud-linked sync mode is future work after Windows core; CSV import remains Windows-only.
 9. **Language:** externalized Catalan UI; English code, identifiers, comments, and technical docs.
 10. **Single-writer sync:** when implemented, only the token holder writes; the other device is read-only. Snapshots are consistent, encrypted, versioned, and atomically applied. Never merge.
 11. **Movement integrity:** `amount_cents > 0`; type and related fields must satisfy schema constraints.

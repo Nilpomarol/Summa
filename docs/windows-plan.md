@@ -4,7 +4,7 @@
 
 Windows currently contains only the .NET shared-SQL and golden-vector validation harness. The WinUI 3 product has not started.
 
-This plan is preserved while Android enters an open-ended redesign. Windows implementation begins when the user decides the Android product language is stable enough to port; there is no remaining Android checklist that must be completed first.
+The Android UI redesign is complete. Windows product implementation begins only after all four mandatory gates in [pre-windows-plan.md](pre-windows-plan.md) are implemented, migrated, tested, and documented. This is the sole pre-Windows backlog; retired redesign and audit checklists must not be revived.
 
 The desktop app is a secondary native surface. It uses the same finance rules and data contract, while adopting desktop-appropriate navigation, density, keyboard interaction, and large-screen layouts. CSV import remains desktop-only.
 
@@ -23,7 +23,7 @@ Exit: Windows launches against the real database and performs basic ledger work.
 
 ## B — Product parity
 
-- Port people, splits, debts, settlements, refunds, recurring activity, budgets, trips, tags, dashboard, analysis, settings, and backup-facing states.
+- Port people, splits, debts, settlements (including recurring scope and explainable residual debt), refunds, recurring activity, savings goals, shared accounts/contributions, investment valuations, budgets, trips, tags, dashboard, analysis, settings, and backup-facing states.
 - Add the recurring calendar: month grid, real versus pending occurrences, monthly total, and month navigation.
 - Build desktop-specific analysis layouts for charts, comparisons, filters, and detail exploration.
 - Add repository tests, UI smoke tests, and golden coverage.
@@ -70,5 +70,7 @@ Exit: Windows has full intended parity plus reliable bank CSV import.
 - Externalize Catalan copy and keep code in English.
 - Pass the same golden vectors as Android.
 - Commit CSV batches atomically.
-- Do not add authentication, multi-user support, currencies, a cloud database, or EF Core.
-- Implement future token-based synchronization according to [architecture.md](architecture.md), without merge logic.
+- Do not add authentication, app-user profiles, multiple currencies, portfolio tracking, or EF Core.
+- Preserve the one-owner model even when shared-account ownership references known people.
+- Implement Local only token/snapshot synchronization according to [architecture.md](architecture.md), without merge logic.
+- Treat optional Cloud linked change synchronization as a later phase after Windows core, not part of sections A–C.
