@@ -36,7 +36,7 @@ Keep documentation concise and current. Record durable behaviour or decisions, n
 7. **Warn for risky valid actions:** duplicates, over-refunds, excess settlements, and dependency warnings remain dismissible. Structural database invalidity is still an error.
 8. **Product scope:** one app owner, euros, and local-first storage. Shared accounts model co-ownership with known people without adding app users or authentication. An optional cloud-linked sync mode is future work after Windows core; CSV import remains Windows-only.
 9. **Language:** externalized Catalan UI; English code, identifiers, comments, and technical docs.
-10. **Single-writer sync:** when implemented, only the token holder writes; the other device is read-only. Snapshots are consistent, encrypted, versioned, and atomically applied. Never merge.
+10. **Local only sync:** in snapshot/token mode, only the token holder writes; the other device is read-only. Snapshots are consistent, encrypted, versioned, and atomically applied. Never merge snapshots. Later Cloud linked sync follows the separate optimistic-concurrency contract in `docs/architecture.md`.
 11. **Movement integrity:** `amount_cents > 0`; type and related fields must satisfy schema constraints.
 
 ## Working rules
