@@ -56,7 +56,7 @@ The foundation deliberately leaves layouts, information priority within a page, 
 
 ## Baseline principles
 
-Until deliberately changed for a specific redesign decision:
+Until deliberately changed by a durable product or design decision:
 
 - financial meaning must be understandable without relying on colour alone;
 - actual values and account flow must be named honestly;
