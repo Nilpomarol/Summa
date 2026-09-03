@@ -10,6 +10,7 @@ import com.gestorfinances.app.data.db.GestorDatabase
 import com.gestorfinances.app.data.repository.AccountRepository
 import com.gestorfinances.app.data.repository.AnalysisRepository
 import com.gestorfinances.app.data.repository.BudgetRepository
+import com.gestorfinances.app.data.repository.GoalRepository
 import com.gestorfinances.app.data.repository.CategoryRepository
 import com.gestorfinances.app.data.repository.MetaRepository
 import com.gestorfinances.app.data.repository.MovementRepository
@@ -55,6 +56,10 @@ class AppContainer(context: Context) {
 
     val budgetRepository: BudgetRepository by lazy {
         BudgetRepository(database.budgetsQueries)
+    }
+
+    val goalRepository: GoalRepository by lazy {
+        GoalRepository(database.goalsQueries)
     }
 
     val categoryRepository: CategoryRepository by lazy {

@@ -19,6 +19,11 @@ VIEW_FILES = [
     "v_person_balance.sql",
     "v_trip_actual_total.sql",
 ]
+MIGRATION_VIEW_FILES = [
+    "v_goal_allocation.sql",
+    "v_goal_progress.sql",
+    "v_account_allocation.sql",
+]
 ANALYSIS_QUERY_FILES = [
     "analysis_activity_months.sql",
     "analysis_actual_by_category.sql",
@@ -33,8 +38,10 @@ UPGRADE_MIGRATION_FILES = [
     "009_derive_refund_attribution.sql",
     "010_remove_auto_categorization.sql",
     "011_add_recurring_settlements.sql",
+    "012_add_savings_goals.sql",
 ]
 VIEW_NAMES = [path.removesuffix(".sql") for path in VIEW_FILES]
+MIGRATION_VIEW_NAMES = [path.removesuffix(".sql") for path in MIGRATION_VIEW_FILES]
 
 
 def fail(message: str) -> None:
@@ -48,10 +55,14 @@ def read_sql(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def apply_views(conn: sqlite3.Connection) -> None:
-    for name in VIEW_FILES:
+def apply_views(conn: sqlite3.Connection, files: list[str] = VIEW_FILES) -> None:
+    for name in files:
         conn.executescript(read_sql(ROOT / "shared" / "queries" / name))
-    for view in VIEW_NAMES:
+    check_views(conn, [name.removesuffix(".sql") for name in files])
+
+
+def check_views(conn: sqlite3.Connection, views: list[str]) -> None:
+    for view in views:
         conn.execute(f"SELECT * FROM {view} LIMIT 0").fetchall()
 
 
@@ -244,11 +255,16 @@ def seed_analysis_fixture(conn: sqlite3.Connection) -> None:
     )
 
 
-def validate_entrypoint(label: str, path: Path, expect_seeded_meta: bool) -> None:
+def validate_entrypoint(
+    label: str,
+    path: Path,
+    expect_seeded_meta: bool,
+    fresh_install: bool,
+) -> None:
     conn = sqlite3.connect(":memory:")
     try:
         conn.executescript(read_sql(path))
-        apply_views(conn)
+        apply_views(conn, VIEW_FILES + MIGRATION_VIEW_FILES if fresh_install else VIEW_FILES)
         meta = dict(conn.execute("SELECT key, value FROM meta").fetchall())
     except sqlite3.Error as exc:
         fail(f"{label}: {exc}")
@@ -264,16 +280,17 @@ def validate_entrypoint(label: str, path: Path, expect_seeded_meta: bool) -> Non
 
 
 def main() -> None:
-    validate_entrypoint("schema", ROOT / "shared" / "schema" / "schema.sql", False)
-    validate_entrypoint("migration", ROOT / "shared" / "migrations" / "001_initial.sql", True)
+    validate_entrypoint("schema", ROOT / "shared" / "schema" / "schema.sql", False, True)
+    validate_entrypoint("migration", ROOT / "shared" / "migrations" / "001_initial.sql", True, False)
     conn = sqlite3.connect(":memory:")
     try:
         conn.executescript(read_sql(ROOT / "shared" / "migrations" / "001_initial.sql"))
         apply_views(conn)
         for name in UPGRADE_MIGRATION_FILES:
             conn.executescript(read_sql(ROOT / "shared" / "migrations" / name))
+        check_views(conn, MIGRATION_VIEW_NAMES)
         meta = dict(conn.execute("SELECT key, value FROM meta").fetchall())
-        expected = {"schema_version": "11", "snapshot_version": "0"}
+        expected = {"schema_version": "12", "snapshot_version": "0"}
         if meta != expected:
             fail(f"upgrade migrations: expected meta {expected}, got {meta}")
     except sqlite3.Error as exc:

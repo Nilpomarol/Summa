@@ -74,6 +74,8 @@ import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.rememberFormDismissGuard
 import com.gestorfinances.app.ui.dashboard.DashboardScreen
 import com.gestorfinances.app.ui.dashboard.DashboardViewModel
+import com.gestorfinances.app.ui.goals.GoalsScreen
+import com.gestorfinances.app.ui.goals.GoalsViewModel
 import com.gestorfinances.app.ui.management.ManagementDestination
 import com.gestorfinances.app.ui.management.ManagementSheet
 import com.gestorfinances.app.ui.movements.MovementDetailScreen
@@ -408,6 +410,15 @@ private fun LedgerShell(
             ),
         )[BudgetsViewModel::class.java]
     }
+    val goalsViewModel = remember(viewModelStoreOwner) {
+        ViewModelProvider(
+            viewModelStoreOwner,
+            GoalsViewModel.Factory(
+                goalRepository = appContainer.goalRepository,
+                accountRepository = appContainer.accountRepository,
+            ),
+        )[GoalsViewModel::class.java]
+    }
     val tripsViewModel = remember(viewModelStoreOwner) {
         ViewModelProvider(
             viewModelStoreOwner,
@@ -528,6 +539,7 @@ private fun LedgerShell(
             ManagementDestination.EVENTS -> tripsViewModel.resetForMenuNavigation()
             ManagementDestination.RECURRING -> recurringViewModel.resetForMenuNavigation()
             ManagementDestination.BUDGETS -> budgetsViewModel.resetForMenuNavigation()
+            ManagementDestination.GOALS -> goalsViewModel.resetForMenuNavigation()
             ManagementDestination.TAGS -> tagsViewModel.resetForMenuNavigation()
             ManagementDestination.SETTINGS -> settingsViewModel.resetForMenuNavigation()
         }
@@ -826,6 +838,13 @@ private fun LedgerShell(
                         categoriesViewModel.onFlowClicked(category)
                     },
                     contextTripId = null,
+                    onDeleteCommitted = showDeleteUndo,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                )
+                ManagementDestination.GOALS -> GoalsScreen(
+                    viewModel = goalsViewModel,
                     onDeleteCommitted = showDeleteUndo,
                     modifier = Modifier
                         .fillMaxSize()

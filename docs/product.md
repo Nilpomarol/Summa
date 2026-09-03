@@ -72,6 +72,10 @@ Besides expenses, income, and transfers, a template can schedule a settlement wi
 
 Budgets evaluate actual expense over their active period: an optional overall monthly target, category monthly/yearly limits, and independent trip limits. Overall and category budgets can independently exclude trip spending and expenses marked extraordinary; trip budgets always evaluate their own spend. Current-month views pair actuals with an explainable forecast using the same inclusion rules. Crossing a threshold changes status and warning presentation; it does not prevent spending.
 
+### Savings goals
+
+A goal reserves money the user already has; it never moves it. A goal either dedicates one account to itself, so its progress is that account's value, or reserves parts of an account through dated allocations, which lets several goals share one account. Assigning money changes no balance, actual value, debt, or net worth. Each account shows what is still unallocated, and reserving more than remains is a warning the user may accept.
+
 ### Trips and tags
 
 A movement can belong to one trip and have at most one compatible tag. Tags may be global, limited to a trip type, or local to one trip. Category and tag remain different dimensions.
@@ -80,7 +84,6 @@ A movement can belong to one trip and have at most one compatible tag. Tags may 
 
 The following capabilities are approved but not implemented. Their detailed order and acceptance gates live in [pre-windows-plan.md](pre-windows-plan.md).
 
-- Savings goals as planning allocations over existing money, optionally linked to a dedicated account, without creating income, expense, or account flow.
 - Shared accounts that separate physical account balance, ownership, expense allocation, payer identity, and contributions.
 - Investment account valuations that separate net contributions/withdrawals from market value and unrealized performance.
 

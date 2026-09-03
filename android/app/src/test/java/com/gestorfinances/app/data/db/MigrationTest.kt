@@ -12,6 +12,82 @@ import org.junit.Test
 class MigrationTest {
 
     @Test
+    fun `v11 to v12 migration adds savings goals and their views for an upgrading database`() {
+        // A fresh install gets the goal views from the generated schema, but an upgrading database
+        // never re-runs it: the migration itself must leave the views Goals.sq queries behind.
+        val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+        driver.execute(null, "PRAGMA foreign_keys = ON", 0)
+        GestorDatabase.Schema.create(driver)
+        driver.execute(null, "DROP VIEW v_goal_progress", 0)
+        driver.execute(null, "DROP VIEW v_goal_allocation", 0)
+        driver.execute(null, "DROP VIEW v_account_allocation", 0)
+        driver.execute(null, "DROP TABLE goal_allocations", 0)
+        driver.execute(null, "DROP TABLE goals", 0)
+        driver.execute(null, "UPDATE meta SET value = '11' WHERE key = 'schema_version'", 0)
+        driver.execute(
+            null,
+            """
+            INSERT INTO accounts(id, name, starting_balance_cents, type, created_at, updated_at)
+            VALUES ('acc-savings', 'Estalvi', 100000, 'savings', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')
+            """.trimIndent(),
+            0,
+        )
+
+        GestorDatabase.Schema.migrate(driver, 11, 12)
+
+        assertEquals("12", driver.selectString("SELECT value FROM meta WHERE key = 'schema_version'"))
+        assertEquals(
+            3L,
+            driver.selectLong(
+                """
+                SELECT COUNT(*) FROM sqlite_master
+                WHERE type = 'view'
+                  AND name IN ('v_goal_allocation', 'v_goal_progress', 'v_account_allocation')
+                """.trimIndent(),
+            ),
+        )
+
+        // The upgraded schema must accept both funding modes and report canonical progress.
+        driver.execute(
+            null,
+            """
+            INSERT INTO goals(
+                id, name, target_amount_cents, account_id, funding_mode, status, created_at, updated_at
+            ) VALUES
+                ('g-ded', 'Cotxe', 500000, 'acc-savings', 'dedicated_account', 'active',
+                 '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
+                ('g-alloc', 'Viatge', 80000, 'acc-savings', 'allocations', 'active',
+                 '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')
+            """.trimIndent(),
+            0,
+        )
+        driver.execute(
+            null,
+            """
+            INSERT INTO goal_allocations(
+                id, goal_id, account_id, date, amount_cents, created_at, updated_at
+            ) VALUES ('al-1', 'g-alloc', 'acc-savings', '2026-02-01', 30000,
+                      '2026-02-01T00:00:00Z', '2026-02-01T00:00:00Z')
+            """.trimIndent(),
+            0,
+        )
+
+        assertEquals(
+            100_000L,
+            driver.selectLong("SELECT saved_cents FROM v_goal_progress WHERE goal_id = 'g-ded'"),
+        )
+        assertEquals(
+            30_000L,
+            driver.selectLong("SELECT saved_cents FROM v_goal_progress WHERE goal_id = 'g-alloc'"),
+        )
+        assertEquals(
+            70_000L,
+            driver.selectLong("SELECT unallocated_cents FROM v_account_allocation WHERE account_id = 'acc-savings'"),
+        )
+        assertEquals(0L, driver.selectLong("SELECT COUNT(*) FROM pragma_foreign_key_check"))
+    }
+
+    @Test
     fun `v10 to v11 migration rebuilds templates without losing rows or movement links`() {
         // The rebuild drops and recreates `templates` while `movements.template_id` points at it,
         // so this guards the real hazard: a lost template, a severed recurring movement, or a

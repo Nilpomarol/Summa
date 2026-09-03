@@ -31,6 +31,8 @@ Exit: fixed and variable recurring settlements materialize correctly; normal and
 - Prevent or explicitly resolve over-allocation against the linked account's available value.
 - Do not add automatic allocation rules in the first version.
 
+Status: implemented in the shared contract (schema v12, migration 012, `v_goal_allocation`, `v_goal_progress`, `v_account_allocation`, the `goal_progress` golden vector), Android, and both test harnesses; manual verification on a device is the remaining step before this gate closes.
+
 Exit: goals remain mathematically consistent through allocation edits, account-value changes, completion/pausing, archive/restore, and backup/restore.
 
 ## Gate 3 — Shared accounts

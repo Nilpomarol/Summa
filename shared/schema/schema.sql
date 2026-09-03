@@ -317,3 +317,44 @@ CREATE UNIQUE INDEX idx_split_lines_one_user
 CREATE UNIQUE INDEX idx_split_lines_one_person
     ON split_lines(split_id, person_id)
     WHERE participant_kind = 'person' AND archived_at IS NULL;
+
+CREATE TABLE goals (
+    id                  TEXT    PRIMARY KEY,
+    name                TEXT    NOT NULL,
+    target_amount_cents INTEGER NOT NULL CHECK (target_amount_cents > 0),
+    target_date         TEXT,
+    account_id          TEXT    REFERENCES accounts(id),
+    funding_mode        TEXT    NOT NULL CHECK (funding_mode IN ('dedicated_account','allocations')),
+    status              TEXT    NOT NULL DEFAULT 'active' CHECK (status IN ('active','paused','completed')),
+    icon                TEXT,
+    color               TEXT,
+    display_order       INTEGER NOT NULL DEFAULT 0,
+    notes               TEXT,
+    created_at          TEXT    NOT NULL,
+    updated_at          TEXT    NOT NULL,
+    archived_at         TEXT,
+
+    CHECK ( funding_mode <> 'dedicated_account' OR account_id IS NOT NULL )
+);
+
+CREATE INDEX idx_goals_account
+    ON goals(account_id)
+    WHERE account_id IS NOT NULL;
+
+CREATE TABLE goal_allocations (
+    id           TEXT    PRIMARY KEY,
+    goal_id      TEXT    NOT NULL REFERENCES goals(id),
+    account_id   TEXT    NOT NULL REFERENCES accounts(id),
+    date         TEXT    NOT NULL,
+    amount_cents INTEGER NOT NULL CHECK (amount_cents <> 0),
+    notes        TEXT,
+    created_at   TEXT    NOT NULL,
+    updated_at   TEXT    NOT NULL,
+    archived_at  TEXT
+);
+
+CREATE INDEX idx_goal_allocations_goal
+    ON goal_allocations(goal_id);
+
+CREATE INDEX idx_goal_allocations_account_date
+    ON goal_allocations(account_id, date);

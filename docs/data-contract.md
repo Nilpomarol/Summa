@@ -15,14 +15,14 @@ Android consumes the SQL through SQLDelight. Windows uses Microsoft.Data.Sqlite 
 
 ## Schema snapshot
 
-The current schema version is `11`. Principal tables are:
+The current schema version is `12`. Principal tables are:
 
 | Area | Tables |
 |---|---|
 | Reference data | `accounts`, `categories`, `people`, `trips`, `tags` |
 | Ledger | `movements`, `splits`, `split_lines` |
 | Automation | `templates` |
-| Planning/import | `budgets`, `import_batches` |
+| Planning/import | `budgets`, `goals`, `goal_allocations`, `import_batches` |
 | System | `meta` |
 
 The SQL files are the field-level authority. Documentation explains the contract but does not duplicate every column.
@@ -52,8 +52,20 @@ Application validation should mirror important database constraints to provide u
 | `v_movement_shared` | Shared-movement helper data |
 | `v_movement_summary` | Unified movement/external-split list and detail projection |
 | `v_trip_actual_total` | Derived actual expense per trip |
+| `v_goal_allocation` | Signed sum of a goal's active planning allocations |
+| `v_goal_progress` | Saved and remaining cents per goal, by funding mode |
+| `v_account_allocation` | Account value split into allocated and unallocated |
 
 Balances, debt, actual values, and flow must come from these views or shared queries built on them. Do not persist their results as truth or recalculate them ad hoc in Kotlin or C#.
+
+## Savings goals
+
+- A goal carries a positive target in cents, an optional local target date, optional visual identity, and `active` / `paused` / `completed` state.
+- `funding_mode` decides where progress comes from. `dedicated_account` requires an account and follows that account's canonical value. `allocations` sums the goal's active `goal_allocations`, which is what lets several goals share one account.
+- An allocation is a dated, signed, non-zero reservation against one account. Positive reserves, negative releases. Allocations are never ledger rows: they produce no movement, account flow, actual income or expense, debt, or net-worth change.
+- `v_account_allocation` reports each account's balance split into `allocated_cents` and `unallocated_cents`. Only non-archived allocation-mode goals reserve value, so archiving a goal releases its reservation and restoring it takes it back. Pausing or completing a goal keeps the money set aside.
+- Over-allocating is a dismissible warning, not an error: an account value can legitimately drop after the plan was made, and `unallocated_cents` may go negative. Releasing more than a goal holds is refused, because negative progress is meaningless.
+- An account dedicated to a goal does not also host allocations.
 
 ## Golden procedural rules
 
@@ -66,7 +78,8 @@ Rules that are awkward or inappropriate to encode as SQL are implemented nativel
 - `refund_actual.json` — expense net of refunds;
 - `debt_balance.json` — person balance derivation;
 - `debt_consumption.json` — chronological settlement-versus-debt consumption;
-- `account_flow.json` — account flow cases.
+- `account_flow.json` — account flow cases;
+- `goal_progress.json` — savings-goal progress and required monthly pace.
 
 Change a golden vector first when intentionally changing one of these rules. Then update both implementations. Never weaken an expected result merely to make a test pass.
 
@@ -103,14 +116,7 @@ Any red golden test blocks delivery of a money-rule or shared-contract change.
 
 ## Approved pre-Windows contract changes
 
-Schema version `11` remains the implemented authority until each vertical slice ships. The following changes are approved targets; exact names may be refined during implementation, but their meanings and invariants are fixed by [pre-windows-plan.md](pre-windows-plan.md).
-
-### Savings goals
-
-- Add goals with target amount, optional target date, optional linked account, visual identity, and active/completed/paused state.
-- A dedicated-account goal may derive progress from that account's canonical value.
-- Goals sharing an account use dated planning allocations. Allocations reserve meaning only: they never create ledger flow, income, expense, or debt.
-- Active allocations for one account must not exceed the funds available for allocation; the UI exposes any unallocated remainder.
+Schema version `12` is the implemented authority. Savings goals have shipped and are described above with the rest of the contract. The remaining changes are approved targets; exact names may be refined during implementation, but their meanings and invariants are fixed by [pre-windows-plan.md](pre-windows-plan.md).
 
 ### Shared accounts
 

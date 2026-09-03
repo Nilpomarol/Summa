@@ -5,6 +5,8 @@ import com.gestorfinances.app.domain.rules.DebtConsumption
 import com.gestorfinances.app.domain.rules.DebtItem
 import com.gestorfinances.app.domain.rules.DuplicateDetector
 import com.gestorfinances.app.domain.rules.DuplicateMovement
+import com.gestorfinances.app.domain.rules.GoalFundingMode
+import com.gestorfinances.app.domain.rules.GoalProgress
 import com.gestorfinances.app.domain.rules.RecurrenceFrequency
 import com.gestorfinances.app.domain.rules.RecurrenceRule
 import com.gestorfinances.app.domain.rules.RecurringAdvancer
@@ -42,6 +44,7 @@ class GoldenVectorTest {
             "debt_balance.json",
             "debt_consumption.json",
             "duplicate_detection.json",
+            "goal_progress.json",
             "recurring_advance.json",
             "refund_actual.json",
             "split_rounding.json",
@@ -208,6 +211,30 @@ class GoldenVectorTest {
                     projection.creditAllCents +
                     projection.creditRecurringCents,
             )
+        }
+    }
+
+    @Test
+    fun goalProgressMatchesGoldenVectors() {
+        golden("goal_progress.json").cases().forEach { case ->
+            val input = case.obj("input")
+            val expected = case.obj("expected")
+
+            val progress = GoalProgress.evaluate(
+                fundingMode = GoalFundingMode.fromDb(input.string("funding_mode")),
+                targetAmountCents = input.long("target_amount_cents"),
+                accountBalanceCents = input.long("account_balance_cents"),
+                allocationCents = input.longArray("allocation_cents"),
+                targetDate = input.optionalString("target_date")?.let(LocalDate::parse),
+                today = LocalDate.parse(input.string("today")),
+            )
+
+            assertEquals(case.name(), expected.long("saved_cents"), progress.savedCents)
+            assertEquals(case.name(), expected.long("remaining_cents"), progress.remainingCents)
+            assertEquals(case.name(), expected.boolean("reached"), progress.reached)
+            assertEquals(case.name(), expected.optionalInt("months_remaining"), progress.monthsRemaining)
+            assertEquals(case.name(), expected.optionalLong("monthly_pace_cents"), progress.monthlyPaceCents)
+            assertEquals(case.name(), expected.boolean("overdue"), progress.overdue)
         }
     }
 
