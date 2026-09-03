@@ -34,11 +34,14 @@ import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountSummary
 import com.gestorfinances.app.data.repository.CategoryRecord
 import com.gestorfinances.app.data.repository.MovementType
+import com.gestorfinances.app.data.repository.PersonSummary
+import com.gestorfinances.app.data.repository.SettlementDirection
 import com.gestorfinances.app.data.repository.TagSummary
 import com.gestorfinances.app.data.repository.TemplateStatus
 import com.gestorfinances.app.data.repository.TripSummary
 import com.gestorfinances.app.domain.rules.CustomRecurrenceUnit
 import com.gestorfinances.app.domain.rules.RecurrenceFrequency
+import com.gestorfinances.app.domain.rules.SettlementScope
 import com.gestorfinances.app.ui.common.BannerKind
 import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.InlineBanner
@@ -58,6 +61,7 @@ import com.gestorfinances.app.ui.movements.FormToggleRow
 import com.gestorfinances.app.ui.movements.FormTripTagSection
 import com.gestorfinances.app.ui.movements.MovementTypeSelector
 import com.gestorfinances.app.ui.movements.SelectOption
+import com.gestorfinances.app.ui.movements.recurringTemplateTypes
 import com.gestorfinances.app.ui.theme.FinanceTheme
 
 @Composable
@@ -67,6 +71,7 @@ internal fun RecurringFormScreen(
     categories: List<CategoryRecord>,
     trips: List<TripSummary>,
     tags: List<TagSummary>,
+    people: List<PersonSummary>,
     onFormChange: (TemplateFormState) -> Unit,
     onBack: () -> Unit,
     onSave: () -> Unit,
@@ -102,6 +107,7 @@ internal fun RecurringFormScreen(
                     selected = form.type,
                     onSelect = { onFormChange(form.copy(type = it)) },
                     showLabel = false,
+                    types = recurringTemplateTypes,
                 )
                 OutlinedTextField(
                     value = form.name,
@@ -155,6 +161,7 @@ internal fun RecurringFormScreen(
                     form = form,
                     accounts = accounts,
                     categories = categories,
+                    people = people,
                     onFormChange = onFormChange,
                 )
             }
@@ -234,10 +241,12 @@ private fun RecordingFields(
     form: TemplateFormState,
     accounts: List<AccountSummary>,
     categories: List<CategoryRecord>,
+    people: List<PersonSummary>,
     onFormChange: (TemplateFormState) -> Unit,
 ) {
     val accountError = form.errorField == TemplateFormField.ACCOUNT
     val destinationError = form.errorField == TemplateFormField.DESTINATION_ACCOUNT
+    val personError = form.errorField == TemplateFormField.PERSON
     val errorText = form.errorRes?.let { stringResource(it) }
     AccountSelect(
         label = stringResource(
@@ -261,6 +270,14 @@ private fun RecordingFields(
             supportingText = errorText.takeIf { destinationError },
             modifier = Modifier.fillMaxWidth().scrollToWhen(destinationError),
         )
+    } else if (form.type == MovementType.SETTLEMENT) {
+        SettlementFields(
+            form = form,
+            people = people,
+            isError = personError,
+            errorText = errorText.takeIf { personError },
+            onFormChange = onFormChange,
+        )
     } else {
         CategorySelect(
             categories = categories,
@@ -272,6 +289,59 @@ private fun RecordingFields(
     }
 }
 
+/** Who the recurring settlement is with, which way the money moves, and the debt it may consume. */
+@Composable
+private fun SettlementFields(
+    form: TemplateFormState,
+    people: List<PersonSummary>,
+    isError: Boolean,
+    errorText: String?,
+    onFormChange: (TemplateFormState) -> Unit,
+) {
+    FormSelect(
+        label = stringResource(R.string.template_field_person),
+        options = people.map { SelectOption(id = it.id, label = it.name) },
+        selectedId = form.personId,
+        onSelect = { onFormChange(form.copy(personId = it)) },
+        isError = isError,
+        supportingText = errorText,
+        modifier = Modifier.fillMaxWidth().scrollToWhen(isError),
+    )
+    LabeledSegmentedControl(
+        label = stringResource(R.string.movement_field_settlement),
+        options = SettlementDirection.entries,
+        selected = form.settlementDirection,
+        optionLabel = { it.formLabel() },
+        onSelect = { onFormChange(form.copy(settlementDirection = it)) },
+        modifier = Modifier.fillMaxWidth(),
+    )
+    LabeledSegmentedControl(
+        label = stringResource(R.string.settlement_field_scope),
+        options = SettlementScope.entries,
+        selected = form.settlementScope,
+        optionLabel = { it.formLabel() },
+        onSelect = { onFormChange(form.copy(settlementScope = it)) },
+        modifier = Modifier.fillMaxWidth(),
+    )
+    Text(
+        text = stringResource(R.string.settlement_scope_help),
+        style = MaterialTheme.typography.bodySmall,
+        color = FinanceTheme.colors.mutedText,
+    )
+}
+
+@Composable
+private fun SettlementDirection.formLabel(): String = when (this) {
+    SettlementDirection.PERSON_TO_USER -> stringResource(R.string.settlement_direction_person_to_user)
+    SettlementDirection.USER_TO_PERSON -> stringResource(R.string.settlement_direction_user_to_person)
+}
+
+@Composable
+private fun SettlementScope.formLabel(): String = when (this) {
+    SettlementScope.ALL -> stringResource(R.string.settlement_scope_all)
+    SettlementScope.RECURRING -> stringResource(R.string.settlement_scope_recurring)
+}
+
 @Composable
 private fun OptionalFields(
     form: TemplateFormState,
@@ -279,7 +349,7 @@ private fun OptionalFields(
     tags: List<TagSummary>,
     onFormChange: (TemplateFormState) -> Unit,
 ) {
-    if (form.type != MovementType.TRANSFER) {
+    if (form.type != MovementType.TRANSFER && form.type != MovementType.SETTLEMENT) {
         FormTripTagSection(
             trips = trips,
             tags = tags,

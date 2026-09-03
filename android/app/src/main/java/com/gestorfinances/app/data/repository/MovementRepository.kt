@@ -2,6 +2,7 @@ package com.gestorfinances.app.data.repository
 
 import com.gestorfinances.app.data.db.MovementsQueries
 import com.gestorfinances.app.data.db.SplitsQueries
+import com.gestorfinances.app.domain.rules.SettlementScope
 import java.util.UUID
 
 enum class MovementType(val dbValue: String) {
@@ -99,10 +100,15 @@ data class SettlementDraft(
     val id: String,
     val personId: String,
     val direction: SettlementDirection,
+    /** The debt this settlement may consume, replayed by [com.gestorfinances.app.domain.rules.DebtConsumption]. */
+    val scope: SettlementScope,
     val amountCents: Long,
     val accountId: String,
     val date: String,
+    val name: String? = null,
     val notes: String?,
+    /** Set when a recurring settlement template materialized this occurrence. */
+    val templateId: String? = null,
 )
 
 data class RefundDraft(
@@ -315,9 +321,12 @@ class MovementRepository(
             amount_cents = draft.amountCents,
             date = draft.date,
             account_id = draft.accountId,
+            name = draft.name,
             notes = draft.notes,
             person_id = draft.personId,
             settlement_direction = draft.direction.dbValue,
+            settlement_scope = draft.scope.dbValue,
+            template_id = draft.templateId,
             created_at = createdAt,
             updated_at = createdAt,
         )

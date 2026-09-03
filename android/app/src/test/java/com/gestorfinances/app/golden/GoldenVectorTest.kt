@@ -1,11 +1,14 @@
 package com.gestorfinances.app.golden
 
 import com.gestorfinances.app.domain.rules.CustomRecurrenceUnit
+import com.gestorfinances.app.domain.rules.DebtConsumption
+import com.gestorfinances.app.domain.rules.DebtItem
 import com.gestorfinances.app.domain.rules.DuplicateDetector
 import com.gestorfinances.app.domain.rules.DuplicateMovement
 import com.gestorfinances.app.domain.rules.RecurrenceFrequency
 import com.gestorfinances.app.domain.rules.RecurrenceRule
 import com.gestorfinances.app.domain.rules.RecurringAdvancer
+import com.gestorfinances.app.domain.rules.SettlementScope
 import com.gestorfinances.app.domain.rules.SplitCalculator
 import java.io.File
 import java.sql.Connection
@@ -37,6 +40,7 @@ class GoldenVectorTest {
         val covered = setOf(
             "account_flow.json",
             "debt_balance.json",
+            "debt_consumption.json",
             "duplicate_detection.json",
             "recurring_advance.json",
             "refund_actual.json",
@@ -174,6 +178,36 @@ class GoldenVectorTest {
                     connection.longMap("SELECT person_id, balance_cents FROM v_person_balance"),
                 )
             }
+        }
+    }
+
+    @Test
+    fun debtConsumptionMatchesGoldenVectors() {
+        golden("debt_consumption.json").cases().forEach { case ->
+            val items = case.obj("input").array("items").map { it.jsonObject.toDebtItem() }
+            val projection = DebtConsumption.project(items)
+            val expected = case.obj("expected")
+
+            assertEquals(case.name(), expected.long("balance_cents"), projection.totalCents)
+            assertEquals(
+                case.name(),
+                expected.array("residuals").map { row ->
+                    val obj = row.jsonObject
+                    Triple(obj.string("source_id"), obj.long("original_cents"), obj.long("remaining_cents"))
+                },
+                projection.residuals.map { Triple(it.sourceId, it.originalCents, it.remainingCents) },
+            )
+            assertEquals(case.name(), expected.long("credit_all_cents"), projection.creditAllCents)
+            assertEquals(case.name(), expected.long("credit_recurring_cents"), projection.creditRecurringCents)
+
+            // The projection only ever explains the balance; v_person_balance owns the total.
+            assertEquals(
+                "${case.name()} (residuals must reconcile with the balance)",
+                projection.totalCents,
+                projection.residuals.sumOf { it.remainingCents } +
+                    projection.creditAllCents +
+                    projection.creditRecurringCents,
+            )
         }
     }
 
@@ -470,6 +504,18 @@ class GoldenVectorTest {
                 else -> error("Unknown custom unit $it")
             }
         }
+
+    private fun JsonObject.toDebtItem(): DebtItem {
+        val type = string("type")
+        return DebtItem(
+            sourceId = string("source_id"),
+            date = string("date"),
+            effectCents = long("effect_cents"),
+            isSettlement = type.startsWith("settlement"),
+            isRecurring = optionalBoolean("is_recurring") ?: false,
+            scope = optionalString("scope")?.let(SettlementScope::fromDb),
+        )
+    }
 
     private fun JsonObject.toDuplicateMovement(): DuplicateMovement =
         DuplicateMovement(

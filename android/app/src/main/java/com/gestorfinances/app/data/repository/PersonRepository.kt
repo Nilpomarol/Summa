@@ -1,6 +1,7 @@
 package com.gestorfinances.app.data.repository
 
 import com.gestorfinances.app.data.db.PeopleQueries
+import com.gestorfinances.app.domain.rules.SettlementScope
 
 data class PersonSummary(
     val id: String,
@@ -43,7 +44,14 @@ data class PersonBalanceItem(
     val categoryId: String?,
     val categoryName: String?,
     val effectCents: Long,
-)
+    /** Debt raised by a recurring template, which is all a `RECURRING`-scoped settlement may consume. */
+    val isRecurring: Boolean,
+    /** Set on settlements only: the debt this settlement was allowed to consume. */
+    val scope: SettlementScope?,
+) {
+    val isSettlement: Boolean
+        get() = type == PersonBalanceItemType.SETTLEMENT_IN || type == PersonBalanceItemType.SETTLEMENT_OUT
+}
 
 class PersonRepository(
     private val queries: PeopleQueries,
@@ -133,6 +141,8 @@ private fun mapPersonBalanceItem(
     categoryId: String?,
     categoryName: String?,
     effectCents: Long,
+    isRecurring: Long,
+    settlementScope: String?,
 ): PersonBalanceItem =
     PersonBalanceItem(
         sourceId = sourceId,
@@ -142,4 +152,12 @@ private fun mapPersonBalanceItem(
         categoryId = categoryId,
         categoryName = categoryName,
         effectCents = effectCents,
+        isRecurring = isRecurring != 0L,
+        // Migration 011 backfills every pre-existing settlement to 'all'; defaulting here keeps a
+        // row that somehow escaped it explaining the balance instead of failing the whole message.
+        scope = when {
+            settlementScope != null -> SettlementScope.fromDb(settlementScope)
+            sourceType.startsWith("settlement") -> SettlementScope.ALL
+            else -> null
+        },
     )

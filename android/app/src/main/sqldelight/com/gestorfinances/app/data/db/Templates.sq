@@ -13,6 +13,10 @@ SELECT
     trips.name AS trip_name,
     templates.tag_id,
     tags.name AS tag_name,
+    templates.person_id,
+    people.name AS person_name,
+    templates.settlement_direction,
+    templates.settlement_scope,
     templates.name,
     templates.payee,
     templates.notes,
@@ -42,6 +46,8 @@ LEFT JOIN trips
     ON trips.id = templates.trip_id
 LEFT JOIN tags
     ON tags.id = templates.tag_id
+LEFT JOIN people
+    ON people.id = templates.person_id
 WHERE templates.archived_at IS NULL
 ORDER BY
     CASE templates.status WHEN 'active' THEN 0 WHEN 'paused' THEN 1 ELSE 2 END ASC,
@@ -63,6 +69,10 @@ SELECT
     trips.name AS trip_name,
     templates.tag_id,
     tags.name AS tag_name,
+    templates.person_id,
+    people.name AS person_name,
+    templates.settlement_direction,
+    templates.settlement_scope,
     templates.name,
     templates.payee,
     templates.notes,
@@ -92,6 +102,8 @@ LEFT JOIN trips
     ON trips.id = templates.trip_id
 LEFT JOIN tags
     ON tags.id = templates.tag_id
+LEFT JOIN people
+    ON people.id = templates.person_id
 WHERE templates.id = :id
   AND templates.archived_at IS NULL;
 
@@ -105,6 +117,9 @@ INSERT INTO templates(
     category_id,
     trip_id,
     tag_id,
+    person_id,
+    settlement_direction,
+    settlement_scope,
     name,
     payee,
     notes,
@@ -131,6 +146,9 @@ INSERT INTO templates(
     :category_id,
     :trip_id,
     :tag_id,
+    :person_id,
+    :settlement_direction,
+    :settlement_scope,
     :name,
     :payee,
     :notes,
@@ -160,6 +178,9 @@ SET
     category_id = :category_id,
     trip_id = :trip_id,
     tag_id = :tag_id,
+    person_id = :person_id,
+    settlement_direction = :settlement_direction,
+    settlement_scope = :settlement_scope,
     name = :name,
     payee = :payee,
     notes = :notes,

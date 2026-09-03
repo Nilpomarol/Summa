@@ -176,10 +176,13 @@ INSERT INTO movements(
     amount_cents,
     date,
     account_id,
+    name,
     notes,
     category_id,
     person_id,
     settlement_direction,
+    settlement_scope,
+    template_id,
     created_at,
     updated_at
 ) VALUES (
@@ -188,10 +191,13 @@ INSERT INTO movements(
     :amount_cents,
     :date,
     :account_id,
+    :name,
     :notes,
     NULL,
     :person_id,
     :settlement_direction,
+    :settlement_scope,
+    :template_id,
     :created_at,
     :updated_at
 );

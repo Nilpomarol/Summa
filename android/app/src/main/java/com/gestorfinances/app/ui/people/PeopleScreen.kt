@@ -29,6 +29,7 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Handshake
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material3.AlertDialog
+import com.gestorfinances.app.domain.rules.SettlementScope
 import com.gestorfinances.app.ui.common.AppDropdownMenu
 import com.gestorfinances.app.ui.common.AppDropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -77,6 +78,7 @@ import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.FinanceFilterChip
 import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.InlineFailureBanner
+import com.gestorfinances.app.ui.common.LabeledSegmentedControl
 import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.MovementListItem
 import com.gestorfinances.app.ui.common.AppModalBottomSheet
@@ -723,14 +725,29 @@ private fun PersonDebtMessage.toClipboardText(personName: String): String {
     )
 
     val lines = mutableListOf<String>()
-    items.forEach { item ->
-        lines += "- ${formatCompactDate(item.date)} ${item.displayTitle(personName)}: " +
-            formatEuroCents(kotlin.math.abs(item.effectCents))
+    residuals.forEach { residual ->
+        val item = residual.item
+        val head = "- ${formatCompactDate(item.date)} ${item.displayTitle(personName)}: "
+        lines += head + if (residual.isPartial) {
+            stringResource(
+                R.string.person_copy_partial_amount,
+                formatEuroCents(kotlin.math.abs(residual.remainingCents)),
+                formatEuroCents(kotlin.math.abs(item.effectCents)),
+            )
+        } else {
+            formatEuroCents(kotlin.math.abs(residual.remainingCents))
+        }
     }
-    carryForwardCents?.let { carryForward ->
+    if (creditAllCents != 0L) {
         lines += "- " + stringResource(
-            R.string.person_copy_carry_forward,
-            formatEuroCents(kotlin.math.abs(carryForward)),
+            R.string.person_copy_credit,
+            formatEuroCents(kotlin.math.abs(creditAllCents)),
+        )
+    }
+    if (creditRecurringCents != 0L) {
+        lines += "- " + stringResource(
+            R.string.person_copy_credit_recurring,
+            formatEuroCents(kotlin.math.abs(creditRecurringCents)),
         )
     }
 
@@ -918,6 +935,26 @@ private fun SettlementScreen(
                 style = MaterialTheme.typography.labelSmall,
             )
         }
+        LabeledSegmentedControl(
+            label = stringResource(R.string.settlement_field_scope),
+            options = SettlementScope.entries,
+            selected = form.scope,
+            optionLabel = { scope ->
+                stringResource(
+                    when (scope) {
+                        SettlementScope.ALL -> R.string.settlement_scope_all
+                        SettlementScope.RECURRING -> R.string.settlement_scope_recurring
+                    },
+                )
+            },
+            onSelect = { onFormChange(form.copy(scope = it)) },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Text(
+            text = stringResource(R.string.settlement_scope_help),
+            style = MaterialTheme.typography.bodySmall,
+            color = FinanceTheme.colors.mutedText,
+        )
         val dateError = form.errorField == SettlementFormField.DATE
         FormDatePicker(
             label = stringResource(R.string.settlement_field_date),

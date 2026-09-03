@@ -42,13 +42,26 @@ public sealed class SqliteSmokeTests
 
         var meta = connection.Query<MetaRow>("SELECT key AS Key, value AS Value FROM meta ORDER BY key;").ToList();
         CollectionAssert.AreEqual(
-            new[] { "schema_version=10", "snapshot_version=0" },
+            new[] { "schema_version=11", "snapshot_version=0" },
             meta.Select(row => $"{row.Key}={row.Value}").ToArray());
 
         var budgetColumns = connection.Query<string>("SELECT name FROM pragma_table_info('budgets');").ToArray();
         CollectionAssert.IsSubsetOf(
             new[] { "include_trip_expenses", "include_extraordinary_expenses" },
             budgetColumns);
+
+        var movementColumns = connection.Query<string>("SELECT name FROM pragma_table_info('movements');").ToArray();
+        CollectionAssert.IsSubsetOf(new[] { "settlement_scope" }, movementColumns);
+
+        // The v11 rebuild must leave templates able to schedule settlements, with no scratch table.
+        var templateColumns = connection.Query<string>("SELECT name FROM pragma_table_info('templates');").ToArray();
+        CollectionAssert.IsSubsetOf(
+            new[] { "person_id", "settlement_direction", "settlement_scope" },
+            templateColumns);
+        Assert.AreEqual(
+            0,
+            connection.QuerySingle<int>(
+                "SELECT COUNT(*) FROM sqlite_master WHERE name IN ('templates_new', 'templates_migration_backup');"));
 
         var viewNames = connection.Query<string>(
             """

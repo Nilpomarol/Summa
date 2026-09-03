@@ -32,6 +32,7 @@ UPGRADE_MIGRATION_FILES = [
     "008_add_budget_inclusion_rules.sql",
     "009_derive_refund_attribution.sql",
     "010_remove_auto_categorization.sql",
+    "011_add_recurring_settlements.sql",
 ]
 VIEW_NAMES = [path.removesuffix(".sql") for path in VIEW_FILES]
 
@@ -272,7 +273,7 @@ def main() -> None:
         for name in UPGRADE_MIGRATION_FILES:
             conn.executescript(read_sql(ROOT / "shared" / "migrations" / name))
         meta = dict(conn.execute("SELECT key, value FROM meta").fetchall())
-        expected = {"schema_version": "10", "snapshot_version": "0"}
+        expected = {"schema_version": "11", "snapshot_version": "0"}
         if meta != expected:
             fail(f"upgrade migrations: expected meta {expected}, got {meta}")
     except sqlite3.Error as exc:

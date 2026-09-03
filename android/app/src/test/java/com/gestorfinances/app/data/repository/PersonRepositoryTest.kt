@@ -2,6 +2,7 @@ package com.gestorfinances.app.data.repository
 
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import com.gestorfinances.app.data.db.GestorDatabase
+import com.gestorfinances.app.domain.rules.SettlementScope
 import com.gestorfinances.app.domain.rules.SplitCalculator
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -79,10 +80,10 @@ class PersonRepositoryTest {
                 """
                 INSERT INTO movements(
                     id, type, amount_cents, date, account_id, name, notes, is_one_time,
-                    person_id, settlement_direction, created_at, updated_at
+                    person_id, settlement_direction, settlement_scope, created_at, updated_at
                 ) VALUES (
                     'settlement-in', 'settlement', 100, '2026-01-04', 'checking', NULL, 'Laura paga',
-                    0, 'laura', 'person_to_user', '$NOW', '$NOW'
+                    0, 'laura', 'person_to_user', 'all', '$NOW', '$NOW'
                 )
                 """.trimIndent(),
                 0,
@@ -92,10 +93,10 @@ class PersonRepositoryTest {
                 """
                 INSERT INTO movements(
                     id, type, amount_cents, date, account_id, name, notes, is_one_time,
-                    person_id, settlement_direction, created_at, updated_at
+                    person_id, settlement_direction, settlement_scope, created_at, updated_at
                 ) VALUES (
                     'settlement-out', 'settlement', 50, '2026-01-05', 'checking', NULL, 'Pagament a Laura',
-                    0, 'laura', 'user_to_person', '$NOW', '$NOW'
+                    0, 'laura', 'user_to_person', 'all', '$NOW', '$NOW'
                 )
                 """.trimIndent(),
                 0,
@@ -186,6 +187,7 @@ class PersonRepositoryTest {
                     id = "mv2",
                     personId = "pA",
                     direction = SettlementDirection.PERSON_TO_USER,
+                    scope = SettlementScope.ALL,
                     amountCents = 1_000,
                     accountId = "checking",
                     date = "2026-03-05",

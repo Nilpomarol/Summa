@@ -15,7 +15,7 @@ Android consumes the SQL through SQLDelight. Windows uses Microsoft.Data.Sqlite 
 
 ## Schema snapshot
 
-The current schema version is `10`. Principal tables are:
+The current schema version is `11`. Principal tables are:
 
 | Area | Tables |
 |---|---|
@@ -30,7 +30,8 @@ The SQL files are the field-level authority. Documentation explains the contract
 ## Ledger integrity
 
 - `amount_cents > 0`; type determines direction.
-- Expense/income account fields, transfer destination, settlement person/direction, and refund source must satisfy the schema `CHECK` constraints.
+- Expense/income account fields, transfer destination, settlement person/direction/scope, and refund source must satisfy the schema `CHECK` constraints.
+- A settlement records the scope of debt it may consume (`all` or `recurring`); a template of type `settlement` carries a person, direction, and scope, and no category, trip, tag, or split.
 - A transfer references different source and destination accounts.
 - Split lines are absolute non-negative amounts and reconcile with their split total; zero is valid for a 100/0 share.
 - A split line represents either the user or one person, never both.
@@ -64,6 +65,7 @@ Rules that are awkward or inappropriate to encode as SQL are implemented nativel
 - `duplicate_detection.json` — duplicate-warning candidates;
 - `refund_actual.json` — expense net of refunds;
 - `debt_balance.json` — person balance derivation;
+- `debt_consumption.json` — chronological settlement-versus-debt consumption;
 - `account_flow.json` — account flow cases.
 
 Change a golden vector first when intentionally changing one of these rules. Then update both implementations. Never weaken an expected result merely to make a test pass.
@@ -101,16 +103,7 @@ Any red golden test blocks delivery of a money-rule or shared-contract change.
 
 ## Approved pre-Windows contract changes
 
-Schema version `10` remains the implemented authority until each vertical slice ships. The following changes are approved targets; exact names may be refined during implementation, but their meanings and invariants are fixed by [pre-windows-plan.md](pre-windows-plan.md).
-
-### Recurring settlements and debt explanation
-
-- Extend recurring templates to materialize `settlement` movements with person and direction invariants equivalent to normal settlements.
-- Support settlement scope `all` or `recurring`. A recurring-scoped settlement consumes only eligible debt items originating from recurring templates.
-- Replace last-settlement cutoff/carry-forward message logic with a chronological debt-consumption projection.
-- A settlement consumes only eligible debt already present at its date, oldest first. Excess remains directional credit and may affect later items.
-- `v_person_balance` remains the authority for the total. The consumption projection explains the residual per source item and must reconcile exactly with that total.
-- Do not add persisted settlement allocations in this version.
+Schema version `11` remains the implemented authority until each vertical slice ships. The following changes are approved targets; exact names may be refined during implementation, but their meanings and invariants are fixed by [pre-windows-plan.md](pre-windows-plan.md).
 
 ### Savings goals
 

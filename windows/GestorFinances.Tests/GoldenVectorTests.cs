@@ -18,6 +18,7 @@ public sealed class GoldenVectorTests
         {
             "account_flow.json",
             "debt_balance.json",
+            "debt_consumption.json",
             "duplicate_detection.json",
             "recurring_advance.json",
             "refund_actual.json",
@@ -194,6 +195,60 @@ public sealed class GoldenVectorTests
                 connection.LongMap("SELECT person_id, balance_cents FROM v_person_balance"),
                 testCase.Name());
         }
+    }
+
+    [TestMethod]
+    public void DebtConsumptionMatchesGoldenVectors()
+    {
+        foreach (var testCase in Golden("debt_consumption.json").Cases())
+        {
+            var items = testCase.Obj("input").Array("items").Select(ToDebtItem).ToList();
+            var projection = DebtConsumption.Project(items);
+            var expected = testCase.Obj("expected");
+
+            Assert.AreEqual(expected.Long("balance_cents"), projection.TotalCents, testCase.Name());
+
+            var expectedResiduals = expected.Array("residuals")
+                .Select(row => (row.String("source_id"), row.Long("original_cents"), row.Long("remaining_cents")))
+                .ToList();
+            var actualResiduals = projection.Residuals
+                .Select(row => (row.SourceId, row.OriginalCents, row.RemainingCents))
+                .ToList();
+            CollectionAssert.AreEqual(expectedResiduals, actualResiduals, testCase.Name());
+
+            Assert.AreEqual(expected.Long("credit_all_cents"), projection.CreditAllCents, testCase.Name());
+            Assert.AreEqual(
+                expected.Long("credit_recurring_cents"),
+                projection.CreditRecurringCents,
+                testCase.Name());
+
+            // The projection only ever explains the balance; v_person_balance owns the total.
+            Assert.AreEqual(
+                projection.TotalCents,
+                projection.Residuals.Sum(row => row.RemainingCents)
+                    + projection.CreditAllCents
+                    + projection.CreditRecurringCents,
+                $"{testCase.Name()} (residuals must reconcile with the balance)");
+        }
+    }
+
+    private static DebtItem ToDebtItem(JsonElement row)
+    {
+        var type = row.String("type");
+        var scope = row.OptionalString("scope");
+        return new DebtItem(
+            row.String("source_id"),
+            row.String("date"),
+            row.Long("effect_cents"),
+            type.StartsWith("settlement", StringComparison.Ordinal),
+            row.OptionalBool("is_recurring") ?? false,
+            scope switch
+            {
+                null => null,
+                "all" => SettlementScope.All,
+                "recurring" => SettlementScope.Recurring,
+                _ => throw new InvalidOperationException($"Unknown settlement scope: {scope}")
+            });
     }
 
     [TestMethod]

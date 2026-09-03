@@ -56,6 +56,8 @@ A shared expense has one payer and absolute split lines whose total reconciles w
 
 Debt is derived from active splits and settlements. It is not an editable balance. Positive and negative presentation must always name the direction so meaning is not conveyed by colour alone.
 
+A settlement declares the debt it may consume: `all`, or `recurring` for debt raised by recurring templates only. Settlements are replayed chronologically against the debt that already existed on their date, oldest first, so the pending message names real source items and marks partially paid ones instead of collapsing older history into one carry-forward figure. Money a settlement cannot spend stays as directional credit in its own scope and is absorbed by later eligible debt, which is also how an opposite-direction settlement is represented. The derived person balance remains the authoritative total; the explanation always reconciles to it exactly.
+
 ### Refunds
 
 A refund links to an expense and inherits its category, trip, tag, and extraordinary classification for actual spending; archiving an expense archives its active refunds. Actual expense is net of eligible refunds through the canonical view. Over-refunds are allowed after a warning because historic or imported records can legitimately need them.
@@ -63,6 +65,8 @@ A refund links to an expense and inherits its category, trip, tag, and extraordi
 ### Recurring activity
 
 Templates describe future occurrences; confirmed occurrences become real movements. Editing a linked movement does not silently rewrite the template. Ending a series, unlinking one occurrence, rescaling split amounts, or dropping participants must be explicit to the user.
+
+Besides expenses, income, and transfers, a template can schedule a settlement with a person, direction, and consumption scope. Fixed and variable amounts both apply. A settlement template carries no category, trip, tag, or split.
 
 ### Budgets
 
@@ -76,7 +80,6 @@ A movement can belong to one trip and have at most one compatible tag. Tags may 
 
 The following capabilities are approved but not implemented. Their detailed order and acceptance gates live in [pre-windows-plan.md](pre-windows-plan.md).
 
-- Recurring settlement templates and an explainable debt message that chronologically consumes eligible debts instead of collapsing everything before the last settlement into a carry-forward.
 - Savings goals as planning allocations over existing money, optionally linked to a dedicated account, without creating income, expense, or account flow.
 - Shared accounts that separate physical account balance, ownership, expense allocation, payer identity, and contributions.
 - Investment account valuations that separate net contributions/withdrawals from market value and unrealized performance.

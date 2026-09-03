@@ -43,7 +43,9 @@ SELECT
     title,
     category_id,
     category_name,
-    effect_cents
+    effect_cents,
+    is_recurring,
+    settlement_scope
 FROM (
     SELECT
         movements.id AS source_id,
@@ -52,7 +54,9 @@ FROM (
         COALESCE(NULLIF(movements.name, ''), NULLIF(movements.payee, ''), NULLIF(movements.notes, '')) AS title,
         movements.category_id AS category_id,
         categories.name AS category_name,
-        split_lines.owed_amount_cents AS effect_cents
+        split_lines.owed_amount_cents AS effect_cents,
+        CASE WHEN movements.template_id IS NOT NULL THEN 1 ELSE 0 END AS is_recurring,
+        CAST(NULL AS TEXT) AS settlement_scope
     FROM split_lines
     JOIN splits
         ON splits.id = split_lines.split_id
@@ -76,7 +80,9 @@ FROM (
         NULLIF(splits.description, '') AS title,
         splits.category_id AS category_id,
         categories.name AS category_name,
-        -split_lines.owed_amount_cents AS effect_cents
+        -split_lines.owed_amount_cents AS effect_cents,
+        0 AS is_recurring,
+        CAST(NULL AS TEXT) AS settlement_scope
     FROM splits
     JOIN split_lines
         ON split_lines.split_id = splits.id
@@ -97,7 +103,9 @@ FROM (
         COALESCE(NULLIF(movements.name, ''), NULLIF(movements.notes, '')) AS title,
         CAST(NULL AS TEXT) AS category_id,
         CAST(NULL AS TEXT) AS category_name,
-        -movements.amount_cents AS effect_cents
+        -movements.amount_cents AS effect_cents,
+        CASE WHEN movements.template_id IS NOT NULL THEN 1 ELSE 0 END AS is_recurring,
+        movements.settlement_scope AS settlement_scope
     FROM movements
     WHERE movements.type = 'settlement'
       AND movements.person_id = :person_id
@@ -113,7 +121,9 @@ FROM (
         COALESCE(NULLIF(movements.name, ''), NULLIF(movements.notes, '')) AS title,
         CAST(NULL AS TEXT) AS category_id,
         CAST(NULL AS TEXT) AS category_name,
-        movements.amount_cents AS effect_cents
+        movements.amount_cents AS effect_cents,
+        CASE WHEN movements.template_id IS NOT NULL THEN 1 ELSE 0 END AS is_recurring,
+        movements.settlement_scope AS settlement_scope
     FROM movements
     WHERE movements.type = 'settlement'
       AND movements.person_id = :person_id
