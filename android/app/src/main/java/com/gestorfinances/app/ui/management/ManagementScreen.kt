@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.Sell
@@ -66,6 +67,7 @@ fun ManagementSheet(
             titleRes = R.string.management_group_planning,
             destinations = listOf(
                 ManagementDestination.BUDGETS,
+                ManagementDestination.GOALS,
                 ManagementDestination.RECURRING,
             ),
         ),
@@ -199,6 +201,7 @@ private fun ManagementDestination.tintColor() = when (this) {
     ManagementDestination.CATEGORIES, ManagementDestination.TAGS -> MaterialTheme.colorScheme.tertiary
     ManagementDestination.PEOPLE, ManagementDestination.EVENTS -> MaterialTheme.colorScheme.secondary
     ManagementDestination.RECURRING, ManagementDestination.SETTINGS -> FinanceTheme.colors.mutedText
+    ManagementDestination.GOALS -> MaterialTheme.colorScheme.primary
 }
 
 private data class ManagementSection(
@@ -218,5 +221,6 @@ enum class ManagementDestination(
     TAGS(R.string.management_tags_title, R.string.management_tags_description, Icons.AutoMirrored.Filled.Label),
     RECURRING(R.string.management_recurring_title, R.string.management_recurring_description, Icons.Filled.Autorenew),
     BUDGETS(R.string.management_budgets_title, R.string.management_budgets_description, Icons.Filled.Savings),
+    GOALS(R.string.management_goals_title, R.string.management_goals_description, Icons.Filled.Flag),
     SETTINGS(R.string.management_settings_title, R.string.management_settings_description, Icons.Filled.Settings),
 }

@@ -42,7 +42,7 @@ public sealed class SqliteSmokeTests
 
         var meta = connection.Query<MetaRow>("SELECT key AS Key, value AS Value FROM meta ORDER BY key;").ToList();
         CollectionAssert.AreEqual(
-            new[] { "schema_version=11", "snapshot_version=0" },
+            new[] { "schema_version=12", "snapshot_version=0" },
             meta.Select(row => $"{row.Key}={row.Value}").ToArray());
 
         var budgetColumns = connection.Query<string>("SELECT name FROM pragma_table_info('budgets');").ToArray();
@@ -73,16 +73,22 @@ public sealed class SqliteSmokeTests
         CollectionAssert.AreEqual(
             new[]
             {
+                "v_account_allocation",
                 "v_account_balance",
                 "v_account_flow",
                 "v_actual_expense",
                 "v_actual_income",
+                "v_goal_allocation",
+                "v_goal_progress",
                 "v_movement_shared",
                 "v_movement_summary",
                 "v_person_balance",
                 "v_trip_actual_total"
             },
             viewNames);
+
+        // Migration 012 must leave every goal view an upgrading database needs.
+        CollectionAssert.IsSubsetOf(SharedSql.MigrationViews.ToArray(), viewNames);
 
         SeedAccountFlowScenario(connection);
 
@@ -98,6 +104,61 @@ public sealed class SqliteSmokeTests
         Assert.AreEqual(11_500, balances[0].CurrentBalanceCents);
         Assert.AreEqual("acc-savings", balances[1].AccountId);
         Assert.AreEqual(1_000, balances[1].CurrentBalanceCents);
+    }
+
+    [TestMethod]
+    public void SavingsGoalsDeriveProgressWithoutTouchingTheLedger()
+    {
+        using var connection = new SqliteConnection("Data Source=:memory:");
+        connection.Open();
+
+        SharedSql.ApplyBaseline(connection);
+        SeedAccountFlowScenario(connection);
+
+        const string now = "2026-06-19T00:00:00Z";
+        connection.Execute(
+            """
+            INSERT INTO goals
+                (id, name, target_amount_cents, account_id, funding_mode, status, created_at, updated_at)
+            VALUES
+                ('g-dedicated', 'Car', 500000, 'acc-savings', 'dedicated_account', 'active', @Now, @Now),
+                ('g-shared', 'Holiday', 80000, 'acc-main', 'allocations', 'active', @Now, @Now);
+
+            INSERT INTO goal_allocations
+                (id, goal_id, account_id, date, amount_cents, created_at, updated_at)
+            VALUES
+                ('al-1', 'g-shared', 'acc-main', '2026-06-05', 5000, @Now, @Now),
+                ('al-2', 'g-shared', 'acc-main', '2026-06-10', -1000, @Now, @Now);
+            """,
+            new { Now = now });
+
+        // A dedicated goal follows the account's canonical value; an allocation goal sums its
+        // signed allocations. Neither reading changes the balances asserted above.
+        Assert.AreEqual(
+            1_000,
+            connection.QuerySingle<long>("SELECT saved_cents FROM v_goal_progress WHERE goal_id = 'g-dedicated';"));
+        Assert.AreEqual(
+            4_000,
+            connection.QuerySingle<long>("SELECT saved_cents FROM v_goal_progress WHERE goal_id = 'g-shared';"));
+        Assert.AreEqual(
+            76_000,
+            connection.QuerySingle<long>("SELECT remaining_cents FROM v_goal_progress WHERE goal_id = 'g-shared';"));
+
+        Assert.AreEqual(
+            11_500,
+            connection.QuerySingle<long>(
+                "SELECT current_balance_cents FROM v_account_balance WHERE account_id = 'acc-main';"));
+        Assert.AreEqual(
+            7_500,
+            connection.QuerySingle<long>(
+                "SELECT unallocated_cents FROM v_account_allocation WHERE account_id = 'acc-main';"));
+
+        // Archiving the goal releases its reservation without deleting the allocation rows.
+        connection.Execute("UPDATE goals SET archived_at = @Now WHERE id = 'g-shared';", new { Now = now });
+        Assert.AreEqual(
+            11_500,
+            connection.QuerySingle<long>(
+                "SELECT unallocated_cents FROM v_account_allocation WHERE account_id = 'acc-main';"));
     }
 
     private static void SeedAccountFlowScenario(SqliteConnection connection)

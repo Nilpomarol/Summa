@@ -43,6 +43,9 @@
     <string name="failure_save_tag">No s\'ha pogut desar l\'etiqueta. Torna-ho a provar.</string>
     <string name="failure_save_trip">No s\'ha pogut desar el viatge. Torna-ho a provar.</string>
     <string name="failure_save_movement">No s\'ha pogut desar el moviment. Torna-ho a provar.</string>
+    <string name="failure_load_goals">No s\'han pogut carregar els objectius.</string>
+    <string name="failure_save_goal">No s\'ha pogut desar l\'objectiu. Torna-ho a provar.</string>
+    <string name="failure_save_goal_allocation">No s\'ha pogut desar l\'assignació. Torna-ho a provar.</string>
     <string name="failure_save_recurring">No s\'ha pogut desar el recurrent. Torna-ho a provar.</string>
 
     <!-- Relative dates -->
@@ -63,6 +66,7 @@
     <string name="management_tags_title">Etiquetes</string>
     <string name="management_recurring_title">Recurrents</string>
     <string name="management_budgets_title">Pressupostos</string>
+    <string name="management_goals_title">Objectius d\'estalvi</string>
     <string name="management_settings_title">Configuració</string>
     <string name="management_accounts_description">Saldos, tipus i comptes actius</string>
     <string name="management_categories_description">Classifica els teus ingressos i despeses</string>
@@ -71,6 +75,7 @@
     <string name="management_tags_description">Troba i organitza les etiquetes dels viatges</string>
     <string name="management_recurring_description">Revisa cobraments i pagaments programats</string>
     <string name="management_budgets_description">Límits per al mes, les categories i els viatges</string>
+    <string name="management_goals_description">Diners reservats per a allò que vols aconseguir</string>
     <string name="management_settings_description">Còpies, dades i preferències de l’aplicació</string>
     <string name="management_group_finances">Finances</string>
     <string name="management_group_organization">Organització</string>
@@ -956,4 +961,64 @@
     <string name="settings_seed_data_action">Genera dades</string>
     <string name="settings_seed_data_confirm_title">Eliminar totes les dades?</string>
     <string name="settings_seed_data_confirm_body">Aquesta acció esborra permanentment tots els comptes, moviments, categories, persones, viatges i etiquetes actuals i els substitueix per dades de prova. No es pot desfer.</string>
+
+    <!-- Savings goals -->
+    <string name="goal_list_title">Objectius d\'estalvi</string>
+    <string name="goal_list_add">Nou objectiu</string>
+    <string name="goal_new_title">Nou objectiu</string>
+    <string name="goal_edit_title">Edita l\'objectiu</string>
+    <string name="goal_edit">Edita</string>
+    <string name="goal_save_new">Crea l\'objectiu</string>
+    <string name="goal_save_changes">Desa els canvis</string>
+    <string name="goal_section_paused">En pausa</string>
+    <string name="goal_section_completed">Assolits</string>
+    <string name="goal_state_reached">Assolit</string>
+    <string name="goal_pause">Posa en pausa</string>
+    <string name="goal_resume">Reprèn</string>
+    <string name="goal_mark_completed">Marca com a assolit</string>
+    <string name="goal_empty_title">Encara no tens objectius</string>
+    <string name="goal_empty_body">Un objectiu reserva diners que ja tens. No mou cap compte ni compta com a despesa o ingrés.</string>
+    <string name="goal_saved_of_target">%1$s de %2$s</string>
+    <string name="goal_remaining">En falten %1$s</string>
+    <string name="goal_pace">Cal apartar %1$s al mes durant %2$d mesos, fins al %3$s</string>
+    <string name="goal_pace_overdue">La data objectiu (%1$s) ja ha passat i encara en falten %2$s</string>
+    <string name="goal_mode_allocations">Assignacions</string>
+    <string name="goal_mode_dedicated">Compte dedicat</string>
+    <string name="goal_mode_allocations_with_account">Assignacions sobre %1$s</string>
+    <string name="goal_mode_dedicated_with_account">Compte dedicat: %1$s</string>
+    <string name="goal_dedicated_explainer">El progrés segueix el valor del compte %1$s. No cal assignar-hi res.</string>
+    <string name="goal_dedicated_hint">Tot el valor del compte compta per a aquest objectiu.</string>
+    <string name="goal_allocations_hint">Diversos objectius poden compartir un mateix compte.</string>
+    <string name="goal_account_none">Cap compte</string>
+    <string name="goal_account_unallocated">A %1$s hi queden %2$s sense assignar</string>
+    <string name="goal_field_name">Nom</string>
+    <string name="goal_field_target">Import objectiu</string>
+    <string name="goal_field_target_date">Data objectiu (opcional)</string>
+    <string name="goal_field_dedicated_account">Compte dedicat</string>
+    <string name="goal_field_allocation_account">Compte</string>
+    <string name="goal_field_color">Color</string>
+    <string name="goal_field_icon">Icona</string>
+    <string name="goal_field_notes">Notes</string>
+    <string name="goal_unallocated_title">Diners sense assignar</string>
+    <string name="goal_unallocated_supporting">El que queda lliure a cada compte després de les assignacions.</string>
+    <string name="goal_allocations_title">Assignacions</string>
+    <string name="goal_allocations_empty">Encara no hi ha assignacions.</string>
+    <string name="goal_allocation_add">Assigna diners</string>
+    <string name="goal_allocation_new_title">Nova assignació</string>
+    <string name="goal_allocation_edit_title">Edita l\'assignació</string>
+    <string name="goal_allocation_supporting">Assignar diners només els reserva. No mou el saldo del compte ni compta com a despesa, ingrés o deute.</string>
+    <string name="goal_allocation_available">Disponible per assignar: %1$s</string>
+    <string name="goal_allocation_amount_hint">Un import negatiu allibera part del que tenies reservat.</string>
+    <string name="goal_field_allocation_amount">Import</string>
+    <string name="goal_field_allocation_date">Data</string>
+    <string name="goal_over_allocation_warning">Al compte només hi queden %1$s sense assignar: t\'hi passes %2$s. Pots continuar igualment.</string>
+    <string name="goal_over_allocation_confirm">Assigna igualment</string>
+    <string name="goal_archive_confirm_title">Eliminar l\'objectiu?</string>
+    <string name="goal_archive_warning">Les assignacions deixaran de reservar diners. Els comptes i els moviments no canvien.</string>
+    <string name="goal_validation_name_required">Escriu un nom per a l\'objectiu.</string>
+    <string name="goal_validation_target_positive">L\'import objectiu ha de ser més gran que zero.</string>
+    <string name="goal_validation_account_required">Tria un compte.</string>
+    <string name="goal_validation_allocation_nonzero">Escriu un import diferent de zero.</string>
+    <string name="goal_validation_date_required">Tria una data.</string>
+    <string name="goal_validation_release_too_large">No pots alliberar més diners dels que aquest objectiu té reservats.</string>
 </resources>

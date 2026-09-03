@@ -72,6 +72,8 @@ class AndroidBackupDatabaseInspector : BackupDatabaseInspector {
             "tags",
             "templates",
             "budgets",
+            "goals",
+            "goal_allocations",
             "import_batches",
             "movements",
             "splits",
@@ -84,6 +86,9 @@ class AndroidBackupDatabaseInspector : BackupDatabaseInspector {
             "v_movement_shared",
             "v_movement_summary",
             "v_trip_actual_total",
+            "v_goal_allocation",
+            "v_goal_progress",
+            "v_account_allocation",
         )
 
         val REQUIRED_TABLE_COLUMNS = mapOf(
@@ -93,6 +98,8 @@ class AndroidBackupDatabaseInspector : BackupDatabaseInspector {
             "movements" to setOf("id", "type", "amount_cents", "date", "archived_at"),
             "templates" to setOf("id", "type", "account_id", "status", "archived_at"),
             "budgets" to setOf("id", "scope", "archived_at"),
+            "goals" to setOf("id", "name", "target_amount_cents", "funding_mode", "status", "archived_at"),
+            "goal_allocations" to setOf("id", "goal_id", "account_id", "date", "amount_cents", "archived_at"),
             "import_batches" to setOf("id", "archived_at"),
         )
     }

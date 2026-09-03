@@ -19,6 +19,11 @@ VIEW_FILES = [
     "v_person_balance.sql",
     "v_trip_actual_total.sql",
 ]
+MIGRATION_VIEW_FILES = [
+    "v_goal_allocation.sql",
+    "v_goal_progress.sql",
+    "v_account_allocation.sql",
+]
 ANALYSIS_QUERY_FILES = [
     "analysis_activity_months.sql",
     "analysis_actual_breakdown.sql",
@@ -33,6 +38,7 @@ UPGRADE_MIGRATION_FILES = [
     "009_derive_refund_attribution.sql",
     "010_remove_auto_categorization.sql",
     "011_add_recurring_settlements.sql",
+    "012_add_savings_goals.sql",
 ]
 
 
@@ -71,7 +77,7 @@ def validate_shared_inventory() -> None:
             fail(f"missing shared migration: {file_name}")
 
     actual_queries = sorted(path.name for path in (ROOT / "shared" / "queries").glob("*.sql"))
-    expected_queries = sorted(VIEW_FILES + ANALYSIS_QUERY_FILES)
+    expected_queries = sorted(VIEW_FILES + MIGRATION_VIEW_FILES + ANALYSIS_QUERY_FILES)
     if actual_queries != expected_queries:
         fail(f"shared query inventory mismatch: expected {expected_queries}, got {actual_queries}")
 
@@ -83,8 +89,11 @@ def validate_android_wiring() -> None:
         build_gradle,
         r"val\s+sharedViewFiles\s*=\s*listOf\((.*?)\)",
     )
-    if android_views != VIEW_FILES:
-        fail(f"Android sharedViewFiles mismatch: expected {VIEW_FILES}, got {android_views}")
+    if android_views != VIEW_FILES + MIGRATION_VIEW_FILES:
+        fail(
+            "Android sharedViewFiles mismatch: "
+            f"expected {VIEW_FILES + MIGRATION_VIEW_FILES}, got {android_views}"
+        )
     android_analysis_queries = extract_pair_file_names(
         "android/app/build.gradle.kts",
         build_gradle,
@@ -115,6 +124,16 @@ def validate_windows_wiring() -> None:
     )
     if windows_queries != VIEW_FILES:
         fail(f"Windows ViewFiles mismatch: expected {VIEW_FILES}, got {windows_queries}")
+    windows_migration_views = extract_strings(
+        "windows/GestorFinances.Tests/SharedSql.cs",
+        shared_sql,
+        r"MigrationViewFiles\s*=\s*\[(.*?)\]",
+    )
+    if windows_migration_views != MIGRATION_VIEW_FILES:
+        fail(
+            "Windows MigrationViewFiles mismatch: "
+            f"expected {MIGRATION_VIEW_FILES}, got {windows_migration_views}"
+        )
     windows_analysis_queries = extract_strings(
         "windows/GestorFinances.Tests/SharedSql.cs",
         shared_sql,

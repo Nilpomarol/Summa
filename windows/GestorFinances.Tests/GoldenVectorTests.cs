@@ -20,6 +20,7 @@ public sealed class GoldenVectorTests
             "debt_balance.json",
             "debt_consumption.json",
             "duplicate_detection.json",
+            "goal_progress.json",
             "recurring_advance.json",
             "refund_actual.json",
             "split_rounding.json",
@@ -286,6 +287,31 @@ public sealed class GoldenVectorTests
         }
     }
 
+    [TestMethod]
+    public void GoalProgressMatchesGoldenVectors()
+    {
+        foreach (var testCase in Golden("goal_progress.json").Cases())
+        {
+            var input = testCase.Obj("input");
+            var expected = testCase.Obj("expected");
+
+            var actual = GoalProgress.Evaluate(new GoalProgressInput(
+                FundingMode: input.GoalFundingMode(),
+                TargetAmountCents: input.Long("target_amount_cents"),
+                AccountBalanceCents: input.Long("account_balance_cents"),
+                AllocationCents: input.LongArray("allocation_cents"),
+                TargetDate: input.OptionalDate("target_date"),
+                Today: DateOnly.Parse(input.String("today"))));
+
+            Assert.AreEqual(expected.Long("saved_cents"), actual.SavedCents, testCase.Name());
+            Assert.AreEqual(expected.Long("remaining_cents"), actual.RemainingCents, testCase.Name());
+            Assert.AreEqual(expected.Bool("reached"), actual.Reached, testCase.Name());
+            Assert.AreEqual(expected.OptionalInt("months_remaining"), actual.MonthsRemaining, testCase.Name());
+            Assert.AreEqual(expected.OptionalLong("monthly_pace_cents"), actual.MonthlyPaceCents, testCase.Name());
+            Assert.AreEqual(expected.Bool("overdue"), actual.Overdue, testCase.Name());
+        }
+    }
+
     private static JsonElement Golden(string fileName) =>
         JsonDocument.Parse(File.ReadAllText(Path.Combine(GoldenRoot, fileName))).RootElement.Clone();
 
@@ -378,6 +404,17 @@ internal static class GoldenJsonExtensions
             "months" => CustomRecurrenceUnit.Months,
             "years" => CustomRecurrenceUnit.Years,
             var unit => throw new InvalidOperationException($"Unknown custom unit {unit}")
+        };
+
+    public static DateOnly? OptionalDate(this JsonElement element, string key) =>
+        element.OptionalString(key) is { } value ? DateOnly.Parse(value) : null;
+
+    public static GoalFundingMode GoalFundingMode(this JsonElement element) =>
+        element.String("funding_mode") switch
+        {
+            "dedicated_account" => GestorFinances.Domain.Rules.GoalFundingMode.DedicatedAccount,
+            "allocations" => GestorFinances.Domain.Rules.GoalFundingMode.Allocations,
+            var mode => throw new InvalidOperationException($"Unknown goal funding mode {mode}")
         };
 
     public static DuplicateMovement ToDuplicateMovement(this JsonElement element) =>

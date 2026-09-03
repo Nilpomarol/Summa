@@ -17,6 +17,15 @@ internal static class SharedSql
         "v_trip_actual_total.sql"
     ];
 
+    // Views introduced by a later migration. A v6 baseline has no goals table, so these cannot be
+    // applied alongside the views above; migration 012 creates them exactly as an upgrader gets them.
+    private static readonly string[] MigrationViewFiles =
+    [
+        "v_goal_allocation.sql",
+        "v_goal_progress.sql",
+        "v_account_allocation.sql"
+    ];
+
     private static readonly string[] AnalysisQueryFiles =
     [
         "analysis_activity_months.sql",
@@ -33,12 +42,16 @@ internal static class SharedSql
         "008_add_budget_inclusion_rules.sql",
         "009_derive_refund_attribution.sql",
         "010_remove_auto_categorization.sql",
-        "011_add_recurring_settlements.sql"
+        "011_add_recurring_settlements.sql",
+        "012_add_savings_goals.sql"
     ];
 
     public static string RepositoryRoot { get; } = FindRepositoryRoot();
 
     public static IReadOnlyList<string> AnalysisFiles => AnalysisQueryFiles;
+
+    public static IReadOnlyList<string> MigrationViews =>
+        MigrationViewFiles.Select(file => file[..^".sql".Length]).ToArray();
 
     public static void ApplyBaseline(SqliteConnection connection)
     {
