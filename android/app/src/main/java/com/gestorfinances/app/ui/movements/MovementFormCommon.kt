@@ -87,6 +87,7 @@ internal fun MovementTypeSelector(
     selected: MovementType,
     onSelect: (MovementType) -> Unit,
     showLabel: Boolean = true,
+    types: List<MovementType> = formMovementTypes,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (showLabel) {
@@ -105,7 +106,7 @@ internal fun MovementTypeSelector(
                 modifier = Modifier.padding(3.dp),
                 horizontalArrangement = Arrangement.spacedBy(3.dp),
             ) {
-                formMovementTypes.forEach { type ->
+                types.forEach { type ->
                     val isSelected = type == selected
                     val color = FinanceTheme.colors.amountColor(type)
                     Surface(
@@ -605,11 +606,15 @@ internal val formMovementTypes = listOf(
     MovementType.TRANSFER,
 )
 
+/** Recurring templates additionally schedule settlements, which the movement form never creates. */
+internal val recurringTemplateTypes = formMovementTypes + MovementType.SETTLEMENT
+
 @Composable
 internal fun MovementType.formLabel(): String = when (this) {
     MovementType.EXPENSE -> stringResource(R.string.movement_type_expense)
     MovementType.INCOME -> stringResource(R.string.movement_type_income)
     MovementType.TRANSFER -> stringResource(R.string.movement_type_transfer)
+    MovementType.SETTLEMENT -> stringResource(R.string.movement_type_settlement)
     else -> ""
 }
 

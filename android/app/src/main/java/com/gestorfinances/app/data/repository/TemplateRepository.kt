@@ -3,6 +3,7 @@ package com.gestorfinances.app.data.repository
 import com.gestorfinances.app.data.db.TemplatesQueries
 import com.gestorfinances.app.domain.rules.CustomRecurrenceUnit
 import com.gestorfinances.app.domain.rules.RecurrenceFrequency
+import com.gestorfinances.app.domain.rules.SettlementScope
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -46,6 +47,9 @@ data class TemplateDraft(
     val categoryId: String?,
     val tripId: String? = null,
     val tagId: String? = null,
+    val personId: String? = null,
+    val settlementDirection: SettlementDirection? = null,
+    val settlementScope: SettlementScope? = null,
     val name: String?,
     val payee: String?,
     val notes: String?,
@@ -77,6 +81,10 @@ data class TemplateSummary(
     val tripName: String? = null,
     val tagId: String? = null,
     val tagName: String? = null,
+    val personId: String? = null,
+    val personName: String? = null,
+    val settlementDirection: SettlementDirection? = null,
+    val settlementScope: SettlementScope? = null,
     val name: String?,
     val payee: String?,
     val notes: String?,
@@ -120,6 +128,9 @@ class TemplateRepository(
             category_id = draft.categoryId,
             trip_id = draft.tripId,
             tag_id = draft.tagId,
+            person_id = draft.personId,
+            settlement_direction = draft.settlementDirection?.dbValue,
+            settlement_scope = draft.settlementScope?.dbValue,
             name = draft.name,
             payee = draft.payee,
             notes = draft.notes,
@@ -154,6 +165,9 @@ class TemplateRepository(
             category_id = draft.categoryId,
             trip_id = draft.tripId,
             tag_id = draft.tagId,
+            person_id = draft.personId,
+            settlement_direction = draft.settlementDirection?.dbValue,
+            settlement_scope = draft.settlementScope?.dbValue,
             name = draft.name,
             payee = draft.payee,
             notes = draft.notes,
@@ -251,8 +265,26 @@ internal fun MovementSplitWrite.toTemplateSplitConfig(): TemplateSplitConfig? {
 
 /** Mirrors the templates CHECK constraints so app code fails fast with a clear message. */
 private fun validate(draft: TemplateDraft) {
-    require(draft.type == MovementType.EXPENSE || draft.type == MovementType.INCOME || draft.type == MovementType.TRANSFER) {
-        "Templates support expense, income, and transfer only."
+    require(
+        draft.type == MovementType.EXPENSE ||
+            draft.type == MovementType.INCOME ||
+            draft.type == MovementType.TRANSFER ||
+            draft.type == MovementType.SETTLEMENT,
+    ) {
+        "Templates support expense, income, transfer, and settlement only."
+    }
+    val isSettlement = draft.type == MovementType.SETTLEMENT
+    require(isSettlement == (draft.personId != null)) {
+        "A settlement template needs a person; other types must not set one."
+    }
+    require(isSettlement == (draft.settlementDirection != null)) {
+        "A settlement template needs a direction; other types must not set one."
+    }
+    require(isSettlement == (draft.settlementScope != null)) {
+        "A settlement template needs a scope; other types must not set one."
+    }
+    require(!isSettlement || (draft.tripId == null && draft.splitConfig == null)) {
+        "A settlement template carries no trip or split."
     }
     require((draft.type == MovementType.TRANSFER) == (draft.destAccountId != null)) {
         "A transfer template needs a destination account; other types must not set one."
@@ -311,6 +343,10 @@ private fun mapTemplateSummary(
     tripName: String?,
     tagId: String?,
     tagName: String?,
+    personId: String?,
+    personName: String?,
+    settlementDirection: String?,
+    settlementScope: String?,
     name: String?,
     payee: String?,
     notes: String?,
@@ -344,6 +380,10 @@ private fun mapTemplateSummary(
         tripName = tripName,
         tagId = tagId,
         tagName = tagName,
+        personId = personId,
+        personName = personName,
+        settlementDirection = settlementDirection?.let(SettlementDirection::fromDb),
+        settlementScope = settlementScope?.let(SettlementScope::fromDb),
         name = name,
         payee = payee,
         notes = notes,

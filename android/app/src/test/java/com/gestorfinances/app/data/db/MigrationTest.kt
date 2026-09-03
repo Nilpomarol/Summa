@@ -12,6 +12,109 @@ import org.junit.Test
 class MigrationTest {
 
     @Test
+    fun `v10 to v11 migration rebuilds templates without losing rows or movement links`() {
+        // The rebuild drops and recreates `templates` while `movements.template_id` points at it,
+        // so this guards the real hazard: a lost template, a severed recurring movement, or a
+        // foreign-key violation under the enforcement the app actually runs with.
+        val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+        driver.execute(null, "PRAGMA foreign_keys = ON", 0)
+        driver.execute(null, "CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)", 0)
+        driver.execute(null, "INSERT INTO meta VALUES ('schema_version', '10')", 0)
+        // Foreign-key enforcement is on, so the rebuilt table's parents must exist to insert into.
+        listOf("accounts", "categories", "tags", "trips", "people").forEach { table ->
+            driver.execute(null, "CREATE TABLE $table (id TEXT PRIMARY KEY)", 0)
+        }
+        driver.execute(null, "INSERT INTO accounts VALUES ('acc')", 0)
+        driver.execute(
+            null,
+            """
+            CREATE TABLE templates (
+                id TEXT PRIMARY KEY,
+                type TEXT NOT NULL CHECK (type IN ('expense','income','transfer')),
+                amount_cents INTEGER, account_id TEXT NOT NULL REFERENCES accounts(id),
+                dest_account_id TEXT REFERENCES accounts(id),
+                category_id TEXT REFERENCES categories(id), tag_id TEXT REFERENCES tags(id),
+                trip_id TEXT REFERENCES trips(id), name TEXT, payee TEXT, notes TEXT,
+                split_config TEXT, frequency TEXT NOT NULL, interval_count INTEGER,
+                custom_unit TEXT, day_of_month INTEGER, weekday INTEGER,
+                next_due_date TEXT NOT NULL, amount_is_variable INTEGER NOT NULL DEFAULT 0,
+                amount_flex_cents INTEGER, date_flex_days INTEGER, lead_notification_days INTEGER,
+                status TEXT NOT NULL DEFAULT 'active', created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL, archived_at TEXT
+            )
+            """.trimIndent(),
+            0,
+        )
+        driver.execute(
+            null,
+            """
+            CREATE TABLE movements (
+                id TEXT PRIMARY KEY, type TEXT NOT NULL, amount_cents INTEGER NOT NULL,
+                date TEXT NOT NULL, account_id TEXT NOT NULL, person_id TEXT,
+                settlement_direction TEXT, template_id TEXT REFERENCES templates(id),
+                created_at TEXT NOT NULL, updated_at TEXT NOT NULL, archived_at TEXT
+            )
+            """.trimIndent(),
+            0,
+        )
+        driver.execute(
+            null,
+            """
+            INSERT INTO templates
+                (id, type, amount_cents, account_id, frequency, next_due_date, notes,
+                 created_at, updated_at)
+            VALUES
+                ('lloguer', 'expense', 75000, 'acc', 'monthly', '2026-10-01', 'pis',
+                 '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')
+            """.trimIndent(),
+            0,
+        )
+        driver.execute(
+            null,
+            """
+            INSERT INTO movements
+                (id, type, amount_cents, date, account_id, person_id, settlement_direction,
+                 template_id, created_at, updated_at)
+            VALUES
+                ('mv-recurring', 'expense', 75000, '2026-09-01', 'acc', NULL, NULL, 'lloguer',
+                 '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
+                ('mv-settlement', 'settlement', 2000, '2026-09-02', 'acc', 'p1', 'person_to_user',
+                 NULL, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')
+            """.trimIndent(),
+            0,
+        )
+        driver.execute(null, "PRAGMA user_version = 10", 0)
+
+        GestorDatabase.Schema.migrate(driver, 10, 11)
+
+        assertEquals("pis", driver.selectString("SELECT notes FROM templates WHERE id = 'lloguer'"))
+        assertEquals(
+            "lloguer",
+            driver.selectString("SELECT template_id FROM movements WHERE id = 'mv-recurring'"),
+        )
+        // Existing settlements consumed debt without restriction, so they backfill to 'all'.
+        assertEquals(
+            "all",
+            driver.selectString("SELECT settlement_scope FROM movements WHERE id = 'mv-settlement'"),
+        )
+        assertNull(driver.selectString("SELECT settlement_scope FROM movements WHERE id = 'mv-recurring'"))
+        assertEquals(0L, driver.selectLong("SELECT COUNT(*) FROM pragma_foreign_key_check"))
+        assertEquals(
+            0L,
+            driver.selectLong(
+                "SELECT COUNT(*) FROM sqlite_master WHERE name IN ('templates_new', 'templates_migration_backup')",
+            ),
+        )
+        assertEquals(
+            1L,
+            driver.selectLong(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'idx_templates_next_due'",
+            ),
+        )
+        assertEquals("11", driver.selectString("SELECT value FROM meta WHERE key = 'schema_version'"))
+    }
+
+    @Test
     fun `v9 to v10 migration removes dormant auto-categorization rules`() {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         GestorDatabase.Schema.create(driver)
@@ -813,4 +916,10 @@ class MigrationTest {
         val tags = repository.actualByTag("trip-1").associate { it.tagId to it.actualCents }
         assertEquals(mapOf("restaurants" to 1_000L, "transport" to 1_200L), tags)
     }
+
+    private fun JdbcSqliteDriver.selectString(sql: String): String? =
+        executeQuery(null, sql, { cursor -> cursor.next(); QueryResult.Value(cursor.getString(0)) }, 0).value
+
+    private fun JdbcSqliteDriver.selectLong(sql: String): Long =
+        executeQuery(null, sql, { cursor -> cursor.next(); QueryResult.Value(cursor.getLong(0)!!) }, 0).value
 }

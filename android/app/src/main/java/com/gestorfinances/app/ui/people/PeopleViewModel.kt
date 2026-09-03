@@ -14,6 +14,7 @@ import com.gestorfinances.app.data.repository.PersonRepository
 import com.gestorfinances.app.data.repository.PersonSummary
 import com.gestorfinances.app.data.repository.SettlementDirection
 import com.gestorfinances.app.data.repository.SettlementDraft
+import com.gestorfinances.app.domain.rules.SettlementScope
 import com.gestorfinances.app.notifications.NotificationRefresher
 import com.gestorfinances.app.ui.common.formatEuroInput
 import com.gestorfinances.app.ui.common.parseEuroCents
@@ -117,6 +118,7 @@ class PeopleViewModel(
             id = UUID.randomUUID().toString(),
             personId = form.personId,
             direction = form.direction,
+            scope = form.scope,
             amountCents = requireNotNull(amount),
             accountId = requireNotNull(account).id,
             date = requireNotNull(date).toString(),
@@ -411,6 +413,7 @@ data class SettlementFormState(
     val personName: String,
     val outstandingCents: Long,
     val direction: SettlementDirection,
+    val scope: SettlementScope = SettlementScope.ALL,
     val amount: String = "",
     val accountId: String? = null,
     val date: String = "",

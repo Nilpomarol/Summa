@@ -17,6 +17,8 @@ Complete the gates in order because later work depends on earlier financial sema
 - Keep `v_person_balance` authoritative for the total and require the explanatory residuals to reconcile exactly.
 - Do not persist settlement-to-expense allocations in this version.
 
+Status: implemented in the shared contract, Android, and both test harnesses; manual verification on a device is the remaining step before this gate closes.
+
 Exit: fixed and variable recurring settlements materialize correctly; normal and recurring-scoped settlements produce explainable residual messages independent of whether exceptional expenses occurred before or after the settlement; golden cases cover partial payment, future debt, opposite direction, and excess credit.
 
 ## Gate 2 — Savings goals

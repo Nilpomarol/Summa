@@ -158,6 +158,7 @@ fun RecurringScreen(
             categories = state.categories,
             trips = state.trips,
             tags = state.tags,
+            people = state.people,
             onFormChange = viewModel::onFormChanged,
             onBack = requestFormDismissal,
             onSave = viewModel::onSaveClicked,
@@ -542,7 +543,7 @@ private fun TemplateRow(
                     }
                 }
                 Text(
-                    text = listOfNotNull(template.cadenceLabel(), template.accountName)
+                    text = listOfNotNull(template.cadenceLabel(), template.personName, template.accountName)
                         .joinToString(separator = " · "),
                     color = FinanceTheme.colors.mutedText,
                     style = MaterialTheme.typography.bodyMedium,
@@ -1048,9 +1049,14 @@ private fun ConfirmPromptDialog(
                 text = stringResource(R.string.recurring_action_add_payment),
                 style = MaterialTheme.typography.titleLarge,
             )
-            prompt.templateName.takeIf { it.isNotBlank() }?.let {
+            val subtitle = listOfNotNull(
+                prompt.templateName.takeIf { it.isNotBlank() },
+                prompt.settlementPersonName,
+                prompt.accountName,
+            )
+            if (subtitle.isNotEmpty()) {
                 Text(
-                    text = listOf(it, prompt.accountName).joinToString(separator = " · "),
+                    text = subtitle.joinToString(separator = " · "),
                     color = FinanceTheme.colors.mutedText,
                     style = MaterialTheme.typography.bodyMedium,
                 )

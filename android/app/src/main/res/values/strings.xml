@@ -225,7 +225,9 @@
     <string name="person_copy_greeting_owed">Hola %1$s! Et passo el resum pendent:</string>
     <string name="person_copy_greeting_owe">Hola %1$s! Tinc pendent pagar-te:</string>
     <string name="person_copy_settled">Hola %1$s! Estem al dia, no hi ha res pendent.</string>
-    <string name="person_copy_carry_forward">Saldo pendent anterior: %1$s</string>
+    <string name="person_copy_partial_amount">%1$s (de %2$s)</string>
+    <string name="person_copy_credit">Bestreta pendent d\'aplicar: %1$s</string>
+    <string name="person_copy_credit_recurring">Bestreta pendent d\'aplicar a rebuts recurrents: %1$s</string>
     <string name="person_copy_total">Total pendent: %1$s</string>
     <string name="person_copy_success">Missatge copiat</string>
 
@@ -268,6 +270,12 @@
     <string name="settlement_save">Desa liquidació</string>
     <string name="settlement_validation_person_required">Tria una persona.</string>
     <string name="settlement_validation_account_required">Tria un compte.</string>
+    <string name="settlement_field_scope">Abast</string>
+    <string name="settlement_scope_all">Tot el deute</string>
+    <string name="settlement_scope_recurring">Només recurrents</string>
+    <string name="settlement_scope_help">«Només recurrents» aplica el pagament exclusivament al deute generat per plantilles recurrents.</string>
+    <string name="template_field_person">Persona</string>
+    <string name="template_validation_person_required">Tria una persona.</string>
 
     <!-- Movements -->
     <string name="movement_list_title">Moviments</string>

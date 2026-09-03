@@ -16,6 +16,8 @@ import com.gestorfinances.app.data.repository.MovementSummary
 import com.gestorfinances.app.data.repository.MovementType
 import com.gestorfinances.app.data.repository.PersonRepository
 import com.gestorfinances.app.data.repository.PersonSummary
+import com.gestorfinances.app.data.repository.SettlementDirection
+import com.gestorfinances.app.data.repository.SettlementDraft
 import com.gestorfinances.app.data.repository.SplitEntryMethod
 import com.gestorfinances.app.data.repository.SplitLineDraft
 import com.gestorfinances.app.data.repository.SplitParticipantKind
@@ -40,6 +42,7 @@ import com.gestorfinances.app.domain.rules.RecurrenceFrequency
 import com.gestorfinances.app.domain.rules.RecurringAdvancer
 import com.gestorfinances.app.domain.rules.RecurringCandidateMovement
 import com.gestorfinances.app.domain.rules.RecurringPatternDetector
+import com.gestorfinances.app.domain.rules.SettlementScope
 import com.gestorfinances.app.domain.rules.SplitCalculator
 import com.gestorfinances.app.domain.rules.toRecurrenceRule
 import com.gestorfinances.app.notifications.NotificationRefresher
@@ -182,6 +185,7 @@ class RecurringViewModel(
                 accountName = template.accountName,
                 amount = template.amountCents?.let(::formatEuroInput).orEmpty(),
                 date = prompt.dueDate,
+                settlementPersonName = template.personName,
                 splitConfig = template.splitConfig,
             ),
         )
@@ -216,29 +220,57 @@ class RecurringViewModel(
             return
         }
         val amount = requireNotNull(amountCents)
-        val draft = MovementDraft(
-            id = UUID.randomUUID().toString(),
-            type = template.type,
-            amountCents = amount,
-            date = requireNotNull(date).toString(),
-            accountId = template.accountId,
-            destinationAccountId = template.destAccountId,
-            categoryId = template.categoryId,
-            tripId = template.tripId,
-            tagId = template.tagId,
-            name = template.name,
-            payee = template.payee,
-            notes = template.notes,
-            isOneTime = false,
-            splitWrite = template.splitConfig.toSplitWrite(template.type, amount),
-            templateId = template.id,
-        )
+        val occurrenceDate = requireNotNull(date).toString()
         val now = Instant.now().toString()
+        // A settlement occurrence goes through createSettlement so it lands with the person,
+        // direction and scope its template carries -- a plain movement row cannot express those.
+        val writeOccurrence: () -> Unit = if (template.type == MovementType.SETTLEMENT) {
+            {
+                movementRepository.createSettlement(
+                    SettlementDraft(
+                        id = UUID.randomUUID().toString(),
+                        personId = requireNotNull(template.personId),
+                        direction = requireNotNull(template.settlementDirection),
+                        scope = requireNotNull(template.settlementScope),
+                        amountCents = amount,
+                        accountId = template.accountId,
+                        date = occurrenceDate,
+                        name = template.name,
+                        notes = template.notes,
+                        templateId = template.id,
+                    ),
+                    createdAt = now,
+                )
+            }
+        } else {
+            {
+                movementRepository.create(
+                    MovementDraft(
+                        id = UUID.randomUUID().toString(),
+                        type = template.type,
+                        amountCents = amount,
+                        date = occurrenceDate,
+                        accountId = template.accountId,
+                        destinationAccountId = template.destAccountId,
+                        categoryId = template.categoryId,
+                        tripId = template.tripId,
+                        tagId = template.tagId,
+                        name = template.name,
+                        payee = template.payee,
+                        notes = template.notes,
+                        isOneTime = false,
+                        splitWrite = template.splitConfig.toSplitWrite(template.type, amount),
+                        templateId = template.id,
+                    ),
+                    createdAt = now,
+                )
+            }
+        }
         viewModelScope.launch {
             val result = withContext(ioDispatcher) {
                 runCatching {
                     movementRepository.runInTransaction {
-                        movementRepository.create(draft, createdAt = now)
+                        writeOccurrence()
                         templateRepository.advanceCursor(template.id, template.advancedOneStep(), updatedAt = now)
                     }
                 }
@@ -333,6 +365,7 @@ class RecurringViewModel(
         val nextDue = parseDate(form.nextDueDate)
         val account = form.accountId?.let { id -> _state.value.accounts.firstOrNull { it.id == id } }
         val isTransfer = form.type == MovementType.TRANSFER
+        val isSettlement = form.type == MovementType.SETTLEMENT
         val dayOfMonth = form.dayOfMonth.trim().toLongOrNull()
         val intervalCount = form.intervalCount.trim().toLongOrNull()
         val amountFlexCents = form.amountFlex.trim()
@@ -357,6 +390,8 @@ class RecurringViewModel(
                 R.string.movement_validation_account_required to TemplateFormField.DESTINATION_ACCOUNT
             isTransfer && form.destinationAccountId == form.accountId ->
                 R.string.movement_validation_transfer_same_account to TemplateFormField.DESTINATION_ACCOUNT
+            isSettlement && form.personId == null ->
+                R.string.template_validation_person_required to TemplateFormField.PERSON
             form.frequency.usesDayOfMonth() && (dayOfMonth == null || dayOfMonth !in 1L..31L) ->
                 R.string.template_validation_anchor_invalid to TemplateFormField.SCHEDULE
             form.frequency == RecurrenceFrequency.CUSTOM && (intervalCount == null || intervalCount <= 0L) ->
@@ -392,19 +427,23 @@ class RecurringViewModel(
         // already applied to the detection-confirm path).
         val existingSplitConfig = form.id?.let { id -> _state.value.templates.firstOrNull { it.id == id }?.splitConfig }
 
+        val carriesLedgerDetail = !isTransfer && !isSettlement
         val draft = TemplateDraft(
             id = form.id ?: UUID.randomUUID().toString(),
             type = form.type,
             amountCents = amountCents,
             accountId = requireNotNull(account).id,
             destAccountId = if (isTransfer) form.destinationAccountId else null,
-            categoryId = if (isTransfer) null else form.categoryId,
-            tripId = if (isTransfer) null else form.tripId,
-            tagId = if (isTransfer) null else form.tagId,
+            categoryId = if (carriesLedgerDetail) form.categoryId else null,
+            tripId = if (carriesLedgerDetail) form.tripId else null,
+            tagId = if (carriesLedgerDetail) form.tagId else null,
+            personId = if (isSettlement) form.personId else null,
+            settlementDirection = if (isSettlement) form.settlementDirection else null,
+            settlementScope = if (isSettlement) form.settlementScope else null,
             name = form.name.trim().ifBlank { null },
             payee = form.payee.trim().ifBlank { null },
             notes = form.notes.trim().ifBlank { null },
-            splitConfig = existingSplitConfig,
+            splitConfig = if (isSettlement) null else existingSplitConfig,
             frequency = form.frequency,
             intervalCount = if (form.frequency == RecurrenceFrequency.CUSTOM) intervalCount else null,
             customUnit = if (form.frequency == RecurrenceFrequency.CUSTOM) form.customUnit else null,
@@ -779,6 +818,8 @@ data class ConfirmPromptState(
     val accountName: String,
     val amount: String = "",
     val date: String = "",
+    /** Settlement occurrences show who is being settled with instead of a split preview. */
+    val settlementPersonName: String? = null,
     val errorRes: Int? = null,
     val errorField: ConfirmPromptField? = null,
     val errorMessage: String? = null,
@@ -792,6 +833,7 @@ enum class TemplateFormField {
     AMOUNT,
     ACCOUNT,
     DESTINATION_ACCOUNT,
+    PERSON,
     SCHEDULE,
     NEXT_DUE_DATE,
     AMOUNT_FLEX,
@@ -809,6 +851,9 @@ data class TemplateFormState(
     val categoryId: String? = null,
     val tripId: String? = null,
     val tagId: String? = null,
+    val personId: String? = null,
+    val settlementDirection: SettlementDirection = SettlementDirection.PERSON_TO_USER,
+    val settlementScope: SettlementScope = SettlementScope.ALL,
     val name: String = "",
     val payee: String = "",
     val notes: String = "",
@@ -1085,6 +1130,9 @@ private fun TemplateSummary.toFormState(): TemplateFormState =
         categoryId = categoryId,
         tripId = tripId,
         tagId = tagId,
+        personId = personId,
+        settlementDirection = settlementDirection ?: SettlementDirection.PERSON_TO_USER,
+        settlementScope = settlementScope ?: SettlementScope.ALL,
         name = name.orEmpty(),
         payee = payee.orEmpty(),
         notes = notes.orEmpty(),

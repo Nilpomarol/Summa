@@ -42,6 +42,7 @@ import com.gestorfinances.app.domain.rules.DuplicateMovement
 import com.gestorfinances.app.domain.rules.RecurrenceFrequency
 import com.gestorfinances.app.domain.rules.RecurrenceRule
 import com.gestorfinances.app.domain.rules.RecurringAdvancer
+import com.gestorfinances.app.domain.rules.SettlementScope
 import com.gestorfinances.app.domain.rules.toRecurrenceRule
 import com.gestorfinances.app.notifications.NotificationRefresher
 import com.gestorfinances.app.ui.common.formatEuroInput
@@ -683,6 +684,9 @@ class MovementsViewModel(
             id = UUID.randomUUID().toString(),
             personId = requireNotNull(form.settlementPersonId),
             direction = SettlementDirection.PERSON_TO_USER,
+            // The movement form's debt entry is the quick "settle up" path and stays general;
+            // the person detail sheet is where a scope is chosen deliberately.
+            scope = SettlementScope.ALL,
             amountCents = requireNotNull(required.amountCents),
             accountId = requireNotNull(form.accountId),
             date = requireNotNull(required.date).toString(),

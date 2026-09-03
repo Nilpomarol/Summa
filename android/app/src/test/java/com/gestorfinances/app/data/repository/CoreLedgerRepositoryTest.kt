@@ -2,6 +2,7 @@ package com.gestorfinances.app.data.repository
 
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import com.gestorfinances.app.data.db.GestorDatabase
+import com.gestorfinances.app.domain.rules.SettlementScope
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -146,6 +147,7 @@ class CoreLedgerRepositoryTest {
                     id = "settle",
                     personId = "laura",
                     direction = SettlementDirection.USER_TO_PERSON,
+                    scope = SettlementScope.ALL,
                     amountCents = 1_500,
                     accountId = "checking",
                     date = "2026-03-05",

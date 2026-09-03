@@ -224,8 +224,9 @@ class PeopleViewModelTest {
 
             val message = viewModel.state.value.detail!!.copyMessage!!
             assertEquals(DebtMessageDirection.PERSON_OWES_USER, message.direction)
-            assertEquals(1, message.items.size)
-            assertNull(message.carryForwardCents)
+            assertEquals(1, message.residuals.size)
+            assertEquals(600L, message.residuals.single().remainingCents)
+            assertEquals(0L, message.creditAllCents)
             assertEquals(600L, message.totalCents)
         }
     }
