@@ -21,6 +21,7 @@
     <string name="common_remove">Treu</string>
     <string name="common_review">Revisa</string>
     <string name="common_clear">Neteja</string>
+    <string name="common_clear_search">Esborra la cerca</string>
     <string name="common_no_date">Sense data</string>
     <string name="form_discard_confirm_title">Descartar els canvis?</string>
     <string name="form_discard_confirm_body">Els canvis que no hagis desat es perdran.</string>
