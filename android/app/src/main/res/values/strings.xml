@@ -305,12 +305,18 @@
     <string name="movement_filter_period">Període</string>
     <string name="movement_filter_title">Filtres</string>
     <string name="movement_filter_action_accessibility">Obre filtres, %1$d actius</string>
+    <plurals name="movement_filter_result_count">
+        <item quantity="one">%d moviment</item>
+        <item quantity="other">%d moviments</item>
+    </plurals>
+    <string name="movement_filter_none_active">Cap filtre actiu</string>
+    <string name="movement_filter_of_total">de %1$d en total</string>
+    <string name="movement_filter_clear_named">Neteja el filtre %1$s</string>
     <plurals name="movement_filter_active_count">
         <item quantity="one">%d filtre</item>
         <item quantity="other">%d filtres</item>
     </plurals>
     <string name="movement_filter_clear_active">Neteja els filtres actius</string>
-    <string name="movement_filter_auto_apply">Els filtres s’apliquen automàticament.</string>
     <string name="movement_filter_unknown_value">Desconegut</string>
     <string name="movement_filter_all_accounts">Tots els comptes</string>
     <string name="movement_filter_all_categories">Totes les categories</string>
@@ -353,7 +359,11 @@
     <string name="movement_detail_action_archive">Elimina</string>
     <string name="movement_detail_action_edit">Editar</string>
     <string name="movement_detail_no_edit_hint">Les liquidacions i devolucions no es poden editar. Elimina-la i registra\'n una de nova.</string>
-    <string name="movement_filter_month_sheet_title">Filtra per mes</string>
+    <string name="movement_filter_whole_year">Tot l’any</string>
+    <string name="movement_filter_period_all">Tots</string>
+    <string name="movement_filter_period_from">Des de %1$s</string>
+    <string name="movement_filter_period_to">Fins a %1$s</string>
+    <string name="movement_filter_month_sheet_title">Filtra per any o mes</string>
     <string name="movement_filter_custom_range_title">Rang personalitzat</string>
 
     <string name="movement_whopaid_title">Qui ha pagat?</string>
