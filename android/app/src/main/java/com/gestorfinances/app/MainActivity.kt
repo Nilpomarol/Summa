@@ -16,19 +16,30 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.background
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.Error
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.FloatingActionButtonDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -1019,6 +1030,20 @@ private fun LedgerShell(
     }
 }
 
+/** Every section slot carries the same tile, so the row reads on one baseline. */
+private val NAV_TILE_SIZE = 44.dp
+
+/** The action tile is the bigger one, and carries no label of its own. */
+private val NAV_ADD_TILE_SIZE = 60.dp
+
+private val NAV_BAR_HEIGHT = 72.dp
+
+/**
+ * Global navigation: four section slots on the bottom edge of the page, each the app's
+ * rounded-square tile with its name under it — empty for a section you are not in, ink-filled for
+ * the one you are. The action that adds a movement is not a section, so it does not line up with
+ * them: it is cut bigger and lit, and sits centred in the gap they leave.
+ */
 @Composable
 private fun FinanceBottomBar(
     selectedSection: TopLevelSection,
@@ -1026,102 +1051,165 @@ private fun FinanceBottomBar(
     onManagementClick: () -> Unit,
     onAddMovement: () -> Unit,
 ) {
+    val colors = FinanceTheme.colors
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = FinanceTheme.colors.bottomBarSurface,
-        contentColor = FinanceTheme.colors.bottomBarContent,
+        color = colors.bottomBarSurface,
+        contentColor = colors.bottomBarContent,
     ) {
         Column {
-            HorizontalDivider(color = FinanceTheme.colors.bottomBarDivider)
-            Box(
+            HorizontalDivider(color = colors.bottomBarDivider)
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .navigationBarsPadding()
-                    .height(74.dp),
-                contentAlignment = Alignment.Center,
+                    .height(NAV_BAR_HEIGHT),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalAlignment = Alignment.CenterVertically,
+                BottomBarItem(
+                    section = TopLevelSection.DASHBOARD,
+                    selected = selectedSection == TopLevelSection.DASHBOARD,
+                    onClick = { onSelected(TopLevelSection.DASHBOARD) },
+                )
+                BottomBarItem(
+                    section = TopLevelSection.MOVEMENTS,
+                    selected = selectedSection == TopLevelSection.MOVEMENTS,
+                    onClick = { onSelected(TopLevelSection.MOVEMENTS) },
+                )
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight(),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    BottomBarItem(
-                        section = TopLevelSection.DASHBOARD,
-                        selected = selectedSection == TopLevelSection.DASHBOARD,
-                        onClick = { onSelected(TopLevelSection.DASHBOARD) },
-                        modifier = Modifier.weight(1f),
-                    )
-                    BottomBarItem(
-                        section = TopLevelSection.MOVEMENTS,
-                        selected = selectedSection == TopLevelSection.MOVEMENTS,
-                        onClick = { onSelected(TopLevelSection.MOVEMENTS) },
-                        modifier = Modifier.weight(1f),
-                    )
-                    Box(modifier = Modifier.weight(1f))
-                    BottomBarItem(
-                        section = TopLevelSection.ANALYSIS,
-                        selected = selectedSection == TopLevelSection.ANALYSIS,
-                        onClick = { onSelected(TopLevelSection.ANALYSIS) },
-                        modifier = Modifier.weight(1f),
-                    )
-                    BottomBarItem(
-                        section = TopLevelSection.MANAGEMENT,
-                        selected = selectedSection == TopLevelSection.MANAGEMENT,
-                        onClick = onManagementClick,
-                        modifier = Modifier.weight(1f),
-                    )
+                    AddMovementButton(onClick = onAddMovement)
                 }
-                FloatingActionButton(
-                    onClick = onAddMovement,
-                    modifier = Modifier.size(56.dp),
-                    shape = MaterialTheme.shapes.extraLarge,
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                    elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 8.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Add,
-                        contentDescription = stringResource(R.string.movement_list_add),
-                    )
-                }
+                BottomBarItem(
+                    section = TopLevelSection.ANALYSIS,
+                    selected = selectedSection == TopLevelSection.ANALYSIS,
+                    onClick = { onSelected(TopLevelSection.ANALYSIS) },
+                )
+                BottomBarItem(
+                    section = TopLevelSection.MANAGEMENT,
+                    selected = selectedSection == TopLevelSection.MANAGEMENT,
+                    onClick = onManagementClick,
+                )
             }
         }
     }
 }
 
 @Composable
-private fun BottomBarItem(
+private fun RowScope.BottomBarItem(
     section: TopLevelSection,
     selected: Boolean,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
-    val itemShape = MaterialTheme.shapes.small
-    Surface(
-        onClick = onClick,
-        modifier = modifier
-            .height(64.dp)
-            .padding(horizontal = 2.dp)
-            .clip(itemShape),
-        shape = itemShape,
-        color = FinanceTheme.colors.bottomBarSurface,
-        contentColor = if (selected) {
-            FinanceTheme.colors.bottomBarActive
-        } else {
-            FinanceTheme.colors.bottomBarContent
-        },
+    val colors = FinanceTheme.colors
+    val tileColor by animateColorAsState(
+        targetValue = if (selected) colors.bottomBarActive else Color.Transparent,
+        label = "navTile",
+    )
+    val iconTint by animateColorAsState(
+        targetValue = if (selected) colors.bottomBarSurface else colors.bottomBarContent,
+        label = "navIcon",
+    )
+    Column(
+        modifier = Modifier
+            .weight(1f)
+            .fillMaxHeight()
+            .selectable(selected = selected, role = Role.Tab, onClick = onClick)
+            .padding(horizontal = 2.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
+        Box(
+            modifier = Modifier
+                .size(NAV_TILE_SIZE)
+                .background(tileColor, MaterialTheme.shapes.medium),
+            contentAlignment = Alignment.Center,
         ) {
             Icon(
                 imageVector = if (selected) section.selectedIcon else section.unselectedIcon,
                 contentDescription = null,
+                tint = iconTint,
                 modifier = Modifier.size(22.dp),
             )
-            Text(
-                text = stringResource(section.labelRes),
-                style = MaterialTheme.typography.labelSmall,
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = stringResource(section.labelRes),
+            style = MaterialTheme.typography.labelSmall,
+            color = if (selected) colors.bottomBarActive else colors.bottomBarContent,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/**
+ * The one lit thing in the bar. The hero's ink runs corner to corner through the glow that lights
+ * the dashboard panel, a highlight sits where the light would fall, and a pale rim catches the
+ * edge — at this size a flat plum would read as a plain square.
+ */
+@Composable
+private fun AddMovementButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = FinanceTheme.colors
+    val shape = MaterialTheme.shapes.medium
+    Surface(
+        onClick = onClick,
+        modifier = modifier
+            .size(NAV_ADD_TILE_SIZE)
+            .shadow(
+                elevation = 10.dp,
+                shape = shape,
+                clip = false,
+                ambientColor = colors.cardShadow,
+                spotColor = colors.cardShadow,
+            ),
+        shape = shape,
+        color = Color.Transparent,
+        border = BorderStroke(1.dp, colors.heroOnSurface.copy(alpha = 0.22f)),
+    ) {
+        Box(
+            modifier = Modifier
+                .background(
+                    Brush.linearGradient(
+                        colors = listOf(
+                            colors.heroGlow,
+                            colors.bottomBarActive,
+                            colors.heroInkBottom,
+                        ),
+                        start = Offset.Zero,
+                        end = Offset.Infinite,
+                    ),
+                )
+                .drawBehind {
+                    val center = Offset(size.width * 0.24f, size.height * 0.16f)
+                    val radius = size.maxDimension * 0.75f
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                colors.heroGlow.copy(alpha = 0.35f),
+                                Color.Transparent,
+                            ),
+                            center = center,
+                            radius = radius,
+                        ),
+                        radius = radius,
+                        center = center,
+                    )
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Add,
+                contentDescription = stringResource(R.string.movement_list_add),
+                tint = colors.heroOnSurface,
+                modifier = Modifier.size(28.dp),
             )
         }
     }
