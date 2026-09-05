@@ -43,7 +43,7 @@ Platform-neutral values live in `shared/design/tokens/design-tokens.json`. Andro
 
 The current baseline contains:
 
-- warm light/dark surface and text scales;
+- warm light/dark surface and text scales, including a subtle supporting-text step below the muted body label for metadata that sits beside a primary label;
 - plum brand/interaction colours;
 - functional meanings for income, expense, transfer, settlement, refund, debt, shared activity, and warnings;
 - category identity colours separate from money meaning;
@@ -53,6 +53,17 @@ The current baseline contains:
 Tokens are not sacred during future feature work. When a visual decision becomes part of the product, update the JSON and native mapping together. Avoid adding a second undocumented token system in a screen.
 
 The foundation deliberately leaves layouts, information priority within a page, components not yet shared, interaction patterns, and copy open for focused page/form work. Record a decision here only once it has proved useful beyond that page.
+
+## Movement row
+
+The movement row is the densest shared component in the product: it carries Inici, Moviments, and the account, category, person, trip, and recurring pages, so both platforms render the same idea.
+
+- A run of movements is a ledger, not a stack of cards. Rows have no surface of their own and are parted by a hairline inset under the icon; the last row of a run or of a day group closes without one.
+- A row is two lines, or three when it must be. The name and the amount share the first line; one qualifying line under it carries the date, whose money moved, and the category, trip, and tag. That line wraps once and stops. Whatever does not fit belongs to the movement page, not to a third qualifying line.
+- The row leads with a filled tile in the category's own saved colour with the icon knocked out of it. Any movement that has a category takes that colour, including an expense someone else paid; only a movement with no category — transfer, settlement, refund — falls back to its functional colour.
+- A named account or person on the qualifying line is a small mark in its saved colour followed by plain text, never a tinted container. A person takes an icon rather than a dot, so shared activity and debt never rest on colour alone.
+- Weight separates the three jobs: the name in primary ink, the amount in mono figures beside it, and the qualifying line in the subtle supporting-text step, which stays above the contrast floor for small text rather than fading into the page.
+- Shared and external expenses lead with the user's own share and caption the full total beneath it. The movement page states the same two numbers the same way round.
 
 ## Baseline principles
 
