@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -29,11 +28,15 @@ import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.ChevronLeft
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Luggage
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.Category
+import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -55,8 +58,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -75,7 +80,10 @@ import com.gestorfinances.app.ui.common.AppDropdownMenu
 import com.gestorfinances.app.ui.common.AppDropdownMenuItem
 import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.FinanceFilterChip
+import com.gestorfinances.app.ui.common.HERO_MUTED_ALPHA
+import com.gestorfinances.app.ui.common.HeroPanel
 import com.gestorfinances.app.ui.common.IconChip
+import com.gestorfinances.app.ui.common.IdentityIconTile
 import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.InlineFailureBanner
 import com.gestorfinances.app.ui.common.MovementListItem
@@ -85,14 +93,16 @@ import com.gestorfinances.app.ui.common.label
 import com.gestorfinances.app.ui.common.RootPageHeader
 import com.gestorfinances.app.ui.common.TopBarIconButton
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.height
-import com.gestorfinances.app.ui.common.FilterSelectorField
 import com.gestorfinances.app.ui.common.categoryIcon
+import com.gestorfinances.app.ui.common.accountTypeIcon
 import com.gestorfinances.app.ui.common.formatCompactDate
+import com.gestorfinances.app.ui.common.formatMonth
 import com.gestorfinances.app.ui.common.formatMonthYear
 import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.categoryColor
+import com.gestorfinances.app.ui.theme.asEyebrow
 import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
@@ -262,12 +272,17 @@ private fun MovementsContent(
             categories = state.categories,
             trips = state.trips,
             tags = state.tags,
+            visibleCount = visibleMovements.size,
+            totalCount = state.movements.size,
             onFiltersChange = onFiltersChange,
             onClearFilters = onClearFilters,
             onDismiss = { filtersExpanded = false },
         )
     }
 }
+
+/** The grey a category-less movement borrows when it needs an identity colour. */
+private const val UNCATEGORIZED_COLOR = "#9097A3"
 
 /** Snug padding so the five type pills fit one screen width without scrolling or wrapping. */
 private val TYPE_PILL_PADDING = PaddingValues(horizontal = 10.dp, vertical = 9.dp)
@@ -378,47 +393,40 @@ private fun MovementFiltersSheet(
     categories: List<CategoryRecord>,
     trips: List<TripSummary>,
     tags: List<TagSummary>,
+    visibleCount: Int,
+    totalCount: Int,
     onFiltersChange: (MovementFilters) -> Unit,
     onClearFilters: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     var activeSheet by remember { mutableStateOf<FilterSheetType?>(null) }
 
-    val allAccountsLabel = stringResource(R.string.movement_filter_all_accounts)
-    val selectedAccountName = remember(filters.accountId, accounts, allAccountsLabel) {
-        if (filters.accountId == null) {
-            null
-        } else {
-            accounts.firstOrNull { it.id == filters.accountId }?.name
-        }
-    } ?: allAccountsLabel
+    val selectedAccount = accounts.firstOrNull { it.id == filters.accountId }
+    val selectedCategory = categories.firstOrNull { it.id == filters.categoryId }
+    val selectedTrip = trips.firstOrNull { it.id == filters.tripId }
+    val unknownValue = stringResource(R.string.movement_filter_unknown_value)
 
-    val noCategoryLabel = stringResource(R.string.common_no_category)
-    val allCategoriesLabel = stringResource(R.string.movement_filter_all_categories)
-    val selectedCategoryName = remember(filters.categoryId, filters.uncategorizedOnly, categories, noCategoryLabel, allCategoriesLabel) {
-        when {
-            filters.uncategorizedOnly -> noCategoryLabel
-            filters.categoryId != null -> categories.firstOrNull { it.id == filters.categoryId }?.name
-            else -> null
-        }
-    } ?: allCategoriesLabel
-
-    val allTripsLabel = stringResource(R.string.trip_filter_all)
-    val selectedTripTagValue = remember(filters.tripId, filters.tagId, trips, tags, allTripsLabel) {
-        if (filters.tripId == null) {
-            null
-        } else {
-            val tripName = trips.firstOrNull { it.id == filters.tripId }?.name ?: "Viatge desconegut"
-            if (filters.tagId != null) {
-                val tagName = tags.firstOrNull { it.id == filters.tagId }?.name ?: "Etiqueta"
-                "$tripName · $tagName"
-            } else {
-                tripName
+    val accountValue = when {
+        filters.accountId == null -> stringResource(R.string.movement_filter_all_accounts)
+        else -> selectedAccount?.name ?: unknownValue
+    }
+    val categoryValue = when {
+        filters.uncategorizedOnly -> stringResource(R.string.common_no_category)
+        filters.categoryId == null -> stringResource(R.string.movement_filter_all_categories)
+        else -> selectedCategory?.name ?: unknownValue
+    }
+    val tripValue = when {
+        filters.tripId == null -> stringResource(R.string.trip_filter_all)
+        else -> {
+            val tripName = selectedTrip?.name ?: unknownValue
+            val tagName = filters.tagId?.let { tagId ->
+                tags.firstOrNull { it.id == tagId }?.name ?: unknownValue
             }
+            if (tagName == null) tripName else "$tripName · $tagName"
         }
-    } ?: allTripsLabel
-
-    val selectedPeriodValue = filters.formattedPeriod()
+    }
+    val periodActive = filters.dateFrom.isNotBlank() || filters.dateTo.isNotBlank()
+    val categoryActive = filters.categoryId != null || filters.uncategorizedOnly
 
     AppModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -432,40 +440,12 @@ private fun MovementFiltersSheet(
                 .padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconChip(
-                    icon = Icons.Outlined.Tune,
-                    contentDescription = null,
-                    color = MaterialTheme.colorScheme.primary,
-                    size = 48.dp
-                )
-                Spacer(modifier = Modifier.width(16.dp))
-                Text(
-                    text = stringResource(R.string.movement_filter_title),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(R.string.movement_filter_auto_apply),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = FinanceTheme.colors.mutedText,
-                    modifier = Modifier.weight(1f),
-                )
-                TextButton(onClick = onDismiss) {
-                    Text(text = stringResource(R.string.common_close))
-                }
-            }
+            FilterResultPanel(
+                visibleCount = visibleCount,
+                totalCount = totalCount,
+                activeCount = filters.activeFilterCount,
+            )
+
             filters.errorRes?.let {
                 Text(
                     text = stringResource(it),
@@ -474,69 +454,67 @@ private fun MovementFiltersSheet(
                 )
             }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(IntrinsicSize.Max),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                FilterSelectorField(
+            Column(modifier = Modifier.fillMaxWidth()) {
+                FilterLedgerRow(
+                    icon = selectedAccount?.let { accountTypeIcon(it.type) }
+                        ?: Icons.Outlined.AccountBalanceWallet,
+                    color = selectedAccount?.let { categoryColor(it.color) },
                     label = stringResource(R.string.movement_filter_account),
-                    value = selectedAccountName,
+                    value = accountValue,
                     active = filters.accountId != null,
                     onClick = { activeSheet = FilterSheetType.ACCOUNT },
                     onClear = { onFiltersChange(filters.copy(accountId = null)) },
-                    modifier = Modifier.weight(1f).fillMaxHeight()
                 )
-                FilterSelectorField(
+                FilterLedgerRow(
+                    icon = selectedCategory?.let { categoryIcon(it.icon) } ?: Icons.Outlined.Category,
+                    color = selectedCategory?.let { categoryColor(it.color) },
                     label = stringResource(R.string.movement_filter_category),
-                    value = selectedCategoryName,
-                    active = filters.categoryId != null || filters.uncategorizedOnly,
+                    value = categoryValue,
+                    active = categoryActive,
                     onClick = { activeSheet = FilterSheetType.CATEGORY },
-                    onClear = { onFiltersChange(filters.copy(categoryId = null, uncategorizedOnly = false)) },
-                    modifier = Modifier.weight(1f).fillMaxHeight()
+                    onClear = {
+                        onFiltersChange(filters.copy(categoryId = null, uncategorizedOnly = false))
+                    },
                 )
-            }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(IntrinsicSize.Max),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                FilterSelectorField(
+                FilterLedgerRow(
+                    icon = selectedTrip?.let { categoryIcon(it.icon) } ?: Icons.Outlined.Luggage,
+                    color = selectedTrip?.let { categoryColor(it.color) },
                     label = stringResource(R.string.movement_field_trip),
-                    value = selectedTripTagValue,
+                    value = tripValue,
                     active = filters.tripId != null,
                     onClick = { activeSheet = FilterSheetType.TRIP },
                     onClear = { onFiltersChange(filters.copy(tripId = null, tagId = null)) },
-                    modifier = Modifier.weight(1f).fillMaxHeight()
                 )
-                FilterSelectorField(
+                FilterLedgerRow(
+                    icon = Icons.Outlined.CalendarMonth,
+                    color = null,
                     label = stringResource(R.string.movement_filter_period),
-                    value = selectedPeriodValue,
-                    active = filters.dateFrom.isNotBlank() || filters.dateTo.isNotBlank(),
+                    value = filters.formattedPeriod(),
+                    active = periodActive,
                     onClick = { activeSheet = FilterSheetType.PERIOD },
                     onClear = { onFiltersChange(filters.copy(dateFrom = "", dateTo = "")) },
-                    modifier = Modifier.weight(1f).fillMaxHeight()
+                    showDivider = false,
                 )
             }
 
-            OutlinedButton(
-                onClick = onClearFilters,
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.small,
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = MaterialTheme.colorScheme.primary
-                ),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.RestartAlt,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(text = stringResource(R.string.common_clear_filters))
+            if (filters.activeFilterCount > 0) {
+                OutlinedButton(
+                    onClick = onClearFilters,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.small,
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.primary,
+                    ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.RestartAlt,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = stringResource(R.string.common_clear_filters))
+                }
             }
         }
     }
@@ -591,6 +569,198 @@ private fun MovementFiltersSheet(
             )
         }
         null -> Unit
+    }
+}
+
+/**
+ * What the filters currently yield, on the same ink panel the dashboard opens with: the ledger is
+ * filtered live, so the sheet leads with the count it produces rather than with a title.
+ */
+@Composable
+private fun FilterResultPanel(
+    visibleCount: Int,
+    totalCount: Int,
+    activeCount: Int,
+) {
+    val colors = FinanceTheme.colors
+    HeroPanel(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.movement_filter_title).uppercase(),
+                style = MaterialTheme.typography.labelSmall.asEyebrow(),
+                color = colors.heroOnSurface.copy(alpha = HERO_MUTED_ALPHA),
+            )
+            Text(
+                text = pluralStringResource(
+                    R.plurals.movement_filter_result_count,
+                    visibleCount,
+                    visibleCount,
+                ),
+                style = MaterialTheme.typography.headlineMedium,
+                color = colors.heroOnSurface,
+            )
+            Text(
+                text = if (activeCount == 0) {
+                    stringResource(R.string.movement_filter_none_active)
+                } else {
+                    pluralStringResource(
+                        R.plurals.movement_filter_active_count,
+                        activeCount,
+                        activeCount,
+                    ) + " · " + stringResource(R.string.movement_filter_of_total, totalCount)
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.heroOnSurface.copy(alpha = HERO_MUTED_ALPHA),
+            )
+        }
+    }
+}
+
+/**
+ * One option in a filter picker: the same row anatomy the ledger uses, so choosing a filter and
+ * reading one look like the same thing. The chosen option wears its own colour filled in.
+ */
+@Composable
+private fun FilterOptionRow(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+    color: Color? = null,
+    showDivider: Boolean = true,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(role = Role.Button, onClick = onClick),
+    ) {
+        Row(
+            modifier = Modifier.padding(vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (icon != null) {
+                val tileColor = color ?: MaterialTheme.colorScheme.primary
+                if (selected) {
+                    IdentityIconTile(icon = icon, color = tileColor, size = 36.dp)
+                } else {
+                    IconChip(
+                        icon = icon,
+                        contentDescription = null,
+                        color = tileColor,
+                        size = 36.dp,
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+            }
+            Text(
+                text = label,
+                style = MaterialTheme.typography.titleSmall,
+                color = if (selected) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+                modifier = Modifier
+                    .weight(1f)
+                    .heightIn(min = 24.dp),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (selected) {
+                Icon(
+                    imageVector = Icons.Outlined.Check,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
+        if (showDivider) {
+            HorizontalDivider(
+                modifier = Modifier.padding(start = if (icon == null) 0.dp else 48.dp),
+                color = MaterialTheme.colorScheme.outlineVariant,
+            )
+        }
+    }
+}
+
+/**
+ * One filter dimension, built like a movement row: identity tile, what it filters, and the value
+ * it currently holds. An untouched dimension keeps a quiet tinted tile; a filter that is on wears
+ * the colour of the thing it selected and carries a clear button of its own.
+ */
+@Composable
+private fun FilterLedgerRow(
+    icon: ImageVector,
+    color: Color?,
+    label: String,
+    value: String,
+    active: Boolean,
+    onClick: () -> Unit,
+    onClear: () -> Unit,
+    showDivider: Boolean = true,
+) {
+    val colors = FinanceTheme.colors
+    val tileColor = color ?: MaterialTheme.colorScheme.primary
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(role = Role.Button, onClick = onClick),
+    ) {
+        Row(
+            modifier = Modifier.padding(vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (active) {
+                IdentityIconTile(icon = icon, color = tileColor)
+            } else {
+                IconChip(icon = icon, contentDescription = null, color = tileColor)
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (active) MaterialTheme.colorScheme.primary else colors.subtleText,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (active) {
+                val clearDescription = stringResource(R.string.movement_filter_clear_named, label)
+                IconButton(onClick = onClear) {
+                    Icon(
+                        imageVector = Icons.Outlined.Close,
+                        contentDescription = clearDescription,
+                        tint = colors.mutedText,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+            }
+            Icon(
+                imageVector = Icons.Outlined.ChevronRight,
+                contentDescription = null,
+                tint = colors.subtleText,
+            )
+        }
+        if (showDivider) {
+            HorizontalDivider(
+                modifier = Modifier.padding(start = 52.dp),
+                color = MaterialTheme.colorScheme.outlineVariant,
+            )
+        }
     }
 }
 
@@ -673,26 +843,71 @@ private enum class FilterSheetType {
 
 @Composable
 private fun MovementFilters.formattedPeriod(): String {
-    if (dateFrom.isBlank() && dateTo.isBlank()) return "Tots"
-    
+    if (dateFrom.isBlank() && dateTo.isBlank()) {
+        return stringResource(R.string.movement_filter_period_all)
+    }
+
     val start = runCatching { LocalDate.parse(dateFrom) }.getOrNull()
     val end = runCatching { LocalDate.parse(dateTo) }.getOrNull()
     if (start != null && end != null) {
+        if (isWholeYear(start, end)) {
+            return start.year.toString()
+        }
         if (start.dayOfMonth == 1 && end == start.plusMonths(1).minusDays(1)) {
             return formatMonthYear(YearMonth.of(start.year, start.monthValue))
         }
         return "${formatCompactDate(start)} - ${formatCompactDate(end)}"
     }
-    
+
     if (start != null) {
-        return "Des de ${formatCompactDate(start)}"
+        return stringResource(R.string.movement_filter_period_from, formatCompactDate(start))
     }
     if (end != null) {
-        return "Fins a ${formatCompactDate(end)}"
+        return stringResource(R.string.movement_filter_period_to, formatCompactDate(end))
     }
-    
-    return "Tots"
+
+    return stringResource(R.string.movement_filter_period_all)
 }
+
+/** One period the sheet offers whole: a month of the shown year, or the year itself. */
+@Composable
+private fun PeriodOption(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier,
+        shape = MaterialTheme.shapes.small,
+        color = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
+        contentColor = if (selected) {
+            MaterialTheme.colorScheme.onPrimary
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
+        border = if (selected) null else BorderStroke(1.dp, FinanceTheme.colors.cardBorder),
+    ) {
+        Box(
+            modifier = Modifier.padding(vertical = 12.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+/** A range that runs the calendar year end to end, however it was picked. */
+private fun isWholeYear(start: LocalDate, endInclusive: LocalDate): Boolean =
+    start.dayOfYear == 1 &&
+        start.year == endInclusive.year &&
+        endInclusive == start.withDayOfYear(start.lengthOfYear())
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -712,76 +927,34 @@ private fun AccountFilterSheet(
                 .padding(horizontal = 20.dp)
                 .navigationBarsPadding()
                 .padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
                 text = stringResource(R.string.movement_filter_account),
-                style = MaterialTheme.typography.titleLarge
+                style = MaterialTheme.typography.titleLarge,
             )
 
-            val isAllSelected = selectedAccountId == null
-            Surface(
-                onClick = {
-                    onSelect(null)
-                    onDismiss()
-                },
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.small,
-                color = if (isAllSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                contentColor = if (isAllSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = stringResource(R.string.movement_filter_all_accounts),
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.weight(1f)
-                    )
-                    if (isAllSelected) {
-                        Icon(
-                            imageVector = Icons.Outlined.Check,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-            }
-            
-            accounts.forEach { account ->
-                val isSelected = selectedAccountId == account.id
-                Surface(
+            Column(modifier = Modifier.fillMaxWidth()) {
+                FilterOptionRow(
+                    label = stringResource(R.string.movement_filter_all_accounts),
+                    selected = selectedAccountId == null,
                     onClick = {
-                        onSelect(account.id)
+                        onSelect(null)
                         onDismiss()
                     },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.small,
-                    color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                    contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        ColorDot(colorHex = account.color, size = 12.dp)
-                        Text(
-                            text = account.name,
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.weight(1f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        if (isSelected) {
-                            Icon(
-                                imageVector = Icons.Outlined.Check,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
+                )
+                accounts.forEachIndexed { index, account ->
+                    FilterOptionRow(
+                        label = account.name,
+                        selected = selectedAccountId == account.id,
+                        onClick = {
+                            onSelect(account.id)
+                            onDismiss()
+                        },
+                        icon = accountTypeIcon(account.type),
+                        color = categoryColor(account.color),
+                        showDivider = index < accounts.lastIndex,
+                    )
                 }
             }
         }
@@ -812,114 +985,39 @@ private fun CategoryFilterSheet(
             Text(
                 text = stringResource(R.string.movement_filter_category),
                 style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(bottom = 4.dp)
             )
 
-            val isAllSelected = selectedCategoryId == null && !uncategorizedOnly
-            Surface(
-                onClick = {
-                    onSelect(null, false)
-                    onDismiss()
-                },
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.small,
-                color = if (isAllSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                contentColor = if (isAllSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
-            ) {
-                Row(
-                    modifier = Modifier.padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = stringResource(R.string.movement_filter_all_categories),
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.weight(1f)
-                    )
-                    if (isAllSelected) {
-                        Icon(
-                            imageVector = Icons.Outlined.Check,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-            }
-            
-            val isUncategorizedSelected = uncategorizedOnly
-            Surface(
-                onClick = {
-                    onSelect(null, true)
-                    onDismiss()
-                },
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.small,
-                color = if (isUncategorizedSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                contentColor = if (isUncategorizedSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
-            ) {
-                Row(
-                    modifier = Modifier.padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    IconChip(
-                        icon = categoryIcon(null),
-                        contentDescription = null,
-                        color = categoryColor("#9097A3"),
-                        size = 32.dp
-                    )
-                    Text(
-                        text = stringResource(R.string.common_no_category),
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.weight(1f)
-                    )
-                    if (isUncategorizedSelected) {
-                        Icon(
-                            imageVector = Icons.Outlined.Check,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-            }
-            
-            categories.forEach { category ->
-                val isSelected = selectedCategoryId == category.id
-                Surface(
+            Column(modifier = Modifier.fillMaxWidth()) {
+                FilterOptionRow(
+                    label = stringResource(R.string.movement_filter_all_categories),
+                    selected = selectedCategoryId == null && !uncategorizedOnly,
                     onClick = {
-                        onSelect(category.id, false)
+                        onSelect(null, false)
                         onDismiss()
                     },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.small,
-                    color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                    contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
-                ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        IconChip(
-                            icon = categoryIcon(category.icon),
-                            contentDescription = null,
-                            color = categoryColor(category.color),
-                            size = 32.dp
-                        )
-                        Text(
-                            text = category.name,
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.weight(1f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        if (isSelected) {
-                            Icon(
-                                imageVector = Icons.Outlined.Check,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
+                )
+                FilterOptionRow(
+                    label = stringResource(R.string.common_no_category),
+                    selected = uncategorizedOnly,
+                    onClick = {
+                        onSelect(null, true)
+                        onDismiss()
+                    },
+                    icon = categoryIcon(null),
+                    color = categoryColor(UNCATEGORIZED_COLOR),
+                )
+                categories.forEachIndexed { index, category ->
+                    FilterOptionRow(
+                        label = category.name,
+                        selected = selectedCategoryId == category.id,
+                        onClick = {
+                            onSelect(category.id, false)
+                            onDismiss()
+                        },
+                        icon = categoryIcon(category.icon),
+                        color = categoryColor(category.color),
+                        showDivider = index < categories.lastIndex,
+                    )
                 }
             }
         }
@@ -949,173 +1047,77 @@ private fun TripFilterSheet(
                 .padding(horizontal = 20.dp)
                 .navigationBarsPadding()
                 .padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
                 text = stringResource(R.string.movement_field_trip),
-                style = MaterialTheme.typography.titleLarge
+                style = MaterialTheme.typography.titleLarge,
             )
 
-            val isAllTripsSelected = currentTripId == null
-            Surface(
-                onClick = {
-                    currentTripId = null
-                    currentTagId = null
-                    onSelect(null, null)
-                    onDismiss()
-                },
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.small,
-                color = if (isAllTripsSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                contentColor = if (isAllTripsSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
-            ) {
-                Row(
-                    modifier = Modifier.padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = stringResource(R.string.trip_filter_all),
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.weight(1f)
-                    )
-                    if (isAllTripsSelected) {
-                        Icon(
-                            imageVector = Icons.Outlined.Check,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-            }
-            
-            trips.forEach { trip ->
-                val isSelected = currentTripId == trip.id
-                Surface(
+            Column(modifier = Modifier.fillMaxWidth()) {
+                FilterOptionRow(
+                    label = stringResource(R.string.trip_filter_all),
+                    selected = currentTripId == null,
                     onClick = {
-                        currentTripId = trip.id
-                        if (currentTripId != selectedTripId) {
-                            currentTagId = null
-                        }
-                        val tripTags = tags.filter { it.supportsTrip(trip) }
-                        if (tripTags.isEmpty()) {
-                            onSelect(trip.id, null)
-                            onDismiss()
-                        }
+                        currentTripId = null
+                        currentTagId = null
+                        onSelect(null, null)
+                        onDismiss()
                     },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.small,
-                    color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                    contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
-                ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = trip.name,
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.weight(1f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        if (isSelected) {
-                            Icon(
-                                imageVector = Icons.Outlined.Check,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
+                )
+                trips.forEachIndexed { index, trip ->
+                    FilterOptionRow(
+                        label = trip.name,
+                        selected = currentTripId == trip.id,
+                        onClick = {
+                            currentTripId = trip.id
+                            if (currentTripId != selectedTripId) {
+                                currentTagId = null
+                            }
+                            if (tags.none { it.supportsTrip(trip) }) {
+                                onSelect(trip.id, null)
+                                onDismiss()
+                            }
+                        },
+                        icon = categoryIcon(trip.icon),
+                        color = categoryColor(trip.color),
+                        showDivider = index < trips.lastIndex,
+                    )
                 }
             }
-            
+
             val currentTrip = currentTripId?.let { id -> trips.firstOrNull { it.id == id } }
             currentTripId?.let { tripId ->
                 val tripTags = tags.filter { it.supportsTrip(currentTrip) }
                 if (tripTags.isNotEmpty()) {
-                    HorizontalDivider(color = FinanceTheme.colors.cardBorder)
                     Text(
                         text = stringResource(R.string.movement_field_tag),
-                        style = MaterialTheme.typography.titleMedium
+                        style = MaterialTheme.typography.titleMedium,
                     )
-                    
-                    val isNoTagSelected = currentTagId == null
-                    Surface(
-                        onClick = {
-                            currentTagId = null
-                            onSelect(tripId, null)
-                            onDismiss()
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = MaterialTheme.shapes.small,
-                        color = if (isNoTagSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                        contentColor = if (isNoTagSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = stringResource(R.string.tag_picker_none),
-                                style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier.weight(1f)
-                            )
-                            if (isNoTagSelected) {
-                                Icon(
-                                    imageVector = Icons.Outlined.Check,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        }
-                    }
-                    
-                    tripTags.forEach { tag ->
-                        val isTagSelected = currentTagId == tag.id
-                        Surface(
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        FilterOptionRow(
+                            label = stringResource(R.string.tag_picker_none),
+                            selected = currentTagId == null,
                             onClick = {
-                                currentTagId = tag.id
-                                onSelect(tripId, tag.id)
+                                currentTagId = null
+                                onSelect(tripId, null)
                                 onDismiss()
                             },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = MaterialTheme.shapes.small,
-                            color = if (isTagSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                            contentColor = if (isTagSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = tag.name,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    modifier = Modifier.weight(1f),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                                if (isTagSelected) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Check,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                            }
+                        )
+                        tripTags.forEachIndexed { index, tag ->
+                            FilterOptionRow(
+                                label = tag.name,
+                                selected = currentTagId == tag.id,
+                                onClick = {
+                                    currentTagId = tag.id
+                                    onSelect(tripId, tag.id)
+                                    onDismiss()
+                                },
+                                showDivider = index < tripTags.lastIndex,
+                            )
                         }
                     }
                 }
-            }
-            
-            if (currentTripId != null && tags.any { it.supportsTrip(currentTrip) }) {
-                PrimaryButton(
-                    text = stringResource(android.R.string.ok),
-                    onClick = {
-                        onSelect(currentTripId, currentTagId)
-                        onDismiss()
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                )
             }
         }
     }
@@ -1135,10 +1137,6 @@ private fun PeriodFilterSheet(
         )
     }
     
-    val months = listOf(
-        "Gener", "Febrer", "Març", "Abril", "Maig", "Juny",
-        "Juliol", "Agost", "Setembre", "Octubre", "Novembre", "Desembre"
-    )
     
     var showFromDatePicker by remember { mutableStateOf(false) }
     var showToDatePicker by remember { mutableStateOf(false) }
@@ -1168,7 +1166,7 @@ private fun PeriodFilterSheet(
                     onSelect("", "")
                     onDismiss()
                 }) {
-                    Text(text = stringResource(R.string.common_clear_filters))
+                    Text(text = stringResource(R.string.common_clear))
                 }
             }
             
@@ -1199,6 +1197,22 @@ private fun PeriodFilterSheet(
                 )
             }
             
+            val isYearSelected = remember(dateFrom, dateTo, currentYear) {
+                val start = runCatching { LocalDate.parse(dateFrom) }.getOrNull()
+                val end = runCatching { LocalDate.parse(dateTo) }.getOrNull()
+                start != null && end != null && start.year == currentYear && isWholeYear(start, end)
+            }
+            PeriodOption(
+                label = stringResource(R.string.movement_filter_whole_year),
+                selected = isYearSelected,
+                onClick = {
+                    val start = LocalDate.of(currentYear, 1, 1)
+                    onSelect(start.toString(), start.withDayOfYear(start.lengthOfYear()).toString())
+                    onDismiss()
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 for (row in 0 until 4) {
                     Row(
@@ -1206,9 +1220,8 @@ private fun PeriodFilterSheet(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         for (col in 0 until 3) {
-                            val monthIdx = row * 3 + col
-                            val monthName = months[monthIdx]
-                            val monthNum = monthIdx + 1
+                            val monthNum = row * 3 + col + 1
+                            val monthName = formatMonth(YearMonth.of(currentYear, monthNum))
                             
                             val isMonthSelected = remember(dateFrom, dateTo, currentYear) {
                                 runCatching {
@@ -1219,7 +1232,9 @@ private fun PeriodFilterSheet(
                                 }.getOrDefault(false)
                             }
                             
-                            Surface(
+                            PeriodOption(
+                                label = monthName,
+                                selected = isMonthSelected,
                                 onClick = {
                                     val start = LocalDate.of(currentYear, monthNum, 1)
                                     val end = start.plusMonths(1).minusDays(1)
@@ -1227,20 +1242,7 @@ private fun PeriodFilterSheet(
                                     onDismiss()
                                 },
                                 modifier = Modifier.weight(1f),
-                                shape = MaterialTheme.shapes.small,
-                                color = if (isMonthSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-                                contentColor = if (isMonthSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                            ) {
-                                Box(
-                                    modifier = Modifier.padding(vertical = 12.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = monthName,
-                                        style = MaterialTheme.typography.labelLarge
-                                    )
-                                }
-                            }
+                            )
                         }
                     }
                 }

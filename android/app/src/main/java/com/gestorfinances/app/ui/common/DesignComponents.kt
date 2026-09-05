@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -44,6 +45,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.Role
@@ -55,6 +57,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.BudgetEvaluation
@@ -64,6 +67,7 @@ import com.gestorfinances.app.ui.theme.isDark
 import com.gestorfinances.app.ui.theme.TokenColor
 import com.gestorfinances.app.ui.theme.categoryTint
 import com.gestorfinances.app.ui.theme.themedIdentityColor
+import com.gestorfinances.app.ui.theme.onIdentityColor
 
 private val PillShape = RoundedCornerShape(percent = 50)
 
@@ -322,6 +326,81 @@ fun ChipFlowSection(
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             content()
         }
+    }
+}
+
+/** How far a label on the ink hero drops back from the figure it sits with. */
+const val HERO_MUTED_ALPHA = 0.64f
+
+/**
+ * The app's ink panel: a lit plum gradient with an off-centre glow, so the standing a page opens
+ * with reads as one surface rather than as a flat block. The caller owns the padding inside.
+ */
+@Composable
+fun HeroPanel(
+    modifier: Modifier = Modifier,
+    content: @Composable BoxScope.() -> Unit,
+) {
+    val colors = FinanceTheme.colors
+    val shape = MaterialTheme.shapes.extraLarge
+    Box(
+        modifier = modifier
+            .shadow(
+                elevation = 20.dp,
+                shape = shape,
+                clip = false,
+                ambientColor = colors.cardShadow,
+                spotColor = colors.cardShadow,
+            )
+            .clip(shape)
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(colors.heroInkTop, colors.heroInkBottom),
+                    start = Offset.Zero,
+                    end = Offset.Infinite,
+                ),
+            )
+            .drawBehind {
+                val center = Offset(size.width * 0.86f, -size.height * 0.10f)
+                val radius = size.minDimension * 1.35f
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(colors.heroGlow.copy(alpha = 0.5f), Color.Transparent),
+                        center = center,
+                        radius = radius,
+                    ),
+                    radius = radius,
+                    center = center,
+                )
+            },
+        content = content,
+    )
+}
+
+/**
+ * A saved identity colour, filled rather than tinted, with the icon knocked out of it. The one
+ * saturated thing in a row: a column of these is what a thumb-scroll navigates by.
+ */
+@Composable
+fun IdentityIconTile(
+    icon: ImageVector,
+    color: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 40.dp,
+) {
+    val fill = themedIdentityColor(color)
+    Box(
+        modifier = modifier
+            .size(size)
+            .background(fill, MaterialTheme.shapes.medium),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = onIdentityColor(fill),
+            modifier = Modifier.size(size * 0.52f),
+        )
     }
 }
 

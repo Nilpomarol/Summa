@@ -74,6 +74,8 @@ import com.gestorfinances.app.ui.common.forecastProgressFraction
 import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.IconChip
 import com.gestorfinances.app.ui.common.InlineBanner
+import com.gestorfinances.app.ui.common.HERO_MUTED_ALPHA
+import com.gestorfinances.app.ui.common.HeroPanel
 import com.gestorfinances.app.ui.common.InlineFailureBanner
 import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.MovementListItem
@@ -99,7 +101,6 @@ import java.time.YearMonth
 private const val DASHBOARD_NAMED_CATEGORIES = 4
 
 /** Secondary text and hairlines on the ink hero, as an alpha over its on-surface color. */
-private const val HERO_MUTED_ALPHA = 0.64f
 private const val HERO_RULE_ALPHA = 0.18f
 
 /** The month budget bar is the one chunky shape on the page, so it is deliberately thick. */
@@ -355,42 +356,9 @@ private fun DashboardHeroPanel(
     onDrillDown: (MovementFilters) -> Unit,
 ) {
     val colors = FinanceTheme.colors
-    val shape = MaterialTheme.shapes.extraLarge
     val account = state.mainAccount
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(
-                elevation = 20.dp,
-                shape = shape,
-                clip = false,
-                ambientColor = colors.cardShadow,
-                spotColor = colors.cardShadow,
-            )
-            .clip(shape)
-            .background(
-                Brush.linearGradient(
-                    colors = listOf(colors.heroInkTop, colors.heroInkBottom),
-                    start = Offset.Zero,
-                    end = Offset.Infinite,
-                ),
-            )
-            .drawBehind {
-                // Off-centre glow, so the panel reads as lit rather than as a flat block.
-                val center = Offset(size.width * 0.86f, -size.height * 0.10f)
-                val radius = size.minDimension * 1.35f
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(colors.heroGlow.copy(alpha = 0.5f), Color.Transparent),
-                        center = center,
-                        radius = radius,
-                    ),
-                    radius = radius,
-                    center = center,
-                )
-            },
-    ) {
+    HeroPanel(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),

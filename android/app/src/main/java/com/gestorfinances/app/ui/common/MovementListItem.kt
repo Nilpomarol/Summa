@@ -44,8 +44,6 @@ import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.amountColor
 import com.gestorfinances.app.ui.theme.categoryColor as categoryColorFromTheme
 import com.gestorfinances.app.ui.theme.dataMarkColor
-import com.gestorfinances.app.ui.theme.onIdentityColor
-import com.gestorfinances.app.ui.theme.themedIdentityColor
 import kotlin.math.abs
 
 private val MOVEMENT_ICON_SIZE = 40.dp
@@ -138,7 +136,11 @@ fun MovementListItem(
             modifier = Modifier.padding(vertical = MOVEMENT_ROW_VERTICAL_PADDING),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            MovementIcon(icon = visual.first, color = visual.second)
+            IdentityIconTile(
+                icon = visual.first,
+                color = visual.second,
+                size = MOVEMENT_ICON_SIZE,
+            )
             Spacer(modifier = Modifier.width(MOVEMENT_ICON_GAP))
 
             Column(
@@ -288,30 +290,6 @@ fun MovementListItem(
                 color = FinanceTheme.colors.cardBorder,
             )
         }
-    }
-}
-
-/**
- * The one saturated thing in the row: the category's own colour, filled rather than tinted, with
- * the icon knocked out of it. A run of movements then reads as a column of colour a thumb-scroll
- * can navigate by, while the text beside it stays quiet. The tile keeps the app's rounded-square
- * icon shape so it still reads as an icon rather than as an avatar.
- */
-@Composable
-private fun MovementIcon(icon: ImageVector, color: Color) {
-    val fill = themedIdentityColor(color)
-    Box(
-        modifier = Modifier
-            .size(MOVEMENT_ICON_SIZE)
-            .background(fill, MaterialTheme.shapes.medium),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = onIdentityColor(fill),
-            modifier = Modifier.size(MOVEMENT_ICON_SIZE * 0.52f),
-        )
     }
 }
 
