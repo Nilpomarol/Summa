@@ -76,6 +76,7 @@ import com.gestorfinances.app.ui.common.IconChip
 import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.HERO_MUTED_ALPHA
 import com.gestorfinances.app.ui.common.HeroPanel
+import com.gestorfinances.app.ui.common.PillShape
 import com.gestorfinances.app.ui.common.InlineFailureBanner
 import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.MovementListItem
@@ -114,7 +115,6 @@ private val CATEGORY_RULE_HEIGHT = 3.dp
  * gap), so a full 100% rule reads as belonging to its row instead of mirroring the card divider.
  */
 private val CATEGORY_RULE_INSET = 32.dp
-private val PillShape = RoundedCornerShape(percent = 50)
 
 @Composable
 fun DashboardScreen(

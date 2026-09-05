@@ -77,7 +77,8 @@ import com.gestorfinances.app.ui.theme.categoryTint
 import com.gestorfinances.app.ui.theme.themedIdentityColor
 import com.gestorfinances.app.ui.theme.onIdentityColor
 
-private val PillShape = RoundedCornerShape(percent = 50)
+/** Fully rounded ends: chips, the search field, and the navigation dock share it. */
+val PillShape = RoundedCornerShape(percent = 50)
 
 /**
  * Raised surface (design elevation e2): the default card across the app. Depth comes from three
