@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -332,6 +333,8 @@ fun FinanceFilterChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     selectedColor: Color = MaterialTheme.colorScheme.onSurface,
+    contentPadding: PaddingValues = PaddingValues(horizontal = 14.dp, vertical = 9.dp),
+    trailingIcon: ImageVector? = null,
 ) {
     Surface(
         onClick = onClick,
@@ -345,13 +348,27 @@ fun FinanceFilterChip(
         },
         border = if (selected) null else BorderStroke(1.dp, FinanceTheme.colors.cardBorder),
     ) {
-        Text(
-            text = label,
+        Row(
             modifier = Modifier
                 .heightIn(min = 20.dp)
-                .padding(horizontal = 14.dp, vertical = 9.dp),
-            style = MaterialTheme.typography.labelLarge,
-        )
+                .padding(contentPadding),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (trailingIcon != null) {
+                Icon(
+                    imageVector = trailingIcon,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+        }
     }
 }
 
