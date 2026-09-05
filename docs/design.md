@@ -47,7 +47,7 @@ The current baseline contains:
 - plum brand/interaction colours;
 - functional meanings for income, expense, transfer, settlement, refund, debt, shared activity, and warnings;
 - category identity colours separate from money meaning;
-- Geist for interface text and IBM Plex Mono for financial figures;
+- Schibsted Grotesk for interface text and JetBrains Mono for financial figures;
 - shared spacing, radii, elevations, sizes, icon guidance, and minimum 44 dp touch targets.
 
 Tokens are not sacred during future feature work. When a visual decision becomes part of the product, update the JSON and native mapping together. Avoid adding a second undocumented token system in a screen.
