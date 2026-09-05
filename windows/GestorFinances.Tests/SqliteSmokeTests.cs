@@ -42,7 +42,7 @@ public sealed class SqliteSmokeTests
 
         var meta = connection.Query<MetaRow>("SELECT key AS Key, value AS Value FROM meta ORDER BY key;").ToList();
         CollectionAssert.AreEqual(
-            new[] { "schema_version=12", "snapshot_version=0" },
+            new[] { "schema_version=14", "snapshot_version=0" },
             meta.Select(row => $"{row.Key}={row.Value}").ToArray());
 
         var budgetColumns = connection.Query<string>("SELECT name FROM pragma_table_info('budgets');").ToArray();
@@ -159,6 +159,31 @@ public sealed class SqliteSmokeTests
             11_500,
             connection.QuerySingle<long>(
                 "SELECT unallocated_cents FROM v_account_allocation WHERE account_id = 'acc-main';"));
+    }
+
+    [TestMethod]
+    public void GoalAccountReservationsExposeInvalidCrossAccountReleaseAndRetainedHistory()
+    {
+        using var connection = new SqliteConnection("Data Source=:memory:");
+        connection.Open();
+        SharedSql.ApplyBaseline(connection);
+        SeedAccountFlowScenario(connection);
+        connection.Execute("""
+            INSERT INTO goals (id, name, target_amount_cents, funding_mode, created_at, updated_at)
+            VALUES ('goal', 'Goal', 10000, 'allocations', '2026-09-05T00:00:00Z', '2026-09-05T00:00:00Z');
+            INSERT INTO goal_allocations (id, goal_id, account_id, date, amount_cents, created_at, updated_at)
+            VALUES ('reserve', 'goal', 'acc-main', '2026-09-05', 10000, '2026-09-05T00:00:00Z', '2026-09-05T00:00:00Z'),
+                   ('release', 'goal', 'acc-savings', '2026-09-05', -8000, '2026-09-05T00:00:00Z', '2026-09-05T00:00:00Z');
+            """);
+        var query = SharedSql.ReadAnalysisQuery("goal_account_allocations.sql");
+        long[] Totals() => connection.Query(query, new { goal_id = "goal" }).Select(row => (long)row.allocated_cents).Order().ToArray();
+        CollectionAssert.AreEqual(new long[] { -8000, 10000 }, Totals());
+        connection.Execute("UPDATE goal_allocations SET account_id = 'acc-main' WHERE id = 'release';");
+        CollectionAssert.AreEqual(new long[] { 2000 }, Totals());
+        connection.Execute("UPDATE goal_allocations SET archived_at = '2026-09-05T01:00:00Z' WHERE id = 'reserve';");
+        CollectionAssert.AreEqual(new long[] { -8000 }, Totals());
+        connection.Execute("UPDATE goal_allocations SET archived_at = NULL WHERE id = 'reserve'; UPDATE goals SET archived_at = '2026-09-05T01:00:00Z';");
+        CollectionAssert.AreEqual(new long[] { 2000 }, Totals());
     }
 
     private static void SeedAccountFlowScenario(SqliteConnection connection)

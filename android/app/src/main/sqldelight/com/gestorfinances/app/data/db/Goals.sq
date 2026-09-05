@@ -274,3 +274,6 @@ SET
     updated_at = :updated_at
 WHERE id = :id
   AND archived_at = :archived_at;
+
+allocationGoalId:
+SELECT goal_id FROM goal_allocations WHERE id = :id;

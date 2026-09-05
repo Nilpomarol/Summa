@@ -1,6 +1,6 @@
 {
   "rule": "goal_progress",
-  "description": "Savings-goal progress and required monthly pace. A goal funded by a dedicated account takes saved_cents from that account's canonical value; a goal funded by allocations takes it from the signed sum of its active allocations. Neither reading moves the ledger. remaining_cents is the target minus saved, clamped at zero, and reached is true once remaining_cents is zero. Pace exists only when the goal has a target date: months_remaining counts calendar months inclusively from today's month through the target's month, so a target in the current month leaves one month, and monthly_pace_cents divides the remainder over those months rounding up so the target is actually reached. A target month already in the past is overdue, leaves zero months, and needs the whole remainder now. A reached goal needs no pace.",
+  "description": "Savings-goal progress and required monthly pace. A goal funded by a dedicated account takes saved_cents from that account's canonical value; a goal funded by allocations takes it from the signed sum of its active allocations. Neither reading moves the ledger. remaining_cents is the target minus saved, clamped at zero, and reached is true once remaining_cents is zero. Pace exists only when the goal has a target date: months_remaining counts calendar months inclusively from today's month through the target's month, so a target in the current month leaves one month, and monthly_pace_cents divides the remainder over those months rounding up so the target is actually reached. A target date before today is overdue, leaves zero months, and needs the whole remainder now. A reached goal needs no pace.",
   "cases": [
     {
       "name": "dedicated-account goal takes progress from the account value",
@@ -27,7 +27,11 @@
         "funding_mode": "allocations",
         "target_amount_cents": 500000,
         "account_balance_cents": 900000,
-        "allocation_cents": [200000, 50000, -30000],
+        "allocation_cents": [
+          200000,
+          50000,
+          -30000
+        ],
         "target_date": null,
         "today": "2026-09-03"
       },
@@ -65,7 +69,9 @@
         "funding_mode": "allocations",
         "target_amount_cents": 60000,
         "account_balance_cents": 0,
-        "allocation_cents": [15000],
+        "allocation_cents": [
+          15000
+        ],
         "target_date": "2026-09-30",
         "today": "2026-09-03"
       },
@@ -84,7 +90,9 @@
         "funding_mode": "allocations",
         "target_amount_cents": 60000,
         "account_balance_cents": 0,
-        "allocation_cents": [15000],
+        "allocation_cents": [
+          15000
+        ],
         "target_date": "2026-07-31",
         "today": "2026-09-03"
       },
@@ -103,7 +111,10 @@
         "funding_mode": "allocations",
         "target_amount_cents": 500000,
         "account_balance_cents": 0,
-        "allocation_cents": [300000, 300000],
+        "allocation_cents": [
+          300000,
+          300000
+        ],
         "target_date": "2027-01-31",
         "today": "2026-09-03"
       },
@@ -141,7 +152,9 @@
         "funding_mode": "allocations",
         "target_amount_cents": 40000,
         "account_balance_cents": 0,
-        "allocation_cents": [40000],
+        "allocation_cents": [
+          40000
+        ],
         "target_date": "2026-06-30",
         "today": "2026-09-03"
       },
@@ -151,6 +164,48 @@
         "reached": true,
         "months_remaining": 0,
         "monthly_pace_cents": 0,
+        "overdue": false
+      }
+    },
+    {
+      "name": "a passed date in the current month is overdue",
+      "input": {
+        "funding_mode": "allocations",
+        "target_amount_cents": 60000,
+        "account_balance_cents": 0,
+        "allocation_cents": [
+          15000
+        ],
+        "target_date": "2026-09-05",
+        "today": "2026-09-20"
+      },
+      "expected": {
+        "saved_cents": 15000,
+        "remaining_cents": 45000,
+        "reached": false,
+        "months_remaining": 0,
+        "monthly_pace_cents": 45000,
+        "overdue": true
+      }
+    },
+    {
+      "name": "a target today still has one funding period",
+      "input": {
+        "funding_mode": "allocations",
+        "target_amount_cents": 60000,
+        "account_balance_cents": 0,
+        "allocation_cents": [
+          15000
+        ],
+        "target_date": "2026-09-20",
+        "today": "2026-09-20"
+      },
+      "expected": {
+        "saved_cents": 15000,
+        "remaining_cents": 45000,
+        "reached": false,
+        "months_remaining": 1,
+        "monthly_pace_cents": 45000,
         "overdue": false
       }
     }

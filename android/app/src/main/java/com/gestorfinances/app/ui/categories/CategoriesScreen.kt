@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -83,6 +84,7 @@ import com.gestorfinances.app.ui.common.DeleteUndoHandler
 import com.gestorfinances.app.ui.common.LabeledSegmentedControl
 import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.MovementListItem
+import com.gestorfinances.app.ui.common.movementRowPosition
 import com.gestorfinances.app.ui.common.PageHeaderRow
 import com.gestorfinances.app.ui.common.RootPageHeader
 import com.gestorfinances.app.ui.common.PrimaryButton
@@ -1225,13 +1227,11 @@ private fun CategoryFlowContent(
                         .fillMaxWidth(),
                     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
                 ) {
-                    items(detail.entries) { movement ->
+                    itemsIndexed(detail.entries) { index, movement ->
                         MovementListItem(
                             movement = movement,
                             onClick = { onMovementDetail(movement) },
-                        )
-                        HorizontalDivider(
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                            position = movementRowPosition(index, detail.entries.size),
                         )
                     }
                 }

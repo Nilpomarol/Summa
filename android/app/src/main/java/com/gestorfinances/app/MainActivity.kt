@@ -311,6 +311,7 @@ private fun LedgerShell(
         ViewModelProvider(
             viewModelStoreOwner,
             AccountsViewModel.Factory(
+                goalRepository = appContainer.goalRepository,
                 accountRepository = appContainer.accountRepository,
                 movementRepository = appContainer.movementRepository,
                 templateRepository = appContainer.templateRepository,
@@ -767,6 +768,10 @@ private fun LedgerShell(
                 )
                 ManagementDestination.ACCOUNTS -> AccountsScreen(
                     viewModel = accountsViewModel,
+                    onViewGoals = { accountId ->
+                        goalsViewModel.showForAccount(accountId)
+                        nav = AppNavState.management(ManagementDestination.GOALS, nav.section).copy(previous = nav)
+                    },
                     onViewAnalysis = { accountId, accountName ->
                         analysisViewModel.setAccountFilter(accountId, accountName)
                         showTopLevel(TopLevelSection.ANALYSIS)

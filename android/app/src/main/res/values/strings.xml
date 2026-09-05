@@ -375,7 +375,6 @@
     <string name="movement_field_one_time">Despesa extraordinària</string>
     <string name="movement_one_time_badge">Extraordinària</string>
     <string name="movement_shared_badge">Compartit</string>
-    <string name="movement_amount_your_share_label">La teva part</string>
     <string name="movement_amount_accessibility_your_share">La teva part: %1$s. %2$s</string>
     <string name="movement_amount_accessibility_total">Total de la despesa: %1$s</string>
     <string name="movement_amount_accessibility_owes">Deus aquesta part de %1$s.</string>
@@ -389,7 +388,6 @@
     <string name="movement_amount_accessibility_refund">Devolució, entrada de diners: %1$s</string>
     <string name="movement_label_paid_by">Pagat per %1$s</string>
     <string name="movement_label_i_paid_for">He pagat per %1$s</string>
-    <string name="movement_label_shared">Compartit</string>
     <string name="movement_recurring_badge">Recurrent</string>
     <string name="movement_total_short">Total %1$s</string>
     <string name="movement_field_shared_support">Reparteix aquesta despesa amb altres persones.</string>
@@ -412,6 +410,7 @@
     <string name="movement_settlement_person_to_user">%1$s t\'ha pagat</string>
     <string name="movement_settlement_user_to_person">Has pagat %1$s</string>
     <string name="movement_transfer_accounts">%1$s → %2$s</string>
+    <string name="movement_transfer_to">→ %1$s</string>
     <string name="movement_destination_missing">sense destí</string>
     <string name="movement_save_new">Desa moviment</string>
     <string name="movement_save_changes">Desa canvis</string>
@@ -429,7 +428,6 @@
     <string name="movement_validation_category_invalid">La categoria no és compatible amb aquest tipus de moviment.</string>
 
     <!-- Dashboard -->
-    <string name="dashboard_title">Inici</string>
     <string name="dashboard_budget_title">Pressupost d’aquest mes</string>
     <string name="dashboard_month_spending_title">Despesa d’aquest mes</string>
     <string name="dashboard_net_flow">Flux net</string>
@@ -444,7 +442,6 @@
     <string name="dashboard_summary_expense">Despesa</string>
     <string name="dashboard_low_balance_banner">Saldo baix a %1$s: %2$s, per sota del llindar de %3$s.</string>
     <string name="dashboard_month_section_title">Aquest mes</string>
-    <string name="dashboard_categories_title">Per categoria</string>
     <string name="dashboard_categories_expenses">Despeses</string>
     <string name="dashboard_categories_income">Ingressos</string>
     <string name="dashboard_category_progress_accessibility">%1$s: %2$s del total</string>
@@ -737,7 +734,8 @@
     <string name="budget_status_warn">A prop del límit</string>
     <string name="budget_status_over">Superat</string>
     <string name="budget_forecast_amount">Estimació a final de mes: %1$s</string>
-    <string name="budget_forecast_final_amount">Estimació                s: %1$s</string>
+    <string name="budget_forecast_final_amount">Estimació a final de mes: %1$s</string>
+    <string name="budget_forecast_of_limit">de %1$s</string>
     <string name="budget_forecast_on_track">Dins de la previsió</string>
     <string name="budget_forecast_may_exceed">Pot superar-se en %1$s</string>
     <string name="budget_forecast_over">Superat en %1$s</string>
@@ -971,24 +969,24 @@
     <string name="goal_save_new">Crea l\'objectiu</string>
     <string name="goal_save_changes">Desa els canvis</string>
     <string name="goal_section_paused">En pausa</string>
-    <string name="goal_section_completed">Assolits</string>
-    <string name="goal_state_reached">Assolit</string>
+    <string name="goal_section_completed">Completats</string>
+    <string name="goal_state_reached">Import assolit</string>
     <string name="goal_pause">Posa en pausa</string>
     <string name="goal_resume">Reprèn</string>
-    <string name="goal_mark_completed">Marca com a assolit</string>
+    <string name="goal_mark_completed">Completa l\'objectiu</string>
     <string name="goal_empty_title">Encara no tens objectius</string>
     <string name="goal_empty_body">Un objectiu reserva diners que ja tens. No mou cap compte ni compta com a despesa o ingrés.</string>
     <string name="goal_saved_of_target">%1$s de %2$s</string>
     <string name="goal_remaining">En falten %1$s</string>
     <string name="goal_pace">Cal apartar %1$s al mes durant %2$d mesos, fins al %3$s</string>
     <string name="goal_pace_overdue">La data objectiu (%1$s) ja ha passat i encara en falten %2$s</string>
-    <string name="goal_mode_allocations">Assignacions</string>
-    <string name="goal_mode_dedicated">Compte dedicat</string>
-    <string name="goal_mode_allocations_with_account">Assignacions sobre %1$s</string>
+    <string name="goal_mode_allocations">Reserva una part</string>
+    <string name="goal_mode_dedicated">Tot un compte</string>
+    <string name="goal_mode_allocations_with_account">Compte per defecte: %1$s</string>
     <string name="goal_mode_dedicated_with_account">Compte dedicat: %1$s</string>
     <string name="goal_dedicated_explainer">El progrés segueix el valor del compte %1$s. No cal assignar-hi res.</string>
     <string name="goal_dedicated_hint">Tot el valor del compte compta per a aquest objectiu.</string>
-    <string name="goal_allocations_hint">Diversos objectius poden compartir un mateix compte.</string>
+    <string name="goal_allocations_hint">Pots reservar diners de diversos comptes. Aquest serà el compte seleccionat per defecte.</string>
     <string name="goal_account_none">Cap compte</string>
     <string name="goal_account_unallocated">A %1$s hi queden %2$s sense assignar</string>
     <string name="goal_field_name">Nom</string>
@@ -1003,12 +1001,12 @@
     <string name="goal_unallocated_supporting">El que queda lliure a cada compte després de les assignacions.</string>
     <string name="goal_allocations_title">Assignacions</string>
     <string name="goal_allocations_empty">Encara no hi ha assignacions.</string>
-    <string name="goal_allocation_add">Assigna diners</string>
-    <string name="goal_allocation_new_title">Nova assignació</string>
+    <string name="goal_allocation_add">Reserva diners</string>
+    <string name="goal_allocation_new_title">Reserva diners</string>
     <string name="goal_allocation_edit_title">Edita l\'assignació</string>
     <string name="goal_allocation_supporting">Assignar diners només els reserva. No mou el saldo del compte ni compta com a despesa, ingrés o deute.</string>
     <string name="goal_allocation_available">Disponible per assignar: %1$s</string>
-    <string name="goal_allocation_amount_hint">Un import negatiu allibera part del que tenies reservat.</string>
+    <string name="goal_allocation_amount_hint">Escriu un import positiu. Reservar o alliberar diners no crea cap moviment.</string>
     <string name="goal_field_allocation_amount">Import</string>
     <string name="goal_field_allocation_date">Data</string>
     <string name="goal_over_allocation_warning">Al compte només hi queden %1$s sense assignar: t\'hi passes %2$s. Pots continuar igualment.</string>
@@ -1018,7 +1016,20 @@
     <string name="goal_validation_name_required">Escriu un nom per a l\'objectiu.</string>
     <string name="goal_validation_target_positive">L\'import objectiu ha de ser més gran que zero.</string>
     <string name="goal_validation_account_required">Tria un compte.</string>
-    <string name="goal_validation_allocation_nonzero">Escriu un import diferent de zero.</string>
+    <string name="goal_validation_allocation_nonzero">Escriu un import positiu.</string>
     <string name="goal_validation_date_required">Tria una data.</string>
-    <string name="goal_validation_release_too_large">No pots alliberar més diners dels que aquest objectiu té reservats.</string>
+    <string name="goal_validation_release_too_large">No pots alliberar més diners dels que aquest objectiu té reservats en aquest compte.</string>
+    <string name="goal_release">Allibera diners</string>
+    <string name="goal_field_default_account">Compte per defecte (opcional)</string>
+    <string name="goal_optional_options">Data i personalització (opcional)</string>
+    <string name="goal_inactive_explainer">Els diners continuen reservats. Pots alliberar-los quan els necessitis; completar o pausar no mou diners.</string>
+    <string name="goal_shortfall">A %1$s falten %2$s per cobrir els diners reservats. Revisa les reserves o el saldo del compte.</string>
+    <string name="goal_delete_allocation_invalid">Aquesta acció deixaria més diners alliberats que reservats en un compte. Ajusta primer les reserves o els alliberaments.</string>
+    <string name="goal_funding_conflict">Aquest compte ja té diners reservats o està dedicat a un altre objectiu. Allibera les reserves o tria un altre compte.</string>
+    <string name="goal_account_reservations">Reservat: %1$s · Sense reservar: %2$s</string>
+    <string name="goal_account_link">Veure objectius d’estalvi</string>
+    <string name="goal_account_dedicated">Compte dedicat a %1$s</string>
+    <string name="goal_status_change_explainer">Els diners continuaran reservats fins que els alliberis. No es crearà cap moviment.</string>
+    <string name="goal_available_release">Reservat en aquest compte: %1$s</string>
+    <string name="goal_saving">Desant…</string>
 </resources>

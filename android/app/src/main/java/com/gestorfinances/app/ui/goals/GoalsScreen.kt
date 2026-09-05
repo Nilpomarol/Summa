@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -102,8 +103,12 @@ fun GoalsScreen(
                 onEdit = { viewModel.onEditClicked(goal) },
                 onStatusChange = { viewModel.onStatusChanged(goal, it) },
                 onAddAllocation = { viewModel.onAddAllocationClicked(goal) },
+                onRelease = { viewModel.onAddAllocationClicked(goal, release = true) },
+                detail = detail,
+                accountAllocations = state.accountAllocations,
+                onRetry = { viewModel.onGoalClicked(goal) },
                 onEditAllocation = viewModel::onEditAllocationClicked,
-                onDeleteAllocation = viewModel::onDeleteAllocationClicked,
+                onDeleteAllocation = { viewModel.onDeleteAllocationClicked(it, onDeleteCommitted) },
             )
         }
     }
@@ -139,6 +144,8 @@ fun GoalsScreen(
             form = form,
             accounts = state.accounts.filter { it.id !in state.dedicatedAccountIds },
             accountAllocations = state.accountAllocations,
+            reservations = state.detail?.reservations.orEmpty(),
+            editingAllocation = state.detail?.allocations?.firstOrNull { it.id == form.id },
             onFormChange = viewModel::onAllocationFormChanged,
             onDismiss = requestFormDismissal,
             onSave = { viewModel.onSaveAllocationClicked() },
@@ -181,7 +188,10 @@ private fun GoalsContent(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            RootPageHeader(title = stringResource(R.string.goal_list_title))
+            RootPageHeader(
+                title = stringResource(R.string.goal_list_title),
+                trailing = { TextButton(onClick = onAdd) { Text(stringResource(R.string.goal_list_add)) } },
+            )
         }
 
         state.errorMessage?.let { message ->
@@ -194,21 +204,31 @@ private fun GoalsContent(
             }
         }
 
-        if (state.allocatedAccounts.isNotEmpty()) {
-            item {
-                UnallocatedCard(
-                    allocations = state.allocatedAccounts,
-                    accounts = state.accounts,
-                )
-            }
+        state.actionErrorRes?.let { error ->
+            item { InlineBanner(kind = BannerKind.Error, text = stringResource(error)) }
         }
-
+        if (state.isLoading) {
+            item { CircularProgressIndicator() }
+        }
+        state.accountFilterId?.let { id ->
+            item { Text(text = state.accounts.firstOrNull { it.id == id }?.name.orEmpty(), style = MaterialTheme.typography.titleMedium) }
+        }
         goalSection(
             titleRes = null,
             goals = state.activeGoals,
             today = state.today,
             onGoalClicked = onGoalClicked,
         )
+        val allocatedAccounts = state.allocatedAccounts.filter { state.accountFilterId == null || it.accountId == state.accountFilterId }
+        if (allocatedAccounts.isNotEmpty()) {
+            item {
+                UnallocatedCard(
+                    allocations = allocatedAccounts,
+                    accounts = state.accounts,
+                )
+            }
+        }
+
         goalSection(
             titleRes = R.string.goal_section_paused,
             goals = state.pausedGoals,
@@ -222,16 +242,8 @@ private fun GoalsContent(
             onGoalClicked = onGoalClicked,
         )
 
-        if (state.goals.isEmpty() && !state.isLoading) {
+        if (state.visibleGoals.isEmpty() && !state.isLoading && state.errorMessage == null) {
             item { GoalsEmptyCard(onAdd = onAdd) }
-        } else {
-            item {
-                PrimaryButton(
-                    text = stringResource(R.string.goal_list_add),
-                    onClick = onAdd,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
         }
     }
 }
@@ -280,7 +292,9 @@ private fun GoalCard(
                         color = FinanceTheme.colors.mutedText,
                     )
                 }
-                if (progress.reached) {
+                if (goal.status == GoalStatus.COMPLETED) {
+                    NeutralPill(text = stringResource(R.string.goal_section_completed))
+                } else if (progress.reached) {
                     NeutralPill(text = stringResource(R.string.goal_state_reached))
                 }
             }
@@ -288,9 +302,9 @@ private fun GoalCard(
                 fraction = progressFraction(progress.savedCents, goal.targetAmountCents),
                 color = MaterialTheme.colorScheme.primary,
             )
-            Row(
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Text(
                     text = stringResource(
@@ -300,7 +314,7 @@ private fun GoalCard(
                     ),
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                if (!progress.reached) {
+                if (!progress.reached && goal.status == GoalStatus.ACTIVE) {
                     Text(
                         text = stringResource(
                             R.string.goal_remaining,
@@ -394,6 +408,10 @@ private fun GoalDetailSheet(
     onEdit: () -> Unit,
     onStatusChange: (GoalStatus) -> Unit,
     onAddAllocation: () -> Unit,
+    onRelease: () -> Unit,
+    detail: GoalDetailState,
+    accountAllocations: Map<String, AccountAllocation>,
+    onRetry: () -> Unit,
     onEditAllocation: (GoalAllocation) -> Unit,
     onDeleteAllocation: (GoalAllocation) -> Unit,
 ) {
@@ -426,7 +444,7 @@ private fun GoalDetailSheet(
                 ),
                 style = MaterialTheme.typography.bodyMedium,
             )
-            if (!progress.reached) {
+            if (!progress.reached && goal.status == GoalStatus.ACTIVE) {
                 Text(
                     text = stringResource(
                         R.string.goal_remaining,
@@ -441,6 +459,21 @@ private fun GoalDetailSheet(
                     kind = if (progress.overdue) BannerKind.Alert else BannerKind.Info,
                     text = pace,
                 )
+            }
+            if (goal.status != GoalStatus.ACTIVE) {
+                InlineBanner(kind = BannerKind.Info, text = stringResource(R.string.goal_inactive_explainer))
+            }
+            detail.errorRes?.let {
+                InlineBanner(kind = BannerKind.Error, text = stringResource(it), actionLabel = stringResource(R.string.common_retry), onAction = onRetry)
+            }
+            if (detail.isLoading) CircularProgressIndicator()
+            detail.reservations.filterValues { it > 0L }.keys.forEach { accountId ->
+                accountAllocations[accountId]?.takeIf { it.unallocatedCents < 0 }?.let { shortage ->
+                    InlineBanner(kind = BannerKind.Alert, text = stringResource(
+                        R.string.goal_shortfall, allocations.first { it.accountId == accountId }.accountName,
+                        formatEuroCents(-shortage.unallocatedCents),
+                    ))
+                }
             }
             if (goal.fundingMode == GoalFundingMode.DEDICATED_ACCOUNT) {
                 Text(
@@ -463,8 +496,12 @@ private fun GoalDetailSheet(
                         color = FinanceTheme.colors.mutedText,
                     )
                 }
+                if (goal.status == GoalStatus.ACTIVE) {
+                    PrimaryButton(text = stringResource(R.string.goal_allocation_add), onClick = onAddAllocation, modifier = Modifier.fillMaxWidth())
+                }
+                SecondaryButton(text = stringResource(R.string.goal_release), onClick = onRelease, modifier = Modifier.fillMaxWidth(), enabled = progress.savedCents > 0)
                 SectionHeader(title = stringResource(R.string.goal_allocations_title))
-                if (allocations.isEmpty()) {
+                if (allocations.isEmpty() && !detail.isLoading) {
                     Text(
                         text = stringResource(R.string.goal_allocations_empty),
                         style = MaterialTheme.typography.bodyMedium,
@@ -478,12 +515,9 @@ private fun GoalDetailSheet(
                         onDelete = { onDeleteAllocation(allocation) },
                     )
                 }
-                SecondaryButton(
-                    text = stringResource(R.string.goal_allocation_add),
-                    onClick = onAddAllocation,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+
             }
+            Text(stringResource(R.string.goal_status_change_explainer), style = MaterialTheme.typography.bodySmall, color = FinanceTheme.colors.mutedText)
             HorizontalDivider(color = FinanceTheme.colors.cardBorder)
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -494,7 +528,7 @@ private fun GoalDetailSheet(
                     onClick = { onStatusChange(goal.status.next()) },
                     modifier = Modifier.weight(1f),
                 )
-                PrimaryButton(
+                SecondaryButton(
                     text = stringResource(R.string.goal_edit),
                     onClick = onEdit,
                     modifier = Modifier.weight(1f),
@@ -565,6 +599,7 @@ private fun GoalFormSheet(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .weight(1f)
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 20.dp)
                     .navigationBarsPadding()
@@ -620,13 +655,6 @@ private fun GoalFormSheet(
                     modifier = Modifier.fillMaxWidth().scrollToWhen(targetError),
                 )
 
-                FormDatePicker(
-                    label = stringResource(R.string.goal_field_target_date),
-                    date = form.targetDate,
-                    onDateChange = { onFormChange(form.copy(targetDate = it)) },
-                    onClear = { onFormChange(form.copy(targetDate = "")) },
-                )
-
                 GoalFundingModeSelector(
                     selected = form.fundingMode,
                     onSelect = { mode ->
@@ -659,7 +687,7 @@ private fun GoalFormSheet(
                         if (form.fundingMode == GoalFundingMode.DEDICATED_ACCOUNT) {
                             R.string.goal_field_dedicated_account
                         } else {
-                            R.string.goal_field_allocation_account
+                            R.string.goal_field_default_account
                         },
                     ),
                     options = accountOptions,
@@ -681,51 +709,65 @@ private fun GoalFormSheet(
                     },
                 )
 
-                ColorPickerRow(
-                    label = stringResource(R.string.goal_field_color),
-                    selectedHex = form.color.ifBlank { null },
-                    onSelect = { onFormChange(form.copy(color = it)) },
-                )
-                IconPickerRow(
-                    label = stringResource(R.string.goal_field_icon),
-                    options = CategoryIconPalette,
-                    selectedKey = form.icon.ifBlank { null },
-                    onSelect = { onFormChange(form.copy(icon = it)) },
-                )
-                OutlinedTextField(
-                    value = form.notes,
-                    onValueChange = { onFormChange(form.copy(notes = it)) },
-                    label = { Text(text = stringResource(R.string.goal_field_notes)) },
-                    minLines = 2,
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-
-                HorizontalDivider(color = FinanceTheme.colors.cardBorder)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    if (form.id != null) {
-                        DestructiveButton(
-                            text = stringResource(R.string.common_archive),
-                            onClick = onDelete,
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                    SecondaryButton(
-                        text = stringResource(R.string.common_cancel),
-                        onClick = onDismiss,
-                        modifier = Modifier.weight(1f),
+                TextButton(onClick = { onFormChange(form.copy(showOptional = !form.showOptional)) }) {
+                    Text(stringResource(R.string.goal_optional_options))
+                }
+                if (form.showOptional) {
+                    FormDatePicker(
+                        label = stringResource(R.string.goal_field_target_date),
+                        date = form.targetDate,
+                        onDateChange = { onFormChange(form.copy(targetDate = it)) },
+                        onClear = { onFormChange(form.copy(targetDate = "")) },
                     )
-                    PrimaryButton(
-                        text = stringResource(
-                            if (form.id == null) R.string.goal_save_new else R.string.goal_save_changes,
-                        ),
-                        onClick = onSave,
+
+                    ColorPickerRow(
+                        label = stringResource(R.string.goal_field_color),
+                        selectedHex = form.color.ifBlank { null },
+                        onSelect = { onFormChange(form.copy(color = it)) },
+                    )
+                    IconPickerRow(
+                        label = stringResource(R.string.goal_field_icon),
+                        options = CategoryIconPalette,
+                        selectedKey = form.icon.ifBlank { null },
+                        onSelect = { onFormChange(form.copy(icon = it)) },
+                    )
+                    OutlinedTextField(
+                        value = form.notes,
+                        onValueChange = { onFormChange(form.copy(notes = it)) },
+                        label = { Text(text = stringResource(R.string.goal_field_notes)) },
+                        minLines = 2,
+                        shape = MaterialTheme.shapes.small,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+
+                }
+            }
+            HorizontalDivider(color = FinanceTheme.colors.cardBorder)
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp).navigationBarsPadding(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                if (form.id != null) {
+                    DestructiveButton(
+                        text = stringResource(R.string.common_archive),
+                        onClick = onDelete,
+                        enabled = !form.isSaving,
                         modifier = Modifier.weight(1f),
                     )
                 }
+                SecondaryButton(
+                    text = stringResource(R.string.common_cancel),
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f),
+                )
+                PrimaryButton(
+                    text = stringResource(
+                        if (form.isSaving) R.string.goal_saving else if (form.id == null) R.string.goal_save_new else R.string.goal_save_changes,
+                    ),
+                    onClick = onSave,
+                    enabled = !form.isSaving,
+                    modifier = Modifier.weight(1f),
+                )
             }
         }
     }
@@ -756,125 +798,139 @@ private fun AllocationFormSheet(
     form: AllocationFormState,
     accounts: List<AccountSummary>,
     accountAllocations: Map<String, AccountAllocation>,
+    reservations: Map<String, Long>,
+    editingAllocation: GoalAllocation?,
     onFormChange: (AllocationFormState) -> Unit,
     onDismiss: () -> Unit,
     onSave: () -> Unit,
     onConfirmOverAllocation: () -> Unit,
 ) {
     AppModalBottomSheet(onDismissRequest = onDismiss, maxHeightFraction = 0.84f) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-                .navigationBarsPadding()
-                .padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Text(
-                text = stringResource(
-                    if (form.id == null) {
-                        R.string.goal_allocation_new_title
-                    } else {
-                        R.string.goal_allocation_edit_title
-                    },
-                ),
-                style = MaterialTheme.typography.titleLarge,
-            )
-            Text(
-                text = stringResource(R.string.goal_allocation_supporting),
-                style = MaterialTheme.typography.bodySmall,
-                color = FinanceTheme.colors.mutedText,
-            )
-            form.errorMessage?.let {
-                InlineFailureBanner(diagnostic = it, messageRes = R.string.failure_save_goal_allocation)
-            }
-            if (form.errorField == null && form.errorRes != null) {
-                InlineBanner(kind = BannerKind.Error, text = stringResource(form.errorRes))
-            }
-            form.overAllocation?.let { warning ->
-                InlineBanner(
-                    kind = BannerKind.Alert,
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f, fill = false)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp)
+                    .navigationBarsPadding()
+                    .padding(bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Text(
                     text = stringResource(
-                        R.string.goal_over_allocation_warning,
-                        formatEuroCents(warning.availableCents),
-                        formatEuroCents(warning.excessCents),
+                        if (form.release) {
+                            R.string.goal_release
+                        } else if (form.id == null) {
+                            R.string.goal_allocation_new_title
+                        } else {
+                            R.string.goal_allocation_edit_title
+                        },
                     ),
-                    actionLabel = stringResource(R.string.goal_over_allocation_confirm),
-                    onAction = onConfirmOverAllocation,
+                    style = MaterialTheme.typography.titleLarge,
                 )
-            }
+                Text(
+                    text = stringResource(R.string.goal_allocation_supporting),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = FinanceTheme.colors.mutedText,
+                )
+                form.errorMessage?.let {
+                    InlineFailureBanner(diagnostic = it, messageRes = R.string.failure_save_goal_allocation)
+                }
+                if (form.errorField == null && form.errorRes != null) {
+                    InlineBanner(kind = BannerKind.Error, text = stringResource(form.errorRes))
+                }
+                form.overAllocation?.let { warning ->
+                    InlineBanner(
+                        kind = BannerKind.Alert,
+                        text = stringResource(
+                            R.string.goal_over_allocation_warning,
+                            formatEuroCents(warning.availableCents),
+                            formatEuroCents(warning.excessCents),
+                        ),
+                        actionLabel = stringResource(R.string.goal_over_allocation_confirm),
+                        onAction = onConfirmOverAllocation,
+                        modifier = Modifier.scrollToWhen(true),
+                    )
+                }
 
-            val accountError = form.errorField == AllocationFormField.ACCOUNT
-            FormSelect(
-                label = stringResource(R.string.goal_field_allocation_account),
-                options = accounts.map { account ->
-                    SelectOption(id = account.id, label = account.name)
-                },
-                selectedId = form.accountId,
-                onSelect = { onFormChange(form.copy(accountId = it)) },
-                modifier = Modifier.scrollToWhen(accountError),
-                isError = accountError,
-                supportingText = if (accountError && form.errorRes != null) {
-                    stringResource(form.errorRes)
-                } else {
-                    form.accountId
-                        ?.let { accountAllocations[it] }
-                        ?.let {
-                            stringResource(
-                                R.string.goal_allocation_available,
-                                formatEuroCents(it.unallocatedCents),
-                            )
+                if (form.id != null) {
+                    com.gestorfinances.app.ui.common.SegmentedControl(
+                        options = listOf(false, true), selected = form.release,
+                        label = { stringResource(if (it) R.string.goal_release else R.string.goal_allocation_add) },
+                        onSelect = { onFormChange(form.copy(release = it)) },
+                    )
+                }
+                val accountError = form.errorField == AllocationFormField.ACCOUNT
+                FormSelect(
+                    label = stringResource(R.string.goal_field_allocation_account),
+                    options = accounts.map { account ->
+                        SelectOption(id = account.id, label = account.name,
+                            enabled = !form.release || (reservations[account.id] ?: 0L) > 0 || editingAllocation?.accountId == account.id)
+                    },
+                    selectedId = form.accountId,
+                    onSelect = { onFormChange(form.copy(accountId = it)) },
+                    modifier = Modifier.scrollToWhen(accountError),
+                    isError = accountError,
+                    supportingText = if (accountError && form.errorRes != null) {
+                        stringResource(form.errorRes)
+                    } else {
+                        form.accountId?.let { accountId ->
+                            val replaced = editingAllocation?.takeIf { it.accountId == accountId }?.amountCents ?: 0L
+                            val amount = if (form.release) (reservations[accountId] ?: 0L) - replaced
+                                else (accountAllocations[accountId]?.unallocatedCents ?: 0L) + replaced
+                            stringResource(if (form.release) R.string.goal_available_release else R.string.goal_allocation_available, formatEuroCents(amount))
                         }
-                },
-            )
+                    },
+                )
 
-            val amountError = form.errorField == AllocationFormField.AMOUNT
-            OutlinedTextField(
-                value = form.amount,
-                onValueChange = { onFormChange(form.copy(amount = it)) },
-                label = { Text(text = stringResource(R.string.goal_field_allocation_amount)) },
-                prefix = { Text(text = "€") },
-                singleLine = true,
-                isError = amountError,
-                supportingText = if (amountError && form.errorRes != null) {
-                    { Text(text = stringResource(form.errorRes)) }
-                } else {
-                    { Text(text = stringResource(R.string.goal_allocation_amount_hint)) }
-                },
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Decimal,
-                    imeAction = ImeAction.Done,
-                ),
-                keyboardActions = doneKeyboardActions(onSave),
-                shape = MaterialTheme.shapes.small,
-                modifier = Modifier.fillMaxWidth().scrollToWhen(amountError),
-            )
+                val amountError = form.errorField == AllocationFormField.AMOUNT
+                OutlinedTextField(
+                    value = form.amount,
+                    onValueChange = { onFormChange(form.copy(amount = it)) },
+                    label = { Text(text = stringResource(R.string.goal_field_allocation_amount)) },
+                    prefix = { Text(text = "€") },
+                    singleLine = true,
+                    isError = amountError,
+                    supportingText = if (amountError && form.errorRes != null) {
+                        { Text(text = stringResource(form.errorRes)) }
+                    } else {
+                        { Text(text = stringResource(R.string.goal_allocation_amount_hint)) }
+                    },
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Decimal,
+                        imeAction = ImeAction.Done,
+                    ),
+                    keyboardActions = doneKeyboardActions(onSave),
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.fillMaxWidth().scrollToWhen(amountError),
+                )
 
-            val dateError = form.errorField == AllocationFormField.DATE
-            FormDatePicker(
-                label = stringResource(R.string.goal_field_allocation_date),
-                date = form.date,
-                onDateChange = { onFormChange(form.copy(date = it)) },
-                modifier = Modifier.scrollToWhen(dateError),
-                isError = dateError,
-                supportingText = if (dateError && form.errorRes != null) {
-                    stringResource(form.errorRes)
-                } else null,
-            )
+                val dateError = form.errorField == AllocationFormField.DATE
+                FormDatePicker(
+                    label = stringResource(R.string.goal_field_allocation_date),
+                    date = form.date,
+                    onDateChange = { onFormChange(form.copy(date = it)) },
+                    modifier = Modifier.scrollToWhen(dateError),
+                    isError = dateError,
+                    supportingText = if (dateError && form.errorRes != null) {
+                        stringResource(form.errorRes)
+                    } else null,
+                )
 
-            OutlinedTextField(
-                value = form.notes,
-                onValueChange = { onFormChange(form.copy(notes = it)) },
-                label = { Text(text = stringResource(R.string.goal_field_notes)) },
-                minLines = 2,
-                shape = MaterialTheme.shapes.small,
-                modifier = Modifier.fillMaxWidth(),
-            )
+                OutlinedTextField(
+                    value = form.notes,
+                    onValueChange = { onFormChange(form.copy(notes = it)) },
+                    label = { Text(text = stringResource(R.string.goal_field_notes)) },
+                    minLines = 2,
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.fillMaxWidth(),
+                )
 
+            }
             HorizontalDivider(color = FinanceTheme.colors.cardBorder)
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp).navigationBarsPadding(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 SecondaryButton(
@@ -883,8 +939,9 @@ private fun AllocationFormSheet(
                     modifier = Modifier.weight(1f),
                 )
                 PrimaryButton(
-                    text = stringResource(R.string.common_save),
+                    text = stringResource(if (form.isSaving) R.string.goal_saving else R.string.common_save),
                     onClick = onSave,
+                    enabled = !form.isSaving,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -906,7 +963,7 @@ private fun GoalSummary.fundingModeLabel(): String =
 
 @Composable
 private fun paceText(goal: GoalSummary, progress: GoalProgress): String? {
-    if (goal.targetDate == null || progress.reached) return null
+    if (goal.targetDate == null || progress.reached || goal.status != GoalStatus.ACTIVE) return null
     val targetDate = formatCompactDate(goal.targetDate)
     return if (progress.overdue) {
         stringResource(R.string.goal_pace_overdue, targetDate, formatEuroCents(progress.remainingCents))
@@ -940,4 +997,4 @@ private fun GoalFormState.compareValues(): List<Any?> =
     listOf(name, target, targetDate, accountId, fundingMode, icon, color, notes)
 
 private fun AllocationFormState.compareValues(): List<Any?> =
-    listOf(accountId, date, amount, notes)
+    listOf(accountId, date, amount, notes, release)

@@ -19,12 +19,25 @@ fun formatCompactDate(iso: String): String =
 fun formatCompactDate(date: LocalDate): String =
     "${date.dayOfMonth} ${shortMonth(date)} ${date.year}"
 
-/** Expanded Catalan date used in detail surfaces, e.g. `30 de juny de 2025`. */
+/**
+ * Compact date for dense lists, dropping the year while it is the current one — `30 jun.` this
+ * year, `30 jun. 2025` in any other. In a list where nearly every row is recent, a repeated
+ * current year is noise that crowds out the rest of the line.
+ */
+fun formatCompactDateRelative(iso: String, today: LocalDate = LocalDate.now()): String {
+    val date = parseIsoDateOrNull(iso) ?: return INVALID_DATE_LABEL
+    return formatCompactDate(date, includeYear = date.year != today.year)
+}
+
+/**
+ * Expanded Catalan date used in detail surfaces, e.g. `30 de juny de 2025` — and
+ * `3 d'agost de 2025` before a vowel, where the article elides.
+ */
 fun formatExpandedDate(iso: String): String =
     parseIsoDateOrNull(iso)?.let(::formatExpandedDate) ?: INVALID_DATE_LABEL
 
 fun formatExpandedDate(date: LocalDate): String =
-    "${date.dayOfMonth} de ${fullMonth(date)} de ${date.year}"
+    "${date.dayOfMonth} ${monthWithArticle(date)} de ${date.year}"
 
 /**
  * Catalan month name only, capitalized, e.g. `Juny`. Uses the standalone form so it reads "Juny"
@@ -36,6 +49,26 @@ fun formatMonth(month: YearMonth): String =
 
 /** Catalan month + year, capitalized, e.g. `Juny 2025`. */
 fun formatMonthYear(month: YearMonth): String = "${formatMonth(month)} ${month.year}"
+
+/**
+ * Catalan weekday, day and month written out, e.g. `Dijous, 3 de setembre` — and `Dijous, 3
+ * d'agost` before a vowel, where the article elides. The year is left out: this is a "today"
+ * label, so the year is noise.
+ */
+fun formatWeekdayLongDate(date: LocalDate): String {
+    val weekday = date.dayOfWeek.getDisplayName(TextStyle.FULL_STANDALONE, catalanLocale)
+        .replaceFirstChar { it.uppercase() }
+    return "$weekday, ${date.dayOfMonth} ${monthWithArticle(date)}"
+}
+
+/**
+ * The month written out behind its article, which elides before a vowel: `de setembre`, but
+ * `d'abril`, `d'agost`, `d'octubre`. Kept in one place so both written-out date formats agree.
+ */
+private fun monthWithArticle(date: LocalDate): String {
+    val month = fullMonth(date)
+    return if (month.first().lowercaseChar() in "aeiou") "d'$month" else "de $month"
+}
 
 private fun shortMonth(date: LocalDate): String =
     date.month.getDisplayName(TextStyle.SHORT_STANDALONE, catalanLocale)

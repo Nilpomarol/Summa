@@ -81,6 +81,7 @@ import com.gestorfinances.app.ui.common.InlineFailureBanner
 import com.gestorfinances.app.ui.common.LabeledSegmentedControl
 import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.MovementListItem
+import com.gestorfinances.app.ui.common.movementRowPosition
 import com.gestorfinances.app.ui.common.AppModalBottomSheet
 import com.gestorfinances.app.ui.common.DeleteUndoHandler
 import com.gestorfinances.app.ui.common.PageHeaderRow
@@ -669,10 +670,8 @@ private fun PersonDetailScreen(
                             movement = entry.movement,
                             onClick = { onOpenDebtSource(entry.item.sourceId) },
                             personEffectCents = entry.item.effectCents,
+                            position = movementRowPosition(index, detail.history.size),
                         )
-                        if (index < detail.history.lastIndex) {
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                        }
                     }
                 }
             }

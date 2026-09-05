@@ -6,7 +6,10 @@ import androidx.compose.ui.text.googlefonts.Font
 import androidx.compose.ui.text.googlefonts.GoogleFont
 import com.gestorfinances.app.R
 
-// Geist for the interface, IBM Plex Mono for ledger figures.
+// Schibsted Grotesk for the interface, JetBrains Mono for ledger figures — a clean, confident
+// Nordic-newspaper grotesque with a precise coding monospace for figures. Note: JetBrains Mono's
+// zero is dotted by default (its built-in disambiguation from "O"); if that reads as a stray mark
+// on money figures, swap LedgerMonoFontFamily to a plain-zero mono (Red Hat Mono, Martian Mono).
 // Loaded as downloadable Google Fonts; if the provider/network is unavailable the
 // platform default is used as a graceful fallback (tabular numerals on figures still
 // apply via fontFeatureSettings = "tnum" in the typography).
@@ -16,8 +19,8 @@ private val googleFontProvider = GoogleFont.Provider(
     certificates = R.array.com_google_android_gms_fonts_certs,
 )
 
-private val geist = GoogleFont("Geist")
-private val ibmPlexMono = GoogleFont("IBM Plex Mono")
+private val schibstedGrotesk = GoogleFont("Schibsted Grotesk")
+private val jetBrainsMono = GoogleFont("JetBrains Mono")
 
 private fun googleFamily(font: GoogleFont): FontFamily =
     FontFamily(
@@ -26,8 +29,8 @@ private fun googleFamily(font: GoogleFont): FontFamily =
         Font(googleFont = font, fontProvider = googleFontProvider, weight = FontWeight.SemiBold),
     )
 
-/** Geist — interface typeface. */
-internal val GeistFontFamily: FontFamily = googleFamily(geist)
+/** Schibsted Grotesk — interface typeface. */
+internal val InterfaceFontFamily: FontFamily = googleFamily(schibstedGrotesk)
 
-/** IBM Plex Mono — ledger figures, used with tabular numerals. */
-internal val LedgerMonoFontFamily: FontFamily = googleFamily(ibmPlexMono)
+/** JetBrains Mono — ledger figures, used with tabular numerals. */
+internal val LedgerMonoFontFamily: FontFamily = googleFamily(jetBrainsMono)

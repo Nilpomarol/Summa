@@ -11,7 +11,7 @@ Past redesign plans, audits, remediation checklists, phase labels, and unchecked
 The current Android shell uses:
 
 - root destinations `Inici`, `Moviments`, centered new-movement action, `Anàlisi`, and `Més`;
-- a Més sheet for accounts, categories, people, trips, recurring activity, budgets, and settings;
+- a Més sheet for accounts, categories, people, trips, recurring activity, budgets, savings goals, and settings;
 - an intentionally compact, single-page Analysis overview for month, year, and all-time periods, without legacy tabs or drill-down navigation;
 - focused full-page movement, trip, and contextual flows;
 - Compose components and semantic colours built from the shared token file;

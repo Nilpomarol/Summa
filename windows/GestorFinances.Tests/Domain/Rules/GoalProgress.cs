@@ -46,8 +46,8 @@ public static class GoalProgress
         }
 
         // Calendar months are counted inclusively from today's month through the target's month,
-        // so a target inside the current month still leaves one month to fund it.
-        var monthsRemaining = MonthsBetween(input.Today, targetDate) + 1;
+        // so a target today or later this month leaves one period; past dates leave none.
+        var monthsRemaining = targetDate < input.Today ? 0 : MonthsBetween(input.Today, targetDate) + 1;
         if (monthsRemaining < 0)
         {
             monthsRemaining = 0;

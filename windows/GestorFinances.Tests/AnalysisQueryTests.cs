@@ -18,12 +18,13 @@ public sealed class AnalysisQueryTests
     private const string To = "2026-07-01";
 
     [TestMethod]
-    public void EveryAnalysisQueryFileIsCovered()
+    public void EveryParameterizedQueryFileIsCovered()
     {
         // Guards against adding a shared analysis query that the harness does not wire in:
         // the files on disk must match the AnalysisFiles list this suite executes.
         var onDisk = Directory
-            .GetFiles(Path.Combine(SharedSql.RepositoryRoot, "shared", "queries"), "analysis_*.sql")
+            .GetFiles(Path.Combine(SharedSql.RepositoryRoot, "shared", "queries"), "*.sql")
+            .Where(path => !Path.GetFileName(path).StartsWith("v_", StringComparison.Ordinal))
             .Select(Path.GetFileName)
             .ToArray();
 

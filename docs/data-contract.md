@@ -15,7 +15,7 @@ Android consumes the SQL through SQLDelight. Windows uses Microsoft.Data.Sqlite 
 
 ## Schema snapshot
 
-The current schema version is `12`. Principal tables are:
+The current schema version is `14`. Principal tables are:
 
 | Area | Tables |
 |---|---|
@@ -50,7 +50,7 @@ Application validation should mirror important database constraints to provide u
 | `v_actual_income` | User-owned income |
 | `v_person_balance` | Derived debt direction and amount per person |
 | `v_movement_shared` | Shared-movement helper data |
-| `v_movement_summary` | Unified movement/external-split list and detail projection |
+| `v_movement_summary` | Unified movement/external-split list and detail projection. Carries the account's, the destination account's and the trip's own colour alongside their names; the external-split branch has no accounts, so both account colours are `NULL` there |
 | `v_trip_actual_total` | Derived actual expense per trip |
 | `v_goal_allocation` | Signed sum of a goal's active planning allocations |
 | `v_goal_progress` | Saved and remaining cents per goal, by funding mode |
@@ -65,7 +65,9 @@ Balances, debt, actual values, and flow must come from these views or shared que
 - An allocation is a dated, signed, non-zero reservation against one account. Positive reserves, negative releases. Allocations are never ledger rows: they produce no movement, account flow, actual income or expense, debt, or net-worth change.
 - `v_account_allocation` reports each account's balance split into `allocated_cents` and `unallocated_cents`. Only non-archived allocation-mode goals reserve value, so archiving a goal releases its reservation and restoring it takes it back. Pausing or completing a goal keeps the money set aside.
 - Over-allocating is a dismissible warning, not an error: an account value can legitimately drop after the plan was made, and `unallocated_cents` may go negative. Releasing more than a goal holds is refused, because negative progress is meaningless.
-- An account dedicated to a goal does not also host allocations.
+- An account dedicated to a goal does not also host allocations. Repository mutations validate exclusivity transactionally, including restore and funding-mode changes.
+- `goal_account_allocations.sql` is the canonical reservation total per goal/account. Each account total must remain nonnegative through create, edit, delete, and restore; invalid mutations roll back. Changing funding mode requires zero outstanding reservations.
+- Monthly pace counts calendar months inclusively, rounding cents up. A target date before today has zero funding periods and is overdue unless already reached; a target today still has one period.
 
 ## Golden procedural rules
 
@@ -116,7 +118,7 @@ Any red golden test blocks delivery of a money-rule or shared-contract change.
 
 ## Approved pre-Windows contract changes
 
-Schema version `12` is the implemented authority. Savings goals have shipped and are described above with the rest of the contract. The remaining changes are approved targets; exact names may be refined during implementation, but their meanings and invariants are fixed by [pre-windows-plan.md](pre-windows-plan.md).
+Schema version `14` is the implemented authority. Savings goals have shipped and are described above with the rest of the contract. The remaining changes are approved targets; exact names may be refined during implementation, but their meanings and invariants are fixed by [pre-windows-plan.md](pre-windows-plan.md).
 
 ### Shared accounts
 

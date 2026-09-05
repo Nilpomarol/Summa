@@ -120,7 +120,7 @@ fun BudgetForecastCard(
 }
 
 @Composable
-private fun BudgetForecastStatusPill(
+internal fun BudgetForecastStatusPill(
     status: BudgetForecastStatus,
     remainingCents: Long,
     color: Color,
@@ -258,7 +258,7 @@ private fun ForecastBreakdownRow(label: String, cents: Long) {
 }
 
 @Composable
-private fun BudgetForecastExceptionRow(projection: BudgetProjection) {
+internal fun BudgetForecastExceptionRow(projection: BudgetProjection) {
     val name = projection.evaluation.budget.categoryName ?: return
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -305,7 +305,7 @@ fun BudgetProjection.recurringProgressFraction(): Float {
     return ((evaluation.actualCents + pendingRecurringCents).toFloat() / limit.toFloat()).coerceIn(0f, 1f)
 }
 
-private const val FORECAST_TONE_ALPHA = 0.42f
+internal const val FORECAST_TONE_ALPHA = 0.42f
 private const val RECURRING_TONE_ALPHA = 0.7f
 
 @Composable

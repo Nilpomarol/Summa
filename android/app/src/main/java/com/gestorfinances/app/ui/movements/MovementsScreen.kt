@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -79,6 +80,7 @@ import com.gestorfinances.app.ui.common.IconChip
 import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.InlineFailureBanner
 import com.gestorfinances.app.ui.common.MovementListItem
+import com.gestorfinances.app.ui.common.movementRowPosition
 import com.gestorfinances.app.ui.common.PrimaryButton
 import com.gestorfinances.app.ui.common.label
 import com.gestorfinances.app.ui.common.RootPageHeader
@@ -287,11 +289,11 @@ private fun MovementsContent(
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
             RootPageHeader(
                 title = stringResource(R.string.movement_list_title),
+                modifier = Modifier.padding(bottom = LIST_BLOCK_GAP),
                 trailing = {
                     if (state.accounts.isNotEmpty()) {
                         Box {
@@ -334,6 +336,7 @@ private fun MovementsContent(
                     diagnostic = message,
                     messageRes = R.string.failure_load_movements,
                     onRetry = onRetry,
+                    modifier = Modifier.padding(bottom = LIST_BLOCK_GAP),
                 )
             }
         }
@@ -349,35 +352,43 @@ private fun MovementsContent(
                     },
                     singleLine = true,
                     shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = LIST_BLOCK_GAP),
                 )
             }
             if (activeFilterCount > 0) {
                 item {
-                    ActiveMovementFilterRow(
-                        filters = state.filters,
-                        accounts = state.accounts,
-                        categories = state.categories,
-                        trips = state.trips,
-                        tags = state.tags,
-                        onFiltersChange = onFiltersChange,
-                    )
+                    Box(modifier = Modifier.padding(bottom = LIST_BLOCK_GAP)) {
+                        ActiveMovementFilterRow(
+                            filters = state.filters,
+                            accounts = state.accounts,
+                            categories = state.categories,
+                            trips = state.trips,
+                            tags = state.tags,
+                            onFiltersChange = onFiltersChange,
+                        )
+                    }
                 }
             }
             item {
-                MovementTypeFilterRow(
-                    selected = state.filters.type,
-                    onSelected = { onFiltersChange(state.filters.copy(type = it)) },
-                )
+                Box(modifier = Modifier.padding(bottom = LIST_BLOCK_GAP)) {
+                    MovementTypeFilterRow(
+                        selected = state.filters.type,
+                        onSelected = { onFiltersChange(state.filters.copy(type = it)) },
+                    )
+                }
             }
         }
 
         if (!state.isLoading && state.accounts.isEmpty()) {
             item {
-                InlineBanner(
-                    kind = BannerKind.Info,
-                    text = stringResource(R.string.movement_no_accounts_body),
-                )
+                Box(modifier = Modifier.padding(bottom = LIST_BLOCK_GAP)) {
+                    InlineBanner(
+                        kind = BannerKind.Info,
+                        text = stringResource(R.string.movement_no_accounts_body),
+                    )
+                }
             }
         }
 
@@ -395,11 +406,15 @@ private fun MovementsContent(
             visibleMovements.isEmpty() && state.accounts.isNotEmpty() -> item {
                 NoFilteredMovementsCard(onClearFilters = onClearFilters)
             }
-            else -> items(items = visibleMovements, key = { it.id }) { movement ->
+            else -> itemsIndexed(
+                items = visibleMovements,
+                key = { _, movement -> movement.id },
+            ) { index, movement ->
                 MovementListItem(
                     movement = movement,
                     showDate = true,
                     onClick = { onDetail(movement) },
+                    position = movementRowPosition(index, visibleMovements.size),
                 )
             }
         }
@@ -760,6 +775,9 @@ private fun MovementType.filterLabel(): String =
         MovementType.REFUND -> stringResource(R.string.movement_type_refund)
         MovementType.EXTERNAL_EXPENSE -> stringResource(R.string.movement_type_external)
     }
+
+/** Gap under each block above the movement ledger; the ledger's own rows meet without one. */
+private val LIST_BLOCK_GAP = 12.dp
 
 private val phaseOneTypes = listOf(
     MovementType.EXPENSE,

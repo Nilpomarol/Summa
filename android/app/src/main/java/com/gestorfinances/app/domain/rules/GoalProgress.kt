@@ -72,8 +72,8 @@ data class GoalProgress(
             }
 
             // Calendar months counted inclusively from this month through the target's month, so a
-            // target inside the current month still leaves one month to fund it.
-            val months = (monthsBetween(today, targetDate) + 1).coerceAtLeast(0)
+            // target today or later in this month leaves one period; past dates leave none.
+            val months = if (targetDate.isBefore(today)) 0 else (monthsBetween(today, targetDate) + 1)
             if (reached) {
                 return GoalProgress(
                     savedCents = savedCents,

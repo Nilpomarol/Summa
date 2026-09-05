@@ -1,5 +1,6 @@
 package com.gestorfinances.app.data.repository
 
+import com.gestorfinances.app.data.db.AnalysisQueries
 import com.gestorfinances.app.data.db.GoalsQueries
 import com.gestorfinances.app.domain.rules.GoalFundingMode
 import com.gestorfinances.app.domain.rules.GoalProgress
@@ -108,6 +109,7 @@ data class OverAllocationWarning(
 
 /** Raised when releasing more than a goal holds, which would leave it with negative progress. */
 class NegativeGoalAllocationException : IllegalArgumentException()
+class GoalFundingConflictException : IllegalArgumentException()
 
 /**
  * Savings goals and their planning allocations.
@@ -118,6 +120,7 @@ class NegativeGoalAllocationException : IllegalArgumentException()
  */
 class GoalRepository(
     private val queries: GoalsQueries,
+    private val contractQueries: AnalysisQueries,
 ) {
     fun listActive(): List<GoalSummary> =
         queries.activeGoalSummaries(::mapGoalSummary).executeAsList()
@@ -152,7 +155,26 @@ class GoalRepository(
             .mapNotNull { (_, accountId) -> accountId }
             .toSet()
 
-    fun create(draft: GoalDraft, createdAt: String) {
+    fun accountReservations(goalId: String): Map<String, Long> =
+        contractQueries.goalAccountAllocations(goalId) { accountId, cents -> accountId to (cents ?: 0L) }
+            .executeAsList().toMap()
+
+    private fun validateReservations(goalId: String) {
+        if (accountReservations(goalId).values.any { it < 0 }) throw NegativeGoalAllocationException()
+    }
+
+    private fun validateFunding() {
+        val goals = listActive()
+        val dedicated = goals.filter { it.fundingMode == GoalFundingMode.DEDICATED_ACCOUNT }
+        if (dedicated.map { it.accountId }.distinct().size != dedicated.size) throw GoalFundingConflictException()
+        dedicated.forEach { goal ->
+            if (accountReservations(goal.id).values.any { it != 0L } ||
+                (accountAllocation(requireNotNull(goal.accountId))?.allocatedCents ?: 0L) != 0L
+            ) throw GoalFundingConflictException()
+        }
+    }
+
+    fun create(draft: GoalDraft, createdAt: String) = queries.transaction {
         queries.insertGoal(
             id = draft.id,
             name = draft.name,
@@ -168,9 +190,13 @@ class GoalRepository(
             created_at = createdAt,
             updated_at = createdAt,
         )
+
+        validateFunding()
     }
 
-    fun update(draft: GoalDraft, updatedAt: String) {
+    fun update(draft: GoalDraft, updatedAt: String) = queries.transaction {
+        if (get(draft.id)?.fundingMode != draft.fundingMode && accountReservations(draft.id).values.any { it != 0L }) throw GoalFundingConflictException()
+
         queries.updateGoal(
             id = draft.id,
             name = draft.name,
@@ -184,6 +210,8 @@ class GoalRepository(
             notes = draft.notes,
             updated_at = updatedAt,
         )
+
+        validateFunding()
     }
 
     fun setStatus(id: String, status: GoalStatus, updatedAt: String) {
@@ -194,8 +222,10 @@ class GoalRepository(
         queries.archiveGoal(id = id, archived_at = archivedAt, updated_at = archivedAt)
     }
 
-    fun restore(id: String, deletedAt: String, restoredAt: String) {
+    fun restore(id: String, deletedAt: String, restoredAt: String) = queries.transaction {
         queries.restoreGoal(id = id, archived_at = deletedAt, updated_at = restoredAt)
+
+        validateFunding()
     }
 
     /**
@@ -208,16 +238,17 @@ class GoalRepository(
         amountCents: Long,
         replacingAllocationId: String? = null,
     ): OverAllocationWarning? {
-        if (amountCents <= 0) return null
         val account = accountAllocation(accountId) ?: return null
         val replaced = replacingAllocationId
             ?.let(::allocation)
             ?.takeIf { it.accountId == accountId }
             ?.amountCents
             ?: 0
-        val available = account.unallocatedCents + replaced
-        return if (amountCents > available) {
-            OverAllocationWarning(accountId, amountCents, available)
+        val additionalReservation = amountCents - replaced
+        if (additionalReservation <= 0) return null
+        val available = account.unallocatedCents
+        return if (additionalReservation > available) {
+            OverAllocationWarning(accountId, additionalReservation, available)
         } else {
             null
         }
@@ -227,8 +258,9 @@ class GoalRepository(
      * Adds a dated allocation. A negative amount releases part of the reservation and may not take
      * the goal below zero, which would be structurally meaningless rather than merely risky.
      */
-    fun allocate(draft: GoalAllocationDraft, createdAt: String) {
-        requireNonNegativeGoalTotal(draft.goalId, draft.amountCents)
+    fun allocate(draft: GoalAllocationDraft, createdAt: String) = queries.transaction {
+        if (get(draft.goalId)?.fundingMode != GoalFundingMode.ALLOCATIONS || draft.accountId in dedicatedAccountIds()) throw GoalFundingConflictException()
+
         queries.insertAllocation(
             id = draft.id,
             goal_id = draft.goalId,
@@ -239,11 +271,16 @@ class GoalRepository(
             created_at = createdAt,
             updated_at = createdAt,
         )
+
+        validateReservations(draft.goalId)
+        validateFunding()
     }
 
-    fun updateAllocation(draft: GoalAllocationDraft, updatedAt: String) {
-        val current = allocation(draft.id)?.amountCents ?: 0
-        requireNonNegativeGoalTotal(draft.goalId, draft.amountCents - current)
+    fun updateAllocation(draft: GoalAllocationDraft, updatedAt: String) = queries.transaction {
+        if (get(draft.goalId)?.fundingMode != GoalFundingMode.ALLOCATIONS || draft.accountId in dedicatedAccountIds()) throw GoalFundingConflictException()
+
+        val existing = requireNotNull(allocation(draft.id))
+        require(existing.goalId == draft.goalId)
         queries.updateAllocation(
             id = draft.id,
             account_id = draft.accountId,
@@ -252,21 +289,26 @@ class GoalRepository(
             notes = draft.notes,
             updated_at = updatedAt,
         )
+
+        validateReservations(draft.goalId)
+        validateFunding()
     }
 
-    fun archiveAllocation(id: String, archivedAt: String) {
+    fun archiveAllocation(id: String, archivedAt: String) = queries.transaction {
         queries.archiveAllocation(id = id, archived_at = archivedAt, updated_at = archivedAt)
+
+        queries.allocationGoalId(id).executeAsOneOrNull()?.let(::validateReservations)
+        validateFunding()
     }
 
-    fun restoreAllocation(id: String, deletedAt: String, restoredAt: String) {
+    fun restoreAllocation(id: String, deletedAt: String, restoredAt: String) = queries.transaction {
         queries.restoreAllocation(id = id, archived_at = deletedAt, updated_at = restoredAt)
+
+        queries.allocationGoalId(id).executeAsOneOrNull()?.let(::validateReservations)
+        validateFunding()
     }
 
-    private fun requireNonNegativeGoalTotal(goalId: String, deltaCents: Long) {
-        if (deltaCents >= 0) return
-        val saved = get(goalId)?.savedCents ?: 0
-        if (saved + deltaCents < 0) throw NegativeGoalAllocationException()
-    }
+
 }
 
 @Suppress("LongParameterList")

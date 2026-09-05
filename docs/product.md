@@ -17,6 +17,7 @@ The Android application currently supports:
 - recurring templates, due-instance confirmation, skipping, and recurrence suggestions;
 - central overall-month and category monthly/yearly budgets with forecasted spending, plus independent trip budgets;
 - trips, trip types, scoped tags, trip budgets, and trip analysis;
+- savings goals with dedicated accounts or manual reservations, progress, and target-date saving pace;
 - dashboard and a compact analysis overview for month, year, or all-time periods, with previous-period context and focused account, category, nature, extraordinary-expense, and trip-grouping filters;
 - a locally saved System, Light, or Dark appearance setting;
 - duplicate warnings;
@@ -74,7 +75,9 @@ Budgets evaluate actual expense over their active period: an optional overall mo
 
 ### Savings goals
 
-A goal reserves money the user already has; it never moves it. A goal either dedicates one account to itself, so its progress is that account's value, or reserves parts of an account through dated allocations, which lets several goals share one account. Assigning money changes no balance, actual value, debt, or net worth. Each account shows what is still unallocated, and reserving more than remains is a warning the user may accept.
+A goal reserves money the user already has; it never moves it. A goal either dedicates one account to itself, so its progress is that account's value, or reserves parts of an account through dated allocations, which lets several goals share one account. Assigning money changes no balance, actual value, debt, or net worth. Each account shows what is still unallocated, and reserving more than remains is a warning the user may accept. Accounts link to their goals; affected goal details explain funding shortfalls. The linked account of an allocation goal is a default, and reservations may come from multiple accounts.
+
+Reserving and releasing are explicit actions with positive amount entry. Pausing or completing retains reserved money and suppresses saving prompts; completing is distinct from reaching the target amount. A target is overdue on the day after its local target date. Allocation deletion offers Undo and cannot remove money already released. Dedicated accounts cannot simultaneously fund other reservations; changing funding mode requires releasing outstanding reservations first.
 
 ### Trips and tags
 

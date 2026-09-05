@@ -1,7 +1,8 @@
 package com.gestorfinances.app.ui.dashboard
 
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,7 +28,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.VerticalDivider
@@ -40,6 +40,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
@@ -52,37 +58,62 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountSummary
+import com.gestorfinances.app.data.repository.BudgetProjection
 import com.gestorfinances.app.data.repository.AnalysisCategoryTotal
 import com.gestorfinances.app.data.repository.MovementSummary
 import com.gestorfinances.app.data.repository.MovementType
 import com.gestorfinances.app.data.repository.TripSummary
 import com.gestorfinances.app.data.repository.icon
 import com.gestorfinances.app.ui.common.BannerKind
-import com.gestorfinances.app.ui.common.BudgetForecastCard
+import com.gestorfinances.app.ui.common.BudgetForecastExceptionRow
+import com.gestorfinances.app.ui.common.BudgetForecastStatusPill
+import com.gestorfinances.app.ui.common.FORECAST_TONE_ALPHA
+import com.gestorfinances.app.ui.common.actualProgressFraction
+import com.gestorfinances.app.ui.common.color
+import com.gestorfinances.app.ui.common.forecastProgressFraction
 import com.gestorfinances.app.ui.common.FinanceCard
 import com.gestorfinances.app.ui.common.IconChip
 import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.InlineFailureBanner
 import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.MovementListItem
-import com.gestorfinances.app.ui.common.RootPageHeader
-import com.gestorfinances.app.ui.common.DistributionSegment
-import com.gestorfinances.app.ui.common.SegmentedDistributionBar
+import com.gestorfinances.app.ui.common.movementRowPosition
 import com.gestorfinances.app.ui.common.SectionHeader
 import com.gestorfinances.app.ui.common.accountIcon
 import com.gestorfinances.app.ui.common.accountTypeIcon
 import com.gestorfinances.app.ui.common.categoryIcon
 import com.gestorfinances.app.ui.common.formatEuroCents
 import com.gestorfinances.app.ui.common.formatMonthYear
+import com.gestorfinances.app.ui.common.formatWeekdayLongDate
 import com.gestorfinances.app.ui.common.formatPercentLabel
 import com.gestorfinances.app.ui.movements.MovementFilters
 import com.gestorfinances.app.ui.movements.MovementSourceMode
 import com.gestorfinances.app.ui.theme.FinanceTheme
+import com.gestorfinances.app.ui.theme.asEyebrow
 import com.gestorfinances.app.ui.theme.categoryColor
+import com.gestorfinances.app.ui.theme.dataMarkColor
+import java.time.LocalDate
 import java.time.YearMonth
 
 /** Named slices of the monthly breakdown ring; everything past them is folded into one aggregate. */
 private const val DASHBOARD_NAMED_CATEGORIES = 4
+
+/** Secondary text and hairlines on the ink hero, as an alpha over its on-surface color. */
+private const val HERO_MUTED_ALPHA = 0.64f
+private const val HERO_RULE_ALPHA = 0.18f
+
+/** The month budget bar is the one chunky shape on the page, so it is deliberately thick. */
+private val BUDGET_BAR_HEIGHT = 14.dp
+
+/** The per-category share rules stay hairline-thin so they rank without competing with it. */
+private val CATEGORY_RULE_HEIGHT = 3.dp
+
+/**
+ * The share rule starts under its label rather than at the card edge (the icon chip plus its
+ * gap), so a full 100% rule reads as belonging to its row instead of mirroring the card divider.
+ */
+private val CATEGORY_RULE_INSET = 32.dp
+private val PillShape = RoundedCornerShape(percent = 50)
 
 @Composable
 fun DashboardScreen(
@@ -131,10 +162,10 @@ private fun DashboardContent(
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
-            RootPageHeader(title = stringResource(R.string.dashboard_title))
+            DashboardHeader(today = state.today)
         }
 
         state.errorMessage?.let { message ->
@@ -158,7 +189,7 @@ private fun DashboardContent(
         }
 
         item {
-            DashboardHeroCard(
+            DashboardHeroPanel(
                 state = state,
                 onAccountSelected = onAccountSelected,
                 onAccountAnalysis = onAccountAnalysis,
@@ -192,7 +223,7 @@ private fun DashboardContent(
         }
 
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 SectionHeader(
                     title = stringResource(R.string.dashboard_latest_movements_title),
                     trailing = {
@@ -208,15 +239,52 @@ private fun DashboardContent(
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 } else {
-                    state.latestMovements.forEach { movement ->
-                        MovementListItem(
-                            movement = movement,
-                            onClick = { onMovementDetail(movement) },
-                        )
+                    Column {
+                        state.latestMovements.forEachIndexed { index, movement ->
+                            MovementListItem(
+                                movement = movement,
+                                onClick = { onMovementDetail(movement) },
+                                position = movementRowPosition(index, state.latestMovements.size),
+                            )
+                        }
                     }
                 }
             }
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Page header — the wordmark and today's date, sharing one baseline
+// ---------------------------------------------------------------------------
+
+/**
+ * The dashboard header. It carries the app's name and today's date, set on a shared baseline so
+ * the size contrast alone does the hierarchy — no rule, no kicker.
+ *
+ * It deliberately does not repeat the page title: the bottom bar already marks "Inici" as the
+ * current tab, so a heading here would restate it, while the app's own name appears nowhere else.
+ */
+@Composable
+private fun DashboardHeader(today: LocalDate) {
+    Row(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = stringResource(R.string.app_name),
+            modifier = Modifier.alignByBaseline(),
+            style = MaterialTheme.typography.headlineMedium,
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = formatWeekdayLongDate(today),
+            modifier = Modifier
+                .alignByBaseline()
+                .weight(1f),
+            color = FinanceTheme.colors.mutedText,
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.End,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -227,33 +295,47 @@ private fun DashboardContent(
 /** Static month indicator: the dashboard always reflects the current month, so it is read-only. */
 @Composable
 private fun MonthIndicator(month: YearMonth) {
-    Surface(
-        shape = MaterialTheme.shapes.extraLarge,
-        color = MaterialTheme.colorScheme.surface,
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        border = BorderStroke(1.dp, FinanceTheme.colors.cardBorder),
+    val onInk = FinanceTheme.colors.heroOnSurface
+    Row(
+        modifier = Modifier
+            .clip(MaterialTheme.shapes.extraLarge)
+            .background(onInk.copy(alpha = 0.12f))
+            .heightIn(min = 32.dp)
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Row(
-            modifier = Modifier
-                .heightIn(min = 36.dp)
-                .padding(horizontal = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.CalendarMonth,
-                contentDescription = null,
-                tint = FinanceTheme.colors.mutedText,
-                modifier = Modifier.size(18.dp),
-            )
-            Text(
-                text = formatMonthYear(month),
-                style = MaterialTheme.typography.titleSmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
+        Icon(
+            imageVector = Icons.Outlined.CalendarMonth,
+            contentDescription = null,
+            tint = onInk.copy(alpha = HERO_MUTED_ALPHA),
+            modifier = Modifier.size(16.dp),
+        )
+        Text(
+            text = formatMonthYear(month),
+            color = onInk,
+            style = MaterialTheme.typography.labelLarge,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
+}
+
+/** Small, wide-tracked label above a figure on the ink hero. */
+@Composable
+private fun HeroEyebrow(text: String) {
+    Text(
+        text = text.uppercase(),
+        color = FinanceTheme.colors.heroOnSurface.copy(alpha = HERO_MUTED_ALPHA),
+        style = MaterialTheme.typography.labelSmall.asEyebrow(),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
+}
+
+@Composable
+private fun HeroDivider() {
+    HorizontalDivider(color = FinanceTheme.colors.heroOnSurface.copy(alpha = HERO_RULE_ALPHA))
 }
 
 // ---------------------------------------------------------------------------
@@ -261,24 +343,58 @@ private fun MonthIndicator(month: YearMonth) {
 // ---------------------------------------------------------------------------
 
 /**
- * The dashboard hero: one contained card that folds the account switcher, the current balance,
- * net worth, and the current month's totals into a single dense surface. The month indicator is
- * read-only; the balance and net worth reflect current standing.
+ * The dashboard hero: one ink panel that anchors the whole page. Everything about current
+ * standing (the account, its balance, net worth, and the running month totals) sits on a single
+ * dark plum surface, which lets the rest of the page stay quiet paper.
  */
 @Composable
-private fun DashboardHeroCard(
+private fun DashboardHeroPanel(
     state: DashboardUiState,
     onAccountSelected: (String) -> Unit,
     onAccountAnalysis: (AccountSummary) -> Unit,
     onDrillDown: (MovementFilters) -> Unit,
 ) {
-    FinanceCard(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            val account = state.mainAccount
+    val colors = FinanceTheme.colors
+    val shape = MaterialTheme.shapes.extraLarge
+    val account = state.mainAccount
 
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(
+                elevation = 20.dp,
+                shape = shape,
+                clip = false,
+                ambientColor = colors.cardShadow,
+                spotColor = colors.cardShadow,
+            )
+            .clip(shape)
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(colors.heroInkTop, colors.heroInkBottom),
+                    start = Offset.Zero,
+                    end = Offset.Infinite,
+                ),
+            )
+            .drawBehind {
+                // Off-centre glow, so the panel reads as lit rather than as a flat block.
+                val center = Offset(size.width * 0.86f, -size.height * 0.10f)
+                val radius = size.minDimension * 1.35f
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(colors.heroGlow.copy(alpha = 0.5f), Color.Transparent),
+                        center = center,
+                        radius = radius,
+                    ),
+                    radius = radius,
+                    center = center,
+                )
+            },
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -300,38 +416,18 @@ private fun DashboardHeroCard(
             if (account == null) {
                 Text(
                     text = stringResource(R.string.movement_no_accounts_body),
-                    color = FinanceTheme.colors.mutedText,
+                    color = colors.heroOnSurface.copy(alpha = HERO_MUTED_ALPHA),
                     style = MaterialTheme.typography.bodyMedium,
                 )
             } else {
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    AvailableBalance(
-                        account = account,
-                        onAccountAnalysis = { onAccountAnalysis(account) },
-                    )
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        Text(
-                            text = stringResource(R.string.dashboard_net_worth_label),
-                            color = FinanceTheme.colors.mutedText,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        MoneyText(
-                            cents = state.totals.netWorthCents,
-                            color = if (state.totals.netWorthCents < 0) {
-                                FinanceTheme.colors.debt
-                            } else {
-                                MaterialTheme.colorScheme.onSurface
-                            },
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                }
+                AvailableBalance(
+                    account = account,
+                    netWorthCents = state.totals.netWorthCents,
+                    onAccountAnalysis = { onAccountAnalysis(account) },
+                )
             }
 
-            HorizontalDivider(color = FinanceTheme.colors.cardBorder)
+            HeroDivider()
 
             MonthTotalsRow(state = state, onDrillDown = onDrillDown)
         }
@@ -347,6 +443,7 @@ private fun AccountSwitcher(
     modifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val onInk = FinanceTheme.colors.heroOnSurface
     val accessibility = stringResource(
         R.string.dashboard_account_selector_accessibility,
         account.name,
@@ -364,11 +461,12 @@ private fun AccountSwitcher(
             Icon(
                 imageVector = accountTypeIcon(account.type),
                 contentDescription = null,
-                tint = FinanceTheme.colors.mutedText,
+                tint = onInk.copy(alpha = HERO_MUTED_ALPHA),
                 modifier = Modifier.size(18.dp),
             )
             Text(
                 text = account.name,
+                color = onInk,
                 style = MaterialTheme.typography.titleSmall,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -377,7 +475,7 @@ private fun AccountSwitcher(
             Icon(
                 imageVector = Icons.Outlined.ExpandMore,
                 contentDescription = null,
-                tint = FinanceTheme.colors.mutedText,
+                tint = onInk.copy(alpha = HERO_MUTED_ALPHA),
                 modifier = Modifier.size(18.dp),
             )
         }
@@ -426,8 +524,10 @@ private fun AccountSwitcher(
 @Composable
 private fun AvailableBalance(
     account: AccountSummary,
+    netWorthCents: Long,
     onAccountAnalysis: () -> Unit,
 ) {
+    val colors = FinanceTheme.colors
     val accessibility = stringResource(
         R.string.dashboard_account_balance_accessibility,
         account.name,
@@ -437,20 +537,37 @@ private fun AvailableBalance(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onAccountAnalysis),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
+        HeroEyebrow(text = stringResource(R.string.dashboard_available_balance_label))
         MoneyText(
             cents = account.currentBalanceCents,
             modifier = Modifier.clearAndSetSemantics { contentDescription = accessibility },
-            color = if (account.currentBalanceCents < 0) {
-                FinanceTheme.colors.debt
-            } else {
-                MaterialTheme.colorScheme.onSurface
-            },
+            color = if (account.currentBalanceCents < 0) colors.heroDebt else colors.heroOnSurface,
             style = MaterialTheme.typography.displayMedium.copy(
-                fontSize = 36.sp,
-                lineHeight = 42.sp,
+                fontSize = 40.sp,
+                lineHeight = 46.sp,
             ),
         )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.dashboard_net_worth_label),
+                color = colors.heroOnSurface.copy(alpha = HERO_MUTED_ALPHA),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            MoneyText(
+                cents = netWorthCents,
+                color = if (netWorthCents < 0) {
+                    colors.heroDebt
+                } else {
+                    colors.heroOnSurface.copy(alpha = 0.88f)
+                },
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
     }
 }
 
@@ -460,7 +577,9 @@ private fun MonthTotalsRow(
     state: DashboardUiState,
     onDrillDown: (MovementFilters) -> Unit,
 ) {
+    val colors = FinanceTheme.colors
     val totals = state.totals
+    val figureStyle = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold)
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -471,8 +590,8 @@ private fun MonthTotalsRow(
         ) {
             MoneyText(
                 cents = totals.actualIncomeCents,
-                color = FinanceTheme.colors.income,
-                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                color = colors.heroIncome,
+                style = figureStyle,
                 signed = true,
             )
         }
@@ -483,8 +602,8 @@ private fun MonthTotalsRow(
         ) {
             MoneyText(
                 cents = totals.actualExpenseCents,
-                color = MaterialTheme.colorScheme.onBackground,
-                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                color = colors.heroOnSurface,
+                style = figureStyle,
             )
         }
         MonthTotalDivider()
@@ -494,12 +613,8 @@ private fun MonthTotalsRow(
         ) {
             MoneyText(
                 cents = totals.netActualCents,
-                color = if (totals.netActualCents < 0) {
-                    FinanceTheme.colors.debt
-                } else {
-                    FinanceTheme.colors.income
-                },
-                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                color = if (totals.netActualCents < 0) colors.heroDebt else colors.heroIncome,
+                style = figureStyle,
                 signed = true,
             )
         }
@@ -518,15 +633,9 @@ private fun RowScope.MonthTotalCell(
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .heightIn(min = 44.dp)
             .padding(vertical = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(3.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(
-            text = label,
-            color = FinanceTheme.colors.mutedText,
-            style = MaterialTheme.typography.labelMedium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        HeroEyebrow(text = label)
         value()
     }
 }
@@ -535,9 +644,9 @@ private fun RowScope.MonthTotalCell(
 private fun MonthTotalDivider() {
     VerticalDivider(
         modifier = Modifier
-            .height(32.dp)
+            .height(34.dp)
             .padding(horizontal = 8.dp),
-        color = FinanceTheme.colors.cardBorder,
+        color = FinanceTheme.colors.heroOnSurface.copy(alpha = HERO_RULE_ALPHA),
     )
 }
 
@@ -616,49 +725,148 @@ private fun ActiveTripRow(
 }
 
 // ---------------------------------------------------------------------------
-// Category breakdown — an open section, not a card
+// Month spending — where the month stands against its budget, then where it went
 // ---------------------------------------------------------------------------
 
+/**
+ * This month spent, as one card. It answers two questions with two different denominators, which
+ * is why they stay visually separate: the top half measures spending against the monthly limit,
+ * the bottom half splits that spending into shares of itself.
+ */
 @Composable
 private fun MonthlySpendingCard(
     state: DashboardUiState,
     onDrillDown: (MovementFilters) -> Unit,
     onViewBudgets: () -> Unit,
 ) {
-    state.overallBudgetProjection?.let { projection ->
-        BudgetForecastCard(
-            title = stringResource(R.string.dashboard_month_spending_title),
-            projection = projection,
-            exceptions = state.budgetExceptions,
-            footer = { ExpenseCategoryBreakdown(state = state, onDrillDown = onDrillDown) },
-            onClick = onViewBudgets,
-        )
-        return
-    }
-
-    FinanceCard(modifier = Modifier.fillMaxWidth()) {
+    val projection = state.overallBudgetProjection
+    FinanceCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (projection != null) Modifier.clickable(onClick = onViewBudgets) else Modifier),
+    ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = stringResource(R.string.dashboard_month_spending_title),
-                    modifier = Modifier.weight(1f),
-                    color = FinanceTheme.colors.mutedText,
-                    style = MaterialTheme.typography.labelMedium,
-                )
-                TextButton(onClick = onViewBudgets) {
-                    Text(text = stringResource(R.string.category_flow_define_budget))
+            SpendingHeadline(
+                state = state,
+                projection = projection,
+                onViewBudgets = onViewBudgets,
+            )
+
+            if (projection != null) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    BudgetBar(projection = projection)
+                    Text(
+                        text = stringResource(
+                            R.string.budget_forecast_final_amount,
+                            formatEuroCents(projection.forecastCents),
+                        ),
+                        color = FinanceTheme.colors.mutedText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                if (state.budgetExceptions.isNotEmpty()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        state.budgetExceptions.forEach { exception ->
+                            BudgetForecastExceptionRow(exception)
+                        }
+                    }
                 }
             }
-            MoneyText(
-                cents = state.totals.actualExpenseCents,
-                style = MaterialTheme.typography.headlineSmall,
-            )
+
+            HorizontalDivider(color = FinanceTheme.colors.cardBorder)
+
             ExpenseCategoryBreakdown(state = state, onDrillDown = onDrillDown)
         }
     }
+}
+
+/** The month figure against its limit, with the budget verdict sitting alongside it. */
+@Composable
+private fun SpendingHeadline(
+    state: DashboardUiState,
+    projection: BudgetProjection?,
+    onViewBudgets: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            PaperEyebrow(text = stringResource(R.string.dashboard_month_spending_title))
+            Row(
+                verticalAlignment = Alignment.Bottom,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                MoneyText(
+                    cents = state.totals.actualExpenseCents,
+                    style = MaterialTheme.typography.displaySmall,
+                )
+                projection?.let {
+                    Text(
+                        text = stringResource(
+                            R.string.budget_forecast_of_limit,
+                            formatEuroCents(it.evaluation.budget.limitAmountCents),
+                        ),
+                        modifier = Modifier.padding(bottom = 3.dp),
+                        color = FinanceTheme.colors.mutedText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+        if (projection != null) {
+            BudgetForecastStatusPill(
+                status = projection.status,
+                remainingCents = projection.remainingForecastCents,
+                color = projection.status.color(),
+            )
+        } else {
+            TextButton(onClick = onViewBudgets) {
+                Text(text = stringResource(R.string.category_flow_define_budget))
+            }
+        }
+    }
+}
+
+/**
+ * The budget bar: full width is the monthly limit. Spending already recorded is solid; the
+ * lighter tail beyond it is where the month is projected to land, so the two tones read as
+ * "spent" and "not yet" without needing a legend to decode them.
+ */
+@Composable
+private fun BudgetBar(projection: BudgetProjection) {
+    val statusColor = projection.status.color()
+    val track = MaterialTheme.colorScheme.surfaceVariant
+    val recorded = FinanceTheme.colors.expense
+    val actual = projection.actualProgressFraction()
+    val forecast = projection.forecastProgressFraction()
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(BUDGET_BAR_HEIGHT)
+            .clip(PillShape)
+            .background(track)
+            .drawBehind {
+                fun fill(fraction: Float, color: Color) {
+                    val width = size.width * fraction.coerceIn(0f, 1f)
+                    if (width > 0f) drawRect(color = color, size = Size(width, size.height))
+                }
+                fill(forecast, statusColor.copy(alpha = FORECAST_TONE_ALPHA))
+                fill(actual, recorded)
+            },
+    )
 }
 
 @Composable
@@ -666,57 +874,54 @@ private fun ExpenseCategoryBreakdown(
     state: DashboardUiState,
     onDrillDown: (MovementFilters) -> Unit,
 ) {
-    val totalCents = state.totals.actualExpenseCents
     val slices = categorySlices(
         categories = state.categories,
-        totalCents = totalCents,
+        totalCents = state.totals.actualExpenseCents,
         noCategoryLabel = stringResource(R.string.common_no_category),
         aggregateLabel = stringResource(R.string.analysis_other),
     )
 
-    Column(
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
+    if (slices.isEmpty()) {
         Text(
-            text = stringResource(R.string.dashboard_categories_title),
+            text = stringResource(R.string.dashboard_no_data),
             color = FinanceTheme.colors.mutedText,
-            style = MaterialTheme.typography.labelMedium,
+            style = MaterialTheme.typography.bodyMedium,
         )
+        return
+    }
 
-        if (slices.isEmpty()) {
-            Text(
-                text = stringResource(R.string.dashboard_no_data),
-                color = FinanceTheme.colors.mutedText,
-                style = MaterialTheme.typography.bodyMedium,
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        slices.forEach { slice ->
+            CategoryShareRow(
+                slice = slice,
+                onClick = if (slice.categoryId != null || slice.isUncategorized) {
+                    {
+                        onDrillDown(
+                            state.month.actualPeriodFilters(
+                                type = MovementType.EXPENSE,
+                                categoryId = slice.categoryId,
+                                uncategorizedOnly = slice.isUncategorized,
+                            ),
+                        )
+                    }
+                } else {
+                    null
+                },
             )
-        } else {
-            CategoryDistributionBar(
-                slices = slices,
-                totalLabel = stringResource(R.string.dashboard_summary_expense),
-                totalCents = totalCents,
-            )
-            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                slices.forEach { slice ->
-                    CategoryLegendRow(
-                        slice = slice,
-                        onClick = if (slice.categoryId != null || slice.isUncategorized) {
-                            {
-                                onDrillDown(
-                                    state.month.actualPeriodFilters(
-                                        type = MovementType.EXPENSE,
-                                        categoryId = slice.categoryId,
-                                        uncategorizedOnly = slice.isUncategorized,
-                                    ),
-                                )
-                            }
-                        } else {
-                            null
-                        },
-                    )
-                }
-            }
         }
     }
+}
+
+/** Wide-tracked label for a block on a paper card, mirroring the eyebrows on the ink hero. */
+@Composable
+private fun PaperEyebrow(text: String) {
+    Text(
+        text = text.uppercase(),
+        color = FinanceTheme.colors.mutedText,
+        style = MaterialTheme.typography.labelSmall.asEyebrow(),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
 }
 
 /** One ranked category in the compact monthly breakdown. */
@@ -774,62 +979,74 @@ private fun categorySlices(
     )
 }
 
-/** Bold visual anchor: a thick, rounded segmented bar; the rows below carry the precise breakdown. */
+/**
+ * One category in the ranking: the figures on a line, and a rule under them drawn to that
+ * category's share of the month in its own colour. The rules line up down the card, so the
+ * ranking reads as a shape before any number is.
+ */
 @Composable
-private fun CategoryDistributionBar(
-    slices: List<CategorySlice>,
-    totalLabel: String,
-    totalCents: Long,
-) {
-    val accessibility = stringResource(
-        R.string.dashboard_category_donut_accessibility,
-        totalLabel,
-        formatEuroCents(totalCents),
-    )
-    SegmentedDistributionBar(
-        segments = slices.map { DistributionSegment(color = it.color, fraction = it.fraction) },
-        contentDescription = accessibility,
-    )
-}
-
-@Composable
-private fun CategoryLegendRow(
+private fun CategoryShareRow(
     slice: CategorySlice,
     onClick: (() -> Unit)?,
 ) {
-    val percentText = formatPercentLabel(slice.fraction)
-    Row(
+    val shareColor = dataMarkColor(slice.color)
+    val fraction = slice.fraction.coerceIn(0f, 1f)
+    val track = MaterialTheme.colorScheme.surfaceVariant
+    val accessibility = stringResource(
+        R.string.dashboard_category_progress_accessibility,
+        slice.label,
+        formatPercentLabel(fraction),
+    )
+    Column(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(MaterialTheme.shapes.small)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .heightIn(min = 36.dp)
-            .padding(vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+            .clearAndSetSemantics { contentDescription = accessibility }
+            .padding(vertical = 7.dp),
+        verticalArrangement = Arrangement.spacedBy(7.dp),
     ) {
-        IconChip(
-            icon = slice.icon,
-            contentDescription = null,
-            color = slice.color,
-            size = 20.dp,
-        )
-        Text(
-            text = slice.label,
-            style = MaterialTheme.typography.bodyMedium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-        MoneyText(
-            cents = slice.amountCents,
-            style = MaterialTheme.typography.labelLarge,
-        )
-        Text(
-            text = percentText,
-            color = FinanceTheme.colors.mutedText,
-            style = MaterialTheme.typography.labelSmall,
-            textAlign = TextAlign.End,
-            modifier = Modifier.width(38.dp),
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            IconChip(
+                icon = slice.icon,
+                contentDescription = null,
+                color = slice.color,
+                size = 22.dp,
+            )
+            Text(
+                text = slice.label,
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            MoneyText(
+                cents = slice.amountCents,
+                style = MaterialTheme.typography.labelLarge,
+            )
+            Text(
+                text = formatPercentLabel(fraction),
+                color = FinanceTheme.colors.mutedText,
+                style = MaterialTheme.typography.labelSmall,
+                textAlign = TextAlign.End,
+                modifier = Modifier.width(34.dp),
+            )
+        }
+        Box(
+            modifier = Modifier
+                .padding(start = CATEGORY_RULE_INSET)
+                .fillMaxWidth()
+                .height(CATEGORY_RULE_HEIGHT)
+                .clip(PillShape)
+                .background(track)
+                .drawBehind {
+                    val width = size.width * fraction
+                    if (width > 0f) drawRect(color = shareColor, size = Size(width, size.height))
+                },
         )
     }
 }

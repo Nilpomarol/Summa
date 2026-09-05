@@ -25,6 +25,7 @@ MIGRATION_VIEW_FILES = [
     "v_account_allocation.sql",
 ]
 ANALYSIS_QUERY_FILES = [
+    "goal_account_allocations.sql",
     "analysis_activity_months.sql",
     "analysis_actual_breakdown.sql",
     "analysis_actual_by_category.sql",
@@ -39,6 +40,8 @@ UPGRADE_MIGRATION_FILES = [
     "010_remove_auto_categorization.sql",
     "011_add_recurring_settlements.sql",
     "012_add_savings_goals.sql",
+    "013_add_identity_colors_to_movement_summary.sql",
+    "014_add_destination_account_color.sql",
 ]
 
 

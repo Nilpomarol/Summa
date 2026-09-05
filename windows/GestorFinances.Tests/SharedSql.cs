@@ -28,6 +28,7 @@ internal static class SharedSql
 
     private static readonly string[] AnalysisQueryFiles =
     [
+        "goal_account_allocations.sql",
         "analysis_activity_months.sql",
         "analysis_actual_breakdown.sql",
         "analysis_actual_by_category.sql",
@@ -43,7 +44,9 @@ internal static class SharedSql
         "009_derive_refund_attribution.sql",
         "010_remove_auto_categorization.sql",
         "011_add_recurring_settlements.sql",
-        "012_add_savings_goals.sql"
+        "012_add_savings_goals.sql",
+        "013_add_identity_colors_to_movement_summary.sql",
+        "014_add_destination_account_color.sql"
     ];
 
     public static string RepositoryRoot { get; } = FindRepositoryRoot();

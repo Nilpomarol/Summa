@@ -15,42 +15,66 @@ import androidx.compose.ui.unit.sp
 // (docs/design.md). Screens must consume semantic names (see FinanceColors)
 // or MaterialTheme, never these raw values.
 internal object TokenColor {
-    // Neutrals — light
-    val Neutral0 = Color(0xFFFFFDF9)
-    val Neutral50 = Color(0xFFF6F0E5)
-    val Neutral100 = Color(0xFFEEE6DA)
-    val Neutral150 = Color(0xFFE7DDD1)
-    val Neutral200 = Color(0xFFD8CCBF)
-    val Neutral300 = Color(0xFFC7B9AA)
-    val Neutral400 = Color(0xFFA59588)
-    val Neutral500 = Color(0xFF85776D)
-    val Neutral700 = Color(0xFF66584F)
-    val Neutral900 = Color(0xFF331329)
+    // Neutrals — light. Warm sand ramp; the background is deeper than the card surface so
+    // cards read as raised paper instead of near-white on near-white.
+    val Neutral0 = Color(0xFFFFFCF6)
+    val Neutral50 = Color(0xFFF1E9DB)
+    val Neutral100 = Color(0xFFE8DDCB)
+    val Neutral150 = Color(0xFFDFD2BE)
+    val Neutral200 = Color(0xFFD1C2AB)
+    val Neutral300 = Color(0xFFBCA98F)
+    val Neutral400 = Color(0xFF9C8A73)
+    val Neutral500 = Color(0xFF7C6B59)
+    val Neutral600 = Color(0xFF6B5A53)
+    val Neutral700 = Color(0xFF5A4A4E)
+    val Neutral900 = Color(0xFF2B1024)
 
     // Neutrals — dark
-    val Dark0 = Color(0xFF191317)
-    val Dark50 = Color(0xFF21191F)
-    val Dark100 = Color(0xFF2B222A)
-    val Dark150 = Color(0xFF393039)
-    val Dark200 = Color(0xFF4A3D49)
-    val Dark300 = Color(0xFF5B4E59)
-    val Dark400 = Color(0xFF766874)
-    val Dark500 = Color(0xFF958793)
-    val Dark700 = Color(0xFFC9BAC5)
-    val Dark900 = Color(0xFFF5EFEB)
+    val Dark0 = Color(0xFF150F17)
+    val Dark50 = Color(0xFF1E1621)
+    val Dark100 = Color(0xFF29202C)
+    val Dark150 = Color(0xFF382D3B)
+    val Dark200 = Color(0xFF493C4C)
+    val Dark300 = Color(0xFF5B4C5E)
+    val Dark400 = Color(0xFF77677A)
+    val Dark500 = Color(0xFF968799)
+    val Dark700 = Color(0xFFCBBACB)
+    val Dark900 = Color(0xFFF6EFF2)
 
-    // Brand — indigo (action/interactive only)
-    val Plum = Color(0xFF765077)
-    val PlumHover = Color(0xFF674267)
-    val PlumPressed = Color(0xFF542F53)
-    val PlumTint = Color(0xFFF0E7EE)
-    val PlumDark = Color(0xFFC9A5C7)
+    // Brand — plum (action/interactive only)
+    val Plum = Color(0xFF7C3B6E)
+    val PlumHover = Color(0xFF6A3260)
+    val PlumPressed = Color(0xFF57284E)
+    val PlumTint = Color(0xFFF5E6F0)
+    val PlumDark = Color(0xFFE3A8D2)
+
+    // Accent — warm ochre; the counterweight to plum on ink surfaces and highlights.
+    val AccentLight = Color(0xFFC97B2E)
+    val AccentDark = Color(0xFFE8B071)
+    val AccentTintLight = Color(0xFFF9EBD7)
+    val AccentTintDark = Color(0xFF3B2A18)
+
+    // Ink hero — a deep plum panel used as the single high-contrast anchor of a page.
+    val HeroInkTop = Color(0xFF5B2A50)
+    val HeroInkBottom = Color(0xFF24101F)
+    val HeroInkTopDark = Color(0xFF3E1D38)
+    val HeroInkBottomDark = Color(0xFF190B16)
+    val HeroGlow = Color(0xFFB55A9C)
+
+    // Depth — a warm cast shadow, a lit top rim, and a sheen down the face of the card.
+    // Together they replace the flat hairline outline the surfaces used to rely on.
+    val ShadowLight = Color(0x4D2B1024)
+    val ShadowDark = Color(0x99000000)
+    val CardRimLight = Color(0xFFFFFFFF)
+    val CardRimDark = Color(0xFF4E4152)
+    val CardSheenLight = Color(0x59FFFFFF)
+    val CardSheenDark = Color(0x0DFFFFFF)
 
     // Functional — fixed meaning (light / dark)
-    val IncomeLight = Color(0xFF5E7448)
+    val IncomeLight = Color(0xFF55763F)
     val IncomeDark = Color(0xFFB1C891)
-    val ExpenseLight = Color(0xFF331329)
-    val ExpenseDark = Color(0xFFF5EFEB)
+    val ExpenseLight = Color(0xFF2B1024)
+    val ExpenseDark = Color(0xFFF6EFF2)
     val TransferLight = Color(0xFF5F667A)
     val TransferDark = Color(0xFFAEB4C4)
     val SettlementLight = Color(0xFFA66F1C)
@@ -64,26 +88,26 @@ internal object TokenColor {
     val AlertLight = Color(0xFFA56B00)
     val AlertDark = Color(0xFFE5B75D)
 
-    // Trip status â€” planned / active / finished (container / content, light / dark)
-    val TripPlannedContainerLight = Color(0xFFF0E7EE)
-    val TripPlannedContentLight = Color(0xFF59385A)
-    val TripPlannedContainerDark = Color(0xFF4A3D49)
-    val TripPlannedContentDark = Color(0xFFF5EFEB)
-    val TripActiveContainerLight = Color(0xFFE8F0E3)
-    val TripActiveContentLight = Color(0xFF405B32)
+    // Trip status — planned / active / finished (container / content, light / dark)
+    val TripPlannedContainerLight = Color(0xFFF5E6F0)
+    val TripPlannedContentLight = Color(0xFF57284E)
+    val TripPlannedContainerDark = Color(0xFF493C4C)
+    val TripPlannedContentDark = Color(0xFFF6EFF2)
+    val TripActiveContainerLight = Color(0xFFE7F0E0)
+    val TripActiveContentLight = Color(0xFF3E5B2E)
     val TripActiveContainerDark = Color(0xFF30412A)
     val TripActiveContentDark = Color(0xFFB1C891)
-    val TripFinishedContainerLight = Color(0xFFEEE6DA)
-    val TripFinishedContentLight = Color(0xFF66584F)
-    val TripFinishedContainerDark = Color(0xFF2B222A)
-    val TripFinishedContentDark = Color(0xFFC9BAC5)
+    val TripFinishedContainerLight = Color(0xFFE8DDCB)
+    val TripFinishedContentLight = Color(0xFF5A4A4E)
+    val TripFinishedContainerDark = Color(0xFF29202C)
+    val TripFinishedContentDark = Color(0xFFCBBACB)
 
     // Banner — light triples (background / border / text); Info + Alert + Error are in use.
-    val BannerInfoBg = Color(0xFFF0E7EE)
-    val BannerInfoBorder = Color(0xFFDFCFE0)
-    val BannerInfoText = Color(0xFF59385A)
-    val BannerAlertBg = Color(0xFFFBF0D9)
-    val BannerAlertBorder = Color(0xFFEDD8AE)
+    val BannerInfoBg = Color(0xFFF5E6F0)
+    val BannerInfoBorder = Color(0xFFE4CBDD)
+    val BannerInfoText = Color(0xFF57284E)
+    val BannerAlertBg = Color(0xFFFAEDD6)
+    val BannerAlertBorder = Color(0xFFEBD4A6)
     val BannerAlertText = Color(0xFF76510B)
     val BannerErrorBg = Color(0xFFFBE8E5)
     val BannerErrorBorder = Color(0xFFEFCAC4)
@@ -93,36 +117,46 @@ internal object TokenColor {
     val CategoryUncategorized = Color(0xFF9E9187)
 
     // Toggle states: enabled-off remains visibly interactive; disabled-off is lower-emphasis.
-    val ToggleOffTrackLight = Color(0xFFE7DDD1)
-    val ToggleOffThumbLight = Color(0xFF66584F)
-    val ToggleOffBorderLight = Color(0xFF66584F)
-    val ToggleDisabledTrackLight = Color(0xFFEEE6DA)
-    val ToggleDisabledThumbLight = Color(0xFFA59588)
-    val ToggleDisabledBorderLight = Color(0xFFC7B9AA)
-    val ToggleOffTrackDark = Color(0xFF4A3D49)
-    val ToggleOffThumbDark = Color(0xFFC9BAC5)
-    val ToggleOffBorderDark = Color(0xFFC9BAC5)
-    val ToggleDisabledTrackDark = Color(0xFF2B222A)
-    val ToggleDisabledThumbDark = Color(0xFF766874)
-    val ToggleDisabledBorderDark = Color(0xFF5B4E59)
+    val ToggleOffTrackLight = Color(0xFFDFD2BE)
+    val ToggleOffThumbLight = Color(0xFF5A4A4E)
+    val ToggleOffBorderLight = Color(0xFF5A4A4E)
+    val ToggleDisabledTrackLight = Color(0xFFE8DDCB)
+    val ToggleDisabledThumbLight = Color(0xFF9C8A73)
+    val ToggleDisabledBorderLight = Color(0xFFBCA98F)
+    val ToggleOffTrackDark = Color(0xFF493C4C)
+    val ToggleOffThumbDark = Color(0xFFCBBACB)
+    val ToggleOffBorderDark = Color(0xFFCBBACB)
+    val ToggleDisabledTrackDark = Color(0xFF29202C)
+    val ToggleDisabledThumbDark = Color(0xFF77677A)
+    val ToggleDisabledBorderDark = Color(0xFF5B4C5E)
 }
 
 private fun interfaceTextStyle(
     sizeSp: Int,
     weight: FontWeight,
+    trackingSp: Float = 0f,
 ) = TextStyle(
-    fontFamily = GeistFontFamily,
+    fontFamily = InterfaceFontFamily,
     fontWeight = weight,
     fontSize = sizeSp.sp,
-    letterSpacing = 0.sp,
+    letterSpacing = trackingSp.sp,
 )
 
 /** Render any style as a ledger figure: IBM Plex Mono + tabular numerals (design baseline). */
 internal fun TextStyle.asFigures(): TextStyle =
     copy(fontFamily = LedgerMonoFontFamily, fontFeatureSettings = "tnum")
 
-private val DisplayText = interfaceTextStyle(sizeSp = 28, weight = FontWeight.SemiBold)
-private val TitleText = interfaceTextStyle(sizeSp = 21, weight = FontWeight.SemiBold)
+/**
+ * Editorial eyebrow: the small, wide-tracked label that sits above a figure or a section.
+ * Callers uppercase the text themselves so the string resource stays natural.
+ */
+internal fun TextStyle.asEyebrow(): TextStyle =
+    copy(fontWeight = FontWeight.SemiBold, letterSpacing = 1.1.sp)
+
+// Schibsted Grotesk is a grotesque sans with fairly tight native spacing at large sizes, so
+// display and title text take a firmer negative tracking than a serif face would want.
+private val DisplayText = interfaceTextStyle(sizeSp = 32, weight = FontWeight.SemiBold, trackingSp = -0.5f)
+private val TitleText = interfaceTextStyle(sizeSp = 22, weight = FontWeight.SemiBold, trackingSp = -0.25f)
 private val HeadingText = interfaceTextStyle(sizeSp = 16, weight = FontWeight.SemiBold)
 private val BodyText = interfaceTextStyle(sizeSp = 14, weight = FontWeight.Medium)
 private val BodySmallText = interfaceTextStyle(sizeSp = 13, weight = FontWeight.Medium)
@@ -196,9 +230,9 @@ internal val GestorTypography = Typography(
 )
 
 internal val GestorShapes = Shapes(
-    extraSmall = RoundedCornerShape(7.dp),
+    extraSmall = RoundedCornerShape(8.dp),
     small = RoundedCornerShape(10.dp),
-    medium = RoundedCornerShape(10.dp),
-    large = RoundedCornerShape(14.dp),
-    extraLarge = RoundedCornerShape(18.dp),
+    medium = RoundedCornerShape(12.dp),
+    large = RoundedCornerShape(20.dp),
+    extraLarge = RoundedCornerShape(26.dp),
 )
