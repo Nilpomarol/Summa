@@ -4,8 +4,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -21,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -29,11 +28,10 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.ChevronLeft
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.CalendarMonth
-import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.RestartAlt
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -56,10 +54,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.R
@@ -121,155 +120,6 @@ fun MovementsScreen(
         onAdd = onAdd,
         onRetry = viewModel::onScreenShown,
     )
-}
-
-private data class ActiveMovementFilterChip(
-    val label: String,
-    val onRemove: () -> Unit,
-)
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun ActiveMovementFilterRow(
-    filters: MovementFilters,
-    accounts: List<AccountSummary>,
-    categories: List<CategoryRecord>,
-    trips: List<TripSummary>,
-    tags: List<TagSummary>,
-    onFiltersChange: (MovementFilters) -> Unit,
-) {
-    val chips = buildList {
-        filters.accountId?.let { accountId ->
-            add(
-                ActiveMovementFilterChip(
-                    label = stringResource(
-                        R.string.movement_filter_chip_account,
-                        accounts.firstOrNull { it.id == accountId }?.name
-                            ?: stringResource(R.string.movement_filter_unknown_value),
-                    ),
-                    onRemove = { onFiltersChange(filters.copy(accountId = null)) },
-                ),
-            )
-        }
-        if (filters.categoryId != null || filters.uncategorizedOnly) {
-            val categoryName = if (filters.uncategorizedOnly) {
-                stringResource(R.string.common_no_category)
-            } else {
-                categories.firstOrNull { it.id == filters.categoryId }?.name
-                    ?: stringResource(R.string.movement_filter_unknown_value)
-            }
-            add(
-                ActiveMovementFilterChip(
-                    label = stringResource(R.string.movement_filter_chip_category, categoryName),
-                    onRemove = {
-                        onFiltersChange(filters.copy(categoryId = null, uncategorizedOnly = false))
-                    },
-                ),
-            )
-        }
-        filters.tripId?.let { tripId ->
-            add(
-                ActiveMovementFilterChip(
-                    label = stringResource(
-                        R.string.movement_filter_chip_trip,
-                        trips.firstOrNull { it.id == tripId }?.name
-                            ?: stringResource(R.string.movement_filter_unknown_value),
-                    ),
-                    onRemove = { onFiltersChange(filters.copy(tripId = null, tagId = null)) },
-                ),
-            )
-        }
-        filters.tagId?.let { tagId ->
-            add(
-                ActiveMovementFilterChip(
-                    label = stringResource(
-                        R.string.movement_filter_chip_tag,
-                        tags.firstOrNull { it.id == tagId }?.name
-                            ?: stringResource(R.string.movement_filter_unknown_value),
-                    ),
-                    onRemove = { onFiltersChange(filters.copy(tagId = null)) },
-                ),
-            )
-        }
-        if (filters.dateFrom.isNotBlank() || filters.dateTo.isNotBlank()) {
-            add(
-                ActiveMovementFilterChip(
-                    label = stringResource(R.string.movement_filter_chip_period, filters.formattedPeriod()),
-                    onRemove = { onFiltersChange(filters.copy(dateFrom = "", dateTo = "")) },
-                ),
-            )
-        }
-        filters.sourceMode?.let { sourceMode ->
-            val sourceLabel = when (sourceMode) {
-                MovementSourceMode.ACTUAL -> stringResource(R.string.analysis_mode_actual)
-                MovementSourceMode.FLOW -> stringResource(R.string.analysis_mode_flow)
-            }
-            add(
-                ActiveMovementFilterChip(
-                    label = stringResource(R.string.movement_filter_chip_source, sourceLabel),
-                    onRemove = { onFiltersChange(filters.copy(sourceMode = null)) },
-                ),
-            )
-        }
-        filters.categoryNature?.let { nature ->
-            val natureLabel = when (nature) {
-                CategoryNature.FIXED -> stringResource(R.string.analysis_filter_fixed)
-                CategoryNature.VARIABLE -> stringResource(R.string.analysis_filter_variable)
-            }
-            add(
-                ActiveMovementFilterChip(
-                    label = stringResource(R.string.movement_filter_chip_nature, natureLabel),
-                    onRemove = { onFiltersChange(filters.copy(categoryNature = null)) },
-                ),
-            )
-        }
-        when (filters.oneTimeMode) {
-            MovementOneTimeMode.INCLUDE -> Unit
-            MovementOneTimeMode.EXCLUDE,
-            MovementOneTimeMode.ONLY,
-            -> add(
-                ActiveMovementFilterChip(
-                    label = stringResource(
-                        R.string.movement_filter_chip_one_time,
-                        when (filters.oneTimeMode) {
-                            MovementOneTimeMode.EXCLUDE -> stringResource(R.string.analysis_one_time_exclude)
-                            MovementOneTimeMode.ONLY -> stringResource(R.string.analysis_one_time_only)
-                            MovementOneTimeMode.INCLUDE -> error("unreachable")
-                        },
-                    ),
-                    onRemove = {
-                        onFiltersChange(filters.copy(oneTimeMode = MovementOneTimeMode.INCLUDE))
-                    },
-                ),
-            )
-        }
-    }
-
-    FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        chips.forEach { chip ->
-            val removeDescription = stringResource(
-                R.string.movement_filter_remove_named,
-                chip.label,
-            )
-            AssistChip(
-                onClick = chip.onRemove,
-                label = { Text(chip.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                trailingIcon = {
-                    Icon(
-                        imageVector = Icons.Outlined.Close,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                    )
-                },
-                modifier = Modifier.semantics {
-                    contentDescription = removeDescription
-                },
-            )
-        }
-    }
 }
 
 @Composable
@@ -357,27 +207,12 @@ private fun MovementsContent(
                         .padding(bottom = LIST_BLOCK_GAP),
                 )
             }
-            if (activeFilterCount > 0) {
-                item {
-                    Box(modifier = Modifier.padding(bottom = LIST_BLOCK_GAP)) {
-                        ActiveMovementFilterRow(
-                            filters = state.filters,
-                            accounts = state.accounts,
-                            categories = state.categories,
-                            trips = state.trips,
-                            tags = state.tags,
-                            onFiltersChange = onFiltersChange,
-                        )
-                    }
-                }
-            }
             item {
-                Box(modifier = Modifier.padding(bottom = LIST_BLOCK_GAP)) {
-                    MovementTypeFilterRow(
-                        selected = state.filters.type,
-                        onSelected = { onFiltersChange(state.filters.copy(type = it)) },
-                    )
-                }
+                MovementFilterPills(
+                    state = state,
+                    onFiltersChange = onFiltersChange,
+                    modifier = Modifier.padding(bottom = LIST_BLOCK_GAP),
+                )
             }
         }
 
@@ -434,19 +269,57 @@ private fun MovementsContent(
     }
 }
 
+/** Snug padding so the five type pills fit one screen width without scrolling or wrapping. */
+private val TYPE_PILL_PADDING = PaddingValues(horizontal = 10.dp, vertical = 9.dp)
+
+/**
+ * The one pill row under the search bar: a summary pill for the advanced filters, when any are on,
+ * followed by the type selector. The type pills alone fit a phone width; only the summary pill can
+ * push the row past it, so the row scrolls exactly then and never wraps to a second line.
+ */
 @Composable
-@OptIn(ExperimentalLayoutApi::class)
-private fun MovementTypeFilterRow(
-    selected: MovementType?,
-    onSelected: (MovementType?) -> Unit,
+private fun MovementFilterPills(
+    state: MovementsUiState,
+    onFiltersChange: (MovementFilters) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val colors = FinanceTheme.colors
+    val filters = state.filters
+    val selected = filters.type
+    val onSelected: (MovementType?) -> Unit = { onFiltersChange(filters.copy(type = it)) }
     var moreTypesExpanded by remember { mutableStateOf(false) }
     val rareTypeSelected = selected in rareMovementTypes
-    FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+    val activeFilterCount = filters.activeFilterCount
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .then(
+                if (activeFilterCount > 0) {
+                    Modifier.horizontalScroll(rememberScrollState())
+                } else {
+                    Modifier
+                },
+            ),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (activeFilterCount > 0) {
+            val clearDescription = stringResource(R.string.movement_filter_clear_active)
+            FinanceFilterChip(
+                selected = true,
+                label = pluralStringResource(
+                    R.plurals.movement_filter_active_count,
+                    activeFilterCount,
+                    activeFilterCount,
+                ),
+                // Keeps the query and the type pill; the count only ever covers the sheet filters.
+                onClick = { onFiltersChange(MovementFilters(query = filters.query, type = selected)) },
+                selectedColor = MaterialTheme.colorScheme.primary,
+                contentPadding = TYPE_PILL_PADDING,
+                trailingIcon = Icons.Outlined.Close,
+                modifier = Modifier.semantics { contentDescription = clearDescription },
+            )
+        }
         FinanceFilterChip(
             selected = selected == null,
             label = stringResource(R.string.movement_filter_all_types),
@@ -454,6 +327,7 @@ private fun MovementTypeFilterRow(
                 moreTypesExpanded = false
                 onSelected(null)
             },
+            contentPadding = TYPE_PILL_PADDING,
         )
         phaseOneTypes.forEach { type ->
             FinanceFilterChip(
@@ -465,7 +339,8 @@ private fun MovementTypeFilterRow(
                     MovementType.INCOME -> colors.income
                     MovementType.TRANSFER -> colors.transfer
                     else -> MaterialTheme.colorScheme.onSurface
-                }
+                },
+                contentPadding = TYPE_PILL_PADDING,
             )
         }
         Box {
@@ -474,6 +349,7 @@ private fun MovementTypeFilterRow(
                 label = stringResource(R.string.movement_filter_more_types),
                 onClick = { moreTypesExpanded = true },
                 selectedColor = MaterialTheme.colorScheme.primary,
+                contentPadding = TYPE_PILL_PADDING,
             )
             AppDropdownMenu(
                 expanded = moreTypesExpanded,
