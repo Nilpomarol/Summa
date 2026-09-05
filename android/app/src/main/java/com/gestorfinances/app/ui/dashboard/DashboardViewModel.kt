@@ -68,6 +68,7 @@ class DashboardViewModel(
                         categoryParentById = categoryRecords.associate { it.id to it.parentId },
                     )
                     DashboardLoadedData(
+                        today = today,
                         month = month,
                         totals = analysisRepository.periodTotals(
                             fromDate = fromDate.toString(),
@@ -96,6 +97,7 @@ class DashboardViewModel(
             _state.value = result.fold(
                 onSuccess = {
                     previous.copy(
+                        today = it.today,
                         month = it.month,
                         totals = it.totals,
                         categories = it.categories,
@@ -146,6 +148,7 @@ class DashboardViewModel(
 }
 
 data class DashboardUiState(
+    val today: LocalDate = LocalDate.now(),
     val month: YearMonth = YearMonth.now(),
     val totals: AnalysisPeriodTotals = AnalysisPeriodTotals(
         netWorthCents = 0,
@@ -189,6 +192,7 @@ private const val LATEST_MOVEMENTS = 5
 private const val DASHBOARD_BUDGET_EXCEPTIONS = 3
 
 private data class DashboardLoadedData(
+    val today: LocalDate,
     val month: YearMonth,
     val totals: AnalysisPeriodTotals,
     val categories: List<AnalysisCategoryTotal>,

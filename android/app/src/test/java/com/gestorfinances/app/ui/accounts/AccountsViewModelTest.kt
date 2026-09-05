@@ -82,6 +82,7 @@ class AccountsViewModelTest {
 
     private fun viewModel(store: TestStore): AccountsViewModel =
         AccountsViewModel(
+            goalRepository = store.goals,
             accountRepository = store.accounts,
             movementRepository = store.movements,
             templateRepository = store.templates,
@@ -94,6 +95,7 @@ class AccountsViewModelTest {
         val database = GestorDatabase(driver)
         return TestStore(
             driver = driver,
+            goals = com.gestorfinances.app.data.repository.GoalRepository(database.goalsQueries, database.analysisQueries),
             accounts = AccountRepository(database.accountsQueries),
             movements = MovementRepository(database.movementsQueries, database.splitsQueries),
             templates = TemplateRepository(database.templatesQueries),
@@ -102,6 +104,7 @@ class AccountsViewModelTest {
 
     private class TestStore(
         private val driver: JdbcSqliteDriver,
+        val goals: com.gestorfinances.app.data.repository.GoalRepository,
         val accounts: AccountRepository,
         val movements: MovementRepository,
         val templates: TemplateRepository,

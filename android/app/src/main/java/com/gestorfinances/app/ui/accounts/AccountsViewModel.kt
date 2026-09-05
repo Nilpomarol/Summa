@@ -4,6 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.gestorfinances.app.R
+import com.gestorfinances.app.data.repository.AccountAllocation
+import com.gestorfinances.app.data.repository.GoalRepository
+import com.gestorfinances.app.domain.rules.GoalFundingMode
 import com.gestorfinances.app.data.repository.AccountDraft
 import com.gestorfinances.app.data.repository.AccountRepository
 import com.gestorfinances.app.data.repository.AccountSummary
@@ -28,6 +31,7 @@ import kotlinx.coroutines.withContext
 
 class AccountsViewModel(
     private val accountRepository: AccountRepository,
+    private val goalRepository: GoalRepository,
     private val movementRepository: MovementRepository,
     private val templateRepository: TemplateRepository,
     private val notificationRefresher: NotificationRefresher = NotificationRefresher.NoOp,
@@ -275,10 +279,13 @@ class AccountsViewModel(
         viewModelScope.launch {
             _state.value = _state.value.copy(isLoading = true, errorMessage = null)
             val result = withContext(Dispatchers.IO) {
-                runCatching { accountRepository.listActive() }
+                runCatching {
+                    Triple(accountRepository.listActive(), goalRepository.accountAllocations(),
+                        goalRepository.listActive().filter { it.fundingMode == GoalFundingMode.DEDICATED_ACCOUNT }.associate { requireNotNull(it.accountId) to it.name })
+                }
             }
             _state.value = result.fold(
-                onSuccess = { _state.value.copy(accounts = it, isLoading = false) },
+                onSuccess = { _state.value.copy(accounts = it.first, accountAllocations = it.second.associateBy { row -> row.accountId }, dedicatedGoals = it.third, isLoading = false) },
                 onFailure = {
                     _state.value.copy(
                         isLoading = false,
@@ -328,6 +335,7 @@ class AccountsViewModel(
 
     class Factory(
         private val accountRepository: AccountRepository,
+        private val goalRepository: GoalRepository,
         private val movementRepository: MovementRepository,
         private val templateRepository: TemplateRepository,
         private val notificationRefresher: NotificationRefresher = NotificationRefresher.NoOp,
@@ -335,7 +343,7 @@ class AccountsViewModel(
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if (modelClass.isAssignableFrom(AccountsViewModel::class.java)) {
-                return AccountsViewModel(accountRepository, movementRepository, templateRepository, notificationRefresher) as T
+                return AccountsViewModel(accountRepository, goalRepository, movementRepository, templateRepository, notificationRefresher) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }
@@ -344,6 +352,8 @@ class AccountsViewModel(
 
 data class AccountsUiState(
     val accounts: List<AccountSummary> = emptyList(),
+    val accountAllocations: Map<String, AccountAllocation> = emptyMap(),
+    val dedicatedGoals: Map<String, String> = emptyMap(),
     val isLoading: Boolean = true,
     val errorMessage: String? = null,
     val form: AccountFormState? = null,

@@ -25,6 +25,7 @@ MIGRATION_VIEW_FILES = [
     "v_account_allocation.sql",
 ]
 ANALYSIS_QUERY_FILES = [
+    "goal_account_allocations.sql",
     "analysis_activity_months.sql",
     "analysis_actual_by_category.sql",
     "analysis_actual_breakdown.sql",
@@ -39,6 +40,8 @@ UPGRADE_MIGRATION_FILES = [
     "010_remove_auto_categorization.sql",
     "011_add_recurring_settlements.sql",
     "012_add_savings_goals.sql",
+    "013_add_identity_colors_to_movement_summary.sql",
+    "014_add_destination_account_color.sql",
 ]
 VIEW_NAMES = [path.removesuffix(".sql") for path in VIEW_FILES]
 MIGRATION_VIEW_NAMES = [path.removesuffix(".sql") for path in MIGRATION_VIEW_FILES]
@@ -290,7 +293,7 @@ def main() -> None:
             conn.executescript(read_sql(ROOT / "shared" / "migrations" / name))
         check_views(conn, MIGRATION_VIEW_NAMES)
         meta = dict(conn.execute("SELECT key, value FROM meta").fetchall())
-        expected = {"schema_version": "12", "snapshot_version": "0"}
+        expected = {"schema_version": "14", "snapshot_version": "0"}
         if meta != expected:
             fail(f"upgrade migrations: expected meta {expected}, got {meta}")
     except sqlite3.Error as exc:

@@ -59,7 +59,7 @@ class AppContainer(context: Context) {
     }
 
     val goalRepository: GoalRepository by lazy {
-        GoalRepository(database.goalsQueries)
+        GoalRepository(database.goalsQueries, database.analysisQueries)
     }
 
     val categoryRepository: CategoryRepository by lazy {

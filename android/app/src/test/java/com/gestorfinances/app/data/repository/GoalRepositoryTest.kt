@@ -247,6 +247,62 @@ class GoalRepositoryTest {
         }
     }
 
+    @Test
+    fun deletingConsumedReservationRollsBackAndRestoringReleaseCannotGoNegative() {
+        freshStore().use { store ->
+            seedAccount(store)
+            store.goals.create(allocationGoal("g", 100_000), NOW)
+            store.goals.allocate(allocation("reserve", "g", 10_000), NOW)
+            store.goals.allocate(allocation("release", "g", -8_000), NOW)
+            assertThrows(NegativeGoalAllocationException::class.java) { store.goals.archiveAllocation("reserve", DELETED_AT) }
+            assertEquals(2_000L, store.goals.get("g")!!.savedCents)
+            assertNotNull(store.goals.allocation("reserve"))
+            store.goals.archiveAllocation("release", DELETED_AT)
+            store.goals.archiveAllocation("reserve", DELETED_AT)
+            assertThrows(NegativeGoalAllocationException::class.java) { store.goals.restoreAllocation("release", DELETED_AT, NOW) }
+            assertNull(store.goals.allocation("release"))
+            store.goals.restoreAllocation("reserve", DELETED_AT, NOW)
+            store.goals.restoreAllocation("release", DELETED_AT, NOW)
+            assertEquals(2_000L, store.goals.get("g")!!.savedCents)
+        }
+    }
+
+    @Test
+    fun releasesAndAccountChangingEditsCannotBorrowAnotherAccountsReservation() {
+        freshStore().use { store ->
+            seedAccount(store)
+            store.accounts.create(AccountDraft("other", "Other", 50_000, AccountType.SAVINGS, null, null, false, 1, null), NOW)
+            store.goals.create(allocationGoal("g", 100_000), NOW)
+            store.goals.allocate(allocation("reserve", "g", 10_000), NOW)
+            assertThrows(NegativeGoalAllocationException::class.java) {
+                store.goals.allocate(allocation("release", "g", -8_000).copy(accountId = "other"), NOW)
+            }
+            store.goals.allocate(allocation("release", "g", -8_000), NOW)
+            assertThrows(NegativeGoalAllocationException::class.java) {
+                store.goals.updateAllocation(allocation("reserve", "g", 10_000).copy(accountId = "other"), NOW)
+            }
+            assertEquals(mapOf(ACCOUNT_ID to 2_000L), store.goals.accountReservations("g"))
+            assertEquals(50_000L, store.goals.accountAllocation("other")!!.unallocatedCents)
+        }
+    }
+
+    @Test
+    fun dedicatedAccountConflictsAndModeChangesRollBack() {
+        freshStore().use { store ->
+            seedAccount(store)
+            val draft = allocationGoal("g", 100_000)
+            store.goals.create(draft, NOW)
+            store.goals.allocate(allocation("reserve", "g", 10_000), NOW)
+            assertThrows(GoalFundingConflictException::class.java) { store.goals.update(draft.copy(fundingMode = GoalFundingMode.DEDICATED_ACCOUNT), NOW) }
+            assertThrows(GoalFundingConflictException::class.java) { store.goals.create(draft.copy(id = "d", fundingMode = GoalFundingMode.DEDICATED_ACCOUNT), NOW) }
+            store.goals.archiveAllocation("reserve", DELETED_AT)
+            store.goals.create(draft.copy(id = "d", fundingMode = GoalFundingMode.DEDICATED_ACCOUNT), NOW)
+            assertThrows(GoalFundingConflictException::class.java) { store.goals.create(draft.copy(id = "d2", fundingMode = GoalFundingMode.DEDICATED_ACCOUNT), NOW) }
+            assertThrows(GoalFundingConflictException::class.java) { store.goals.restoreAllocation("reserve", DELETED_AT, NOW) }
+            assertNull(store.goals.allocation("reserve"))
+        }
+    }
+
     private fun allocationGoal(id: String, targetCents: Long): GoalDraft =
         GoalDraft(
             id = id,
@@ -310,7 +366,7 @@ class GoalRepositoryTest {
             driver = driver,
             accounts = AccountRepository(database.accountsQueries),
             movements = MovementRepository(database.movementsQueries, database.splitsQueries),
-            goals = GoalRepository(database.goalsQueries),
+            goals = GoalRepository(database.goalsQueries, database.analysisQueries),
         )
     }
 

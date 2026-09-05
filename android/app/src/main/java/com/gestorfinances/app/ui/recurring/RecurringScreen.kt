@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -94,6 +95,7 @@ import com.gestorfinances.app.ui.common.LabeledSegmentedControl
 import com.gestorfinances.app.ui.common.label
 import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.MovementListItem
+import com.gestorfinances.app.ui.common.movementRowPosition
 import com.gestorfinances.app.ui.common.NeutralPill
 import com.gestorfinances.app.ui.common.PageHeaderRow
 import com.gestorfinances.app.ui.common.PrimaryButton
@@ -664,10 +666,14 @@ private fun RecurringHistorySheet(
                     modifier = Modifier.fillMaxWidth(),
                     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
                 ) {
-                    items(detail.movements, key = { it.id }) { movement ->
+                    itemsIndexed(
+                        detail.movements,
+                        key = { _, movement -> movement.id },
+                    ) { index, movement ->
                         MovementListItem(
                             movement = movement,
                             onClick = { onMovementDetail(movement) },
+                            position = movementRowPosition(index, detail.movements.size),
                         )
                     }
                 }

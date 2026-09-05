@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -58,6 +59,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.R
+import com.gestorfinances.app.data.repository.AccountAllocation
+import com.gestorfinances.app.ui.common.formatEuroCents
 import com.gestorfinances.app.data.repository.AccountSummary
 import com.gestorfinances.app.data.repository.AccountType
 import com.gestorfinances.app.data.repository.MovementSummary
@@ -74,6 +77,7 @@ import com.gestorfinances.app.ui.common.IconPickerRow
 import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.NeutralPill
 import com.gestorfinances.app.ui.common.MovementListItem
+import com.gestorfinances.app.ui.common.movementRowPosition
 import com.gestorfinances.app.ui.common.PageHeaderRow
 import com.gestorfinances.app.ui.common.RootPageHeader
 import com.gestorfinances.app.ui.common.DistributionSegment
@@ -99,6 +103,7 @@ fun AccountsScreen(
     viewModel: AccountsViewModel,
     onViewAnalysis: (accountId: String, accountName: String) -> Unit = { _, _ -> },
     onMovementDetail: (MovementSummary) -> Unit = {},
+    onViewGoals: (String) -> Unit = {},
     onDeleteCommitted: DeleteUndoHandler = {},
     modifier: Modifier = Modifier,
 ) {
@@ -149,6 +154,7 @@ fun AccountsScreen(
                 state = state,
                 modifier = modifier,
                 onAdd = viewModel::onAddClicked,
+                onViewGoals = onViewGoals,
                 onEdit = viewModel::onEditClicked,
                 onArchive = viewModel::onArchiveClicked,
                 onFlow = viewModel::onFlowClicked,
@@ -203,6 +209,7 @@ private fun AccountsContent(
     state: AccountsUiState,
     modifier: Modifier,
     onAdd: () -> Unit,
+    onViewGoals: (String) -> Unit,
     onEdit: (AccountSummary) -> Unit,
     onArchive: (AccountSummary) -> Unit,
     onFlow: (AccountSummary) -> Unit,
@@ -249,6 +256,9 @@ private fun AccountsContent(
             items(items = state.accounts, key = { it.id }) { account ->
                 AccountCard(
                     account = account,
+                    allocation = state.accountAllocations[account.id],
+                    dedicatedGoal = state.dedicatedGoals[account.id],
+                    onViewGoals = { onViewGoals(account.id) },
                     onEdit = { onEdit(account) },
                     onArchive = { onArchive(account) },
                     onFlow = { onFlow(account) },
@@ -400,6 +410,9 @@ private fun EmptyAccountsCard(onAdd: () -> Unit) {
 @Composable
 private fun AccountCard(
     account: AccountSummary,
+    allocation: AccountAllocation?,
+    dedicatedGoal: String?,
+    onViewGoals: () -> Unit,
     onEdit: () -> Unit,
     onArchive: () -> Unit,
     onFlow: () -> Unit,
@@ -462,7 +475,15 @@ private fun AccountCard(
                     onArchive = onArchive,
                 )
             }
-
+            if (dedicatedGoal != null) {
+                Text(stringResource(R.string.goal_account_dedicated, dedicatedGoal), style = MaterialTheme.typography.bodySmall)
+            } else allocation?.let {
+                Text(stringResource(R.string.goal_account_reservations, formatEuroCents(it.allocatedCents), formatEuroCents(it.unallocatedCents)), style = MaterialTheme.typography.bodySmall)
+                if (it.unallocatedCents < 0) {
+                    InlineBanner(kind = BannerKind.Alert, text = stringResource(R.string.goal_shortfall, account.name, formatEuroCents(-it.unallocatedCents)))
+                }
+            }
+            TextButton(onClick = onViewGoals) { Text(stringResource(R.string.goal_account_link)) }
         }
     }
 }
@@ -885,12 +906,12 @@ private fun AccountFlowScreen(
                         .fillMaxWidth(),
                     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
                 ) {
-                    items(detail.entries) { movement ->
+                    itemsIndexed(detail.entries) { index, movement ->
                         MovementListItem(
                             movement = movement,
                             onClick = { onMovementDetail(movement) },
+                            position = movementRowPosition(index, detail.entries.size),
                         )
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                     }
                 }
             }

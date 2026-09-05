@@ -47,11 +47,13 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.BudgetEvaluation
@@ -64,19 +66,36 @@ import com.gestorfinances.app.ui.theme.themedIdentityColor
 
 private val PillShape = RoundedCornerShape(percent = 50)
 
-/** Flat, bordered surface (design elevation e0): the default card across the app. */
+/**
+ * Raised surface (design elevation e2): the default card across the app. Depth comes from three
+ * cues that read as one lit object — a warm cast shadow underneath, a rim that catches light at
+ * the top edge and settles into the hairline at the bottom, and a sheen down the face.
+ */
 @Composable
 fun FinanceCard(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val colors = FinanceTheme.colors
+    val shape = MaterialTheme.shapes.large
     Surface(
-        modifier = modifier,
-        shape = MaterialTheme.shapes.large,
+        modifier = modifier.shadow(
+            elevation = 14.dp,
+            shape = shape,
+            clip = false,
+            ambientColor = colors.cardShadow,
+            spotColor = colors.cardShadow,
+        ),
+        shape = shape,
         color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, FinanceTheme.colors.cardBorder),
+        border = BorderStroke(1.dp, Brush.verticalGradient(listOf(colors.cardRim, colors.cardBorder))),
     ) {
-        Column(content = content)
+        Column(
+            modifier = Modifier.background(
+                Brush.verticalGradient(listOf(colors.cardSheen, Color.Transparent)),
+            ),
+            content = content,
+        )
     }
 }
 

@@ -1,50 +1,141 @@
 {
-  "version": "0.2.0",
+  "version": "0.7.0",
   "source": "docs/design.md",
   "description": "Shared design tokens for the Android and Windows finance apps. Values are intentionally platform-neutral.",
   "colors": {
     "neutral": {
       "light": {
-        "N0": { "hex": "#FFFDF9", "use": "Surfaces, cards" },
-        "N50": { "hex": "#F6F0E5", "use": "App background, table headers" },
-        "N100": { "hex": "#EEE6DA", "use": "Track and control backgrounds" },
-        "N150": { "hex": "#E7DDD1", "use": "Hairline dividers" },
-        "N200": { "hex": "#D8CCBF", "use": "Default borders" },
-        "N300": { "hex": "#C7B9AA", "use": "Strong borders" },
-        "N400": { "hex": "#A59588", "use": "Disabled text" },
-        "N500": { "hex": "#85776D", "use": "Disabled and non-essential text only" },
-        "N700": { "hex": "#66584F", "use": "Secondary text and body labels" },
-        "N900": { "hex": "#331329", "use": "Primary ink" }
+        "N0": {
+          "hex": "#FFFCF6",
+          "use": "Surfaces, cards"
+        },
+        "N50": {
+          "hex": "#F1E9DB",
+          "use": "App background, table headers"
+        },
+        "N100": {
+          "hex": "#E8DDCB",
+          "use": "Track and control backgrounds"
+        },
+        "N150": {
+          "hex": "#DFD2BE",
+          "use": "Hairline dividers"
+        },
+        "N200": {
+          "hex": "#D1C2AB",
+          "use": "Default borders"
+        },
+        "N300": {
+          "hex": "#BCA98F",
+          "use": "Strong borders"
+        },
+        "N400": {
+          "hex": "#9C8A73",
+          "use": "Disabled text"
+        },
+        "N500": {
+          "hex": "#7C6B59",
+          "use": "Disabled and non-essential text only"
+        },
+        "N600": {
+          "hex": "#6B5A53",
+          "use": "Subtle supporting text: list metadata beside a primary label"
+        },
+        "N700": {
+          "hex": "#5A4A4E",
+          "use": "Secondary text and body labels"
+        },
+        "N900": {
+          "hex": "#2B1024",
+          "use": "Primary ink"
+        }
       },
       "dark": {
-        "D0": { "hex": "#191317", "use": "App background" },
-        "D50": { "hex": "#21191F", "use": "Cards" },
-        "D100": { "hex": "#2B222A", "use": "Track and control backgrounds" },
-        "D150": { "hex": "#393039", "use": "Dividers and borders" },
-        "D200": { "hex": "#4A3D49", "use": "Strong borders and active segment" },
-        "D300": { "hex": "#5B4E59", "use": "Dark neutral" },
-        "D400": { "hex": "#766874", "use": "Dark neutral" },
-        "D500": { "hex": "#958793", "use": "Disabled and non-essential text only" },
-        "D700": { "hex": "#C9BAC5", "use": "Secondary text and body labels" },
-        "D900": { "hex": "#F5EFEB", "use": "Primary text" }
+        "D0": {
+          "hex": "#150F17",
+          "use": "App background"
+        },
+        "D50": {
+          "hex": "#1E1621",
+          "use": "Cards"
+        },
+        "D100": {
+          "hex": "#29202C",
+          "use": "Track and control backgrounds"
+        },
+        "D150": {
+          "hex": "#382D3B",
+          "use": "Dividers and borders"
+        },
+        "D200": {
+          "hex": "#493C4C",
+          "use": "Strong borders and active segment"
+        },
+        "D300": {
+          "hex": "#5B4C5E",
+          "use": "Dark neutral"
+        },
+        "D400": {
+          "hex": "#77677A",
+          "use": "Dark neutral"
+        },
+        "D500": {
+          "hex": "#968799",
+          "use": "Disabled and non-essential text only"
+        },
+        "D700": {
+          "hex": "#CBBACB",
+          "use": "Secondary text and body labels"
+        },
+        "D900": {
+          "hex": "#F6EFF2",
+          "use": "Primary text"
+        }
       }
     },
     "brand": {
-      "plumDefault": { "hex": "#765077", "use": "Primary buttons, links, active navigation" },
-      "plumHover": { "hex": "#674267", "use": "Hover state" },
-      "plumPressed": { "hex": "#542F53", "use": "Pressed state and active navigation text" },
-      "plumTint": { "hex": "#F0E7EE", "use": "Light fills and active backgrounds" },
-      "plumDark": { "hex": "#C9A5C7", "use": "Primary interaction on dark surfaces" }
+      "plumDefault": {
+        "hex": "#7C3B6E",
+        "use": "Primary buttons, links, active navigation"
+      },
+      "plumHover": {
+        "hex": "#6A3260",
+        "use": "Hover state"
+      },
+      "plumPressed": {
+        "hex": "#57284E",
+        "use": "Pressed state and active navigation text"
+      },
+      "plumTint": {
+        "hex": "#F5E6F0",
+        "use": "Light fills and active backgrounds"
+      },
+      "plumDark": {
+        "hex": "#E3A8D2",
+        "use": "Primary interaction on dark surfaces"
+      },
+      "accentDefault": {
+        "hex": "#C97B2E",
+        "use": "Warm accent; counterweight to plum on ink and highlights"
+      },
+      "accentDark": {
+        "hex": "#E8B071",
+        "use": "Warm accent on dark surfaces"
+      },
+      "accentTint": {
+        "hex": "#F9EBD7",
+        "use": "Light accent fill"
+      }
     },
     "functional": {
       "incomePositive": {
-        "light": "#5E7448",
+        "light": "#55763F",
         "dark": "#B1C891",
         "use": "Income, gains, owed to the user"
       },
       "expense": {
-        "light": "#331329",
-        "dark": "#F5EFEB",
+        "light": "#2B1024",
+        "dark": "#F6EFF2",
         "use": "Default expense ink; no separate hue"
       },
       "transfer": {
@@ -79,68 +170,172 @@
       },
       "tripStatus": {
         "planned": {
-          "light": { "background": "#F0E7EE", "text": "#59385A" },
-          "dark": { "background": "#4A3D49", "text": "#F5EFEB" },
+          "light": {
+            "background": "#F5E6F0",
+            "text": "#57284E"
+          },
+          "dark": {
+            "background": "#493C4C",
+            "text": "#F6EFF2"
+          },
           "use": "Planned trip status"
         },
         "active": {
-          "light": { "background": "#E8F0E3", "text": "#405B32" },
-          "dark": { "background": "#30412A", "text": "#B1C891" },
+          "light": {
+            "background": "#E7F0E0",
+            "text": "#3E5B2E"
+          },
+          "dark": {
+            "background": "#30412A",
+            "text": "#B1C891"
+          },
           "use": "Active trip status"
         },
         "finished": {
-          "light": { "background": "#EEE6DA", "text": "#66584F" },
-          "dark": { "background": "#2B222A", "text": "#C9BAC5" },
+          "light": {
+            "background": "#E8DDCB",
+            "text": "#5A4A4E"
+          },
+          "dark": {
+            "background": "#29202C",
+            "text": "#CBBACB"
+          },
           "use": "Finished trip status"
         }
       }
     },
     "category": {
-      "housing": { "color": "#B96F55", "tint": "#F5E7DE", "icon": "home" },
-      "groceries": { "color": "#6E8B58", "tint": "#E8F0E3", "icon": "shopping_cart" },
-      "restaurants": { "color": "#D76758", "tint": "#F9E4DF", "icon": "restaurant" },
-      "transport": { "color": "#5485B7", "tint": "#E3ECF7", "icon": "directions_car" },
-      "leisure": { "color": "#8A6EAA", "tint": "#EEE6F4", "icon": "sports_esports" },
-      "subscriptions": { "color": "#4A9793", "tint": "#DEF0EE", "icon": "credit_card" },
-      "uncategorized": { "color": "#9E9187", "tint": "#F1EBE4", "icon": "more_horiz" }
+      "housing": {
+        "color": "#B96F55",
+        "tint": "#F5E7DE",
+        "icon": "home"
+      },
+      "groceries": {
+        "color": "#6E8B58",
+        "tint": "#E8F0E3",
+        "icon": "shopping_cart"
+      },
+      "restaurants": {
+        "color": "#D76758",
+        "tint": "#F9E4DF",
+        "icon": "restaurant"
+      },
+      "transport": {
+        "color": "#5485B7",
+        "tint": "#E3ECF7",
+        "icon": "directions_car"
+      },
+      "leisure": {
+        "color": "#8A6EAA",
+        "tint": "#EEE6F4",
+        "icon": "sports_esports"
+      },
+      "subscriptions": {
+        "color": "#4A9793",
+        "tint": "#DEF0EE",
+        "icon": "credit_card"
+      },
+      "uncategorized": {
+        "color": "#9E9187",
+        "tint": "#F1EBE4",
+        "icon": "more_horiz"
+      }
     },
     "banner": {
-      "info": { "background": "#F0E7EE", "border": "#DFCFE0", "text": "#59385A", "icon": "info" },
-      "success": { "background": "#E8F0E3", "border": "#CDDEC1", "text": "#405B32", "icon": "check_circle" },
-      "alert": { "background": "#FBF0D9", "border": "#EDD8AE", "text": "#76510B", "icon": "warning" },
-      "error": { "background": "#FBE8E5", "border": "#EFCAC4", "text": "#883A35", "icon": "error" }
+      "info": {
+        "background": "#F5E6F0",
+        "border": "#E4CBDD",
+        "text": "#57284E",
+        "icon": "info"
+      },
+      "success": {
+        "background": "#E8F0E3",
+        "border": "#CDDEC1",
+        "text": "#405B32",
+        "icon": "check_circle"
+      },
+      "alert": {
+        "background": "#FAEDD6",
+        "border": "#EBD4A6",
+        "text": "#76510B",
+        "icon": "warning"
+      },
+      "error": {
+        "background": "#FBE8E5",
+        "border": "#EFCAC4",
+        "text": "#883A35",
+        "icon": "error"
+      }
     },
     "component": {
       "destructiveBorder": "#E8C4BE",
-      "toggleOff": "#E7DDD1",
-      "toggleOffTrackLight": "#E7DDD1",
-      "toggleOffThumbLight": "#66584F",
-      "toggleOffBorderLight": "#66584F",
-      "toggleDisabledTrackLight": "#EEE6DA",
-      "toggleDisabledThumbLight": "#A59588",
-      "toggleDisabledBorderLight": "#C7B9AA",
-      "toggleOffTrackDark": "#4A3D49",
-      "toggleOffThumbDark": "#C9BAC5",
-      "toggleOffBorderDark": "#C9BAC5",
-      "toggleDisabledTrackDark": "#2B222A",
-      "toggleDisabledThumbDark": "#766874",
-      "toggleDisabledBorderDark": "#5B4E59",
-      "focusRingPlum": "rgba(118,80,119,.12)",
-      "desktopWindowChrome": "#F6F0E5",
-      "desktopSelectedRowBackground": "#F3EAF1",
-      "desktopSelectedRowBorder": "#E2D1E0",
-      "desktopActiveNavBackground": "#F0E7EE",
+      "toggleOff": "#DFD2BE",
+      "toggleOffTrackLight": "#DFD2BE",
+      "toggleOffThumbLight": "#5A4A4E",
+      "toggleOffBorderLight": "#5A4A4E",
+      "toggleDisabledTrackLight": "#E8DDCB",
+      "toggleDisabledThumbLight": "#9C8A73",
+      "toggleDisabledBorderLight": "#BCA98F",
+      "toggleOffTrackDark": "#493C4C",
+      "toggleOffThumbDark": "#CBBACB",
+      "toggleOffBorderDark": "#CBBACB",
+      "toggleDisabledTrackDark": "#29202C",
+      "toggleDisabledThumbDark": "#77677A",
+      "toggleDisabledBorderDark": "#5B4C5E",
+      "focusRingPlum": "rgba(124,59,110,.12)",
+      "desktopWindowChrome": "#F1E9DB",
+      "desktopSelectedRowBackground": "#F5E6F0",
+      "desktopSelectedRowBorder": "#E4CBDD",
+      "desktopActiveNavBackground": "#F5E6F0",
       "chartExpense": "#C77262",
-      "scrim": "rgba(51,19,41,.55)"
+      "scrim": "rgba(43,16,36,.55)",
+      "cardShadowLight": "rgba(43,16,36,.30)",
+      "cardShadowDark": "rgba(0,0,0,.60)",
+      "cardRimLight": "#FFFFFF",
+      "cardRimDark": "#4E4152",
+      "cardSheenLight": "rgba(255,255,255,.35)",
+      "cardSheenDark": "rgba(255,255,255,.05)"
+    },
+    "hero": {
+      "inkTop": {
+        "hex": "#5B2A50",
+        "use": "Ink hero panel gradient start (light theme)"
+      },
+      "inkBottom": {
+        "hex": "#24101F",
+        "use": "Ink hero panel gradient end (light theme)"
+      },
+      "inkTopDark": {
+        "hex": "#3E1D38",
+        "use": "Ink hero panel gradient start (dark theme)"
+      },
+      "inkBottomDark": {
+        "hex": "#190B16",
+        "use": "Ink hero panel gradient end (dark theme)"
+      },
+      "glow": {
+        "hex": "#B55A9C",
+        "use": "Off-centre radial glow over the hero gradient"
+      },
+      "mutedAlpha": {
+        "value": 0.64,
+        "use": "Secondary text on the ink hero"
+      },
+      "ruleAlpha": {
+        "value": 0.18,
+        "use": "Hairlines on the ink hero"
+      }
     }
   },
   "typography": {
     "families": {
-      "interface": "Geist, sans-serif",
-      "figures": "IBM Plex Mono, monospace"
+      "interface": "Schibsted Grotesk, sans-serif",
+      "figures": "JetBrains Mono, monospace"
     },
     "features": {
-      "figures": ["tnum"]
+      "figures": [
+        "tnum"
+      ]
     },
     "locale": {
       "currency": "EUR",
@@ -149,33 +344,122 @@
       "example": "18.420,15 EUR"
     },
     "scale": {
-      "display": { "sizePx": 28, "weight": 600, "lineHeight": "default" },
-      "title": { "sizePx": 21, "weight": 600, "lineHeight": "default" },
-      "heading": { "sizePx": 16, "weight": 600, "lineHeight": "default" },
-      "body": { "sizePx": 14, "weight": 500, "lineHeight": "default" },
-      "bodySmall": { "sizePx": 13, "weight": 500, "lineHeight": "default" },
-      "label": { "sizePx": 12, "weight": 500, "lineHeight": "default" },
-      "caption": { "sizePx": 11, "weight": 500, "lineHeight": "default" }
+      "display": {
+        "sizePx": 32,
+        "weight": 600,
+        "lineHeight": "default",
+        "trackingEm": -0.015625
+      },
+      "title": {
+        "sizePx": 22,
+        "weight": 600,
+        "lineHeight": "default",
+        "trackingEm": -0.011364
+      },
+      "heading": {
+        "sizePx": 16,
+        "weight": 600,
+        "lineHeight": "default"
+      },
+      "body": {
+        "sizePx": 14,
+        "weight": 500,
+        "lineHeight": "default"
+      },
+      "bodySmall": {
+        "sizePx": 13,
+        "weight": 500,
+        "lineHeight": "default"
+      },
+      "label": {
+        "sizePx": 12,
+        "weight": 500,
+        "lineHeight": "default"
+      },
+      "caption": {
+        "sizePx": 11,
+        "weight": 500,
+        "lineHeight": "default"
+      },
+      "eyebrow": {
+        "sizePx": 11,
+        "weight": 600,
+        "trackingEm": 0.1,
+        "transform": "uppercase",
+        "lineHeight": "default"
+      }
     },
     "tracking": {
+      "displayEm": -0.015625,
       "headingEm": 0,
-      "bodyEm": 0
+      "bodyEm": 0,
+      "eyebrowEm": 0.1
     }
   },
-  "spacingPx": [2, 4, 6, 8, 10, 12, 14, 16, 20, 24, 32],
+  "spacingPx": [
+    2,
+    4,
+    6,
+    8,
+    10,
+    12,
+    14,
+    16,
+    20,
+    24,
+    32
+  ],
   "radius": {
-    "r1": { "px": 7, "use": "Small chips, inputs in rows" },
-    "r2": { "px": 10, "use": "Buttons, fields, small cards" },
-    "r3": { "px": 14, "use": "Cards, panels" },
-    "r4": { "px": 18, "use": "Sheets, large surfaces" },
-    "pill": { "px": 999, "use": "Toggles, pill badges" }
+    "r1": {
+      "px": 8,
+      "use": "Small chips, inputs in rows"
+    },
+    "r2": {
+      "px": 10,
+      "use": "Buttons, fields, small cards"
+    },
+    "r3": {
+      "px": 12,
+      "use": "Cards, panels"
+    },
+    "r4": {
+      "px": 20,
+      "use": "Sheets, large surfaces"
+    },
+    "pill": {
+      "px": 999,
+      "use": "Toggles, pill badges"
+    },
+    "r5": {
+      "px": 26,
+      "use": "Ink hero panel, sheets, large surfaces"
+    }
   },
   "elevation": {
-    "e0": { "shadow": "none", "use": "Default bordered surfaces" },
-    "e1": { "shadow": "0 1px 2px rgba(51,19,41,.06)", "use": "Separators" },
-    "e2": { "shadow": "0 2px 8px rgba(51,19,41,.06)", "use": "Cards" },
-    "e3": { "shadow": "0 8px 18px -6px rgba(118,80,119,.32)", "use": "Button and FAB" },
-    "e4": { "shadow": "0 24px 50px -12px rgba(51,19,41,.28)", "use": "Sheets and dialogs" }
+    "e0": {
+      "shadow": "none",
+      "use": "Default bordered surfaces"
+    },
+    "e1": {
+      "shadow": "0 1px 2px rgba(51,19,41,.06)",
+      "use": "Separators"
+    },
+    "e2": {
+      "shadow": "0 8px 20px -6px rgba(43,16,36,.20)",
+      "use": "Cards"
+    },
+    "e3": {
+      "shadow": "0 8px 18px -6px rgba(124,59,110,.32)",
+      "use": "Button and FAB"
+    },
+    "e4": {
+      "shadow": "0 24px 50px -12px rgba(43,16,36,.30)",
+      "use": "Sheets and dialogs"
+    },
+    "e5": {
+      "shadow": "0 20px 44px -10px rgba(43,16,36,.34)",
+      "use": "Ink hero panel"
+    }
   },
   "sizing": {
     "buttonHeightPx": 40,
@@ -274,6 +558,14 @@
       "border": "{colors.banner.alert.border}",
       "foreground": "{colors.banner.alert.text}",
       "icon": "lock"
+    },
+    "heroPanel": {
+      "backgroundFrom": "{colors.hero.inkTop}",
+      "backgroundTo": "{colors.hero.inkBottom}",
+      "glow": "{colors.hero.glow}",
+      "foreground": "{colors.neutral.light.N0}",
+      "radius": "{radius.r5}",
+      "elevation": "{elevation.e5}"
     }
   }
 }

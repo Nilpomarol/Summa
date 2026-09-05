@@ -61,6 +61,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountSummary
 import com.gestorfinances.app.data.repository.BudgetEvaluation
@@ -91,6 +92,7 @@ import com.gestorfinances.app.ui.common.IncomeExpenseChart
 import com.gestorfinances.app.ui.common.IncomeExpenseChartPoint
 import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.MovementListItem
+import com.gestorfinances.app.ui.common.movementRowPosition
 import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.NeutralPill
 import com.gestorfinances.app.ui.common.PageHeaderRow
@@ -868,11 +870,12 @@ private fun TripMovementsTab(
                     )
                 }
             }
-            items(items = group.rows, key = { it.id }) { movement ->
+            itemsIndexed(items = group.rows, key = { _, movement -> movement.id }) { index, movement ->
                 MovementListItem(
                     movement = movement,
                     onClick = { onMovementDetail(movement) },
                     showDate = false,
+                    position = movementRowPosition(index, group.rows.size),
                 )
             }
         }

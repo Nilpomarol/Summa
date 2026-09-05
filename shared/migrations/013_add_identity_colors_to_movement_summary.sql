@@ -1,3 +1,13 @@
+-- Summa v12 -> v13 migration.
+-- Exposes the account's and the trip's own colour on v_movement_summary. Both tables were
+-- already joined by the view -- only their name was selected -- so this adds no join, no row and
+-- no money semantics. A movement row can now show which account or trip it belongs to by that
+-- entity's saved colour instead of repeating what its icon and its amount already say.
+-- The external-expense branch has no account, so account_color is NULL there, exactly as
+-- account_id and account_name already are. Semicolons are deliberately kept out of comments so
+-- naive statement splitters cannot mis-cut.
+
+DROP VIEW IF EXISTS v_movement_summary;
 CREATE VIEW v_movement_summary AS
 SELECT
     movements.id,
@@ -9,7 +19,6 @@ SELECT
     accounts.color AS account_color,
     movements.dest_account_id,
     destination_accounts.name AS destination_account_name,
-    destination_accounts.color AS destination_account_color,
     movements.category_id,
     categories.name AS category_name,
     categories.nature AS category_nature,
@@ -109,7 +118,6 @@ SELECT
     NULL AS account_color,
     NULL AS dest_account_id,
     NULL AS destination_account_name,
-    NULL AS destination_account_color,
     s.category_id,
     c.name AS category_name,
     c.nature AS category_nature,
@@ -150,3 +158,5 @@ LEFT JOIN tags tg ON tg.id = s.tag_id
 WHERE s.movement_id IS NULL
   AND s.payer_person_id IS NOT NULL
   AND s.archived_at IS NULL;
+
+UPDATE meta SET value = '13' WHERE key = 'schema_version';
