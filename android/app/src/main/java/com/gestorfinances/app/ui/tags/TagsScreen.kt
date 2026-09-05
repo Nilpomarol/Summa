@@ -74,6 +74,7 @@ import com.gestorfinances.app.ui.common.PageHeaderRow
 import com.gestorfinances.app.ui.common.PrimaryButton
 import com.gestorfinances.app.ui.common.categoryIcon
 import com.gestorfinances.app.ui.common.scrollToWhen
+import com.gestorfinances.app.ui.common.SearchField
 import com.gestorfinances.app.ui.common.rememberFormDismissGuard
 import com.gestorfinances.app.ui.common.InlineFailureBanner
 import com.gestorfinances.app.ui.theme.FinanceTheme
@@ -241,26 +242,11 @@ private fun TagsContent(
 
         if (!state.isLoading && (state.tags.isNotEmpty() || state.searchQuery.isNotBlank())) {
             item {
-                OutlinedTextField(
-                    value = state.searchQuery,
-                    onValueChange = onSearchChanged,
+                SearchField(
+                    query = state.searchQuery,
+                    onQueryChange = onSearchChanged,
+                    placeholder = stringResource(R.string.tag_search_label),
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    label = { Text(text = stringResource(R.string.tag_search_label)) },
-                    leadingIcon = {
-                        Icon(imageVector = Icons.Outlined.Search, contentDescription = null)
-                    },
-                    trailingIcon = if (state.searchQuery.isNotBlank()) {
-                        {
-                            IconButton(onClick = { onSearchChanged("") }) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = stringResource(R.string.common_remove),
-                                )
-                            }
-                        }
-                    } else null,
-                    shape = MaterialTheme.shapes.small,
                 )
             }
         }

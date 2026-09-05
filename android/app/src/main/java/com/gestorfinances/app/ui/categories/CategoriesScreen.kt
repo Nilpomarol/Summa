@@ -97,6 +97,7 @@ import com.gestorfinances.app.ui.common.formatEuroCents
 import com.gestorfinances.app.ui.common.progressFraction
 import com.gestorfinances.app.ui.common.scrollToWhen
 import com.gestorfinances.app.ui.common.sortedByDisplayOrderThenName
+import com.gestorfinances.app.ui.common.SearchField
 import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.categoryColor
 import com.gestorfinances.app.ui.theme.themedIdentityColor
@@ -926,30 +927,10 @@ private fun CategoryParentPicker(
             color = FinanceTheme.colors.mutedText,
         )
         if (showSearch) {
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it },
-                placeholder = { Text(text = stringResource(R.string.category_parent_search_placeholder)) },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Outlined.Search,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                },
-                trailingIcon = if (query.isNotEmpty()) {
-                    {
-                        IconButton(onClick = { query = "" }) {
-                            Icon(
-                                imageVector = Icons.Outlined.Clear,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                            )
-                        }
-                    }
-                } else null,
-                singleLine = true,
-                shape = MaterialTheme.shapes.small,
+            SearchField(
+                query = query,
+                onQueryChange = { query = it },
+                placeholder = stringResource(R.string.category_parent_search_placeholder),
                 modifier = Modifier.fillMaxWidth(),
             )
         }

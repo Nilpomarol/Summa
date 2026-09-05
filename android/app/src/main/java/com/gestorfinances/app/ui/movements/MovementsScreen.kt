@@ -23,7 +23,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.ChevronLeft
@@ -39,7 +38,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.DatePicker
@@ -91,6 +89,7 @@ import com.gestorfinances.app.ui.common.movementRowPosition
 import com.gestorfinances.app.ui.common.PrimaryButton
 import com.gestorfinances.app.ui.common.label
 import com.gestorfinances.app.ui.common.RootPageHeader
+import com.gestorfinances.app.ui.common.SearchField
 import com.gestorfinances.app.ui.common.TopBarIconButton
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -203,15 +202,10 @@ private fun MovementsContent(
 
         if (!state.isLoading && state.accounts.isNotEmpty()) {
             item {
-                OutlinedTextField(
-                    value = state.filters.query,
-                    onValueChange = { onFiltersChange(state.filters.copy(query = it)) },
-                    placeholder = { Text(text = stringResource(R.string.movement_search_hint)) },
-                    leadingIcon = {
-                        Icon(imageVector = Icons.Outlined.Search, contentDescription = null)
-                    },
-                    singleLine = true,
-                    shape = MaterialTheme.shapes.small,
+                SearchField(
+                    query = state.filters.query,
+                    onQueryChange = { onFiltersChange(state.filters.copy(query = it)) },
+                    placeholder = stringResource(R.string.movement_search_hint),
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = LIST_BLOCK_GAP),
