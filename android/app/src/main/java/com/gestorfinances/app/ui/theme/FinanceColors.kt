@@ -65,6 +65,7 @@ fun FinanceColors.amountColor(type: MovementType): Color =
         MovementType.SETTLEMENT -> settlement
         MovementType.REFUND -> refund
         MovementType.EXTERNAL_EXPENSE -> debt
+        MovementType.CONTRIBUTION -> transfer
     }
 
 /** Parse a stored category color hex (`#RRGGBB`); falls back to the neutral category color. */

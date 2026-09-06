@@ -132,6 +132,20 @@
     <string name="account_field_low_balance_threshold">Llindar de saldo baix</string>
     <string name="account_field_color">Color</string>
     <string name="account_field_icon">Icona</string>
+    <string name="account_shared_toggle">Compte compartit</string>
+    <string name="account_shared_toggle_help">El saldo és físic; el patrimoni només inclou la teva part.</string>
+    <string name="account_shared_badge">Compartit</string>
+    <string name="account_shared_value">Part patrimonial: %1$s (%2$.2f%%)</string>
+    <string name="account_members_title">Membres, propietat i repartiment per defecte</string>
+    <string name="account_member_owner">Tu</string>
+    <string name="account_member_ownership">Propietat</string>
+    <string name="account_member_expense_split">Despeses</string>
+    <string name="account_contribution_add">Afegeix una aportació</string>
+    <string name="account_contribution_title">Aportació a %1$s</string>
+    <string name="account_contribution_member">Qui aporta</string>
+    <string name="account_contribution_source">Compte d’origen</string>
+    <string name="account_contribution_external_source">Fora dels meus comptes</string>
+    <string name="account_contribution_save">Desa l’aportació</string>
     <string name="account_advanced_options">Opcions avançades</string>
     <string name="account_preview_placeholder">Nom del compte</string>
     <string name="entity_color_custom">Color personalitzat</string>
@@ -149,6 +163,12 @@
     <string name="account_validation_name_required">Introdueix el nom del compte.</string>
     <string name="account_validation_starting_balance_invalid">Introdueix un saldo inicial vàlid.</string>
     <string name="account_validation_low_balance_invalid">Introdueix un llindar de saldo baix vàlid.</string>
+    <string name="account_validation_shared_members">Selecciona com a mínim una persona, a més de tu.</string>
+    <string name="account_validation_shared_percentages">La propietat i el repartiment de despeses han de sumar 100%% cadascun.</string>
+    <string name="movement_type_contribution">Aportació</string>
+    <string name="movement_detail_financing">Finançament</string>
+    <string name="movement_detail_financing_shared_account">El compte compartit</string>
+    <string name="movement_validation_shared_transfer">Els canvis de propietat amb un compte compartit s’han de registrar com una aportació.</string>
 
     <!-- Categories -->
     <string name="category_list_title">Categories</string>

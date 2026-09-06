@@ -14,6 +14,7 @@ CREATE TABLE accounts (
     is_default                  INTEGER NOT NULL DEFAULT 0 CHECK (is_default IN (0,1)),
     display_order               INTEGER NOT NULL DEFAULT 0,
     low_balance_threshold_cents INTEGER,
+    ownership_kind              TEXT    NOT NULL DEFAULT 'personal' CHECK (ownership_kind IN ('personal','shared')),
     created_at                  TEXT    NOT NULL,
     updated_at                  TEXT    NOT NULL,
     archived_at                 TEXT
@@ -203,6 +204,8 @@ CREATE TABLE movements (
     settlement_scope     TEXT    CHECK (settlement_scope IN ('all','recurring')),
     refunds_expense_id   TEXT    REFERENCES movements(id),
     actual_refund_cents  INTEGER CHECK (actual_refund_cents IS NULL OR actual_refund_cents >= 0),
+    expense_funding      TEXT    CHECK (expense_funding IN ('owner','shared_account')),
+    shared_split_id      TEXT    REFERENCES splits(id) DEFERRABLE INITIALLY DEFERRED,
     created_at           TEXT    NOT NULL,
     updated_at           TEXT    NOT NULL,
     archived_at          TEXT,
@@ -253,6 +256,32 @@ CREATE INDEX idx_movements_refunds
 CREATE INDEX idx_movements_import_batch
     ON movements(import_batch_id)
     WHERE import_batch_id IS NOT NULL;
+
+CREATE TABLE account_contributions (
+    id                 TEXT    PRIMARY KEY,
+    shared_account_id  TEXT    NOT NULL REFERENCES accounts(id),
+    contributor_kind   TEXT    NOT NULL CHECK (contributor_kind IN ('user','person')),
+    person_id          TEXT    REFERENCES people(id),
+    source_account_id  TEXT    REFERENCES accounts(id),
+    amount_cents       INTEGER NOT NULL CHECK (amount_cents > 0),
+    date               TEXT    NOT NULL,
+    name               TEXT,
+    notes              TEXT,
+    created_at         TEXT    NOT NULL,
+    updated_at         TEXT    NOT NULL,
+    archived_at        TEXT,
+
+    CHECK ( (contributor_kind = 'user') = (person_id IS NULL) ),
+    CHECK ( contributor_kind = 'user' OR source_account_id IS NULL ),
+    CHECK ( source_account_id IS NULL OR source_account_id <> shared_account_id )
+);
+
+CREATE INDEX idx_account_contributions_shared_date
+    ON account_contributions(shared_account_id, date);
+
+CREATE INDEX idx_account_contributions_source_date
+    ON account_contributions(source_account_id, date)
+    WHERE source_account_id IS NOT NULL;
 
 CREATE TABLE splits (
     id                 TEXT    PRIMARY KEY,
@@ -336,6 +365,31 @@ CREATE TABLE goals (
 
     CHECK ( funding_mode <> 'dedicated_account' OR account_id IS NOT NULL )
 );
+
+CREATE TABLE account_members (
+    id                           TEXT    PRIMARY KEY,
+    account_id                   TEXT    NOT NULL REFERENCES accounts(id),
+    participant_kind             TEXT    NOT NULL CHECK (participant_kind IN ('user','person')),
+    person_id                    TEXT    REFERENCES people(id),
+    ownership_basis_points       INTEGER NOT NULL CHECK (ownership_basis_points BETWEEN 0 AND 10000),
+    default_expense_basis_points INTEGER NOT NULL CHECK (default_expense_basis_points BETWEEN 0 AND 10000),
+    created_at                   TEXT    NOT NULL,
+    updated_at                   TEXT    NOT NULL,
+    archived_at                  TEXT,
+
+    CHECK ( (participant_kind = 'user') = (person_id IS NULL) )
+);
+
+CREATE INDEX idx_account_members_account
+    ON account_members(account_id);
+
+CREATE UNIQUE INDEX idx_account_members_one_user
+    ON account_members(account_id)
+    WHERE participant_kind = 'user' AND archived_at IS NULL;
+
+CREATE UNIQUE INDEX idx_account_members_one_person
+    ON account_members(account_id, person_id)
+    WHERE participant_kind = 'person' AND archived_at IS NULL;
 
 CREATE INDEX idx_goals_account
     ON goals(account_id)

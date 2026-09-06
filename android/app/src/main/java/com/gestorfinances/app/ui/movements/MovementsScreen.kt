@@ -60,10 +60,12 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountSummary
 import com.gestorfinances.app.data.repository.CategoryNature
@@ -281,6 +283,26 @@ private const val UNCATEGORIZED_COLOR = "#9097A3"
 /** Snug padding so the five type pills fit one screen width without scrolling or wrapping. */
 private val TYPE_PILL_PADDING = PaddingValues(horizontal = 10.dp, vertical = 9.dp)
 
+/** The ledger's own side margin; the pill row escapes it to reach the screen edges. */
+private val LEDGER_SIDE_PADDING = 20.dp
+
+/**
+ * Lets one item of a horizontally padded list run the full width of the screen. It still reports
+ * the width the list gave it, so the list itself never gains a horizontal scroll.
+ */
+private fun Modifier.bleedHorizontally(padding: Dp) = layout { measurable, constraints ->
+    val bleed = padding.roundToPx()
+    val placeable = measurable.measure(
+        constraints.copy(
+            minWidth = constraints.minWidth + bleed * 2,
+            maxWidth = constraints.maxWidth + bleed * 2,
+        ),
+    )
+    layout(placeable.width - bleed * 2, placeable.height) {
+        placeable.place(-bleed, 0)
+    }
+}
+
 /**
  * The one pill row under the search bar: a summary pill for the advanced filters, when any are on,
  * followed by the type selector. The type pills alone fit a phone width; only the summary pill can
@@ -302,13 +324,17 @@ private fun MovementFilterPills(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .bleedHorizontally(LEDGER_SIDE_PADDING)
             .then(
                 if (activeFilterCount > 0) {
                     Modifier.horizontalScroll(rememberScrollState())
                 } else {
                     Modifier
                 },
-            ),
+            )
+            // Inside the scroll, so the pills line up with the page but can still travel to the
+            // screen edge instead of stopping at its margin.
+            .padding(horizontal = LEDGER_SIDE_PADDING),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -814,6 +840,7 @@ private fun MovementType.filterLabel(): String =
         MovementType.SETTLEMENT -> stringResource(R.string.movement_type_settlement)
         MovementType.REFUND -> stringResource(R.string.movement_type_refund)
         MovementType.EXTERNAL_EXPENSE -> stringResource(R.string.movement_type_external)
+        MovementType.CONTRIBUTION -> stringResource(R.string.movement_type_contribution)
     }
 
 /** Gap under each block above the movement ledger; the ledger's own rows meet without one. */
@@ -829,6 +856,7 @@ private val rareMovementTypes = listOf(
     MovementType.SETTLEMENT,
     MovementType.REFUND,
     MovementType.EXTERNAL_EXPENSE,
+    MovementType.CONTRIBUTION,
 )
 
 private enum class FilterSheetType {
@@ -1386,4 +1414,3 @@ private fun PeriodFilterSheet(
         }
     }
 }
-

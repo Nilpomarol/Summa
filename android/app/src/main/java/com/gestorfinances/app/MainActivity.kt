@@ -327,6 +327,7 @@ private fun LedgerShell(
                 movementRepository = appContainer.movementRepository,
                 templateRepository = appContainer.templateRepository,
                 notificationRefresher = appContainer.notificationCoordinator,
+                personRepository = appContainer.personRepository,
             ),
         )[AccountsViewModel::class.java]
     }

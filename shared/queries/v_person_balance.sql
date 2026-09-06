@@ -11,6 +11,7 @@ SELECT
         WHERE sl.person_id = p.id
           AND sl.participant_kind = 'person'
           AND s.payer_person_id IS NULL
+          AND COALESCE(m.expense_funding, 'owner') = 'owner'
           AND m.archived_at IS NULL
           AND s.archived_at IS NULL
           AND sl.archived_at IS NULL

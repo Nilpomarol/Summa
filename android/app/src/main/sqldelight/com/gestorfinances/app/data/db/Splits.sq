@@ -3,6 +3,12 @@ SELECT id
 FROM splits
 WHERE movement_id = :movement_id;
 
+activeSplitIdForMovement:
+SELECT id
+FROM splits
+WHERE movement_id = :movement_id
+  AND archived_at IS NULL;
+
 insertMovementSplit:
 INSERT INTO splits(
     id,

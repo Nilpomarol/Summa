@@ -15,14 +15,14 @@ Android consumes the SQL through SQLDelight. Windows uses Microsoft.Data.Sqlite 
 
 ## Schema snapshot
 
-The current schema version is `14`. Principal tables are:
+The current schema version is `16`. Principal tables are:
 
 | Area | Tables |
 |---|---|
-| Reference data | `accounts`, `categories`, `people`, `trips`, `tags` |
+| Reference data | `accounts`, `account_members`, `categories`, `people`, `trips`, `tags` |
 | Ledger | `movements`, `splits`, `split_lines` |
 | Automation | `templates` |
-| Planning/import | `budgets`, `goals`, `goal_allocations`, `import_batches` |
+| Planning/import | `budgets`, `goals`, `goal_allocations`, `account_contributions`, `import_batches` |
 | System | `meta` |
 
 The SQL files are the field-level authority. Documentation explains the contract but does not duplicate every column.
@@ -46,6 +46,7 @@ Application validation should mirror important database constraints to provide u
 |---|---|
 | `v_account_flow` | Signed per-account effect of ledger activity |
 | `v_account_balance` | Opening balance plus derived active flow |
+| `v_account_value` | Physical balance, owner ownership percentage, and owner patrimonial value |
 | `v_actual_expense` | User-owned expense net of shared portions and refunds |
 | `v_actual_income` | User-owned income |
 | `v_person_balance` | Derived debt direction and amount per person |
@@ -68,6 +69,14 @@ Balances, debt, actual values, and flow must come from these views or shared que
 - An account dedicated to a goal does not also host allocations. Repository mutations validate exclusivity transactionally, including restore and funding-mode changes.
 - `goal_account_allocations.sql` is the canonical reservation total per goal/account. Each account total must remain nonnegative through create, edit, delete, and restore; invalid mutations roll back. Changing funding mode requires zero outstanding reservations.
 - Monthly pace counts calendar months inclusively, rounding cents up. A target date before today has zero funding periods and is overdue unless already reached; a target today still has one period.
+
+## Shared accounts
+
+- A personal account is wholly owner-controlled. A shared account has one app-owner member and one or more active existing people, with ownership and default expense percentages stored as integer basis points. Each percentage set totals 10,000. SQLite validates the complete set when an account becomes shared; member changes are staged while it is personal and then validated atomically.
+- `v_account_balance` remains the physical balance. `v_account_value` rounds the owner percentage of that balance to the nearest cent, symmetrically for negative values; net worth and dedicated-goal value consume this patrimonial amount.
+- Split lines describe economic consumption. `movements.expense_funding` independently records whether the app owner or the shared account financed an expense. A shared-account-financed expense changes the full physical balance and the user's split changes actual expense, but it creates no person-to-owner debt. Such an expense names the split it is consumed through in `movements.shared_split_id`, written before the split itself inside the same transaction on a deferred foreign key, and it keeps that identifier for life.
+- `account_contributions` records an active member placing money in an active shared account. An optional active personal source account creates paired negative/positive physical flow; an outside contribution creates only the shared-account inflow. Contributions are excluded from actual income, actual expense, settlements, and debt.
+- Ordinary transfers remain between owner-controlled personal accounts. Crossing into shared ownership uses a contribution; the contract does not infer member capital balances or historical ownership from these flows.
 
 ## Golden procedural rules
 
@@ -118,15 +127,7 @@ Any red golden test blocks delivery of a money-rule or shared-contract change.
 
 ## Approved pre-Windows contract changes
 
-Schema version `14` is the implemented authority. Savings goals have shipped and are described above with the rest of the contract. The remaining changes are approved targets; exact names may be refined during implementation, but their meanings and invariants are fixed by [pre-windows-plan.md](pre-windows-plan.md).
-
-### Shared accounts
-
-- Add account membership/ownership data for the app owner and known people.
-- Separate physical account balance from the owner's patrimonial share.
-- Record whether an expense was financed by the app owner, a person, or the shared account itself; keep economic allocation in split lines.
-- Add contributions for money placed into a shared account without treating them as income, expense, transfer between owned accounts, or debt settlement.
-- Ownership percentages and default expense splits are explicit configuration. Do not attempt member capital-account accounting or infer exact historical ownership from deposits and consumption.
+Schema version `16` is the implemented authority. Savings goals and shared accounts have shipped and are described above with the rest of the contract. The remaining change is an approved target whose meanings and invariants are fixed by [pre-windows-plan.md](pre-windows-plan.md).
 
 ### Investment valuations
 

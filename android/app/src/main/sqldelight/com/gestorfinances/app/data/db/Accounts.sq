@@ -9,13 +9,16 @@ SELECT
     accounts.is_default,
     accounts.display_order,
     accounts.low_balance_threshold_cents,
+    accounts.ownership_kind,
     accounts.created_at,
     accounts.updated_at,
     accounts.archived_at,
-    v_account_balance.current_balance_cents
+    v_account_value.physical_balance_cents,
+    v_account_value.owner_ownership_basis_points,
+    v_account_value.owner_value_cents
 FROM accounts
-JOIN v_account_balance
-    ON v_account_balance.account_id = accounts.id
+JOIN v_account_value
+    ON v_account_value.account_id = accounts.id
 WHERE accounts.archived_at IS NULL
 ORDER BY accounts.is_default DESC, accounts.display_order ASC, lower(accounts.name) ASC;
 
@@ -30,13 +33,16 @@ SELECT
     accounts.is_default,
     accounts.display_order,
     accounts.low_balance_threshold_cents,
+    accounts.ownership_kind,
     accounts.created_at,
     accounts.updated_at,
     accounts.archived_at,
-    v_account_balance.current_balance_cents
+    v_account_value.physical_balance_cents,
+    v_account_value.owner_ownership_basis_points,
+    v_account_value.owner_value_cents
 FROM accounts
-JOIN v_account_balance
-    ON v_account_balance.account_id = accounts.id
+JOIN v_account_value
+    ON v_account_value.account_id = accounts.id
 WHERE accounts.id = :id
   AND accounts.archived_at IS NULL;
 
@@ -51,6 +57,7 @@ INSERT INTO accounts(
     is_default,
     display_order,
     low_balance_threshold_cents,
+    ownership_kind,
     created_at,
     updated_at
 ) VALUES (
@@ -63,6 +70,7 @@ INSERT INTO accounts(
     :is_default,
     :display_order,
     :low_balance_threshold_cents,
+    :ownership_kind,
     :created_at,
     :updated_at
 );
@@ -78,6 +86,15 @@ SET
     is_default = :is_default,
     display_order = :display_order,
     low_balance_threshold_cents = :low_balance_threshold_cents,
+    ownership_kind = :ownership_kind,
+    updated_at = :updated_at
+WHERE id = :id
+  AND archived_at IS NULL;
+
+setAccountOwnership:
+UPDATE accounts
+SET
+    ownership_kind = :ownership_kind,
     updated_at = :updated_at
 WHERE id = :id
   AND archived_at IS NULL;

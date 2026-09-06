@@ -12,6 +12,109 @@ import org.junit.Test
 class MigrationTest {
 
     @Test
+    fun `v15 to v16 migration enforces shared account integrity`() {
+        val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+        driver.execute(null, "PRAGMA foreign_keys = ON", 0)
+        GestorDatabase.Schema.create(driver)
+        // v15 knew shared accounts but not the split a shared-account expense is consumed through.
+        driver.execute(null, "ALTER TABLE movements DROP COLUMN shared_split_id", 0)
+        driver.execute(null, "UPDATE meta SET value='15' WHERE key='schema_version'", 0)
+
+        GestorDatabase.Schema.migrate(driver, 15, 16)
+
+        assertEquals("16", driver.selectString("SELECT value FROM meta WHERE key='schema_version'"))
+        assertFails {
+            driver.execute(
+                null,
+                "INSERT INTO accounts(id,name,starting_balance_cents,type,ownership_kind,created_at,updated_at) VALUES ('invalid','Invalid',0,'bank','shared','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+                0,
+            )
+        }
+
+        driver.execute(null, "INSERT INTO people(id,name,created_at,updated_at) VALUES ('person','Alba','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')", 0)
+        driver.execute(null, "INSERT INTO accounts(id,name,starting_balance_cents,type,ownership_kind,created_at,updated_at) VALUES ('shared','Shared',0,'bank','personal','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')", 0)
+        driver.execute(null, "INSERT INTO account_members(id,account_id,participant_kind,ownership_basis_points,default_expense_basis_points,created_at,updated_at) VALUES ('owner','shared','user',5000,5000,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')", 0)
+        driver.execute(null, "INSERT INTO account_members(id,account_id,participant_kind,person_id,ownership_basis_points,default_expense_basis_points,created_at,updated_at) VALUES ('person-member','shared','person','person',5000,5000,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')", 0)
+        driver.execute(null, "UPDATE accounts SET ownership_kind='shared' WHERE id='shared'", 0)
+
+        assertFails {
+            driver.execute(
+                null,
+                "INSERT INTO account_contributions(id,shared_account_id,contributor_kind,person_id,source_account_id,amount_cents,date,created_at,updated_at) VALUES ('bad','shared','user',NULL,'shared',100,'2026-01-01','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+                0,
+            )
+        }
+        assertFails {
+            driver.execute(
+                null,
+                "INSERT INTO movements(id,type,amount_cents,date,account_id,expense_funding,created_at,updated_at) VALUES ('bad-expense','expense',100,'2026-01-01','shared','owner','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+                0,
+            )
+        }
+        // The column the migration adds, and the rule that comes with it.
+        assertFails {
+            driver.execute(
+                null,
+                "INSERT INTO movements(id,type,amount_cents,date,account_id,expense_funding,shared_split_id,created_at,updated_at) VALUES ('no-split','expense',100,'2026-01-01','shared','shared_account',NULL,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+                0,
+            )
+        }
+    }
+
+    @Test
+    fun `v14 to v15 migration adds shared accounts without changing existing balances`() {
+        val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+        driver.execute(null, "PRAGMA foreign_keys = ON", 0)
+        GestorDatabase.Schema.create(driver)
+        driver.execute(null, "DROP VIEW v_account_allocation", 0)
+        driver.execute(null, "DROP VIEW v_goal_progress", 0)
+        driver.execute(null, "DROP VIEW v_account_value", 0)
+        driver.execute(null, "DROP VIEW v_person_balance", 0)
+        driver.execute(null, "DROP VIEW v_movement_summary", 0)
+        driver.execute(null, "DROP VIEW v_account_balance", 0)
+        driver.execute(null, "DROP VIEW v_account_flow", 0)
+        driver.execute(null, """
+            CREATE VIEW v_account_flow AS
+            SELECT account_id,date,id AS movement_id,
+              CASE type WHEN 'income' THEN amount_cents WHEN 'refund' THEN amount_cents
+                WHEN 'expense' THEN -amount_cents WHEN 'transfer' THEN -amount_cents
+                WHEN 'settlement' THEN CASE settlement_direction WHEN 'person_to_user' THEN amount_cents ELSE -amount_cents END END AS delta_cents
+            FROM movements WHERE archived_at IS NULL
+            UNION ALL SELECT dest_account_id,date,id,amount_cents FROM movements
+            WHERE type='transfer' AND archived_at IS NULL
+        """.trimIndent(), 0)
+        driver.execute(null, """
+            CREATE VIEW v_account_balance AS
+            SELECT a.id AS account_id, a.starting_balance_cents + COALESCE((SELECT SUM(f.delta_cents) FROM v_account_flow f WHERE f.account_id=a.id),0) AS current_balance_cents
+            FROM accounts a
+        """.trimIndent(), 0)
+        // A v14 database carries none of the integrity triggers v16 adds, and SQLite re-checks
+        // every object that references a table when one of its columns is dropped. The triggers on
+        // account_members and account_contributions go with their tables.
+        listOf(
+            "account_reject_direct_shared_insert",
+            "account_validate_members_before_becoming_shared",
+            "movements_validate_shared_expense_funding_insert",
+            "movements_validate_shared_expense_funding_update",
+            "splits_reject_archive_for_active_shared_expense",
+        ).forEach { trigger -> driver.execute(null, "DROP TRIGGER IF EXISTS $trigger", 0) }
+        driver.execute(null, "DROP TABLE account_contributions", 0)
+        driver.execute(null, "DROP TABLE account_members", 0)
+        driver.execute(null, "ALTER TABLE accounts DROP COLUMN ownership_kind", 0)
+        driver.execute(null, "ALTER TABLE movements DROP COLUMN shared_split_id", 0)
+        driver.execute(null, "ALTER TABLE movements DROP COLUMN expense_funding", 0)
+        driver.execute(null, "UPDATE meta SET value='14' WHERE key='schema_version'", 0)
+        driver.execute(null, "INSERT INTO accounts(id,name,starting_balance_cents,type,created_at,updated_at) VALUES ('existing','Existing',12345,'bank','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')", 0)
+
+        GestorDatabase.Schema.migrate(driver, 14, 15)
+
+        assertEquals("15", driver.selectString("SELECT value FROM meta WHERE key='schema_version'"))
+        assertEquals(12_345L, driver.selectLong("SELECT owner_value_cents FROM v_account_value WHERE account_id='existing'"))
+        assertEquals("personal", driver.selectString("SELECT ownership_kind FROM accounts WHERE id='existing'"))
+        assertEquals(0L, driver.selectLong("SELECT COUNT(*) FROM pragma_foreign_key_check"))
+    }
+
+    @Test
     fun `v11 to v12 migration adds savings goals and their views for an upgrading database`() {
         // A fresh install gets the goal views from the generated schema, but an upgrading database
         // never re-runs it: the migration itself must leave the views Goals.sq queries behind.
@@ -998,4 +1101,12 @@ class MigrationTest {
 
     private fun JdbcSqliteDriver.selectLong(sql: String): Long =
         executeQuery(null, sql, { cursor -> cursor.next(); QueryResult.Value(cursor.getLong(0)!!) }, 0).value
+
+    private fun assertFails(block: () -> Unit) {
+        try {
+            block()
+            fail("expected SQLite constraint failure")
+        } catch (_: Exception) {
+        }
+    }
 }

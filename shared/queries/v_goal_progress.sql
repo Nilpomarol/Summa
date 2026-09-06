@@ -10,8 +10,8 @@ FROM (
         g.target_amount_cents AS target_amount_cents,
         CASE g.funding_mode
             WHEN 'dedicated_account' THEN COALESCE((
-                SELECT b.current_balance_cents
-                FROM v_account_balance b
+                SELECT b.owner_value_cents
+                FROM v_account_value b
                 WHERE b.account_id = g.account_id
             ), 0)
             ELSE COALESCE((

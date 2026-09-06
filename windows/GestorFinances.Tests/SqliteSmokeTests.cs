@@ -42,7 +42,7 @@ public sealed class SqliteSmokeTests
 
         var meta = connection.Query<MetaRow>("SELECT key AS Key, value AS Value FROM meta ORDER BY key;").ToList();
         CollectionAssert.AreEqual(
-            new[] { "schema_version=14", "snapshot_version=0" },
+            new[] { "schema_version=16", "snapshot_version=0" },
             meta.Select(row => $"{row.Key}={row.Value}").ToArray());
 
         var budgetColumns = connection.Query<string>("SELECT name FROM pragma_table_info('budgets');").ToArray();
@@ -51,7 +51,7 @@ public sealed class SqliteSmokeTests
             budgetColumns);
 
         var movementColumns = connection.Query<string>("SELECT name FROM pragma_table_info('movements');").ToArray();
-        CollectionAssert.IsSubsetOf(new[] { "settlement_scope" }, movementColumns);
+        CollectionAssert.IsSubsetOf(new[] { "settlement_scope", "expense_funding" }, movementColumns);
 
         // The v11 rebuild must leave templates able to schedule settlements, with no scratch table.
         var templateColumns = connection.Query<string>("SELECT name FROM pragma_table_info('templates');").ToArray();
@@ -76,6 +76,7 @@ public sealed class SqliteSmokeTests
                 "v_account_allocation",
                 "v_account_balance",
                 "v_account_flow",
+                "v_account_value",
                 "v_actual_expense",
                 "v_actual_income",
                 "v_goal_allocation",
@@ -104,6 +105,32 @@ public sealed class SqliteSmokeTests
         Assert.AreEqual(11_500, balances[0].CurrentBalanceCents);
         Assert.AreEqual("acc-savings", balances[1].AccountId);
         Assert.AreEqual(1_000, balances[1].CurrentBalanceCents);
+    }
+
+    [TestMethod]
+    public void SharedAccountIntegrityRejectsInvalidDatabaseWrites()
+    {
+        using var connection = new SqliteConnection("Data Source=:memory:");
+        connection.Open();
+        SharedSql.ApplyBaseline(connection);
+        const string now = "2026-01-01T00:00:00Z";
+
+        AssertSqliteFails(() => connection.Execute(
+            "INSERT INTO accounts(id,name,starting_balance_cents,type,ownership_kind,created_at,updated_at) VALUES ('invalid','Invalid',0,'bank','shared',@Now,@Now)",
+            new { Now = now }));
+
+        connection.Execute("INSERT INTO people(id,name,created_at,updated_at) VALUES ('person','Alba',@Now,@Now)", new { Now = now });
+        connection.Execute("INSERT INTO accounts(id,name,starting_balance_cents,type,ownership_kind,created_at,updated_at) VALUES ('shared','Shared',0,'bank','personal',@Now,@Now)", new { Now = now });
+        connection.Execute("INSERT INTO account_members(id,account_id,participant_kind,ownership_basis_points,default_expense_basis_points,created_at,updated_at) VALUES ('owner','shared','user',5000,5000,@Now,@Now)", new { Now = now });
+        connection.Execute("INSERT INTO account_members(id,account_id,participant_kind,person_id,ownership_basis_points,default_expense_basis_points,created_at,updated_at) VALUES ('person-member','shared','person','person',5000,5000,@Now,@Now)", new { Now = now });
+        connection.Execute("UPDATE accounts SET ownership_kind='shared' WHERE id='shared'");
+
+        AssertSqliteFails(() => connection.Execute(
+            "INSERT INTO account_contributions(id,shared_account_id,contributor_kind,person_id,source_account_id,amount_cents,date,created_at,updated_at) VALUES ('bad','shared','user',NULL,'shared',100,'2026-01-01',@Now,@Now)",
+            new { Now = now }));
+        AssertSqliteFails(() => connection.Execute(
+            "INSERT INTO movements(id,type,amount_cents,date,account_id,expense_funding,created_at,updated_at) VALUES ('bad-expense','expense',100,'2026-01-01','shared','owner',@Now,@Now)",
+            new { Now = now }));
     }
 
     [TestMethod]
@@ -205,6 +232,18 @@ public sealed class SqliteSmokeTests
                 ('mov-transfer', 'transfer', 1000, '2026-06-02', 'acc-main', 'acc-savings', 'Savings transfer', @Now, @Now);
             """,
             new { Now = now });
+    }
+
+    private static void AssertSqliteFails(Action action)
+    {
+        try
+        {
+            action();
+            Assert.Fail("Expected SQLite constraint failure.");
+        }
+        catch (SqliteException)
+        {
+        }
     }
 
     private sealed class MetaRow

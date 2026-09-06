@@ -214,4 +214,5 @@ fun movementTypeIcon(type: MovementType): ImageVector =
         MovementType.SETTLEMENT -> Icons.Outlined.Handshake
         MovementType.REFUND -> Icons.AutoMirrored.Outlined.AssignmentReturn
         MovementType.EXTERNAL_EXPENSE -> Icons.Outlined.Person
+        MovementType.CONTRIBUTION -> Icons.Outlined.Savings
     }

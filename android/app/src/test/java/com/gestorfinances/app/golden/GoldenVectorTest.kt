@@ -47,6 +47,7 @@ class GoldenVectorTest {
             "goal_progress.json",
             "recurring_advance.json",
             "refund_actual.json",
+            "shared_account.json",
             "split_rounding.json",
             "template_split_rescale.json",
         )
@@ -185,6 +186,55 @@ class GoldenVectorTest {
     }
 
     @Test
+    fun sharedAccountsMatchGoldenVectors() {
+        golden("shared_account.json").cases().forEach { case ->
+            freshConnection().use { connection ->
+                val input = case.obj("input")
+                connection.createStatement().use { statement ->
+                    val sql = """
+                        INSERT INTO accounts (id,name,starting_balance_cents,type,ownership_kind,created_at,updated_at) VALUES
+                          ('personal','Personal',${input.long("personal_start_cents")},'bank','personal','$NOW','$NOW'),
+                          ('shared','Shared',${input.long("shared_start_cents")},'bank','personal','$NOW','$NOW');
+                        INSERT INTO people (id,name,created_at,updated_at) VALUES ('person','Person','$NOW','$NOW');
+                        INSERT INTO account_members (id,account_id,participant_kind,person_id,ownership_basis_points,default_expense_basis_points,created_at,updated_at) VALUES
+                          ('member-user','shared','user',NULL,${input.long("owner_ownership_basis_points")},4000,'$NOW','$NOW'),
+                          ('member-person','shared','person','person',${10_000 - input.long("owner_ownership_basis_points")},6000,'$NOW','$NOW');
+                        UPDATE accounts SET ownership_kind = 'shared' WHERE id = 'shared';
+                        INSERT INTO account_contributions (id,shared_account_id,contributor_kind,person_id,source_account_id,amount_cents,date,created_at,updated_at) VALUES
+                          ('owner-contribution','shared','user',NULL,'personal',${input.long("owner_contribution_cents")},'2026-01-02','$NOW','$NOW'),
+                          ('person-contribution','shared','person','person',NULL,${input.long("person_contribution_cents")},'2026-01-03','$NOW','$NOW');
+                        INSERT INTO movements (id,type,amount_cents,date,account_id,expense_funding,shared_split_id,created_at,updated_at) VALUES
+                          ('shared-expense','expense',${input.long("shared_expense_cents")},'2026-01-04','shared','shared_account','shared-split','$NOW','$NOW'),
+                          ('owner-expense','expense',${input.long("owner_financed_expense_cents")},'2026-01-05','personal','owner',NULL,'$NOW','$NOW');
+                        INSERT INTO splits (id,movement_id,entry_method,created_at,updated_at) VALUES
+                          ('shared-split','shared-expense','exact','$NOW','$NOW'),
+                          ('owner-split','owner-expense','exact','$NOW','$NOW');
+                        INSERT INTO split_lines (id,split_id,participant_kind,person_id,owed_amount_cents,created_at,updated_at) VALUES
+                          ('shared-user','shared-split','user',NULL,${input.long("shared_expense_owner_share_cents")},'$NOW','$NOW'),
+                          ('shared-person','shared-split','person','person',${input.long("shared_expense_cents") - input.long("shared_expense_owner_share_cents")},'$NOW','$NOW'),
+                          ('owner-user','owner-split','user',NULL,${input.long("owner_financed_expense_cents") - input.long("owner_financed_person_share_cents")},'$NOW','$NOW'),
+                          ('owner-person','owner-split','person','person',${input.long("owner_financed_person_share_cents")},'$NOW','$NOW');
+                        """.trimIndent()
+                    // A shared-account expense names the split it is consumed through, which is
+                    // written after it: the deferred foreign key only resolves at commit, so the
+                    // fixture goes in as one transaction, the way the app writes it.
+                    connection.autoCommit = false
+                    sql.split(';').map(String::trim).filter(String::isNotEmpty).forEach(statement::execute)
+                    connection.commit()
+                    connection.autoCommit = true
+                }
+                val expected = case.obj("expected")
+                assertEquals(case.name(), expected.long("personal_physical_cents"), connection.singleLong("SELECT current_balance_cents FROM v_account_balance WHERE account_id='personal'"))
+                assertEquals(case.name(), expected.long("shared_physical_cents"), connection.singleLong("SELECT current_balance_cents FROM v_account_balance WHERE account_id='shared'"))
+                assertEquals(case.name(), expected.long("shared_owner_value_cents"), connection.singleLong("SELECT owner_value_cents FROM v_account_value WHERE account_id='shared'"))
+                assertEquals(case.name(), expected.long("net_worth_cents"), connection.singleLong("SELECT SUM(owner_value_cents) FROM v_account_value"))
+                assertEquals(case.name(), expected.long("actual_expense_cents"), connection.singleLong("SELECT SUM(amount_cents) FROM v_actual_expense"))
+                assertEquals(case.name(), expected.long("person_balance_cents"), connection.singleLong("SELECT balance_cents FROM v_person_balance WHERE person_id='person'"))
+            }
+        }
+    }
+
+    @Test
     fun debtConsumptionMatchesGoldenVectors() {
         golden("debt_consumption.json").cases().forEach { case ->
             val items = case.obj("input").array("items").map { it.jsonObject.toDebtItem() }
@@ -286,11 +336,12 @@ class GoldenVectorTest {
     private fun freshConnection(): Connection =
         DriverManager.getConnection("jdbc:sqlite::memory:").also { connection ->
             connection.createStatement().use { statement ->
-                sharedRoot.resolve("migrations/001_initial.sql").readSqlStatements().forEach(statement::execute)
+                sharedRoot.resolve("schema/schema.sql").readSqlStatements().forEach(statement::execute)
                 listOf(
                     "v_movement_shared.sql",
                     "v_account_flow.sql",
                     "v_account_balance.sql",
+                    "v_account_value.sql",
                     "v_actual_expense.sql",
                     "v_actual_income.sql",
                     "v_person_balance.sql",
@@ -388,8 +439,8 @@ class GoldenVectorTest {
             INSERT INTO movements(
                 id, type, account_id, dest_account_id, amount_cents, date,
                 person_id, settlement_direction, refunds_expense_id, actual_refund_cents,
-                created_at, updated_at, archived_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                settlement_scope, expense_funding, created_at, updated_at, archived_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent(),
         ).use { statement ->
             statement.setString(1, id)
@@ -402,9 +453,11 @@ class GoldenVectorTest {
             statement.setNullableString(8, settlementDirection)
             statement.setNullableString(9, refundsExpenseId)
             statement.setNullableLong(10, actualRefundCents)
-            statement.setString(11, NOW)
-            statement.setString(12, NOW)
-            statement.setNullableString(13, archivedAt)
+            statement.setNullableString(11, if (type == "settlement") "all" else null)
+            statement.setNullableString(12, if (type == "expense") "owner" else null)
+            statement.setString(13, NOW)
+            statement.setString(14, NOW)
+            statement.setNullableString(15, archivedAt)
             statement.executeUpdate()
         }
     }

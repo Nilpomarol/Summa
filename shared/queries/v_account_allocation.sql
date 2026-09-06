@@ -1,11 +1,11 @@
 CREATE VIEW v_account_allocation AS
 SELECT
     a.id AS account_id,
-    b.current_balance_cents AS balance_cents,
+    b.owner_value_cents AS balance_cents,
     COALESCE(alloc.allocated_cents, 0) AS allocated_cents,
-    b.current_balance_cents - COALESCE(alloc.allocated_cents, 0) AS unallocated_cents
+    b.owner_value_cents - COALESCE(alloc.allocated_cents, 0) AS unallocated_cents
 FROM accounts a
-JOIN v_account_balance b
+JOIN v_account_value b
     ON b.account_id = a.id
 LEFT JOIN (
     SELECT

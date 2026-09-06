@@ -1,0 +1,49 @@
+membersForAccount:
+SELECT
+    am.id,
+    am.account_id,
+    am.participant_kind,
+    am.person_id,
+    p.name AS person_name,
+    am.ownership_basis_points,
+    am.default_expense_basis_points
+FROM account_members am
+LEFT JOIN people p ON p.id = am.person_id
+WHERE am.account_id = :account_id
+  AND am.archived_at IS NULL
+ORDER BY am.participant_kind DESC, lower(COALESCE(p.name, '')) ASC;
+
+archiveMembersForAccount:
+UPDATE account_members
+SET archived_at = :archived_at, updated_at = :updated_at
+WHERE account_id = :account_id AND archived_at IS NULL;
+
+insertMember:
+INSERT INTO account_members(
+    id, account_id, participant_kind, person_id,
+    ownership_basis_points, default_expense_basis_points,
+    created_at, updated_at
+) VALUES (
+    :id, :account_id, :participant_kind, :person_id,
+    :ownership_basis_points, :default_expense_basis_points,
+    :created_at, :updated_at
+);
+
+insertContribution:
+INSERT INTO account_contributions(
+    id, shared_account_id, contributor_kind, person_id, source_account_id,
+    amount_cents, date, name, notes, created_at, updated_at
+) VALUES (
+    :id, :shared_account_id, :contributor_kind, :person_id, :source_account_id,
+    :amount_cents, :date, :name, :notes, :created_at, :updated_at
+);
+
+archiveContribution:
+UPDATE account_contributions
+SET archived_at = :archived_at, updated_at = :updated_at
+WHERE id = :id AND archived_at IS NULL;
+
+restoreContribution:
+UPDATE account_contributions
+SET archived_at = NULL, updated_at = :updated_at
+WHERE id = :id AND archived_at = :archived_at;

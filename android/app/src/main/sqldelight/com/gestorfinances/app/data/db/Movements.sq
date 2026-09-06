@@ -26,23 +26,25 @@ SELECT
     v_account_flow.date,
     v_account_flow.movement_id,
     v_account_flow.delta_cents,
-    movements.type,
-    movements.name,
+    COALESCE(movements.type, 'contribution') AS type,
+    COALESCE(movements.name, account_contributions.name) AS name,
     movements.payee,
-    movements.notes,
+    COALESCE(movements.notes, account_contributions.notes) AS notes,
     movements.category_id,
     categories.name AS category_name,
-    movements.account_id AS origin_account_id,
+    COALESCE(movements.account_id, account_contributions.source_account_id) AS origin_account_id,
     origin_accounts.name AS origin_account_name,
-    movements.dest_account_id AS destination_account_id,
+    COALESCE(movements.dest_account_id, account_contributions.shared_account_id) AS destination_account_id,
     destination_accounts.name AS destination_account_name
 FROM v_account_flow
-JOIN movements
+LEFT JOIN movements
     ON movements.id = v_account_flow.movement_id
-JOIN accounts AS origin_accounts
-    ON origin_accounts.id = movements.account_id
+LEFT JOIN account_contributions
+    ON account_contributions.id = v_account_flow.movement_id
+LEFT JOIN accounts AS origin_accounts
+    ON origin_accounts.id = COALESCE(movements.account_id, account_contributions.source_account_id)
 LEFT JOIN accounts AS destination_accounts
-    ON destination_accounts.id = movements.dest_account_id
+    ON destination_accounts.id = COALESCE(movements.dest_account_id, account_contributions.shared_account_id)
 LEFT JOIN categories
     ON categories.id = movements.category_id
 WHERE v_account_flow.account_id = :account_id
@@ -102,6 +104,8 @@ INSERT INTO movements(
     trip_id,
     tag_id,
     template_id,
+    expense_funding,
+    shared_split_id,
     created_at,
     updated_at
 ) VALUES (
@@ -119,6 +123,8 @@ INSERT INTO movements(
     :trip_id,
     :tag_id,
     :template_id,
+    :expense_funding,
+    :shared_split_id,
     :created_at,
     :updated_at
 );
@@ -218,6 +224,11 @@ SET
     trip_id = :trip_id,
     tag_id = :tag_id,
     template_id = :template_id,
+    expense_funding = :expense_funding,
+    shared_split_id = CASE
+        WHEN :expense_funding = 'shared_account' THEN COALESCE(:shared_split_id, shared_split_id)
+        ELSE NULL
+    END,
     updated_at = :updated_at
 WHERE id = :id
   AND archived_at IS NULL;

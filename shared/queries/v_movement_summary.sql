@@ -59,6 +59,11 @@ SELECT
         LIMIT 1
     ), '') AS paid_by_person_name,
     COALESCE(v_movement_shared.is_shared, 0) AS is_shared,
+    CASE
+        WHEN movements.type = 'expense' THEN COALESCE(movements.expense_funding, 'owner')
+        WHEN movements.type IN ('income','transfer','settlement','refund') THEN 'owner'
+        ELSE NULL
+    END AS financing_kind,
     movements.person_id AS payer_id,
     movements.settlement_direction,
     settlement_people.name AS settlement_person_name,
@@ -133,6 +138,7 @@ SELECT
     0 AS refunds_expense_archived,
     p.name AS paid_by_person_name,
     0 AS is_shared,
+    'person' AS financing_kind,
     p.id AS payer_id,
     NULL AS settlement_direction,
     NULL AS settlement_person_name,
@@ -149,4 +155,55 @@ LEFT JOIN trips t ON t.id = s.trip_id
 LEFT JOIN tags tg ON tg.id = s.tag_id
 WHERE s.movement_id IS NULL
   AND s.payer_person_id IS NOT NULL
-  AND s.archived_at IS NULL;
+  AND s.archived_at IS NULL
+
+UNION ALL
+
+SELECT
+    contribution.id,
+    'contribution' AS type,
+    contribution.amount_cents,
+    contribution.date,
+    contribution.source_account_id AS account_id,
+    source_account.name AS account_name,
+    source_account.color AS account_color,
+    contribution.shared_account_id AS dest_account_id,
+    shared_account.name AS destination_account_name,
+    shared_account.color AS destination_account_color,
+    NULL AS category_id,
+    NULL AS category_name,
+    NULL AS category_nature,
+    NULL AS category_icon,
+    NULL AS category_color,
+    NULL AS trip_id,
+    NULL AS trip_name,
+    NULL AS trip_color,
+    NULL AS tag_id,
+    NULL AS tag_name,
+    NULL AS template_id,
+    contribution.name,
+    NULL AS payee,
+    contribution.notes,
+    0 AS is_one_time,
+    contribution.created_at,
+    contribution.updated_at,
+    contribution.archived_at,
+    NULL AS refunds_expense_id,
+    NULL AS refunds_expense_name,
+    0 AS refunds_expense_archived,
+    contributor.name AS paid_by_person_name,
+    0 AS is_shared,
+    CASE contribution.contributor_kind WHEN 'user' THEN 'owner' ELSE 'person' END AS financing_kind,
+    contribution.person_id AS payer_id,
+    NULL AS settlement_direction,
+    NULL AS settlement_person_name,
+    -1 AS user_share_cents,
+    0 AS is_recurring
+FROM account_contributions contribution
+JOIN accounts shared_account
+    ON shared_account.id = contribution.shared_account_id
+LEFT JOIN accounts source_account
+    ON source_account.id = contribution.source_account_id
+LEFT JOIN people contributor
+    ON contributor.id = contribution.person_id
+WHERE contribution.archived_at IS NULL;

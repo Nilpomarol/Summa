@@ -5,6 +5,8 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountRepository
+import com.gestorfinances.app.data.repository.AccountOwnershipKind
+import com.gestorfinances.app.data.repository.ExpenseFunding
 import com.gestorfinances.app.data.repository.AccountSummary
 import com.gestorfinances.app.data.repository.CategoryRecord
 import com.gestorfinances.app.data.repository.CategoryRepository
@@ -261,6 +263,10 @@ class RecurringViewModel(
                         isOneTime = false,
                         splitWrite = template.splitConfig.toSplitWrite(template.type, amount),
                         templateId = template.id,
+                        expenseFunding = if (
+                            template.type == MovementType.EXPENSE &&
+                            accountRepository.getActive(template.accountId)?.ownershipKind == AccountOwnershipKind.SHARED
+                        ) ExpenseFunding.SHARED_ACCOUNT else ExpenseFunding.OWNER,
                     ),
                     createdAt = now,
                 )

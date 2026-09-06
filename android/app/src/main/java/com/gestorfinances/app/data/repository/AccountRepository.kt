@@ -1,6 +1,8 @@
 package com.gestorfinances.app.data.repository
 
 import com.gestorfinances.app.data.db.AccountsQueries
+import com.gestorfinances.app.data.db.SharedAccountsQueries
+import java.util.UUID
 
 enum class AccountType(val dbValue: String) {
     BANK("bank"),
@@ -30,6 +32,10 @@ data class AccountSummary(
     val createdAt: String,
     val updatedAt: String,
     val archivedAt: String?,
+    val ownerValueCents: Long = currentBalanceCents,
+    val ownerOwnershipBasisPoints: Long = 10_000L,
+    val ownershipKind: AccountOwnershipKind = AccountOwnershipKind.PERSONAL,
+    val members: List<AccountMember> = emptyList(),
 )
 
 data class AccountDraft(
@@ -42,25 +48,66 @@ data class AccountDraft(
     val isDefault: Boolean,
     val displayOrder: Long,
     val lowBalanceThresholdCents: Long?,
+    val ownershipKind: AccountOwnershipKind = AccountOwnershipKind.PERSONAL,
+    val members: List<AccountMemberDraft> = emptyList(),
+)
+
+enum class AccountOwnershipKind(val dbValue: String) {
+    PERSONAL("personal"),
+    SHARED("shared");
+
+    companion object {
+        fun fromDb(value: String) = entries.first { it.dbValue == value }
+    }
+}
+
+data class AccountMember(
+    val id: String,
+    val participantKind: SplitParticipantKind,
+    val personId: String?,
+    val personName: String?,
+    val ownershipBasisPoints: Long,
+    val defaultExpenseBasisPoints: Long,
+)
+
+data class AccountMemberDraft(
+    val participantKind: SplitParticipantKind,
+    val personId: String?,
+    val ownershipBasisPoints: Long,
+    val defaultExpenseBasisPoints: Long,
+)
+
+data class ContributionDraft(
+    val id: String,
+    val sharedAccountId: String,
+    val contributorKind: SplitParticipantKind,
+    val personId: String?,
+    val sourceAccountId: String?,
+    val amountCents: Long,
+    val date: String,
+    val name: String?,
+    val notes: String?,
 )
 
 class AccountRepository(
     private val queries: AccountsQueries,
+    private val sharedQueries: SharedAccountsQueries? = null,
 ) {
     fun runInTransaction(block: () -> Unit) {
         queries.transaction { block() }
     }
 
     fun listActive(): List<AccountSummary> =
-        queries.activeAccountSummaries(::mapAccountSummary).executeAsList()
+        queries.activeAccountSummaries(::mapAccountSummary).executeAsList().map(::withMembers)
 
     fun getActive(id: String): AccountSummary? =
-        queries.accountById(id, ::mapAccountSummary).executeAsOneOrNull()
+        queries.accountById(id, ::mapAccountSummary).executeAsOneOrNull()?.let(::withMembers)
 
     fun create(
         draft: AccountDraft,
         createdAt: String,
     ) {
+        validateOwnership(draft)
         queries.transaction {
             if (draft.isDefault) {
                 queries.clearDefaultAccounts(updated_at = createdAt)
@@ -75,9 +122,18 @@ class AccountRepository(
                 is_default = draft.isDefault.toDbLong(),
                 display_order = draft.displayOrder,
                 low_balance_threshold_cents = draft.lowBalanceThresholdCents,
+                ownership_kind = AccountOwnershipKind.PERSONAL.dbValue,
                 created_at = createdAt,
                 updated_at = createdAt,
             )
+            replaceMembers(draft, createdAt)
+            if (draft.ownershipKind == AccountOwnershipKind.SHARED) {
+                queries.setAccountOwnership(
+                    ownership_kind = AccountOwnershipKind.SHARED.dbValue,
+                    updated_at = createdAt,
+                    id = draft.id,
+                )
+            }
         }
     }
 
@@ -85,6 +141,7 @@ class AccountRepository(
         draft: AccountDraft,
         updatedAt: String,
     ) {
+        validateOwnership(draft)
         queries.transaction {
             if (draft.isDefault) {
                 queries.clearDefaultAccounts(updated_at = updatedAt)
@@ -99,8 +156,110 @@ class AccountRepository(
                 is_default = draft.isDefault.toDbLong(),
                 display_order = draft.displayOrder,
                 low_balance_threshold_cents = draft.lowBalanceThresholdCents,
+                ownership_kind = AccountOwnershipKind.PERSONAL.dbValue,
                 updated_at = updatedAt,
             )
+            replaceMembers(draft, updatedAt)
+            if (draft.ownershipKind == AccountOwnershipKind.SHARED) {
+                queries.setAccountOwnership(
+                    ownership_kind = AccountOwnershipKind.SHARED.dbValue,
+                    updated_at = updatedAt,
+                    id = draft.id,
+                )
+            }
+        }
+    }
+
+    fun createContribution(draft: ContributionDraft, createdAt: String) {
+        require(draft.amountCents > 0) { "Contribution amount must be positive." }
+        val account = requireNotNull(getActive(draft.sharedAccountId)) { "Shared account is required." }
+        require(account.ownershipKind == AccountOwnershipKind.SHARED) { "Contribution target must be shared." }
+        require((draft.contributorKind == SplitParticipantKind.USER) == (draft.personId == null)) {
+            "Contribution participant is invalid."
+        }
+        require(account.members.any { it.participantKind == draft.contributorKind && it.personId == draft.personId }) {
+            "The contributor must be an active account member."
+        }
+        require(draft.sourceAccountId == null || draft.contributorKind == SplitParticipantKind.USER) {
+            "Only the app owner can contribute from an owned account."
+        }
+        require(draft.sourceAccountId == null || draft.sourceAccountId != draft.sharedAccountId) {
+            "Contribution source and destination must differ."
+        }
+        require(draft.sourceAccountId == null || getActive(draft.sourceAccountId)?.ownershipKind == AccountOwnershipKind.PERSONAL) {
+            "Contribution source must be an owner-controlled account."
+        }
+        requireNotNull(sharedQueries) { "Shared-account queries are unavailable." }.insertContribution(
+            id = draft.id,
+            shared_account_id = draft.sharedAccountId,
+            contributor_kind = draft.contributorKind.dbValue,
+            person_id = draft.personId,
+            source_account_id = draft.sourceAccountId,
+            amount_cents = draft.amountCents,
+            date = draft.date,
+            name = draft.name,
+            notes = draft.notes,
+            created_at = createdAt,
+            updated_at = createdAt,
+        )
+    }
+
+    fun archiveContribution(id: String, archivedAt: String) {
+        requireNotNull(sharedQueries).archiveContribution(id, archivedAt, archivedAt)
+    }
+
+    fun restoreContribution(id: String, deletedAt: String, restoredAt: String) {
+        requireNotNull(sharedQueries).restoreContribution(id, deletedAt, restoredAt)
+    }
+
+    private fun withMembers(account: AccountSummary): AccountSummary =
+        if (account.ownershipKind == AccountOwnershipKind.SHARED && sharedQueries != null) {
+            account.copy(
+                members = sharedQueries.membersForAccount(account.id) { id, _, kind, personId, personName, ownership, expense ->
+                    AccountMember(id, SplitParticipantKind.entries.first { it.dbValue == kind }, personId, personName, ownership, expense)
+                }.executeAsList(),
+            )
+        } else account
+
+    private fun validateOwnership(draft: AccountDraft) {
+        if (draft.ownershipKind == AccountOwnershipKind.PERSONAL) {
+            require(draft.members.isEmpty()) { "Personal accounts cannot have shared members." }
+            return
+        }
+        require(sharedQueries != null) { "Shared-account queries are unavailable." }
+        require(draft.members.count { it.participantKind == SplitParticipantKind.USER } == 1) {
+            "A shared account requires exactly one app-owner member."
+        }
+        require(draft.members.any { it.participantKind == SplitParticipantKind.PERSON }) {
+            "A shared account requires at least one person."
+        }
+        require(draft.members.map { it.personId }.filterNotNull().distinct().size == draft.members.count { it.personId != null }) {
+            "A person can be an account member only once."
+        }
+        require(draft.members.sumOf { it.ownershipBasisPoints } == 10_000L) {
+            "Ownership percentages must total 100%."
+        }
+        require(draft.members.sumOf { it.defaultExpenseBasisPoints } == 10_000L) {
+            "Default expense percentages must total 100%."
+        }
+    }
+
+    private fun replaceMembers(draft: AccountDraft, timestamp: String) {
+        val shared = sharedQueries ?: return
+        shared.archiveMembersForAccount(draft.id, timestamp, timestamp)
+        if (draft.ownershipKind == AccountOwnershipKind.SHARED) {
+            draft.members.forEach { member ->
+                shared.insertMember(
+                    id = UUID.randomUUID().toString(),
+                    account_id = draft.id,
+                    participant_kind = member.participantKind.dbValue,
+                    person_id = member.personId,
+                    ownership_basis_points = member.ownershipBasisPoints,
+                    default_expense_basis_points = member.defaultExpenseBasisPoints,
+                    created_at = timestamp,
+                    updated_at = timestamp,
+                )
+            }
         }
     }
 
@@ -142,16 +301,22 @@ private fun mapAccountSummary(
     isDefault: Long,
     displayOrder: Long,
     lowBalanceThresholdCents: Long?,
+    ownershipKind: String,
     createdAt: String,
     updatedAt: String,
     archivedAt: String?,
-    currentBalanceCents: Long,
+    physicalBalanceCents: Long,
+    ownerOwnershipBasisPoints: Long,
+    ownerValueCents: Long,
 ): AccountSummary =
     AccountSummary(
         id = id,
         name = name,
         startingBalanceCents = startingBalanceCents,
-        currentBalanceCents = currentBalanceCents,
+        currentBalanceCents = physicalBalanceCents,
+        ownerValueCents = ownerValueCents,
+        ownerOwnershipBasisPoints = ownerOwnershipBasisPoints,
+        ownershipKind = AccountOwnershipKind.fromDb(ownershipKind),
         type = AccountType.fromDb(type),
         icon = icon,
         color = color,

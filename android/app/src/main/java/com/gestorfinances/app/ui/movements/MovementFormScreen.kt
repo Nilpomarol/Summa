@@ -140,6 +140,7 @@ fun MovementFormScreen(
                         movementTypeIcon(form.type) to finance.debt
                     }
                 }
+                MovementType.CONTRIBUTION -> movementTypeIcon(form.type) to finance.transfer
             }
         }
 

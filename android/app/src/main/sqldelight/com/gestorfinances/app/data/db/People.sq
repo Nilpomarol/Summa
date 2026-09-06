@@ -67,6 +67,7 @@ FROM (
     WHERE split_lines.person_id = :person_id
       AND split_lines.participant_kind = 'person'
       AND splits.payer_person_id IS NULL
+      AND COALESCE(movements.expense_funding, 'owner') = 'owner'
       AND movements.archived_at IS NULL
       AND splits.archived_at IS NULL
       AND split_lines.archived_at IS NULL

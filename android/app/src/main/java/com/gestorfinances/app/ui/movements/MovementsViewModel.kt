@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountRepository
 import com.gestorfinances.app.data.repository.AccountSummary
+import com.gestorfinances.app.data.repository.AccountOwnershipKind
+import com.gestorfinances.app.data.repository.ExpenseFunding
 import com.gestorfinances.app.data.repository.CategoryNature
 import com.gestorfinances.app.data.repository.CategoryRecord
 import com.gestorfinances.app.data.repository.CategoryRepository
@@ -133,7 +135,7 @@ class MovementsViewModel(
     }
 
     fun onEditClicked(movement: MovementSummary, onReady: () -> Unit = {}) {
-        if (movement.type == MovementType.SETTLEMENT || movement.type == MovementType.REFUND) return
+        if (movement.type == MovementType.SETTLEMENT || movement.type == MovementType.REFUND || movement.type == MovementType.CONTRIBUTION) return
         viewModelScope.launch {
             val result = withContext(ioDispatcher) {
                 runCatching {
@@ -372,6 +374,8 @@ class MovementsViewModel(
                         if (movement.type == MovementType.EXTERNAL_EXPENSE) {
                             requireNotNull(splitRepository) { "split repository unavailable" }
                                 .archiveExternalSplit(movement.id, archivedAt = now)
+                        } else if (movement.type == MovementType.CONTRIBUTION) {
+                            accountRepository.archiveContribution(movement.id, archivedAt = now)
                         } else {
                             movementRepository.archive(movement.id, archivedAt = now)
                         }
@@ -413,7 +417,21 @@ class MovementsViewModel(
     }
 
     fun onFormChanged(form: MovementFormState) {
-        _state.value = _state.value.copy(form = normalizeForm(form))
+        val previous = _state.value.form
+        val account = form.accountId?.let { id -> _state.value.accounts.firstOrNull { it.id == id } }
+        val withAccountDefaults = if (
+            form.type == MovementType.EXPENSE &&
+            account?.ownershipKind == AccountOwnershipKind.SHARED &&
+            (previous?.accountId != form.accountId || form.expenseKind != ExpenseKind.SHARED)
+        ) {
+            form.copy(
+                expenseKind = ExpenseKind.SHARED,
+                splitEditor = account.defaultExpenseSplitEditor(),
+                showOptional = true,
+                removeExistingSplit = false,
+            )
+        } else form
+        _state.value = _state.value.copy(form = normalizeForm(withAccountDefaults))
     }
 
     fun onTripSelected(tripId: String?) {
@@ -583,6 +601,8 @@ class MovementsViewModel(
                         if (operation.movementType == MovementType.EXTERNAL_EXPENSE) {
                             requireNotNull(splitRepository) { "split repository unavailable" }
                                 .restoreExternalSplit(operation.movementId, operation.deletedAt, restoredAt)
+                        } else if (operation.movementType == MovementType.CONTRIBUTION) {
+                            accountRepository.restoreContribution(operation.movementId, operation.deletedAt, restoredAt)
                         } else {
                             movementRepository.restore(operation.movementId, operation.deletedAt, restoredAt)
                         }
@@ -799,6 +819,10 @@ class MovementsViewModel(
                 R.string.movement_validation_destination_required to MovementFormField.DESTINATION_ACCOUNT
             form.type == MovementType.TRANSFER && form.accountId == form.destinationAccountId ->
                 R.string.movement_validation_transfer_same_account to MovementFormField.DESTINATION_ACCOUNT
+            form.type == MovementType.TRANSFER && listOfNotNull(form.accountId, form.destinationAccountId)
+                .mapNotNull { id -> _state.value.accounts.firstOrNull { it.id == id } }
+                .any { it.ownershipKind == AccountOwnershipKind.SHARED } ->
+                R.string.movement_validation_shared_transfer to MovementFormField.DESTINATION_ACCOUNT
             category != null && !category.supports(form.type) ->
                 R.string.movement_validation_category_invalid to MovementFormField.CATEGORY
             form.tagId != null && (form.tripId == null || tag == null || !tag.supportsTrip(trip)) ->
@@ -913,6 +937,10 @@ class MovementsViewModel(
                 else -> MovementSplitWrite.KeepExisting
             },
             templateId = recurringTemplateId,
+            expenseFunding = if (
+                form.type == MovementType.EXPENSE &&
+                _state.value.accounts.firstOrNull { it.id == form.accountId }?.ownershipKind == AccountOwnershipKind.SHARED
+            ) ExpenseFunding.SHARED_ACCOUNT else ExpenseFunding.OWNER,
         )
 
         launchSave(form) {
@@ -1403,15 +1431,36 @@ private fun newMovementForm(
     debtPayerPersonId: String? = null,
 ): MovementFormState {
     val trip = tripId?.let { selectedId -> data.trips.firstOrNull { it.id == selectedId } }
+    val accountId = trip?.defaultAccountId ?: defaultAccountId(data.accounts)
+    val account = data.accounts.firstOrNull { it.id == accountId }
+    val sharedAccount = debtPayerPersonId == null && account?.ownershipKind == AccountOwnershipKind.SHARED
     return MovementFormState(
-        accountId = trip?.defaultAccountId ?: defaultAccountId(data.accounts),
+        accountId = accountId,
         tripId = trip?.id,
         date = LocalDate.now().toString(),
-        expenseKind = if (debtPayerPersonId != null) ExpenseKind.DEBT else null,
+        expenseKind = when {
+            debtPayerPersonId != null -> ExpenseKind.DEBT
+            sharedAccount -> ExpenseKind.SHARED
+            else -> null
+        },
+        splitEditor = if (sharedAccount) account?.defaultExpenseSplitEditor() else null,
         forOtherPersonId = debtPayerPersonId,
-        showOptional = trip?.id != null,
+        showOptional = trip?.id != null || sharedAccount,
     )
 }
+
+private fun AccountSummary.defaultExpenseSplitEditor(): SplitEditorState =
+    SplitEditorState(
+        method = SplitEntryMethod.PERCENTAGE,
+        selectedPersonIds = members.mapNotNull { it.personId },
+        percentages = members.associate { member ->
+            val participantId = member.personId ?: USER_PARTICIPANT_ID
+            participantId to "%d,%02d".format(
+                member.defaultExpenseBasisPoints / 100,
+                member.defaultExpenseBasisPoints % 100,
+            )
+        },
+    )
 
 private fun MovementFilters.withDateValidation(): MovementFilters {
     val from = parseDateOrNull(dateFrom)

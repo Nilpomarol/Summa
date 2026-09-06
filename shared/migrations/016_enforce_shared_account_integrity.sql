@@ -1,0 +1,183 @@
+-- Database-level integrity for the shared-account contract.
+-- SQLite has no deferred aggregate CHECK constraints, so membership is staged while personal
+-- and validated atomically at the transition to shared.
+
+-- A shared-account expense names the split it is consumed through. The column belongs to the
+-- fresh schema, so only an upgrading database needs it added; everything below this line is also
+-- applied to a fresh database, and must stay repeatable.
+ALTER TABLE movements ADD COLUMN shared_split_id TEXT
+    REFERENCES splits(id) DEFERRABLE INITIALLY DEFERRED;
+
+CREATE TABLE shared_account_integrity_guard (
+    is_valid INTEGER NOT NULL CHECK (is_valid = 1)
+);
+
+INSERT INTO shared_account_integrity_guard(is_valid)
+SELECT CASE WHEN EXISTS (
+    SELECT 1
+    FROM accounts a
+    WHERE a.ownership_kind = 'shared'
+      AND (
+          (SELECT COUNT(*) FROM account_members am
+           WHERE am.account_id = a.id
+             AND am.participant_kind = 'user'
+             AND am.archived_at IS NULL) <> 1
+          OR (SELECT COUNT(*)
+              FROM account_members am
+              JOIN people p ON p.id = am.person_id AND p.archived_at IS NULL
+              WHERE am.account_id = a.id
+                AND am.participant_kind = 'person'
+                AND am.archived_at IS NULL) = 0
+          OR (SELECT COALESCE(SUM(ownership_basis_points), 0)
+              FROM account_members am
+              WHERE am.account_id = a.id AND am.archived_at IS NULL) <> 10000
+          OR (SELECT COALESCE(SUM(default_expense_basis_points), 0)
+              FROM account_members am
+              WHERE am.account_id = a.id AND am.archived_at IS NULL) <> 10000
+      )
+) THEN 0 ELSE 1 END;
+
+DROP TABLE shared_account_integrity_guard;
+
+CREATE TRIGGER account_reject_direct_shared_insert
+BEFORE INSERT ON accounts FOR EACH ROW
+WHEN NEW.ownership_kind = 'shared'
+BEGIN
+    SELECT RAISE(ABORT, 'Create the account as personal, add members, then mark it shared.');
+END;
+
+CREATE TRIGGER account_validate_members_before_becoming_shared
+BEFORE UPDATE OF ownership_kind, archived_at ON accounts FOR EACH ROW
+WHEN NEW.ownership_kind = 'shared'
+ AND (OLD.ownership_kind <> 'shared' OR (OLD.archived_at IS NOT NULL AND NEW.archived_at IS NULL))
+BEGIN
+    SELECT CASE WHEN (
+        SELECT COUNT(*) FROM account_members
+        WHERE account_id = NEW.id AND participant_kind = 'user' AND archived_at IS NULL
+    ) <> 1 THEN RAISE(ABORT, 'A shared account requires exactly one owner member.') END;
+    SELECT CASE WHEN (
+        SELECT COUNT(*) FROM account_members am
+        JOIN people p ON p.id = am.person_id AND p.archived_at IS NULL
+        WHERE am.account_id = NEW.id AND am.participant_kind = 'person' AND am.archived_at IS NULL
+    ) = 0 THEN RAISE(ABORT, 'A shared account requires at least one active person member.') END;
+    SELECT CASE WHEN (
+        SELECT COALESCE(SUM(ownership_basis_points), 0) FROM account_members
+        WHERE account_id = NEW.id AND archived_at IS NULL
+    ) <> 10000 THEN RAISE(ABORT, 'Shared ownership percentages must total 100%.') END;
+    SELECT CASE WHEN (
+        SELECT COALESCE(SUM(default_expense_basis_points), 0) FROM account_members
+        WHERE account_id = NEW.id AND archived_at IS NULL
+    ) <> 10000 THEN RAISE(ABORT, 'Shared expense percentages must total 100%.') END;
+END;
+
+CREATE TRIGGER account_members_reject_insert_for_shared_account
+BEFORE INSERT ON account_members FOR EACH ROW
+WHEN EXISTS (SELECT 1 FROM accounts WHERE id = NEW.account_id AND ownership_kind = 'shared')
+BEGIN
+    SELECT RAISE(ABORT, 'Stage membership changes while the account is personal.');
+END;
+
+CREATE TRIGGER account_members_reject_update_for_shared_account
+BEFORE UPDATE ON account_members FOR EACH ROW
+WHEN EXISTS (SELECT 1 FROM accounts WHERE id = OLD.account_id AND ownership_kind = 'shared')
+ OR EXISTS (SELECT 1 FROM accounts WHERE id = NEW.account_id AND ownership_kind = 'shared')
+BEGIN
+    SELECT RAISE(ABORT, 'Stage membership changes while the account is personal.');
+END;
+
+CREATE TRIGGER account_members_reject_delete_for_shared_account
+BEFORE DELETE ON account_members FOR EACH ROW
+WHEN EXISTS (SELECT 1 FROM accounts WHERE id = OLD.account_id AND ownership_kind = 'shared')
+BEGIN
+    SELECT RAISE(ABORT, 'Stage membership changes while the account is personal.');
+END;
+
+CREATE TRIGGER account_contributions_validate_insert
+BEFORE INSERT ON account_contributions FOR EACH ROW
+BEGIN
+    SELECT CASE WHEN NOT EXISTS (
+        SELECT 1 FROM accounts
+        WHERE id = NEW.shared_account_id AND ownership_kind = 'shared' AND archived_at IS NULL
+    ) THEN RAISE(ABORT, 'A contribution must target an active shared account.') END;
+    SELECT CASE WHEN NOT EXISTS (
+        SELECT 1 FROM account_members am
+        LEFT JOIN people p ON p.id = am.person_id
+        WHERE am.account_id = NEW.shared_account_id
+          AND am.participant_kind = NEW.contributor_kind
+          AND (am.person_id IS NEW.person_id)
+          AND am.archived_at IS NULL
+          AND (am.participant_kind = 'user' OR p.archived_at IS NULL)
+    ) THEN RAISE(ABORT, 'A contribution must come from an active account member.') END;
+    SELECT CASE WHEN NEW.source_account_id IS NOT NULL AND NOT EXISTS (
+        SELECT 1 FROM accounts
+        WHERE id = NEW.source_account_id AND ownership_kind = 'personal' AND archived_at IS NULL
+    ) THEN RAISE(ABORT, 'A contribution source must be an active personal account.') END;
+END;
+
+CREATE TRIGGER account_contributions_validate_identity_update
+BEFORE UPDATE OF shared_account_id, contributor_kind, person_id, source_account_id ON account_contributions FOR EACH ROW
+WHEN NEW.archived_at IS NULL
+BEGIN
+    SELECT CASE WHEN NOT EXISTS (
+        SELECT 1 FROM accounts
+        WHERE id = NEW.shared_account_id AND ownership_kind = 'shared' AND archived_at IS NULL
+    ) THEN RAISE(ABORT, 'A contribution must target an active shared account.') END;
+    SELECT CASE WHEN NOT EXISTS (
+        SELECT 1 FROM account_members am
+        LEFT JOIN people p ON p.id = am.person_id
+        WHERE am.account_id = NEW.shared_account_id
+          AND am.participant_kind = NEW.contributor_kind
+          AND (am.person_id IS NEW.person_id)
+          AND am.archived_at IS NULL
+          AND (am.participant_kind = 'user' OR p.archived_at IS NULL)
+    ) THEN RAISE(ABORT, 'A contribution must come from an active account member.') END;
+    SELECT CASE WHEN NEW.source_account_id IS NOT NULL AND NOT EXISTS (
+        SELECT 1 FROM accounts
+        WHERE id = NEW.source_account_id AND ownership_kind = 'personal' AND archived_at IS NULL
+    ) THEN RAISE(ABORT, 'A contribution source must be an active personal account.') END;
+END;
+
+CREATE TRIGGER movements_validate_shared_expense_funding_insert
+BEFORE INSERT ON movements FOR EACH ROW
+WHEN NEW.expense_funding IS NOT NULL
+BEGIN
+    SELECT CASE WHEN NEW.type <> 'expense' THEN RAISE(ABORT, 'Only an expense may declare financing.') END;
+    SELECT CASE WHEN NEW.expense_funding = 'shared_account' AND NOT EXISTS (
+        SELECT 1 FROM accounts WHERE id = NEW.account_id AND ownership_kind = 'shared'
+    ) THEN RAISE(ABORT, 'Shared-account financing requires a shared account.') END;
+    SELECT CASE WHEN NEW.expense_funding = 'owner' AND EXISTS (
+        SELECT 1 FROM accounts WHERE id = NEW.account_id AND ownership_kind = 'shared'
+    ) THEN RAISE(ABORT, 'Expenses from a shared account require shared-account financing.') END;
+    SELECT CASE WHEN NEW.expense_funding = 'shared_account' AND NEW.shared_split_id IS NULL
+        THEN RAISE(ABORT, 'A shared-account expense must name the split it is consumed through.') END;
+END;
+
+CREATE TRIGGER movements_validate_shared_expense_funding_update
+BEFORE UPDATE OF type, account_id, expense_funding, shared_split_id ON movements FOR EACH ROW
+WHEN NEW.expense_funding IS NOT NULL
+BEGIN
+    SELECT CASE WHEN NEW.type <> 'expense' THEN RAISE(ABORT, 'Only an expense may declare financing.') END;
+    SELECT CASE WHEN NEW.expense_funding = 'shared_account' AND NOT EXISTS (
+        SELECT 1 FROM accounts WHERE id = NEW.account_id AND ownership_kind = 'shared'
+    ) THEN RAISE(ABORT, 'Shared-account financing requires a shared account.') END;
+    SELECT CASE WHEN NEW.expense_funding = 'owner' AND EXISTS (
+        SELECT 1 FROM accounts WHERE id = NEW.account_id AND ownership_kind = 'shared'
+    ) THEN RAISE(ABORT, 'Expenses from a shared account require shared-account financing.') END;
+    SELECT CASE WHEN NEW.expense_funding = 'shared_account' AND NEW.shared_split_id IS NULL
+        THEN RAISE(ABORT, 'A shared-account expense must name the split it is consumed through.') END;
+END;
+
+CREATE TRIGGER splits_reject_archive_for_active_shared_expense
+BEFORE UPDATE OF archived_at ON splits FOR EACH ROW
+WHEN NEW.archived_at IS NOT NULL
+ AND EXISTS (
+    SELECT 1 FROM movements
+    WHERE id = OLD.movement_id
+      AND archived_at IS NULL
+      AND expense_funding = 'shared_account'
+ )
+BEGIN
+    SELECT RAISE(ABORT, 'An active shared-account expense must retain its split.');
+END;
+
+UPDATE meta SET value = '16' WHERE key = 'schema_version';

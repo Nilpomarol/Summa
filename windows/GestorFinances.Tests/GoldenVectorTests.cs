@@ -23,6 +23,7 @@ public sealed class GoldenVectorTests
             "goal_progress.json",
             "recurring_advance.json",
             "refund_actual.json",
+            "shared_account.json",
             "split_rounding.json",
             "template_split_rescale.json"
         };
@@ -195,6 +196,62 @@ public sealed class GoldenVectorTests
                 testCase.Obj("expected").Obj("balance_cents").LongMap(),
                 connection.LongMap("SELECT person_id, balance_cents FROM v_person_balance"),
                 testCase.Name());
+        }
+    }
+
+    [TestMethod]
+    public void SharedAccountsMatchGoldenVectors()
+    {
+        foreach (var testCase in Golden("shared_account.json").Cases())
+        {
+            using var connection = FreshConnection();
+            var input = testCase.Obj("input");
+            const string now = "2026-01-01T00:00:00Z";
+            // A shared-account expense names the split it is consumed through, which is written
+            // after it: the deferred foreign key only resolves at commit, so the fixture goes in
+            // as one transaction, the way the app writes it.
+            using var transaction = connection.BeginTransaction();
+            connection.Execute(
+                """
+                INSERT INTO accounts (id,name,starting_balance_cents,type,ownership_kind,created_at,updated_at) VALUES
+                  ('personal','Personal',@PersonalStart,'bank','personal',@Now,@Now),
+                  ('shared','Shared',@SharedStart,'bank','personal',@Now,@Now);
+                INSERT INTO people (id,name,created_at,updated_at) VALUES ('person','Person',@Now,@Now);
+                INSERT INTO account_members (id,account_id,participant_kind,person_id,ownership_basis_points,default_expense_basis_points,created_at,updated_at) VALUES
+                  ('member-user','shared','user',NULL,@OwnerBps,4000,@Now,@Now),
+                  ('member-person','shared','person','person',10000-@OwnerBps,6000,@Now,@Now);
+                UPDATE accounts SET ownership_kind = 'shared' WHERE id = 'shared';
+                INSERT INTO account_contributions (id,shared_account_id,contributor_kind,person_id,source_account_id,amount_cents,date,created_at,updated_at) VALUES
+                  ('owner-contribution','shared','user',NULL,'personal',@OwnerContribution,'2026-01-02',@Now,@Now),
+                  ('person-contribution','shared','person','person',NULL,@PersonContribution,'2026-01-03',@Now,@Now);
+                INSERT INTO movements (id,type,amount_cents,date,account_id,expense_funding,shared_split_id,created_at,updated_at) VALUES
+                  ('shared-expense','expense',@SharedExpense,'2026-01-04','shared','shared_account','shared-split',@Now,@Now),
+                  ('owner-expense','expense',@OwnerExpense,'2026-01-05','personal','owner',NULL,@Now,@Now);
+                INSERT INTO splits (id,movement_id,entry_method,created_at,updated_at) VALUES
+                  ('shared-split','shared-expense','exact',@Now,@Now),
+                  ('owner-split','owner-expense','exact',@Now,@Now);
+                INSERT INTO split_lines (id,split_id,participant_kind,person_id,owed_amount_cents,created_at,updated_at) VALUES
+                  ('shared-user','shared-split','user',NULL,@SharedOwnerShare,@Now,@Now),
+                  ('shared-person','shared-split','person','person',@SharedExpense-@SharedOwnerShare,@Now,@Now),
+                  ('owner-user','owner-split','user',NULL,@OwnerExpense-@OwnerPersonShare,@Now,@Now),
+                  ('owner-person','owner-split','person','person',@OwnerPersonShare,@Now,@Now);
+                """,
+                new {
+                    PersonalStart = input.Long("personal_start_cents"), SharedStart = input.Long("shared_start_cents"),
+                    OwnerBps = input.Long("owner_ownership_basis_points"), OwnerContribution = input.Long("owner_contribution_cents"),
+                    PersonContribution = input.Long("person_contribution_cents"), SharedExpense = input.Long("shared_expense_cents"),
+                    SharedOwnerShare = input.Long("shared_expense_owner_share_cents"), OwnerExpense = input.Long("owner_financed_expense_cents"),
+                    OwnerPersonShare = input.Long("owner_financed_person_share_cents"), Now = now
+                },
+                transaction);
+            transaction.Commit();
+            var expected = testCase.Obj("expected");
+            Assert.AreEqual(expected.Long("personal_physical_cents"), connection.SingleLong("SELECT current_balance_cents FROM v_account_balance WHERE account_id='personal'"), testCase.Name());
+            Assert.AreEqual(expected.Long("shared_physical_cents"), connection.SingleLong("SELECT current_balance_cents FROM v_account_balance WHERE account_id='shared'"), testCase.Name());
+            Assert.AreEqual(expected.Long("shared_owner_value_cents"), connection.SingleLong("SELECT owner_value_cents FROM v_account_value WHERE account_id='shared'"), testCase.Name());
+            Assert.AreEqual(expected.Long("net_worth_cents"), connection.SingleLong("SELECT SUM(owner_value_cents) FROM v_account_value"), testCase.Name());
+            Assert.AreEqual(expected.Long("actual_expense_cents"), connection.SingleLong("SELECT SUM(amount_cents) FROM v_actual_expense"), testCase.Name());
+            Assert.AreEqual(expected.Long("person_balance_cents"), connection.SingleLong("SELECT balance_cents FROM v_person_balance WHERE person_id='person'"), testCase.Name());
         }
     }
 
@@ -506,11 +563,11 @@ internal static class GoldenDatabaseExtensions
             INSERT INTO movements
                 (id, type, account_id, dest_account_id, amount_cents, date,
                  person_id, settlement_direction, refunds_expense_id, actual_refund_cents,
-                 created_at, updated_at, archived_at)
+                 settlement_scope, expense_funding, created_at, updated_at, archived_at)
             VALUES
                 (@Id, @Type, @AccountId, @DestAccountId, @AmountCents, @Date,
                  @PersonId, @SettlementDirection, @RefundsExpenseId, @ActualRefundCents,
-                 @Now, @Now, @ArchivedAt);
+                 @SettlementScope, @ExpenseFunding, @Now, @Now, @ArchivedAt);
             """,
             new
             {
@@ -524,6 +581,8 @@ internal static class GoldenDatabaseExtensions
                 SettlementDirection = settlementDirection,
                 RefundsExpenseId = refundsExpenseId,
                 ActualRefundCents = actualRefundCents,
+                SettlementScope = type == "settlement" ? "all" : null,
+                ExpenseFunding = type == "expense" ? "owner" : null,
                 ArchivedAt = archivedAt,
                 Now
             });
