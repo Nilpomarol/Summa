@@ -57,6 +57,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gestorfinances.app.R
+import com.gestorfinances.app.data.repository.AccountOwnershipKind
 import com.gestorfinances.app.data.repository.AccountSummary
 import com.gestorfinances.app.data.repository.BudgetProjection
 import com.gestorfinances.app.data.repository.AnalysisCategoryTotal
@@ -85,6 +86,7 @@ import com.gestorfinances.app.ui.common.SectionHeader
 import com.gestorfinances.app.ui.common.accountIcon
 import com.gestorfinances.app.ui.common.accountTypeIcon
 import com.gestorfinances.app.ui.common.categoryIcon
+import com.gestorfinances.app.ui.common.formatBasisPointsCompact
 import com.gestorfinances.app.ui.common.formatEuroCents
 import com.gestorfinances.app.ui.common.formatMonthYear
 import com.gestorfinances.app.ui.common.formatWeekdayLongDate
@@ -517,6 +519,19 @@ private fun AvailableBalance(
                 lineHeight = 46.sp,
             ),
         )
+        // The hero figure is the account's physical balance; on a shared account that differs
+        // from the owner value the net worth below is built from, so both get named.
+        if (account.ownershipKind == AccountOwnershipKind.SHARED) {
+            Text(
+                text = stringResource(
+                    R.string.account_shared_owner_share,
+                    formatEuroCents(account.ownerValueCents),
+                    formatBasisPointsCompact(account.ownerOwnershipBasisPoints),
+                ),
+                color = colors.heroOnSurface.copy(alpha = HERO_MUTED_ALPHA),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),

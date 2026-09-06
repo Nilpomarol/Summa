@@ -142,6 +142,9 @@ class AccountRepository(
         updatedAt: String,
     ) {
         validateOwnership(draft)
+        require(draft.ownershipKind == AccountOwnershipKind.SHARED || !hasSharedHistory(draft.id)) {
+            "An account that financed shared expenses or received contributions stays shared."
+        }
         queries.transaction {
             if (draft.isDefault) {
                 queries.clearDefaultAccounts(updated_at = updatedAt)
@@ -211,6 +214,15 @@ class AccountRepository(
     fun restoreContribution(id: String, deletedAt: String, restoredAt: String) {
         requireNotNull(sharedQueries).restoreContribution(id, deletedAt, restoredAt)
     }
+
+    /**
+     * Whether the account carries shared-account history: expenses it financed, or contributions
+     * made into it. Both are meaningless once the account is personal, and the movement triggers
+     * reject any later edit of such an expense, so un-sharing has to be refused while any exist.
+     * Archived rows count because restoring one would reintroduce the same contradiction.
+     */
+    fun hasSharedHistory(accountId: String): Boolean =
+        (sharedQueries?.sharedHistoryCount(accountId)?.executeAsOne() ?: 0L) > 0L
 
     private fun withMembers(account: AccountSummary): AccountSummary =
         if (account.ownershipKind == AccountOwnershipKind.SHARED && sharedQueries != null) {

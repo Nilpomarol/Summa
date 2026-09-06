@@ -452,6 +452,12 @@ class MovementsViewModel(
         onFormChanged(form.copy(tagId = tagId))
     }
 
+    /** Whether an account id names a shared account in the currently loaded list. */
+    private fun isSharedAccount(accountId: String?): Boolean =
+        accountId != null &&
+            _state.value.accounts.firstOrNull { it.id == accountId }?.ownershipKind ==
+            AccountOwnershipKind.SHARED
+
     fun onSharedToggled(enabled: Boolean) {
         val form = _state.value.form ?: return
         val nextForm = if (enabled) {
@@ -819,9 +825,10 @@ class MovementsViewModel(
                 R.string.movement_validation_destination_required to MovementFormField.DESTINATION_ACCOUNT
             form.type == MovementType.TRANSFER && form.accountId == form.destinationAccountId ->
                 R.string.movement_validation_transfer_same_account to MovementFormField.DESTINATION_ACCOUNT
-            form.type == MovementType.TRANSFER && listOfNotNull(form.accountId, form.destinationAccountId)
-                .mapNotNull { id -> _state.value.accounts.firstOrNull { it.id == id } }
-                .any { it.ownershipKind == AccountOwnershipKind.SHARED } ->
+            // Blame the side that is actually shared, so the error lands on the field to change.
+            form.type == MovementType.TRANSFER && isSharedAccount(form.accountId) ->
+                R.string.movement_validation_shared_transfer to MovementFormField.ACCOUNT
+            form.type == MovementType.TRANSFER && isSharedAccount(form.destinationAccountId) ->
                 R.string.movement_validation_shared_transfer to MovementFormField.DESTINATION_ACCOUNT
             category != null && !category.supports(form.type) ->
                 R.string.movement_validation_category_invalid to MovementFormField.CATEGORY
@@ -937,10 +944,11 @@ class MovementsViewModel(
                 else -> MovementSplitWrite.KeepExisting
             },
             templateId = recurringTemplateId,
-            expenseFunding = if (
-                form.type == MovementType.EXPENSE &&
-                _state.value.accounts.firstOrNull { it.id == form.accountId }?.ownershipKind == AccountOwnershipKind.SHARED
-            ) ExpenseFunding.SHARED_ACCOUNT else ExpenseFunding.OWNER,
+            expenseFunding = if (form.type == MovementType.EXPENSE && isSharedAccount(form.accountId)) {
+                ExpenseFunding.SHARED_ACCOUNT
+            } else {
+                ExpenseFunding.OWNER
+            },
         )
 
         launchSave(form) {

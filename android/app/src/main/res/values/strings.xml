@@ -135,11 +135,17 @@
     <string name="account_shared_toggle">Compte compartit</string>
     <string name="account_shared_toggle_help">El saldo és físic; el patrimoni només inclou la teva part.</string>
     <string name="account_shared_badge">Compartit</string>
-    <string name="account_shared_value">Part patrimonial: %1$s (%2$.2f%%)</string>
+    <string name="account_shared_value">Saldo del compte · la teva part %1$s (%2$s)</string>
+    <string name="account_shared_owner_share">Compte compartit · la teva part %1$s (%2$s)</string>
     <string name="account_members_title">Membres, propietat i repartiment per defecte</string>
+    <string name="account_members_summary">Membres: %1$s</string>
     <string name="account_member_owner">Tu</string>
     <string name="account_member_ownership">Propietat</string>
     <string name="account_member_expense_split">Despeses</string>
+    <string name="account_member_split_equally">Reparteix igualment</string>
+    <string name="account_member_total_remaining">falta %1$s</string>
+    <string name="account_member_total_excess">sobra %1$s</string>
+    <string name="account_member_total_invalid">percentatge no vàlid</string>
     <string name="account_contribution_add">Afegeix una aportació</string>
     <string name="account_contribution_title">Aportació a %1$s</string>
     <string name="account_contribution_member">Qui aporta</string>
@@ -165,10 +171,15 @@
     <string name="account_validation_low_balance_invalid">Introdueix un llindar de saldo baix vàlid.</string>
     <string name="account_validation_shared_members">Selecciona com a mínim una persona, a més de tu.</string>
     <string name="account_validation_shared_percentages">La propietat i el repartiment de despeses han de sumar 100%% cadascun.</string>
+    <string name="account_validation_shared_history">Aquest compte ha finançat despeses compartides o ha rebut aportacions, i no pot tornar a ser personal. Crea un compte nou si cal.</string>
     <string name="movement_type_contribution">Aportació</string>
     <string name="movement_detail_financing">Finançament</string>
     <string name="movement_detail_financing_shared_account">El compte compartit</string>
+    <string name="movement_shared_account_funding">El compte compartit paga aquesta despesa. El repartiment diu qui la consumeix.</string>
     <string name="movement_validation_shared_transfer">Els canvis de propietat amb un compte compartit s’han de registrar com una aportació.</string>
+    <string name="movement_transfer_into_shared">Un traspàs no canvia de qui són els diners. Posar-los en un compte compartit és una aportació.</string>
+    <string name="movement_transfer_into_shared_action">Fes una aportació</string>
+    <string name="movement_transfer_out_of_shared">Un compte compartit no pot ser l’origen d’un traspàs: els diners no són només teus.</string>
 
     <!-- Categories -->
     <string name="category_list_title">Categories</string>

@@ -47,3 +47,14 @@ restoreContribution:
 UPDATE account_contributions
 SET archived_at = NULL, updated_at = :updated_at
 WHERE id = :id AND archived_at = :archived_at;
+
+-- Shared-account history an account can never shed: expenses it financed and contributions made
+-- into it. Archived rows count, because both can be restored.
+sharedHistoryCount:
+SELECT COUNT(*) AS history_count FROM (
+    SELECT id FROM movements
+    WHERE account_id = :account_id AND expense_funding = 'shared_account'
+    UNION ALL
+    SELECT id FROM account_contributions
+    WHERE shared_account_id = :account_id
+);

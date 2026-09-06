@@ -112,6 +112,10 @@ internal fun formatBasisPoints(value: Long): String {
     return "$sign$whole,$fraction %"
 }
 
+/** Basis points as a compact percentage: "50%" for whole percents, "33,33%" otherwise. */
+internal fun formatBasisPointsCompact(value: Long): String =
+    if (value % 100L == 0L) "${value / 100}%" else formatBasisPoints(value).replace(" %", "%")
+
 private fun groupThousands(value: Long): String {
     val digits = value.toString()
     val firstGroup = digits.length % 3

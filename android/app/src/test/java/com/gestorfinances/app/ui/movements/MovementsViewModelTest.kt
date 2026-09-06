@@ -4,6 +4,8 @@ import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.db.GestorDatabase
 import com.gestorfinances.app.data.repository.AccountDraft
+import com.gestorfinances.app.data.repository.AccountMemberDraft
+import com.gestorfinances.app.data.repository.AccountOwnershipKind
 import com.gestorfinances.app.data.repository.AccountRepository
 import com.gestorfinances.app.data.repository.AccountType
 import com.gestorfinances.app.data.repository.AnalysisRepository
@@ -453,6 +455,62 @@ class MovementsViewModelTest {
 
             assertEquals(R.string.movement_validation_category_invalid, viewModel.form().errorRes)
             assertEquals(MovementFormField.CATEGORY, viewModel.form().errorField)
+        }
+    }
+
+    // A transfer can never cross the personal/shared ownership line. The error must land on the
+    // side that is actually shared, since that is the field the user has to change.
+    @Test
+    fun transferIntoASharedAccountBlamesTheDestinationField() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            store.people.create(personDraft("laura"), createdAt = NOW)
+            store.accounts.create(sharedAccountDraft("common", "laura"), createdAt = NOW)
+            val viewModel = viewModel(store)
+            viewModel.onAddClicked()
+            advanceUntilIdle()
+
+            viewModel.onFormChanged(
+                viewModel.form().copy(
+                    type = MovementType.TRANSFER,
+                    amount = "10",
+                    date = "2026-01-01",
+                    accountId = "checking",
+                    destinationAccountId = "common",
+                ),
+            )
+            viewModel.onSaveClicked()
+
+            assertEquals(R.string.movement_validation_shared_transfer, viewModel.form().errorRes)
+            assertEquals(MovementFormField.DESTINATION_ACCOUNT, viewModel.form().errorField)
+            assertTrue(store.movements.listActive().isEmpty())
+        }
+    }
+
+    @Test
+    fun transferOutOfASharedAccountBlamesTheOriginField() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            store.people.create(personDraft("laura"), createdAt = NOW)
+            store.accounts.create(sharedAccountDraft("common", "laura"), createdAt = NOW)
+            val viewModel = viewModel(store)
+            viewModel.onAddClicked()
+            advanceUntilIdle()
+
+            viewModel.onFormChanged(
+                viewModel.form().copy(
+                    type = MovementType.TRANSFER,
+                    amount = "10",
+                    date = "2026-01-01",
+                    accountId = "common",
+                    destinationAccountId = "checking",
+                ),
+            )
+            viewModel.onSaveClicked()
+
+            assertEquals(R.string.movement_validation_shared_transfer, viewModel.form().errorRes)
+            assertEquals(MovementFormField.ACCOUNT, viewModel.form().errorField)
+            assertTrue(store.movements.listActive().isEmpty())
         }
     }
 
@@ -1499,7 +1557,7 @@ class MovementsViewModelTest {
         val database = GestorDatabase(driver)
         return TestStore(
             driver = driver,
-            accounts = AccountRepository(database.accountsQueries),
+            accounts = AccountRepository(database.accountsQueries, database.sharedAccountsQueries),
             analysis = AnalysisRepository(database.analysisQueries),
             categories = CategoryRepository(database.categoriesQueries),
             movements = MovementRepository(database.movementsQueries, database.splitsQueries),
@@ -1539,6 +1597,16 @@ class MovementsViewModelTest {
             isDefault = displayOrder == 0L,
             displayOrder = displayOrder,
             lowBalanceThresholdCents = null,
+        )
+
+    /** A 50/50 shared account between the app owner and [personId]. */
+    private fun sharedAccountDraft(id: String, personId: String): AccountDraft =
+        accountDraft(id, displayOrder = 9).copy(
+            ownershipKind = AccountOwnershipKind.SHARED,
+            members = listOf(
+                AccountMemberDraft(SplitParticipantKind.USER, null, 5_000L, 5_000L),
+                AccountMemberDraft(SplitParticipantKind.PERSON, personId, 5_000L, 5_000L),
+            ),
         )
 
     private fun personDraft(id: String): PersonDraft =
