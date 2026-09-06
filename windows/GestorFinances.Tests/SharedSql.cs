@@ -11,6 +11,7 @@ internal static class SharedSql
         "v_movement_summary.sql",
         "v_account_flow.sql",
         "v_account_balance.sql",
+        "v_account_value.sql",
         "v_actual_expense.sql",
         "v_actual_income.sql",
         "v_person_balance.sql",
@@ -46,7 +47,9 @@ internal static class SharedSql
         "011_add_recurring_settlements.sql",
         "012_add_savings_goals.sql",
         "013_add_identity_colors_to_movement_summary.sql",
-        "014_add_destination_account_color.sql"
+        "014_add_destination_account_color.sql",
+        "015_add_shared_accounts.sql",
+        "016_enforce_shared_account_integrity.sql"
     ];
 
     public static string RepositoryRoot { get; } = FindRepositoryRoot();
@@ -58,17 +61,32 @@ internal static class SharedSql
 
     public static void ApplyBaseline(SqliteConnection connection)
     {
-        connection.Execute(ReadSharedFile("migrations", "001_initial.sql"));
+        connection.Execute(ReadSharedFile("schema", "schema.sql"));
+        connection.Execute("INSERT INTO meta(key,value) VALUES ('schema_version','16'),('snapshot_version','0');");
+        connection.Execute(SharedAccountIntegrityTriggers());
 
         foreach (var viewFile in ViewFiles)
         {
             connection.Execute(ReadSharedFile("queries", viewFile));
         }
 
-        foreach (var migrationFile in UpgradeMigrationFiles)
+        foreach (var viewFile in MigrationViewFiles)
         {
-            connection.Execute(ReadSharedFile("migrations", migrationFile));
+            connection.Execute(ReadSharedFile("queries", viewFile));
         }
+    }
+
+    /// <summary>
+    /// The part of the shared-account integrity migration a fresh database needs. What comes
+    /// before it belongs to an upgrade alone: the structure it adds is already in schema.sql, and
+    /// the guard that validates existing rows has nothing to validate. Android slices the same
+    /// migration the same way when it generates the asset it applies on create.
+    /// </summary>
+    public static string SharedAccountIntegrityTriggers()
+    {
+        var migration = ReadSharedFile("migrations", "016_enforce_shared_account_integrity.sql");
+        var afterGuard = migration.Split("DROP TABLE shared_account_integrity_guard;")[^1];
+        return afterGuard.Split("UPDATE meta SET value = '16' WHERE key = 'schema_version';")[0].Trim();
     }
 
     public static string ReadAnalysisQuery(string fileName)

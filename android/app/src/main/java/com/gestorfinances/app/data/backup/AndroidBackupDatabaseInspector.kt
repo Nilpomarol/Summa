@@ -66,6 +66,8 @@ class AndroidBackupDatabaseInspector : BackupDatabaseInspector {
         val REQUIRED_APP_OBJECTS = setOf(
             "meta",
             "accounts",
+            "account_members",
+            "account_contributions",
             "categories",
             "people",
             "trips",
@@ -79,6 +81,7 @@ class AndroidBackupDatabaseInspector : BackupDatabaseInspector {
             "splits",
             "split_lines",
             "v_account_balance",
+            "v_account_value",
             "v_actual_expense",
             "v_actual_income",
             "v_person_balance",
@@ -93,9 +96,11 @@ class AndroidBackupDatabaseInspector : BackupDatabaseInspector {
 
         val REQUIRED_TABLE_COLUMNS = mapOf(
             "meta" to setOf("key", "value"),
-            "accounts" to setOf("id", "name", "starting_balance_cents", "archived_at"),
+            "accounts" to setOf("id", "name", "starting_balance_cents", "ownership_kind", "archived_at"),
+            "account_members" to setOf("id", "account_id", "participant_kind", "ownership_basis_points", "default_expense_basis_points", "archived_at"),
+            "account_contributions" to setOf("id", "shared_account_id", "contributor_kind", "amount_cents", "date", "archived_at"),
             "categories" to setOf("id", "name", "kind", "archived_at"),
-            "movements" to setOf("id", "type", "amount_cents", "date", "archived_at"),
+            "movements" to setOf("id", "type", "amount_cents", "date", "expense_funding", "archived_at"),
             "templates" to setOf("id", "type", "account_id", "status", "archived_at"),
             "budgets" to setOf("id", "scope", "archived_at"),
             "goals" to setOf("id", "name", "target_amount_cents", "funding_mode", "status", "archived_at"),

@@ -51,12 +51,22 @@ val generatedMigration12 = layout.projectDirectory.file(
 val generatedMigration13 = layout.projectDirectory.file(
     "src/main/sqldelight/com/gestorfinances/app/data/db/13.sqm",
 )
+val generatedMigration14 = layout.projectDirectory.file(
+    "src/main/sqldelight/com/gestorfinances/app/data/db/14.sqm",
+)
+val generatedMigration15 = layout.projectDirectory.file(
+    "src/main/sqldelight/com/gestorfinances/app/data/db/15.sqm",
+)
+val generatedSharedAccountIntegrityAsset = layout.projectDirectory.file(
+    "src/main/assets/shared_account_integrity.sql",
+)
 
 val sharedViewFiles = listOf(
     "v_movement_shared.sql",
     "v_movement_summary.sql",
     "v_account_flow.sql",
     "v_account_balance.sql",
+    "v_account_value.sql",
     "v_actual_expense.sql",
     "v_actual_income.sql",
     "v_person_balance.sql",
@@ -92,6 +102,8 @@ val syncSharedSqlForSqlDelight by tasks.registering {
     val sharedMigration012 = sharedRoot.file("migrations/012_add_savings_goals.sql")
     val sharedMigration013 = sharedRoot.file("migrations/013_add_identity_colors_to_movement_summary.sql")
     val sharedMigration014 = sharedRoot.file("migrations/014_add_destination_account_color.sql")
+    val sharedMigration015 = sharedRoot.file("migrations/015_add_shared_accounts.sql")
+    val sharedMigration016 = sharedRoot.file("migrations/016_enforce_shared_account_integrity.sql")
     val sharedViews = sharedViewFiles.map { sharedRoot.file("queries/$it") }
     val sharedAnalysisQueries = sharedAnalysisQueryFiles.map { sharedRoot.file("queries/${it.first}") }
 
@@ -110,6 +122,8 @@ val syncSharedSqlForSqlDelight by tasks.registering {
     inputs.file(sharedMigration012)
     inputs.file(sharedMigration013)
     inputs.file(sharedMigration014)
+    inputs.file(sharedMigration015)
+    inputs.file(sharedMigration016)
     inputs.files(sharedViews)
     inputs.files(sharedAnalysisQueries)
     outputs.file(generatedSharedSql)
@@ -127,6 +141,9 @@ val syncSharedSqlForSqlDelight by tasks.registering {
     outputs.file(generatedMigration11)
     outputs.file(generatedMigration12)
     outputs.file(generatedMigration13)
+    outputs.file(generatedMigration14)
+    outputs.file(generatedMigration15)
+    outputs.file(generatedSharedAccountIntegrityAsset)
 
     doLast {
         val sharedOutputFile = generatedSharedSql.asFile
@@ -146,7 +163,7 @@ val syncSharedSqlForSqlDelight by tasks.registering {
                 appendLine()
                 appendLine()
                 appendLine("INSERT INTO meta (key, value) VALUES")
-                appendLine("    ('schema_version', '14'),")
+                appendLine("    ('schema_version', '16'),")
                 appendLine("    ('snapshot_version', '0');")
                 sharedViews.forEach { queryFile ->
                     appendLine()
@@ -274,6 +291,31 @@ val syncSharedSqlForSqlDelight by tasks.registering {
                 append(sharedMigration014.asFile.readText())
             },
         )
+        generatedMigration14.asFile.writeText(
+            buildString {
+                appendLine("-- Generated from ../../shared/migrations/015_add_shared_accounts.sql.")
+                appendLine("-- Do not edit directly; edit the shared SQL file instead.")
+                appendLine()
+                append(sharedMigration015.asFile.readText())
+            },
+        )
+        generatedMigration15.asFile.writeText(
+            buildString {
+                appendLine("-- Generated from ../../shared/migrations/016_enforce_shared_account_integrity.sql.")
+                appendLine("-- Do not edit directly; edit the shared SQL file instead.")
+                appendLine()
+                append(sharedMigration016.asFile.readText())
+            },
+        )
+        generatedSharedAccountIntegrityAsset.asFile.apply {
+            parentFile.mkdirs()
+            writeText(
+                sharedMigration016.asFile.readText()
+                    .substringAfter("DROP TABLE shared_account_integrity_guard;")
+                    .substringBefore("UPDATE meta SET value = '16' WHERE key = 'schema_version';")
+                    .trim(),
+            )
+        }
     }
 }
 
@@ -324,6 +366,13 @@ tasks.matching {
                 it.name.contains("GestorDatabase", ignoreCase = true)
             )
 }
+    .configureEach {
+        dependsOn(syncSharedSqlForSqlDelight)
+    }
+
+// The same task writes the integrity SQL the app reads at runtime into src/main/assets, so asset
+// packaging has to wait for it as well.
+tasks.matching { it.name.startsWith("merge") && it.name.endsWith("Assets") }
     .configureEach {
         dependsOn(syncSharedSqlForSqlDelight)
     }

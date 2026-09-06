@@ -13,6 +13,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Autorenew
+import androidx.compose.material.icons.outlined.AccountBalance
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Flight
 import androidx.compose.material.icons.outlined.Handshake
@@ -45,6 +46,7 @@ import com.gestorfinances.app.data.repository.CategoryRecord
 import com.gestorfinances.app.data.repository.MovementSplitDraft
 import com.gestorfinances.app.data.repository.MovementSummary
 import com.gestorfinances.app.data.repository.MovementType
+import com.gestorfinances.app.data.repository.ExpenseFunding
 import com.gestorfinances.app.data.repository.PersonSummary
 import com.gestorfinances.app.data.repository.RefundSummary
 import com.gestorfinances.app.data.repository.SettlementDirection
@@ -274,8 +276,8 @@ private fun MovementDetailContent(
                 )
             )
 
-            // Destination Account for Transfer
-            if (movement.type == MovementType.TRANSFER) {
+            // Destination account for transfers and contributions.
+            if (movement.type == MovementType.TRANSFER || movement.type == MovementType.CONTRIBUTION) {
                 val destAcc = accounts.firstOrNull { it.id == movement.destinationAccountId }
                 add(
                     GridItemData(
@@ -287,8 +289,19 @@ private fun MovementDetailContent(
                 )
             }
 
+            if (movement.type == MovementType.EXPENSE && movement.financingKind == ExpenseFunding.SHARED_ACCOUNT) {
+                add(
+                    GridItemData(
+                        icon = Icons.Outlined.AccountBalance,
+                        iconColor = visual.second,
+                        label = stringResource(R.string.movement_detail_financing),
+                        value = stringResource(R.string.movement_detail_financing_shared_account),
+                    ),
+                )
+            }
+
             // Category for non-transfer and non-settlement
-            if (movement.type != MovementType.TRANSFER && movement.type != MovementType.SETTLEMENT) {
+            if (movement.type != MovementType.TRANSFER && movement.type != MovementType.SETTLEMENT && movement.type != MovementType.CONTRIBUTION) {
                 add(
                     GridItemData(
                         icon = categoryIcon(movement.categoryIcon),
@@ -470,7 +483,8 @@ private fun MovementDetailContent(
 
         // Action footer. Secondary actions stay grouped at the leading edge while Edit remains
         // the primary trailing action.
-        val canEdit = movement.type != MovementType.SETTLEMENT && movement.type != MovementType.REFUND
+        val canEdit = movement.type != MovementType.SETTLEMENT &&
+            movement.type != MovementType.REFUND && movement.type != MovementType.CONTRIBUTION
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,

@@ -47,7 +47,7 @@ class AppContainer(context: Context) {
     private val database: GestorDatabase by databaseLazy
 
     val accountRepository: AccountRepository by lazy {
-        AccountRepository(database.accountsQueries)
+        AccountRepository(database.accountsQueries, database.sharedAccountsQueries)
     }
 
     val analysisRepository: AnalysisRepository by lazy {

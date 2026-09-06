@@ -11,16 +11,24 @@ import com.gestorfinances.app.data.repository.AccountDraft
 import com.gestorfinances.app.data.repository.AccountRepository
 import com.gestorfinances.app.data.repository.AccountSummary
 import com.gestorfinances.app.data.repository.AccountType
+import com.gestorfinances.app.data.repository.AccountOwnershipKind
+import com.gestorfinances.app.data.repository.AccountMemberDraft
+import com.gestorfinances.app.data.repository.ContributionDraft
 import com.gestorfinances.app.data.repository.MovementRepository
 import com.gestorfinances.app.data.repository.MovementSummary
 import com.gestorfinances.app.data.repository.TemplateRepository
 import com.gestorfinances.app.data.repository.TemplateStatus
+import com.gestorfinances.app.data.repository.PersonRepository
+import com.gestorfinances.app.data.repository.PersonSummary
+import com.gestorfinances.app.data.repository.SplitParticipantKind
 import com.gestorfinances.app.notifications.NotificationRefresher
 import com.gestorfinances.app.ui.common.EntityColorPalette
 import com.gestorfinances.app.ui.common.formatEuroInput
 import com.gestorfinances.app.ui.common.parseEuroCents
 import com.gestorfinances.app.ui.common.sortedByDisplayOrderThenName
 import java.time.Instant
+import java.time.LocalDate
+import java.math.RoundingMode
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,6 +43,7 @@ class AccountsViewModel(
     private val movementRepository: MovementRepository,
     private val templateRepository: TemplateRepository,
     private val notificationRefresher: NotificationRefresher = NotificationRefresher.NoOp,
+    private val personRepository: PersonRepository? = null,
 ) : ViewModel() {
     private val _state = MutableStateFlow(AccountsUiState())
     val state: StateFlow<AccountsUiState> = _state.asStateFlow()
@@ -57,12 +66,88 @@ class AccountsViewModel(
                 iconKey = defaultIconKeyForType(AccountType.BANK),
                 isDefault = accounts.none { it.isDefault },
                 displayOrder = nextOrder,
+                members = defaultMemberForms(_state.value.people),
             ),
         )
     }
 
+    fun onContributionClicked(account: AccountSummary) {
+        _state.value = _state.value.copy(
+            contributionForm = ContributionFormState(
+                sharedAccountId = account.id,
+                sharedAccountName = account.name,
+                date = LocalDate.now().toString(),
+            ),
+        )
+    }
+
+    fun onContributionFormChanged(form: ContributionFormState) {
+        _state.value = _state.value.copy(contributionForm = form.copy(errorRes = null, errorMessage = null))
+    }
+
+    fun onContributionDismissed() {
+        _state.value = _state.value.copy(contributionForm = null)
+    }
+
+    fun onContributionSaveClicked() {
+        val form = _state.value.contributionForm ?: return
+        val amount = parseEuroCents(form.amount, allowNegative = false)
+        val error = when {
+            amount == null || amount <= 0 -> R.string.movement_validation_amount_positive
+            runCatching { LocalDate.parse(form.date) }.isFailure -> R.string.movement_validation_date_invalid
+            form.sourceAccountId == form.sharedAccountId -> R.string.movement_validation_transfer_same_account
+            else -> null
+        }
+        if (error != null) {
+            _state.value = _state.value.copy(contributionForm = form.copy(errorRes = error))
+            return
+        }
+        val now = Instant.now().toString()
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    accountRepository.createContribution(
+                        ContributionDraft(
+                            id = UUID.randomUUID().toString(),
+                            sharedAccountId = form.sharedAccountId,
+                            contributorKind = if (form.personId == null) SplitParticipantKind.USER else SplitParticipantKind.PERSON,
+                            personId = form.personId,
+                            sourceAccountId = form.sourceAccountId.takeIf { form.personId == null },
+                            amountCents = requireNotNull(amount),
+                            date = form.date,
+                            name = form.name.trim().ifEmpty { null },
+                            notes = form.notes.trim().ifEmpty { null },
+                        ),
+                        createdAt = now,
+                    )
+                }
+            }
+            result.fold(
+                onSuccess = { _state.value = _state.value.copy(contributionForm = null); refreshAccounts() },
+                onFailure = { _state.value = _state.value.copy(contributionForm = form.copy(errorMessage = it.message ?: it.javaClass.simpleName)) },
+            )
+        }
+    }
+
     fun onEditClicked(account: AccountSummary) {
-        _state.value = _state.value.copy(form = account.toFormState())
+        _state.value = _state.value.copy(form = account.toFormState(_state.value.people))
+    }
+
+    fun onOwnershipChanged(kind: AccountOwnershipKind) {
+        val form = _state.value.form ?: return
+        val members = if (form.members.isEmpty()) defaultMemberForms(_state.value.people) else form.members
+        val hasPerson = members.any { it.personId != null && it.enabled }
+        val adjusted = if (kind == AccountOwnershipKind.SHARED && !hasPerson) {
+            val firstPersonId = members.firstOrNull { it.personId != null }?.personId
+            members.map {
+                when {
+                    it.personId == null -> it.copy(enabled = true, ownershipPercent = "50,00", defaultExpensePercent = "50,00")
+                    it.personId == firstPersonId -> it.copy(enabled = true, ownershipPercent = "50,00", defaultExpensePercent = "50,00")
+                    else -> it
+                }
+            }
+        } else members
+        onFormChanged(form.copy(ownershipKind = kind, members = adjusted))
     }
 
     fun onMoveUpClicked(account: AccountSummary) {
@@ -229,6 +314,10 @@ class AccountsViewModel(
                 R.string.account_validation_starting_balance_invalid to AccountFormField.STARTING_BALANCE
             form.lowBalanceThreshold.isNotBlank() && lowBalanceThreshold == null ->
                 R.string.account_validation_low_balance_invalid to AccountFormField.LOW_BALANCE_THRESHOLD
+            form.ownershipKind == AccountOwnershipKind.SHARED && form.members.count { it.enabled } < 2 ->
+                R.string.account_validation_shared_members to AccountFormField.MEMBERS
+            form.ownershipKind == AccountOwnershipKind.SHARED && form.memberDraftsOrNull() == null ->
+                R.string.account_validation_shared_percentages to AccountFormField.MEMBERS
             else -> null to null
         }
 
@@ -248,6 +337,8 @@ class AccountsViewModel(
             isDefault = form.isDefault,
             displayOrder = form.displayOrder,
             lowBalanceThresholdCents = lowBalanceThreshold,
+            ownershipKind = form.ownershipKind,
+            members = form.memberDraftsOrNull().orEmpty(),
         )
 
         viewModelScope.launch {
@@ -280,12 +371,15 @@ class AccountsViewModel(
             _state.value = _state.value.copy(isLoading = true, errorMessage = null)
             val result = withContext(Dispatchers.IO) {
                 runCatching {
-                    Triple(accountRepository.listActive(), goalRepository.accountAllocations(),
-                        goalRepository.listActive().filter { it.fundingMode == GoalFundingMode.DEDICATED_ACCOUNT }.associate { requireNotNull(it.accountId) to it.name })
+                    val accounts = accountRepository.listActive()
+                    val allocations = goalRepository.accountAllocations()
+                    val goals = goalRepository.listActive().filter { it.fundingMode == GoalFundingMode.DEDICATED_ACCOUNT }.associate { requireNotNull(it.accountId) to it.name }
+                    val people = personRepository?.listActive().orEmpty()
+                    LoadedAccounts(accounts, allocations, goals, people)
                 }
             }
             _state.value = result.fold(
-                onSuccess = { _state.value.copy(accounts = it.first, accountAllocations = it.second.associateBy { row -> row.accountId }, dedicatedGoals = it.third, isLoading = false) },
+                onSuccess = { _state.value.copy(accounts = it.accounts, accountAllocations = it.allocations.associateBy { row -> row.accountId }, dedicatedGoals = it.dedicatedGoals, people = it.people, isLoading = false) },
                 onFailure = {
                     _state.value.copy(
                         isLoading = false,
@@ -339,11 +433,12 @@ class AccountsViewModel(
         private val movementRepository: MovementRepository,
         private val templateRepository: TemplateRepository,
         private val notificationRefresher: NotificationRefresher = NotificationRefresher.NoOp,
+        private val personRepository: PersonRepository? = null,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if (modelClass.isAssignableFrom(AccountsViewModel::class.java)) {
-                return AccountsViewModel(accountRepository, goalRepository, movementRepository, templateRepository, notificationRefresher) as T
+                return AccountsViewModel(accountRepository, goalRepository, movementRepository, templateRepository, notificationRefresher, personRepository) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }
@@ -359,6 +454,15 @@ data class AccountsUiState(
     val form: AccountFormState? = null,
     val archiveCandidate: AccountArchiveCandidate? = null,
     val flowDetail: AccountFlowDetailState? = null,
+    val people: List<PersonSummary> = emptyList(),
+    val contributionForm: ContributionFormState? = null,
+)
+
+private data class LoadedAccounts(
+    val accounts: List<AccountSummary>,
+    val allocations: List<AccountAllocation>,
+    val dedicatedGoals: Map<String, String>,
+    val people: List<PersonSummary>,
 )
 
 data class AccountArchiveCandidate(
@@ -385,6 +489,7 @@ enum class AccountFormField {
     NAME,
     STARTING_BALANCE,
     LOW_BALANCE_THRESHOLD,
+    MEMBERS,
 }
 
 data class AccountFormState(
@@ -398,12 +503,35 @@ data class AccountFormState(
     val displayOrder: Long = 0,
     val lowBalanceThreshold: String = "",
     val showAdvanced: Boolean = false,
+    val ownershipKind: AccountOwnershipKind = AccountOwnershipKind.PERSONAL,
+    val members: List<AccountMemberFormState> = emptyList(),
     val errorRes: Int? = null,
     val errorField: AccountFormField? = null,
     val errorMessage: String? = null,
 )
 
-private fun AccountSummary.toFormState(): AccountFormState =
+data class AccountMemberFormState(
+    val personId: String?,
+    val name: String,
+    val enabled: Boolean,
+    val ownershipPercent: String,
+    val defaultExpensePercent: String,
+)
+
+data class ContributionFormState(
+    val sharedAccountId: String,
+    val sharedAccountName: String,
+    val amount: String = "",
+    val date: String,
+    val personId: String? = null,
+    val sourceAccountId: String? = null,
+    val name: String = "",
+    val notes: String = "",
+    val errorRes: Int? = null,
+    val errorMessage: String? = null,
+)
+
+private fun AccountSummary.toFormState(people: List<PersonSummary>): AccountFormState =
     AccountFormState(
         id = id,
         name = name,
@@ -414,6 +542,22 @@ private fun AccountSummary.toFormState(): AccountFormState =
         isDefault = isDefault,
         displayOrder = displayOrder,
         lowBalanceThreshold = lowBalanceThresholdCents?.let(::formatEuroInput) ?: "",
+        ownershipKind = ownershipKind,
+        members = buildList {
+            addAll(members.map {
+            AccountMemberFormState(
+                personId = it.personId,
+                name = it.personName.orEmpty(),
+                enabled = true,
+                ownershipPercent = it.ownershipBasisPoints.toPercentInput(),
+                defaultExpensePercent = it.defaultExpenseBasisPoints.toPercentInput(),
+            )
+            })
+            val existingPersonIds = members.mapNotNull { it.personId }.toSet()
+            people.filter { it.id !in existingPersonIds }.forEach {
+                add(AccountMemberFormState(it.id, it.name, false, "0,00", "0,00"))
+            }
+        },
     )
 
 private fun AccountSummary.toDraft(displayOrder: Long): AccountDraft =
@@ -427,7 +571,38 @@ private fun AccountSummary.toDraft(displayOrder: Long): AccountDraft =
         isDefault = isDefault,
         displayOrder = displayOrder,
         lowBalanceThresholdCents = lowBalanceThresholdCents,
+        ownershipKind = ownershipKind,
+        members = members.map { AccountMemberDraft(it.participantKind, it.personId, it.ownershipBasisPoints, it.defaultExpenseBasisPoints) },
     )
+
+private fun AccountFormState.memberDraftsOrNull(): List<AccountMemberDraft>? {
+    if (ownershipKind == AccountOwnershipKind.PERSONAL) return emptyList()
+    val enabled = members.filter { it.enabled }
+    val drafts = enabled.map { member ->
+        AccountMemberDraft(
+            participantKind = if (member.personId == null) SplitParticipantKind.USER else SplitParticipantKind.PERSON,
+            personId = member.personId,
+            ownershipBasisPoints = member.ownershipPercent.toBasisPointsOrNull() ?: return null,
+            defaultExpenseBasisPoints = member.defaultExpensePercent.toBasisPointsOrNull() ?: return null,
+        )
+    }
+    return drafts.takeIf {
+        it.sumOf(AccountMemberDraft::ownershipBasisPoints) == 10_000L &&
+            it.sumOf(AccountMemberDraft::defaultExpenseBasisPoints) == 10_000L
+    }
+}
+
+private fun String.toBasisPointsOrNull(): Long? =
+    runCatching {
+        replace(',', '.').toBigDecimalOrNull()?.multiply(java.math.BigDecimal(100))
+            ?.setScale(0, RoundingMode.UNNECESSARY)?.longValueExact()?.takeIf { it in 0..10_000 }
+    }.getOrNull()
+
+private fun Long.toPercentInput(): String = "%d,%02d".format(this / 100, this % 100)
+
+private fun defaultMemberForms(people: List<PersonSummary>): List<AccountMemberFormState> =
+    listOf(AccountMemberFormState(null, "", true, "100,00", "100,00")) +
+        people.map { AccountMemberFormState(it.id, it.name, false, "0,00", "0,00") }
 
 private fun defaultIconKeyForType(type: AccountType): String =
     when (type) {

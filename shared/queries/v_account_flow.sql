@@ -25,4 +25,25 @@ SELECT
     amount_cents AS delta_cents
 FROM movements
 WHERE type = 'transfer'
+  AND archived_at IS NULL
+
+UNION ALL
+
+SELECT
+    shared_account_id AS account_id,
+    date,
+    id AS movement_id,
+    amount_cents AS delta_cents
+FROM account_contributions
+WHERE archived_at IS NULL
+
+UNION ALL
+
+SELECT
+    source_account_id AS account_id,
+    date,
+    id AS movement_id,
+    -amount_cents AS delta_cents
+FROM account_contributions
+WHERE source_account_id IS NOT NULL
   AND archived_at IS NULL;

@@ -1,0 +1,28 @@
+{
+  "rule": "shared_account",
+  "description": "Shared accounts keep physical balance, owner patrimonial value, economic expense allocation and interpersonal debt separate. Contributions change account flow only, and a shared-account-funded expense creates no debt to the app owner.",
+  "cases": [
+    {
+      "name": "contributions and shared financing reconcile without becoming actual income or debt",
+      "input": {
+        "personal_start_cents": 10000,
+        "shared_start_cents": 10000,
+        "owner_ownership_basis_points": 4000,
+        "owner_contribution_cents": 2000,
+        "person_contribution_cents": 3000,
+        "shared_expense_cents": 5000,
+        "shared_expense_owner_share_cents": 2000,
+        "owner_financed_expense_cents": 1000,
+        "owner_financed_person_share_cents": 600
+      },
+      "expected": {
+        "personal_physical_cents": 7000,
+        "shared_physical_cents": 10000,
+        "shared_owner_value_cents": 4000,
+        "net_worth_cents": 11000,
+        "actual_expense_cents": 2400,
+        "person_balance_cents": 600
+      }
+    }
+  ]
+}

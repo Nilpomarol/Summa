@@ -63,7 +63,12 @@ import com.gestorfinances.app.data.repository.AccountAllocation
 import com.gestorfinances.app.ui.common.formatEuroCents
 import com.gestorfinances.app.data.repository.AccountSummary
 import com.gestorfinances.app.data.repository.AccountType
+import com.gestorfinances.app.data.repository.AccountOwnershipKind
 import com.gestorfinances.app.data.repository.MovementSummary
+import com.gestorfinances.app.data.repository.PersonSummary
+import com.gestorfinances.app.ui.movements.FormDatePicker
+import com.gestorfinances.app.ui.movements.FormSelect
+import com.gestorfinances.app.ui.movements.SelectOption
 import com.gestorfinances.app.ui.common.AccountIconPalette
 import com.gestorfinances.app.ui.common.ChipFlowSection
 import com.gestorfinances.app.ui.common.ColorPickerRow
@@ -115,6 +120,7 @@ fun AccountsScreen(
 
     val form = state.form
     val flowDetail = state.flowDetail
+    val contributionForm = state.contributionForm
     when {
         form != null -> {
             val requestFormDismissal = rememberFormDismissGuard(
@@ -130,8 +136,24 @@ fun AccountsScreen(
             AccountFormScreen(
                 form = form,
                 onFormChange = viewModel::onFormChanged,
+                onOwnershipChange = viewModel::onOwnershipChanged,
                 onBack = requestFormDismissal,
                 onSave = viewModel::onSaveClicked,
+                modifier = modifier,
+            )
+        }
+        contributionForm != null -> {
+            BackHandler(onBack = viewModel::onContributionDismissed)
+            ContributionFormScreen(
+                form = contributionForm,
+                accounts = state.accounts,
+                people = state.people.filter { person ->
+                    state.accounts.firstOrNull { it.id == contributionForm.sharedAccountId }
+                        ?.members?.any { it.personId == person.id } == true
+                },
+                onFormChange = viewModel::onContributionFormChanged,
+                onBack = viewModel::onContributionDismissed,
+                onSave = viewModel::onContributionSaveClicked,
                 modifier = modifier,
             )
         }
@@ -161,6 +183,7 @@ fun AccountsScreen(
                 onRetry = viewModel::onScreenShown,
                 onMoveUp = viewModel::onMoveUpClicked,
                 onMoveDown = viewModel::onMoveDownClicked,
+                onContribution = viewModel::onContributionClicked,
             )
         }
     }
@@ -216,6 +239,7 @@ private fun AccountsContent(
     onRetry: () -> Unit,
     onMoveUp: (AccountSummary) -> Unit,
     onMoveDown: (AccountSummary) -> Unit,
+    onContribution: (AccountSummary) -> Unit,
 ) {
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -264,6 +288,7 @@ private fun AccountsContent(
                     onFlow = { onFlow(account) },
                     onMoveUp = { onMoveUp(account) },
                     onMoveDown = { onMoveDown(account) },
+                    onContribution = { onContribution(account) },
                 )
             }
             item {
@@ -279,10 +304,10 @@ private fun AccountsContent(
 
 @Composable
 private fun AccountSummaryCard(accounts: List<AccountSummary>) {
-    val netWorthCents = accounts.sumOf { it.currentBalanceCents }
+    val netWorthCents = accounts.sumOf { it.ownerValueCents }
     val countText = pluralStringResource(R.plurals.account_list_count, accounts.size, accounts.size)
-    val positiveAccounts = accounts.filter { it.currentBalanceCents > 0 }
-    val positiveBalanceCents = positiveAccounts.sumOf { it.currentBalanceCents }
+    val positiveAccounts = accounts.filter { it.ownerValueCents > 0 }
+    val positiveBalanceCents = positiveAccounts.sumOf { it.ownerValueCents }
 
     FinanceCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -313,7 +338,7 @@ private fun AccountSummaryCard(accounts: List<AccountSummary>) {
                     segments = positiveAccounts.map { account ->
                         DistributionSegment(
                             color = themedIdentityColor(categoryColor(account.color)),
-                            fraction = account.currentBalanceCents.toFloat() /
+                            fraction = account.ownerValueCents.toFloat() /
                                 positiveBalanceCents.toFloat(),
                         )
                     },
@@ -337,11 +362,11 @@ private fun AccountSummaryCard(accounts: List<AccountSummary>) {
 @Composable
 private fun AccountBreakdownRow(account: AccountSummary, netWorthCents: Long) {
     val accountColor = themedIdentityColor(categoryColor(account.color))
-    val fraction = if (netWorthCents > 0 && account.currentBalanceCents > 0) {
-        account.currentBalanceCents.toFloat() / netWorthCents.toFloat()
+    val fraction = if (netWorthCents > 0 && account.ownerValueCents > 0) {
+        account.ownerValueCents.toFloat() / netWorthCents.toFloat()
     } else 0f
     val percentText = when {
-        account.currentBalanceCents <= 0 -> null
+        account.ownerValueCents <= 0 -> null
         fraction < 0.01f -> "<1%"
         else -> "${(fraction * 100).toInt()}%"
     }
@@ -374,8 +399,8 @@ private fun AccountBreakdownRow(account: AccountSummary, netWorthCents: Long) {
             )
         }
         MoneyText(
-            cents = account.currentBalanceCents,
-            color = if (account.currentBalanceCents < 0) FinanceTheme.colors.debt
+            cents = account.ownerValueCents,
+            color = if (account.ownerValueCents < 0) FinanceTheme.colors.debt
                     else MaterialTheme.colorScheme.onSurface,
             style = MaterialTheme.typography.titleSmall,
             signed = account.currentBalanceCents < 0,
@@ -418,6 +443,7 @@ private fun AccountCard(
     onFlow: () -> Unit,
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
+    onContribution: () -> Unit,
 ) {
     val belowThreshold = account.lowBalanceThresholdCents?.let {
         account.currentBalanceCents < it
@@ -460,6 +486,9 @@ private fun AccountCard(
                                 leadingIcon = Icons.Outlined.PushPin,
                             )
                         }
+                        if (account.ownershipKind == AccountOwnershipKind.SHARED) {
+                            NeutralPill(text = stringResource(R.string.account_shared_badge))
+                        }
                     }
                 }
                 MoneyText(
@@ -473,6 +502,18 @@ private fun AccountCard(
                     onMoveUp = onMoveUp,
                     onMoveDown = onMoveDown,
                     onArchive = onArchive,
+                    onContribution = onContribution.takeIf { account.ownershipKind == AccountOwnershipKind.SHARED },
+                )
+            }
+            if (account.ownershipKind == AccountOwnershipKind.SHARED) {
+                Text(
+                    text = stringResource(
+                        R.string.account_shared_value,
+                        formatEuroCents(account.ownerValueCents),
+                        account.ownerOwnershipBasisPoints.toDouble() / 100.0,
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = FinanceTheme.colors.mutedText,
                 )
             }
             if (dedicatedGoal != null) {
@@ -494,6 +535,7 @@ private fun AccountRowMenu(
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
     onArchive: () -> Unit,
+    onContribution: (() -> Unit)? = null,
 ) {
     var expanded by remember { mutableStateOf(false) }
     Box {
@@ -505,6 +547,12 @@ private fun AccountRowMenu(
             )
         }
         AppDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            if (onContribution != null) {
+                AppDropdownMenuItem(
+                    text = { Text(stringResource(R.string.account_contribution_add)) },
+                    onClick = { expanded = false; onContribution() },
+                )
+            }
             AppDropdownMenuItem(
                 text = { Text(stringResource(R.string.common_edit)) },
                 onClick = { expanded = false; onEdit() },
@@ -538,6 +586,7 @@ private fun AccountRowMenu(
 private fun AccountFormScreen(
     form: AccountFormState,
     onFormChange: (AccountFormState) -> Unit,
+    onOwnershipChange: (AccountOwnershipKind) -> Unit,
     onBack: () -> Unit,
     onSave: () -> Unit,
     modifier: Modifier = Modifier,
@@ -638,6 +687,35 @@ private fun AccountFormScreen(
             }
         }
 
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.account_shared_toggle), style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.account_shared_toggle_help), style = MaterialTheme.typography.bodySmall, color = FinanceTheme.colors.mutedText)
+            }
+            FinanceSwitch(
+                checked = form.ownershipKind == AccountOwnershipKind.SHARED,
+                onCheckedChange = { onOwnershipChange(if (it) AccountOwnershipKind.SHARED else AccountOwnershipKind.PERSONAL) },
+            )
+        }
+
+        if (form.ownershipKind == AccountOwnershipKind.SHARED) {
+            Text(stringResource(R.string.account_members_title), style = MaterialTheme.typography.titleSmall)
+            form.members.forEachIndexed { index, member ->
+                AccountMemberEditor(
+                    member = member,
+                    onChange = { changed ->
+                        onFormChange(form.copy(members = form.members.toMutableList().also { it[index] = changed }))
+                    },
+                )
+            }
+            if (form.errorField == AccountFormField.MEMBERS && form.errorRes != null) {
+                Text(stringResource(form.errorRes), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            }
+        }
+
         // Default toggle
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -728,6 +806,147 @@ private fun AccountPreviewCard(form: AccountFormState) {
                 cents = balanceCents,
                 style = MaterialTheme.typography.titleMedium,
             )
+        }
+    }
+}
+
+@Composable
+private fun AccountMemberEditor(
+    member: AccountMemberFormState,
+    onChange: (AccountMemberFormState) -> Unit,
+) {
+    FinanceCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    member.name.ifBlank { stringResource(R.string.account_member_owner) },
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                if (member.personId == null) {
+                    NeutralPill(text = stringResource(R.string.account_member_owner))
+                } else {
+                    FinanceSwitch(
+                        checked = member.enabled,
+                        onCheckedChange = {
+                            onChange(
+                                member.copy(
+                                    enabled = it,
+                                    ownershipPercent = if (it) member.ownershipPercent else "0,00",
+                                    defaultExpensePercent = if (it) member.defaultExpensePercent else "0,00",
+                                ),
+                            )
+                        },
+                    )
+                }
+            }
+            if (member.enabled) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(
+                        value = member.ownershipPercent,
+                        onValueChange = { onChange(member.copy(ownershipPercent = it)) },
+                        label = { Text(stringResource(R.string.account_member_ownership)) },
+                        suffix = { Text("%") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                    OutlinedTextField(
+                        value = member.defaultExpensePercent,
+                        onValueChange = { onChange(member.copy(defaultExpensePercent = it)) },
+                        label = { Text(stringResource(R.string.account_member_expense_split)) },
+                        suffix = { Text("%") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ContributionFormScreen(
+    form: ContributionFormState,
+    accounts: List<AccountSummary>,
+    people: List<PersonSummary>,
+    onFormChange: (ContributionFormState) -> Unit,
+    onBack: () -> Unit,
+    onSave: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp)
+            .navigationBarsPadding()
+            .imePadding()
+            .padding(bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        PageHeaderRow(onBack = onBack, title = stringResource(R.string.account_contribution_title, form.sharedAccountName))
+        form.errorMessage?.let { InlineFailureBanner(diagnostic = it, messageRes = R.string.failure_save_movement) }
+        form.errorRes?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error) }
+        OutlinedTextField(
+            value = form.amount,
+            onValueChange = { onFormChange(form.copy(amount = it)) },
+            label = { Text(stringResource(R.string.movement_field_amount)) },
+            prefix = { Text("€") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        FormDatePicker(
+            label = stringResource(R.string.movement_field_date),
+            date = form.date,
+            onDateChange = { onFormChange(form.copy(date = it)) },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        FormSelect(
+            label = stringResource(R.string.account_contribution_member),
+            options = buildList {
+                add(SelectOption(id = null, label = stringResource(R.string.account_member_owner)))
+                people.forEach { add(SelectOption(id = it.id, label = it.name)) }
+            },
+            selectedId = form.personId,
+            onSelect = { onFormChange(form.copy(personId = it, sourceAccountId = null)) },
+        )
+        if (form.personId == null) {
+            val noSource = stringResource(R.string.account_contribution_external_source)
+            FormSelect(
+                label = stringResource(R.string.account_contribution_source),
+                options = buildList {
+                    add(SelectOption(id = null, label = noSource))
+                    accounts.filter { it.id != form.sharedAccountId && it.ownershipKind == AccountOwnershipKind.PERSONAL }
+                        .forEach { add(SelectOption(id = it.id, label = it.name)) }
+                },
+                selectedId = form.sourceAccountId,
+                onSelect = { onFormChange(form.copy(sourceAccountId = it)) },
+                placeholder = noSource,
+            )
+        }
+        OutlinedTextField(
+            value = form.name,
+            onValueChange = { onFormChange(form.copy(name = it)) },
+            label = { Text(stringResource(R.string.movement_field_name)) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            value = form.notes,
+            onValueChange = { onFormChange(form.copy(notes = it)) },
+            label = { Text(stringResource(R.string.movement_field_notes)) },
+            minLines = 2,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedButton(onClick = onBack, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.common_cancel)) }
+            PrimaryButton(text = stringResource(R.string.account_contribution_save), onClick = onSave, modifier = Modifier.weight(1f))
         }
     }
 }

@@ -12,6 +12,7 @@ enum class MovementType(val dbValue: String) {
     SETTLEMENT("settlement"),
     REFUND("refund"),
     EXTERNAL_EXPENSE("external_expense"),
+    CONTRIBUTION("contribution"),
     ;
 
     companion object {
@@ -61,6 +62,7 @@ data class MovementSummary(
     val createdAt: String,
     val updatedAt: String,
     val archivedAt: String?,
+    val financingKind: ExpenseFunding? = null,
 )
 
 data class MovementDraft(
@@ -79,7 +81,19 @@ data class MovementDraft(
     val isOneTime: Boolean,
     val splitWrite: MovementSplitWrite = MovementSplitWrite.KeepExisting,
     val templateId: String? = null,
+    val expenseFunding: ExpenseFunding = ExpenseFunding.OWNER,
+    val sharedSplitId: String? = null,
 )
+
+enum class ExpenseFunding(val dbValue: String) {
+    OWNER("owner"),
+    PERSON("person"),
+    SHARED_ACCOUNT("shared_account");
+
+    companion object {
+        fun fromDb(value: String) = entries.first { it.dbValue == value }
+    }
+}
 
 sealed interface MovementSplitWrite {
     data object KeepExisting : MovementSplitWrite
@@ -170,8 +184,8 @@ data class AccountFlowEntry(
     val notes: String?,
     val categoryId: String?,
     val categoryName: String?,
-    val originAccountId: String,
-    val originAccountName: String,
+    val originAccountId: String?,
+    val originAccountName: String?,
     val destinationAccountId: String?,
     val destinationAccountName: String?,
 )
@@ -192,23 +206,23 @@ class MovementRepository(
     }
 
     fun listActive(): List<MovementSummary> =
-        queries.activeMovementSummaries { id, type, amount_cents, date, account_id, account_name, account_color, dest_account_id, destination_account_name, destination_account_color, category_id, category_name, category_nature, category_icon, category_color, trip_id, trip_name, trip_color, tag_id, tag_name, template_id, name, payee, notes, is_one_time, created_at, updated_at, archived_at, refunds_expense_id, refunds_expense_name, refunds_expense_archived, paid_by_person_name, is_shared, payer_id, settlement_direction, settlement_person_name, user_share_cents, is_recurring ->
-            mapMovementSummary(id ?: "", type ?: "", amount_cents ?: 0L, date ?: "", account_id, account_name, account_color, dest_account_id, destination_account_name, destination_account_color, category_id, category_name, category_nature, category_icon, category_color, trip_id, trip_name, trip_color, tag_id, tag_name, template_id, name, payee, notes, is_one_time ?: 0L, created_at ?: "", updated_at ?: "", archived_at, refunds_expense_id, refunds_expense_name, refunds_expense_archived ?: 0L, paid_by_person_name, is_shared ?: 0L, payer_id, settlement_direction, settlement_person_name, user_share_cents ?: 0L, is_recurring ?: 0L)
+        queries.activeMovementSummaries { id, type, amount_cents, date, account_id, account_name, account_color, dest_account_id, destination_account_name, destination_account_color, category_id, category_name, category_nature, category_icon, category_color, trip_id, trip_name, trip_color, tag_id, tag_name, template_id, name, payee, notes, is_one_time, created_at, updated_at, archived_at, refunds_expense_id, refunds_expense_name, refunds_expense_archived, paid_by_person_name, is_shared, financing_kind, payer_id, settlement_direction, settlement_person_name, user_share_cents, is_recurring ->
+            mapMovementSummary(id ?: "", type ?: "", amount_cents ?: 0L, date ?: "", account_id, account_name, account_color, dest_account_id, destination_account_name, destination_account_color, category_id, category_name, category_nature, category_icon, category_color, trip_id, trip_name, trip_color, tag_id, tag_name, template_id, name, payee, notes, is_one_time ?: 0L, created_at ?: "", updated_at ?: "", archived_at, refunds_expense_id, refunds_expense_name, refunds_expense_archived ?: 0L, paid_by_person_name, is_shared ?: 0L, financing_kind, payer_id, settlement_direction, settlement_person_name, user_share_cents ?: 0L, is_recurring ?: 0L)
         }.executeAsList()
 
     fun listActiveForAccount(accountId: String): List<MovementSummary> =
-        queries.activeMovementSummariesForAccount(accountId) { id, type, amount_cents, date, account_id_, account_name, account_color, dest_account_id, destination_account_name, destination_account_color, category_id, category_name, category_nature, category_icon, category_color, trip_id, trip_name, trip_color, tag_id, tag_name, template_id, name, payee, notes, is_one_time, created_at, updated_at, archived_at, refunds_expense_id, refunds_expense_name, refunds_expense_archived, paid_by_person_name, is_shared, payer_id, settlement_direction, settlement_person_name, user_share_cents, is_recurring ->
-            mapMovementSummary(id ?: "", type ?: "", amount_cents ?: 0L, date ?: "", account_id_, account_name, account_color, dest_account_id, destination_account_name, destination_account_color, category_id, category_name, category_nature, category_icon, category_color, trip_id, trip_name, trip_color, tag_id, tag_name, template_id, name, payee, notes, is_one_time ?: 0L, created_at ?: "", updated_at ?: "", archived_at, refunds_expense_id, refunds_expense_name, refunds_expense_archived ?: 0L, paid_by_person_name, is_shared ?: 0L, payer_id, settlement_direction, settlement_person_name, user_share_cents ?: 0L, is_recurring ?: 0L)
+        queries.activeMovementSummariesForAccount(accountId) { id, type, amount_cents, date, account_id_, account_name, account_color, dest_account_id, destination_account_name, destination_account_color, category_id, category_name, category_nature, category_icon, category_color, trip_id, trip_name, trip_color, tag_id, tag_name, template_id, name, payee, notes, is_one_time, created_at, updated_at, archived_at, refunds_expense_id, refunds_expense_name, refunds_expense_archived, paid_by_person_name, is_shared, financing_kind, payer_id, settlement_direction, settlement_person_name, user_share_cents, is_recurring ->
+            mapMovementSummary(id ?: "", type ?: "", amount_cents ?: 0L, date ?: "", account_id_, account_name, account_color, dest_account_id, destination_account_name, destination_account_color, category_id, category_name, category_nature, category_icon, category_color, trip_id, trip_name, trip_color, tag_id, tag_name, template_id, name, payee, notes, is_one_time ?: 0L, created_at ?: "", updated_at ?: "", archived_at, refunds_expense_id, refunds_expense_name, refunds_expense_archived ?: 0L, paid_by_person_name, is_shared ?: 0L, financing_kind, payer_id, settlement_direction, settlement_person_name, user_share_cents ?: 0L, is_recurring ?: 0L)
         }.executeAsList()
 
     fun listActiveForCategory(categoryId: String): List<MovementSummary> =
-        queries.activeMovementSummariesForCategory(categoryId) { id, type, amount_cents, date, account_id, account_name, account_color, dest_account_id, destination_account_name, destination_account_color, category_id_, category_name, category_nature, category_icon, category_color, trip_id, trip_name, trip_color, tag_id, tag_name, template_id, name, payee, notes, is_one_time, created_at, updated_at, archived_at, refunds_expense_id, refunds_expense_name, refunds_expense_archived, paid_by_person_name, is_shared, payer_id, settlement_direction, settlement_person_name, user_share_cents, is_recurring ->
-            mapMovementSummary(id ?: "", type ?: "", amount_cents ?: 0L, date ?: "", account_id, account_name, account_color, dest_account_id, destination_account_name, destination_account_color, category_id_, category_name, category_nature, category_icon, category_color, trip_id, trip_name, trip_color, tag_id, tag_name, template_id, name, payee, notes, is_one_time ?: 0L, created_at ?: "", updated_at ?: "", archived_at, refunds_expense_id, refunds_expense_name, refunds_expense_archived ?: 0L, paid_by_person_name, is_shared ?: 0L, payer_id, settlement_direction, settlement_person_name, user_share_cents ?: 0L, is_recurring ?: 0L)
+        queries.activeMovementSummariesForCategory(categoryId) { id, type, amount_cents, date, account_id, account_name, account_color, dest_account_id, destination_account_name, destination_account_color, category_id_, category_name, category_nature, category_icon, category_color, trip_id, trip_name, trip_color, tag_id, tag_name, template_id, name, payee, notes, is_one_time, created_at, updated_at, archived_at, refunds_expense_id, refunds_expense_name, refunds_expense_archived, paid_by_person_name, is_shared, financing_kind, payer_id, settlement_direction, settlement_person_name, user_share_cents, is_recurring ->
+            mapMovementSummary(id ?: "", type ?: "", amount_cents ?: 0L, date ?: "", account_id, account_name, account_color, dest_account_id, destination_account_name, destination_account_color, category_id_, category_name, category_nature, category_icon, category_color, trip_id, trip_name, trip_color, tag_id, tag_name, template_id, name, payee, notes, is_one_time ?: 0L, created_at ?: "", updated_at ?: "", archived_at, refunds_expense_id, refunds_expense_name, refunds_expense_archived ?: 0L, paid_by_person_name, is_shared ?: 0L, financing_kind, payer_id, settlement_direction, settlement_person_name, user_share_cents ?: 0L, is_recurring ?: 0L)
         }.executeAsList()
 
     fun getActive(id: String): MovementSummary? =
-        queries.movementById(id) { id_, type, amount_cents, date, account_id, account_name, account_color, dest_account_id, destination_account_name, destination_account_color, category_id, category_name, category_nature, category_icon, category_color, trip_id, trip_name, trip_color, tag_id, tag_name, template_id, name, payee, notes, is_one_time, created_at, updated_at, archived_at, refunds_expense_id, refunds_expense_name, refunds_expense_archived, paid_by_person_name, is_shared, payer_id, settlement_direction, settlement_person_name, user_share_cents, is_recurring ->
-            mapMovementSummary(id_ ?: "", type ?: "", amount_cents ?: 0L, date ?: "", account_id, account_name, account_color, dest_account_id, destination_account_name, destination_account_color, category_id, category_name, category_nature, category_icon, category_color, trip_id, trip_name, trip_color, tag_id, tag_name, template_id, name, payee, notes, is_one_time ?: 0L, created_at ?: "", updated_at ?: "", archived_at, refunds_expense_id, refunds_expense_name, refunds_expense_archived ?: 0L, paid_by_person_name, is_shared ?: 0L, payer_id, settlement_direction, settlement_person_name, user_share_cents ?: 0L, is_recurring ?: 0L)
+        queries.movementById(id) { id_, type, amount_cents, date, account_id, account_name, account_color, dest_account_id, destination_account_name, destination_account_color, category_id, category_name, category_nature, category_icon, category_color, trip_id, trip_name, trip_color, tag_id, tag_name, template_id, name, payee, notes, is_one_time, created_at, updated_at, archived_at, refunds_expense_id, refunds_expense_name, refunds_expense_archived, paid_by_person_name, is_shared, financing_kind, payer_id, settlement_direction, settlement_person_name, user_share_cents, is_recurring ->
+            mapMovementSummary(id_ ?: "", type ?: "", amount_cents ?: 0L, date ?: "", account_id, account_name, account_color, dest_account_id, destination_account_name, destination_account_color, category_id, category_name, category_nature, category_icon, category_color, trip_id, trip_name, trip_color, tag_id, tag_name, template_id, name, payee, notes, is_one_time ?: 0L, created_at ?: "", updated_at ?: "", archived_at, refunds_expense_id, refunds_expense_name, refunds_expense_archived ?: 0L, paid_by_person_name, is_shared ?: 0L, financing_kind, payer_id, settlement_direction, settlement_person_name, user_share_cents ?: 0L, is_recurring ?: 0L)
         }.executeAsOneOrNull()
 
     fun accountFlowForAccount(accountId: String): List<AccountFlowEntry> =
@@ -227,28 +241,32 @@ class MovementRepository(
         draft: MovementDraft,
         createdAt: String,
     ) {
-        requireDirectMovementType(draft.type)
-        validateSplitWrite(draft)
+        val persistedDraft = prepareSharedFundingDraft(draft, existingMovement = false)
+        requireDirectMovementType(persistedDraft.type)
+        validateSplitWrite(persistedDraft)
+        validateSharedFundingSplit(persistedDraft, existingMovement = false, hasActiveSplit = false)
         queries.transaction {
             queries.insertMovement(
-                id = draft.id,
-                type = draft.type.dbValue,
-                amount_cents = draft.amountCents,
-                date = draft.date,
-                account_id = draft.accountId,
-                dest_account_id = draft.destinationAccountId,
-                name = draft.name,
-                payee = draft.payee,
-                notes = draft.notes,
-                is_one_time = draft.isOneTime.toDbLong(),
-                category_id = draft.categoryId,
-                trip_id = draft.tripId,
-                tag_id = draft.tagId,
-                template_id = draft.templateId,
+                id = persistedDraft.id,
+                type = persistedDraft.type.dbValue,
+                amount_cents = persistedDraft.amountCents,
+                date = persistedDraft.date,
+                account_id = persistedDraft.accountId,
+                dest_account_id = persistedDraft.destinationAccountId,
+                name = persistedDraft.name,
+                payee = persistedDraft.payee,
+                notes = persistedDraft.notes,
+                is_one_time = persistedDraft.isOneTime.toDbLong(),
+                category_id = persistedDraft.categoryId,
+                trip_id = persistedDraft.tripId,
+                tag_id = persistedDraft.tagId,
+                template_id = persistedDraft.templateId,
+                expense_funding = persistedDraft.expenseFunding.dbValue.takeIf { persistedDraft.type == MovementType.EXPENSE },
+                shared_split_id = persistedDraft.sharedSplitId,
                 created_at = createdAt,
                 updated_at = createdAt,
             )
-            applySplitWrite(draft.id, draft.splitWrite, timestamp = createdAt)
+            applySplitWrite(persistedDraft.id, persistedDraft.splitWrite, persistedDraft.sharedSplitId, timestamp = createdAt)
         }
     }
 
@@ -256,27 +274,35 @@ class MovementRepository(
         draft: MovementDraft,
         updatedAt: String,
     ) {
-        requireDirectMovementType(draft.type)
-        validateSplitWrite(draft)
+        val persistedDraft = prepareSharedFundingDraft(draft, existingMovement = true)
+        requireDirectMovementType(persistedDraft.type)
+        validateSplitWrite(persistedDraft)
+        validateSharedFundingSplit(
+            draft = persistedDraft,
+            existingMovement = true,
+            hasActiveSplit = persistedDraft.sharedSplitId != null,
+        )
         queries.transaction {
             queries.updateMovement(
-                id = draft.id,
-                type = draft.type.dbValue,
-                amount_cents = draft.amountCents,
-                date = draft.date,
-                account_id = draft.accountId,
-                dest_account_id = draft.destinationAccountId,
-                name = draft.name,
-                payee = draft.payee,
-                notes = draft.notes,
-                is_one_time = draft.isOneTime.toDbLong(),
-                category_id = draft.categoryId,
-                trip_id = draft.tripId,
-                tag_id = draft.tagId,
-                template_id = draft.templateId,
+                id = persistedDraft.id,
+                type = persistedDraft.type.dbValue,
+                amount_cents = persistedDraft.amountCents,
+                date = persistedDraft.date,
+                account_id = persistedDraft.accountId,
+                dest_account_id = persistedDraft.destinationAccountId,
+                name = persistedDraft.name,
+                payee = persistedDraft.payee,
+                notes = persistedDraft.notes,
+                is_one_time = persistedDraft.isOneTime.toDbLong(),
+                category_id = persistedDraft.categoryId,
+                trip_id = persistedDraft.tripId,
+                tag_id = persistedDraft.tagId,
+                template_id = persistedDraft.templateId,
+                expense_funding = persistedDraft.expenseFunding.dbValue.takeIf { persistedDraft.type == MovementType.EXPENSE },
+                shared_split_id = persistedDraft.sharedSplitId,
                 updated_at = updatedAt,
             )
-            applySplitWrite(draft.id, draft.splitWrite, timestamp = updatedAt)
+            applySplitWrite(persistedDraft.id, persistedDraft.splitWrite, persistedDraft.sharedSplitId, timestamp = updatedAt)
         }
     }
 
@@ -401,9 +427,43 @@ class MovementRepository(
         }
     }
 
+    /**
+     * Settles the split identity a shared-account expense is stored with before its row is
+     * written: the schema requires such a movement to name the split it is consumed through, while
+     * the split itself is written after the movement inside the same transaction. A movement keeps
+     * one stable split id, so an existing split always wins; a new one is minted only when a split
+     * is actually being written. Nothing else carries a split identity.
+     */
+    private fun prepareSharedFundingDraft(
+        draft: MovementDraft,
+        existingMovement: Boolean,
+    ): MovementDraft {
+        if (draft.type != MovementType.EXPENSE ||
+            draft.expenseFunding != ExpenseFunding.SHARED_ACCOUNT
+        ) {
+            return draft.copy(sharedSplitId = null)
+        }
+        val splits = splitQueries.takeIf { existingMovement }
+        val activeSplitId = splits?.activeSplitIdForMovement(draft.id)?.executeAsOneOrNull()
+        return draft.copy(
+            sharedSplitId = when {
+                activeSplitId != null -> activeSplitId
+                // A split archived by an earlier funding change keeps its identifier when the
+                // expense goes back to being financed by the shared account.
+                draft.splitWrite is MovementSplitWrite.Replace ->
+                    splits?.splitIdForMovement(draft.id)?.executeAsOneOrNull()
+                        ?: draft.sharedSplitId
+                        ?: UUID.randomUUID().toString()
+                // No split, and none being written: the caller's validation rejects this.
+                else -> null
+            },
+        )
+    }
+
     private fun applySplitWrite(
         movementId: String,
         splitWrite: MovementSplitWrite,
+        sharedSplitId: String?,
         timestamp: String,
     ) {
         when (splitWrite) {
@@ -412,6 +472,7 @@ class MovementRepository(
             is MovementSplitWrite.Replace -> replaceMovementSplit(
                 movementId = movementId,
                 draft = splitWrite.draft,
+                forcedSplitId = sharedSplitId,
                 timestamp = timestamp,
             )
         }
@@ -420,13 +481,17 @@ class MovementRepository(
     private fun replaceMovementSplit(
         movementId: String,
         draft: MovementSplitDraft,
+        forcedSplitId: String?,
         timestamp: String,
     ) {
         val splits = requireNotNull(splitQueries) {
             "Split queries are required to save shared expenses."
         }
         val splitId = splits.splitIdForMovement(movementId).executeAsOneOrNull()
-        val activeSplitId = splitId ?: UUID.randomUUID().toString()
+        val activeSplitId = forcedSplitId ?: splitId ?: UUID.randomUUID().toString()
+        require(splitId == null || splitId == activeSplitId) {
+            "A movement keeps one stable split identifier."
+        }
 
         if (splitId == null) {
             splits.insertMovementSplit(
@@ -527,6 +592,7 @@ private fun mapMovementSummary(
     refundsExpenseArchived: Long,
     paidByPersonName: String?,
     isShared: Long,
+    financingKind: String?,
     payerId: String?,
     settlementDirection: String?,
     settlementPersonName: String?,
@@ -560,6 +626,7 @@ private fun mapMovementSummary(
         notes = notes,
         isOneTime = isOneTime != 0L,
         isShared = isShared != 0L,
+        financingKind = financingKind?.let(ExpenseFunding::fromDb),
         userShareCents = userShareCents,
         isRecurring = isRecurring != 0L,
         paidByPersonName = paidByPersonName,
@@ -604,8 +671,8 @@ private fun mapAccountFlowEntry(
     notes: String?,
     categoryId: String?,
     categoryName: String?,
-    originAccountId: String,
-    originAccountName: String,
+    originAccountId: String?,
+    originAccountName: String?,
     destinationAccountId: String?,
     destinationAccountName: String?,
 ): AccountFlowEntry =
@@ -659,6 +726,26 @@ private fun validateSplitWrite(draft: MovementDraft) {
             }
             SplitParticipantKind.PERSON -> require(line.personId != null) {
                 "Person split lines must reference a person."
+            }
+        }
+    }
+}
+
+private fun validateSharedFundingSplit(
+    draft: MovementDraft,
+    existingMovement: Boolean,
+    hasActiveSplit: Boolean,
+) {
+    if (draft.expenseFunding != ExpenseFunding.SHARED_ACCOUNT) return
+    require(draft.type == MovementType.EXPENSE) {
+        "Shared-account financing is only valid for expenses."
+    }
+    when (draft.splitWrite) {
+        is MovementSplitWrite.Replace -> Unit
+        MovementSplitWrite.Remove -> error("A shared-account expense must retain its split.")
+        MovementSplitWrite.KeepExisting -> {
+            require(existingMovement && hasActiveSplit) {
+                "A shared-account expense must have a split."
             }
         }
     }

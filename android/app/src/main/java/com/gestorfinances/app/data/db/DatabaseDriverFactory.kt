@@ -13,6 +13,17 @@ class DatabaseDriverFactory(
             context = context,
             name = DATABASE_NAME,
             callback = object : AndroidSqliteDriver.Callback(GestorDatabase.Schema) {
+                override fun onCreate(db: SupportSQLiteDatabase) {
+                    super.onCreate(db)
+                    context.assets.open(SHARED_ACCOUNT_INTEGRITY_ASSET).bufferedReader().use { reader ->
+                        reader.readText()
+                            .splitToSequence("\nEND;")
+                            .map { it.trim() }
+                            .filter { it.isNotEmpty() }
+                            .forEach { db.execSQL("$it\nEND;") }
+                    }
+                }
+
                 override fun onConfigure(db: SupportSQLiteDatabase) {
                     db.setForeignKeyConstraintsEnabled(true)
                     db.enableWriteAheadLogging()
@@ -23,6 +34,7 @@ class DatabaseDriverFactory(
 
     companion object {
         const val DATABASE_NAME: String = "gestor-finances.db"
+        private const val SHARED_ACCOUNT_INTEGRITY_ASSET = "shared_account_integrity.sql"
 
         fun databaseFile(context: Context) =
             context.applicationContext.getDatabasePath(DATABASE_NAME)

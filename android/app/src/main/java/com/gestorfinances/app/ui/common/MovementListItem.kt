@@ -450,6 +450,8 @@ private fun MovementSummary.primaryAmountContentDescription(): String {
         MovementType.REFUND ->
             stringResource(R.string.movement_amount_accessibility_refund, amountText)
         MovementType.EXTERNAL_EXPENSE -> error("External expense is a shared amount")
+        MovementType.CONTRIBUTION ->
+            stringResource(R.string.movement_amount_accessibility_transfer, amountText)
     }
 }
 
@@ -533,5 +535,6 @@ internal fun MovementSummary.chipVisual(): Pair<ImageVector, androidx.compose.ui
             } else {
                 movementTypeIcon(type) to finance.debt
             }
+        MovementType.CONTRIBUTION -> movementTypeIcon(type) to finance.transfer
     }
 }

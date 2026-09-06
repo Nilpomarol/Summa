@@ -48,8 +48,8 @@ period_flow AS (
       AND f.date < :to_date
 ),
 net_worth AS (
-    SELECT COALESCE(SUM(b.current_balance_cents), 0) AS net_worth_cents
-    FROM v_account_balance b
+    SELECT COALESCE(SUM(b.owner_value_cents), 0) AS net_worth_cents
+    FROM v_account_value b
     JOIN accounts a
         ON a.id = b.account_id
        AND a.archived_at IS NULL

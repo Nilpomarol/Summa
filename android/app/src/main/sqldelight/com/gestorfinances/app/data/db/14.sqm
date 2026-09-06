@@ -1,0 +1,467 @@
+-- Generated from ../../shared/migrations/015_add_shared_accounts.sql.
+-- Do not edit directly; edit the shared SQL file instead.
+
+-- Summa v14 -> v15 migration.
+-- Shared-account membership, patrimonial ownership, expense financing and contributions.
+-- Percentages use integer basis points so every cent calculation is deterministic.
+
+ALTER TABLE accounts
+    ADD COLUMN ownership_kind TEXT NOT NULL DEFAULT 'personal'
+    CHECK (ownership_kind IN ('personal','shared'));
+
+CREATE TABLE account_members (
+    id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL REFERENCES accounts(id),
+    participant_kind TEXT NOT NULL CHECK (participant_kind IN ('user','person')),
+    person_id TEXT REFERENCES people(id),
+    ownership_basis_points INTEGER NOT NULL CHECK (ownership_basis_points BETWEEN 0 AND 10000),
+    default_expense_basis_points INTEGER NOT NULL CHECK (default_expense_basis_points BETWEEN 0 AND 10000),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    archived_at TEXT,
+    CHECK ( (participant_kind = 'user') = (person_id IS NULL) )
+);
+CREATE INDEX idx_account_members_account ON account_members(account_id);
+CREATE UNIQUE INDEX idx_account_members_one_user ON account_members(account_id)
+    WHERE participant_kind = 'user' AND archived_at IS NULL;
+CREATE UNIQUE INDEX idx_account_members_one_person ON account_members(account_id, person_id)
+    WHERE participant_kind = 'person' AND archived_at IS NULL;
+
+ALTER TABLE movements ADD COLUMN expense_funding TEXT
+    CHECK (expense_funding IN ('owner','shared_account'));
+UPDATE movements SET expense_funding = 'owner'
+WHERE type = 'expense' AND expense_funding IS NULL;
+
+CREATE TABLE account_contributions (
+    id TEXT PRIMARY KEY,
+    shared_account_id TEXT NOT NULL REFERENCES accounts(id),
+    contributor_kind TEXT NOT NULL CHECK (contributor_kind IN ('user','person')),
+    person_id TEXT REFERENCES people(id),
+    source_account_id TEXT REFERENCES accounts(id),
+    amount_cents INTEGER NOT NULL CHECK (amount_cents > 0),
+    date TEXT NOT NULL,
+    name TEXT,
+    notes TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    archived_at TEXT,
+    CHECK ( (contributor_kind = 'user') = (person_id IS NULL) ),
+    CHECK ( contributor_kind = 'user' OR source_account_id IS NULL ),
+    CHECK ( source_account_id IS NULL OR source_account_id <> shared_account_id )
+);
+CREATE INDEX idx_account_contributions_shared_date
+    ON account_contributions(shared_account_id, date);
+CREATE INDEX idx_account_contributions_source_date
+    ON account_contributions(source_account_id, date)
+    WHERE source_account_id IS NOT NULL;
+
+DROP VIEW IF EXISTS v_account_flow;
+CREATE VIEW v_account_flow AS
+SELECT
+    account_id,
+    date,
+    id AS movement_id,
+    CASE type
+        WHEN 'income' THEN amount_cents
+        WHEN 'refund' THEN amount_cents
+        WHEN 'expense' THEN -amount_cents
+        WHEN 'transfer' THEN -amount_cents
+        WHEN 'settlement' THEN CASE settlement_direction
+            WHEN 'person_to_user' THEN amount_cents
+            WHEN 'user_to_person' THEN -amount_cents
+        END
+    END AS delta_cents
+FROM movements
+WHERE archived_at IS NULL
+
+UNION ALL
+
+SELECT
+    dest_account_id AS account_id,
+    date,
+    id AS movement_id,
+    amount_cents AS delta_cents
+FROM movements
+WHERE type = 'transfer'
+  AND archived_at IS NULL
+
+UNION ALL
+
+SELECT
+    shared_account_id AS account_id,
+    date,
+    id AS movement_id,
+    amount_cents AS delta_cents
+FROM account_contributions
+WHERE archived_at IS NULL
+
+UNION ALL
+
+SELECT
+    source_account_id AS account_id,
+    date,
+    id AS movement_id,
+    -amount_cents AS delta_cents
+FROM account_contributions
+WHERE source_account_id IS NOT NULL
+  AND archived_at IS NULL;
+
+DROP VIEW IF EXISTS v_account_value;
+CREATE VIEW v_account_value AS
+SELECT
+    b.account_id,
+    b.current_balance_cents AS physical_balance_cents,
+    CASE a.ownership_kind
+        WHEN 'shared' THEN COALESCE((
+            SELECT am.ownership_basis_points
+            FROM account_members am
+            WHERE am.account_id = a.id
+              AND am.participant_kind = 'user'
+              AND am.archived_at IS NULL
+            LIMIT 1
+        ), 0)
+        ELSE 10000
+    END AS owner_ownership_basis_points,
+    CASE
+        WHEN b.current_balance_cents < 0 THEN -(
+            ((-b.current_balance_cents) * CASE a.ownership_kind
+                WHEN 'shared' THEN COALESCE((
+                    SELECT am.ownership_basis_points
+                    FROM account_members am
+                    WHERE am.account_id = a.id
+                      AND am.participant_kind = 'user'
+                      AND am.archived_at IS NULL
+                    LIMIT 1
+                ), 0)
+                ELSE 10000
+            END + 5000) / 10000
+        )
+        ELSE (
+            (b.current_balance_cents * CASE a.ownership_kind
+                WHEN 'shared' THEN COALESCE((
+                    SELECT am.ownership_basis_points
+                    FROM account_members am
+                    WHERE am.account_id = a.id
+                      AND am.participant_kind = 'user'
+                      AND am.archived_at IS NULL
+                    LIMIT 1
+                ), 0)
+                ELSE 10000
+            END + 5000) / 10000
+        )
+    END AS owner_value_cents
+FROM accounts a
+JOIN v_account_balance b
+    ON b.account_id = a.id;
+
+DROP VIEW IF EXISTS v_person_balance;
+CREATE VIEW v_person_balance AS
+SELECT
+    p.id AS person_id,
+    COALESCE((
+        SELECT SUM(sl.owed_amount_cents)
+        FROM split_lines sl
+        JOIN splits s
+            ON s.id = sl.split_id
+        JOIN movements m
+            ON m.id = s.movement_id
+        WHERE sl.person_id = p.id
+          AND sl.participant_kind = 'person'
+          AND s.payer_person_id IS NULL
+          AND COALESCE(m.expense_funding, 'owner') = 'owner'
+          AND m.archived_at IS NULL
+          AND s.archived_at IS NULL
+          AND sl.archived_at IS NULL
+    ), 0)
+    - COALESCE((
+        SELECT SUM(sl.owed_amount_cents)
+        FROM split_lines sl
+        JOIN splits s
+            ON s.id = sl.split_id
+        WHERE s.payer_person_id = p.id
+          AND sl.participant_kind = 'user'
+          AND s.archived_at IS NULL
+          AND sl.archived_at IS NULL
+    ), 0)
+    - COALESCE((
+        SELECT SUM(m.amount_cents)
+        FROM movements m
+        WHERE m.type = 'settlement'
+          AND m.person_id = p.id
+          AND m.settlement_direction = 'person_to_user'
+          AND m.archived_at IS NULL
+    ), 0)
+    + COALESCE((
+        SELECT SUM(m.amount_cents)
+        FROM movements m
+        WHERE m.type = 'settlement'
+          AND m.person_id = p.id
+          AND m.settlement_direction = 'user_to_person'
+          AND m.archived_at IS NULL
+    ), 0) AS balance_cents
+FROM people p;
+
+DROP VIEW IF EXISTS v_goal_progress;
+CREATE VIEW v_goal_progress AS
+SELECT
+    goal_id,
+    target_amount_cents,
+    saved_cents,
+    MAX(target_amount_cents - saved_cents, 0) AS remaining_cents
+FROM (
+    SELECT
+        g.id AS goal_id,
+        g.target_amount_cents AS target_amount_cents,
+        CASE g.funding_mode
+            WHEN 'dedicated_account' THEN COALESCE((
+                SELECT b.owner_value_cents
+                FROM v_account_value b
+                WHERE b.account_id = g.account_id
+            ), 0)
+            ELSE COALESCE((
+                SELECT a.allocated_cents
+                FROM v_goal_allocation a
+                WHERE a.goal_id = g.id
+            ), 0)
+        END AS saved_cents
+    FROM goals g
+);
+
+DROP VIEW IF EXISTS v_account_allocation;
+CREATE VIEW v_account_allocation AS
+SELECT
+    a.id AS account_id,
+    b.owner_value_cents AS balance_cents,
+    COALESCE(alloc.allocated_cents, 0) AS allocated_cents,
+    b.owner_value_cents - COALESCE(alloc.allocated_cents, 0) AS unallocated_cents
+FROM accounts a
+JOIN v_account_value b
+    ON b.account_id = a.id
+LEFT JOIN (
+    SELECT
+        ga.account_id AS account_id,
+        SUM(ga.amount_cents) AS allocated_cents
+    FROM goal_allocations ga
+    JOIN goals g
+        ON g.id = ga.goal_id
+    WHERE ga.archived_at IS NULL
+      AND g.archived_at IS NULL
+      AND g.funding_mode = 'allocations'
+    GROUP BY ga.account_id
+) alloc
+    ON alloc.account_id = a.id;
+
+DROP VIEW IF EXISTS v_movement_summary;
+CREATE VIEW v_movement_summary AS
+SELECT
+    movements.id,
+    movements.type,
+    movements.amount_cents,
+    movements.date,
+    movements.account_id,
+    accounts.name AS account_name,
+    accounts.color AS account_color,
+    movements.dest_account_id,
+    destination_accounts.name AS destination_account_name,
+    destination_accounts.color AS destination_account_color,
+    movements.category_id,
+    categories.name AS category_name,
+    categories.nature AS category_nature,
+    categories.icon AS category_icon,
+    categories.color AS category_color,
+    movements.trip_id,
+    trips.name AS trip_name,
+    trips.color AS trip_color,
+    movements.tag_id,
+    tags.name AS tag_name,
+    movements.template_id,
+    movements.name,
+    movements.payee,
+    movements.notes,
+    movements.is_one_time,
+    movements.created_at,
+    movements.updated_at,
+    movements.archived_at,
+    movements.refunds_expense_id,
+    refunded_expense.name AS refunds_expense_name,
+    CASE WHEN refunded_expense.archived_at IS NOT NULL THEN 1 ELSE 0 END AS refunds_expense_archived,
+    NULLIF((
+        SELECT paid_by_people.name
+        FROM splits AS paid_by_split
+        JOIN split_lines AS paid_by_user_line
+            ON paid_by_user_line.split_id = paid_by_split.id
+           AND paid_by_user_line.participant_kind = 'user'
+           AND paid_by_user_line.owed_amount_cents = 0
+           AND paid_by_user_line.archived_at IS NULL
+        JOIN split_lines AS paid_by_person_line
+            ON paid_by_person_line.split_id = paid_by_split.id
+           AND paid_by_person_line.participant_kind = 'person'
+           AND paid_by_person_line.owed_amount_cents = movements.amount_cents
+           AND paid_by_person_line.archived_at IS NULL
+        JOIN people AS paid_by_people
+            ON paid_by_people.id = paid_by_person_line.person_id
+        WHERE paid_by_split.movement_id = movements.id
+          AND paid_by_split.archived_at IS NULL
+          AND (
+              SELECT COUNT(*)
+              FROM split_lines AS positive_person_line
+              WHERE positive_person_line.split_id = paid_by_split.id
+                AND positive_person_line.participant_kind = 'person'
+                AND positive_person_line.owed_amount_cents > 0
+                AND positive_person_line.archived_at IS NULL
+          ) = 1
+        LIMIT 1
+    ), '') AS paid_by_person_name,
+    COALESCE(v_movement_shared.is_shared, 0) AS is_shared,
+    CASE
+        WHEN movements.type = 'expense' THEN COALESCE(movements.expense_funding, 'owner')
+        WHEN movements.type IN ('income','transfer','settlement','refund') THEN 'owner'
+        ELSE NULL
+    END AS financing_kind,
+    movements.person_id AS payer_id,
+    movements.settlement_direction,
+    settlement_people.name AS settlement_person_name,
+    CASE
+        WHEN v_movement_shared.is_shared = 1 AND movements.type = 'expense'
+        THEN COALESCE((
+            SELECT sl.owed_amount_cents
+            FROM splits s
+            JOIN split_lines sl
+                ON sl.split_id = s.id
+               AND sl.participant_kind = 'user'
+               AND sl.archived_at IS NULL
+            WHERE s.movement_id = movements.id
+              AND s.archived_at IS NULL
+            LIMIT 1
+        ), -1)
+        ELSE -1
+    END AS user_share_cents,
+    CASE WHEN movements.template_id IS NOT NULL THEN 1 ELSE 0 END AS is_recurring
+FROM movements
+JOIN accounts
+    ON accounts.id = movements.account_id
+LEFT JOIN accounts AS destination_accounts
+    ON destination_accounts.id = movements.dest_account_id
+LEFT JOIN categories
+    ON categories.id = movements.category_id
+LEFT JOIN trips
+    ON trips.id = movements.trip_id
+LEFT JOIN tags
+    ON tags.id = movements.tag_id
+LEFT JOIN people AS settlement_people
+    ON settlement_people.id = movements.person_id
+LEFT JOIN v_movement_shared
+    ON v_movement_shared.movement_id = movements.id
+LEFT JOIN movements AS refunded_expense
+    ON refunded_expense.id = movements.refunds_expense_id
+WHERE movements.archived_at IS NULL
+
+UNION ALL
+
+SELECT
+    s.id,
+    'external_expense' AS type,
+    s.total_amount_cents AS amount_cents,
+    IFNULL(s.date, '') AS date,
+    NULL AS account_id,
+    NULL AS account_name,
+    NULL AS account_color,
+    NULL AS dest_account_id,
+    NULL AS destination_account_name,
+    NULL AS destination_account_color,
+    s.category_id,
+    c.name AS category_name,
+    c.nature AS category_nature,
+    c.icon AS category_icon,
+    c.color AS category_color,
+    s.trip_id,
+    t.name AS trip_name,
+    t.color AS trip_color,
+    s.tag_id,
+    tg.name AS tag_name,
+    NULL AS template_id,
+    s.description AS name,
+    NULL AS payee,
+    NULL AS notes,
+    0 AS is_one_time,
+    s.created_at,
+    s.updated_at,
+    s.archived_at,
+    NULL AS refunds_expense_id,
+    NULL AS refunds_expense_name,
+    0 AS refunds_expense_archived,
+    p.name AS paid_by_person_name,
+    0 AS is_shared,
+    'person' AS financing_kind,
+    p.id AS payer_id,
+    NULL AS settlement_direction,
+    NULL AS settlement_person_name,
+    sl.owed_amount_cents AS user_share_cents,
+    0 AS is_recurring
+FROM splits s
+JOIN split_lines sl
+    ON sl.split_id = s.id
+   AND sl.participant_kind = 'user'
+   AND sl.archived_at IS NULL
+JOIN people p ON p.id = s.payer_person_id
+LEFT JOIN categories c ON c.id = s.category_id
+LEFT JOIN trips t ON t.id = s.trip_id
+LEFT JOIN tags tg ON tg.id = s.tag_id
+WHERE s.movement_id IS NULL
+  AND s.payer_person_id IS NOT NULL
+  AND s.archived_at IS NULL
+
+UNION ALL
+
+SELECT
+    contribution.id,
+    'contribution' AS type,
+    contribution.amount_cents,
+    contribution.date,
+    contribution.source_account_id AS account_id,
+    source_account.name AS account_name,
+    source_account.color AS account_color,
+    contribution.shared_account_id AS dest_account_id,
+    shared_account.name AS destination_account_name,
+    shared_account.color AS destination_account_color,
+    NULL AS category_id,
+    NULL AS category_name,
+    NULL AS category_nature,
+    NULL AS category_icon,
+    NULL AS category_color,
+    NULL AS trip_id,
+    NULL AS trip_name,
+    NULL AS trip_color,
+    NULL AS tag_id,
+    NULL AS tag_name,
+    NULL AS template_id,
+    contribution.name,
+    NULL AS payee,
+    contribution.notes,
+    0 AS is_one_time,
+    contribution.created_at,
+    contribution.updated_at,
+    contribution.archived_at,
+    NULL AS refunds_expense_id,
+    NULL AS refunds_expense_name,
+    0 AS refunds_expense_archived,
+    contributor.name AS paid_by_person_name,
+    0 AS is_shared,
+    CASE contribution.contributor_kind WHEN 'user' THEN 'owner' ELSE 'person' END AS financing_kind,
+    contribution.person_id AS payer_id,
+    NULL AS settlement_direction,
+    NULL AS settlement_person_name,
+    -1 AS user_share_cents,
+    0 AS is_recurring
+FROM account_contributions contribution
+JOIN accounts shared_account
+    ON shared_account.id = contribution.shared_account_id
+LEFT JOIN accounts source_account
+    ON source_account.id = contribution.source_account_id
+LEFT JOIN people contributor
+    ON contributor.id = contribution.person_id
+WHERE contribution.archived_at IS NULL;
+
+
+UPDATE meta SET value = '15' WHERE key = 'schema_version';
+
