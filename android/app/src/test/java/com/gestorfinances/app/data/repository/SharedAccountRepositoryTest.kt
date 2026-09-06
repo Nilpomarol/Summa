@@ -84,6 +84,101 @@ class SharedAccountRepositoryTest {
         )
     }
 
+    // Un-sharing an account that financed shared expenses or received contributions would strand
+    // those rows: they keep naming a shared account, and the movement triggers then reject every
+    // later edit of them. The account has to stay shared instead.
+    @Test
+    fun `an account that received a contribution cannot become personal again`() {
+        val database = RepositoryTestSupport.newDatabase()
+        val accounts = AccountRepository(database.accountsQueries, database.sharedAccountsQueries)
+        val people = PersonRepository(database.peopleQueries)
+        val now = "2026-09-06T10:00:00Z"
+        people.create(PersonDraft("person", "Alba", null, null, null), now)
+        accounts.create(sharedAccount(), now)
+        accounts.createContribution(
+            ContributionDraft("contribution", "shared", SplitParticipantKind.USER, null, null, 2_000, "2026-09-06", null, null),
+            now,
+        )
+
+        assertTrue(accounts.hasSharedHistory("shared"))
+        val failure = runCatching {
+            accounts.update(account("shared", AccountOwnershipKind.PERSONAL, 10_000), now)
+        }.exceptionOrNull()
+
+        assertTrue(failure is IllegalArgumentException)
+        assertEquals(AccountOwnershipKind.SHARED, accounts.getActive("shared")!!.ownershipKind)
+    }
+
+    @Test
+    fun `an account that financed a shared expense cannot become personal again`() {
+        val database = RepositoryTestSupport.newDatabase()
+        val accounts = AccountRepository(database.accountsQueries, database.sharedAccountsQueries)
+        val people = PersonRepository(database.peopleQueries)
+        val movements = MovementRepository(database.movementsQueries, database.splitsQueries)
+        val now = "2026-09-06T10:00:00Z"
+        people.create(PersonDraft("person", "Alba", null, null, null), now)
+        accounts.create(sharedAccount(), now)
+        movements.create(
+            MovementDraft(
+                id = "expense",
+                type = MovementType.EXPENSE,
+                amountCents = 5_000,
+                date = "2026-09-06",
+                accountId = "shared",
+                destinationAccountId = null,
+                categoryId = null,
+                name = "Compra",
+                payee = null,
+                notes = null,
+                isOneTime = false,
+                expenseFunding = ExpenseFunding.SHARED_ACCOUNT,
+                splitWrite = MovementSplitWrite.Replace(
+                    MovementSplitDraft(
+                        SplitEntryMethod.EXACT,
+                        listOf(
+                            SplitLineDraft(SplitParticipantKind.USER, null, 2_000),
+                            SplitLineDraft(SplitParticipantKind.PERSON, "person", 3_000),
+                        ),
+                    ),
+                ),
+            ),
+            now,
+        )
+        // Archiving does not shed the history: the expense can still be restored.
+        movements.archive("expense", archivedAt = now)
+
+        assertTrue(accounts.hasSharedHistory("shared"))
+        assertTrue(
+            runCatching {
+                accounts.update(account("shared", AccountOwnershipKind.PERSONAL, 10_000), now)
+            }.exceptionOrNull() is IllegalArgumentException,
+        )
+    }
+
+    @Test
+    fun `a shared account without history can still become personal`() {
+        val database = RepositoryTestSupport.newDatabase()
+        val accounts = AccountRepository(database.accountsQueries, database.sharedAccountsQueries)
+        val people = PersonRepository(database.peopleQueries)
+        val now = "2026-09-06T10:00:00Z"
+        people.create(PersonDraft("person", "Alba", null, null, null), now)
+        accounts.create(sharedAccount(), now)
+
+        accounts.update(account("shared", AccountOwnershipKind.PERSONAL, 10_000), now)
+
+        assertEquals(AccountOwnershipKind.PERSONAL, accounts.getActive("shared")!!.ownershipKind)
+    }
+
+    private fun sharedAccount() = account(
+        "shared",
+        AccountOwnershipKind.SHARED,
+        10_000,
+        listOf(
+            AccountMemberDraft(SplitParticipantKind.USER, null, 4_000, 4_000),
+            AccountMemberDraft(SplitParticipantKind.PERSON, "person", 6_000, 6_000),
+        ),
+    )
+
     private fun account(
         id: String,
         ownership: AccountOwnershipKind,

@@ -151,6 +151,7 @@ internal fun ExpenseFormSection(
 internal fun ExpenseDetailsSection(
     form: MovementFormState,
     people: List<PersonSummary>,
+    fundedBySharedAccount: Boolean,
     onFormChange: (MovementFormState) -> Unit,
     onSharedToggled: (Boolean) -> Unit,
     onSplitEditorChange: (SplitEditorState) -> Unit,
@@ -160,27 +161,36 @@ internal fun ExpenseDetailsSection(
     val personError = form.errorField == MovementFormField.PERSON
     val personErrorText = if (personError && form.errorRes != null) stringResource(form.errorRes) else null
     if (form.expenseKind != ExpenseKind.DEBT) {
-        LabeledSegmentedControl(
-            label = stringResource(R.string.movement_forwhom_title),
-            options = listOf(ExpenseKind.PERSONAL, ExpenseKind.SHARED, ExpenseKind.FOR_OTHER),
-            selected = form.expenseKind ?: ExpenseKind.PERSONAL,
-            optionLabel = { kind ->
-                when (kind) {
-                    ExpenseKind.PERSONAL -> stringResource(R.string.movement_forwhom_personal)
-                    ExpenseKind.SHARED -> stringResource(R.string.movement_forwhom_shared)
-                    ExpenseKind.FOR_OTHER -> stringResource(R.string.movement_forwhom_other)
-                    ExpenseKind.DEBT -> ""
-                }
-            },
-            onSelect = { kind ->
-                when (kind) {
-                    ExpenseKind.PERSONAL -> onSharedToggled(false)
-                    ExpenseKind.SHARED -> onSharedToggled(true)
-                    ExpenseKind.FOR_OTHER -> onFormChange(form.copy(expenseKind = ExpenseKind.FOR_OTHER))
-                    ExpenseKind.DEBT -> Unit
-                }
-            },
-        )
+        // A shared account always finances its own expense and the database requires the split
+        // that says who consumed it, so the choice isn't the user's to make here.
+        if (fundedBySharedAccount) {
+            InlineBanner(
+                kind = BannerKind.Info,
+                text = stringResource(R.string.movement_shared_account_funding),
+            )
+        } else {
+            LabeledSegmentedControl(
+                label = stringResource(R.string.movement_forwhom_title),
+                options = listOf(ExpenseKind.PERSONAL, ExpenseKind.SHARED, ExpenseKind.FOR_OTHER),
+                selected = form.expenseKind ?: ExpenseKind.PERSONAL,
+                optionLabel = { kind ->
+                    when (kind) {
+                        ExpenseKind.PERSONAL -> stringResource(R.string.movement_forwhom_personal)
+                        ExpenseKind.SHARED -> stringResource(R.string.movement_forwhom_shared)
+                        ExpenseKind.FOR_OTHER -> stringResource(R.string.movement_forwhom_other)
+                        ExpenseKind.DEBT -> ""
+                    }
+                },
+                onSelect = { kind ->
+                    when (kind) {
+                        ExpenseKind.PERSONAL -> onSharedToggled(false)
+                        ExpenseKind.SHARED -> onSharedToggled(true)
+                        ExpenseKind.FOR_OTHER -> onFormChange(form.copy(expenseKind = ExpenseKind.FOR_OTHER))
+                        ExpenseKind.DEBT -> Unit
+                    }
+                },
+            )
+        }
         if (form.expenseKind == ExpenseKind.FOR_OTHER) {
             FormSelect(
                 label = stringResource(R.string.movement_forwhom_other),

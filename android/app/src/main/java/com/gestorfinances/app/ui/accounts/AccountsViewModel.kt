@@ -71,12 +71,25 @@ class AccountsViewModel(
         )
     }
 
-    fun onContributionClicked(account: AccountSummary) {
+    fun onContributionClicked(account: AccountSummary) = showContributionFor(account.id)
+
+    /**
+     * Opens the contribution form for a shared account. Another screen can seed it: a transfer
+     * into a shared account is really a contribution, so the movement form hands the amount and
+     * date over rather than leaving the user to retype them here.
+     */
+    fun showContributionFor(
+        accountId: String,
+        amount: String = "",
+        date: String = LocalDate.now().toString(),
+        sourceAccountId: String? = null,
+    ) {
         _state.value = _state.value.copy(
             contributionForm = ContributionFormState(
-                sharedAccountId = account.id,
-                sharedAccountName = account.name,
-                date = LocalDate.now().toString(),
+                sharedAccountId = accountId,
+                amount = amount,
+                date = date,
+                sourceAccountId = sourceAccountId,
             ),
         )
     }
@@ -342,6 +355,22 @@ class AccountsViewModel(
         )
 
         viewModelScope.launch {
+            // Un-sharing is refused rather than silently stranding the expenses and contributions
+            // that named this account as shared; ask the repository before it has to throw.
+            if (form.id != null && form.ownershipKind == AccountOwnershipKind.PERSONAL) {
+                val hasSharedHistory = withContext(Dispatchers.IO) {
+                    runCatching { accountRepository.hasSharedHistory(form.id) }.getOrDefault(false)
+                }
+                if (hasSharedHistory) {
+                    _state.value = _state.value.copy(
+                        form = form.copy(
+                            errorRes = R.string.account_validation_shared_history,
+                            errorField = AccountFormField.OWNERSHIP,
+                        ),
+                    )
+                    return@launch
+                }
+            }
             val result = withContext(Dispatchers.IO) {
                 runCatching {
                     if (form.id == null) {
@@ -489,6 +518,7 @@ enum class AccountFormField {
     NAME,
     STARTING_BALANCE,
     LOW_BALANCE_THRESHOLD,
+    OWNERSHIP,
     MEMBERS,
 }
 
@@ -520,7 +550,6 @@ data class AccountMemberFormState(
 
 data class ContributionFormState(
     val sharedAccountId: String,
-    val sharedAccountName: String,
     val amount: String = "",
     val date: String,
     val personId: String? = null,
@@ -599,6 +628,29 @@ private fun String.toBasisPointsOrNull(): Long? =
     }.getOrNull()
 
 private fun Long.toPercentInput(): String = "%d,%02d".format(this / 100, this % 100)
+
+/**
+ * Basis-point total of one percentage column across the enabled members, or null when any of
+ * them is unreadable. The form editor shows it live so 100% is reached before saving, not after.
+ */
+internal fun List<AccountMemberFormState>.basisPointTotal(
+    column: (AccountMemberFormState) -> String,
+): Long? = filter { it.enabled }
+    .fold(0L) { total, member -> total + (column(member).toBasisPointsOrNull() ?: return null) }
+
+/** Spreads 100% evenly over the enabled members, giving the leftover basis points to the first. */
+internal fun List<AccountMemberFormState>.splitEqually(): List<AccountMemberFormState> {
+    val enabledCount = count { it.enabled }
+    if (enabledCount == 0) return this
+    val share = 10_000L / enabledCount
+    var leftover = 10_000L - share * enabledCount
+    return map { member ->
+        if (!member.enabled) return@map member
+        val percent = (share + leftover).toPercentInput()
+        leftover = 0L
+        member.copy(ownershipPercent = percent, defaultExpensePercent = percent)
+    }
+}
 
 private fun defaultMemberForms(people: List<PersonSummary>): List<AccountMemberFormState> =
     listOf(AccountMemberFormState(null, "", true, "100,00", "100,00")) +

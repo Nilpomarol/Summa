@@ -60,6 +60,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountAllocation
+import com.gestorfinances.app.ui.common.formatBasisPointsCompact
 import com.gestorfinances.app.ui.common.formatEuroCents
 import com.gestorfinances.app.data.repository.AccountSummary
 import com.gestorfinances.app.data.repository.AccountType
@@ -403,7 +404,7 @@ private fun AccountBreakdownRow(account: AccountSummary, netWorthCents: Long) {
             color = if (account.ownerValueCents < 0) FinanceTheme.colors.debt
                     else MaterialTheme.colorScheme.onSurface,
             style = MaterialTheme.typography.titleSmall,
-            signed = account.currentBalanceCents < 0,
+            signed = account.ownerValueCents < 0,
         )
     }
 }
@@ -510,7 +511,7 @@ private fun AccountCard(
                     text = stringResource(
                         R.string.account_shared_value,
                         formatEuroCents(account.ownerValueCents),
-                        account.ownerOwnershipBasisPoints.toDouble() / 100.0,
+                        formatBasisPointsCompact(account.ownerOwnershipBasisPoints),
                     ),
                     style = MaterialTheme.typography.bodySmall,
                     color = FinanceTheme.colors.mutedText,
@@ -524,7 +525,14 @@ private fun AccountCard(
                     InlineBanner(kind = BannerKind.Alert, text = stringResource(R.string.goal_shortfall, account.name, formatEuroCents(-it.unallocatedCents)))
                 }
             }
-            TextButton(onClick = onViewGoals) { Text(stringResource(R.string.goal_account_link)) }
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(onClick = onViewGoals) { Text(stringResource(R.string.goal_account_link)) }
+                if (account.ownershipKind == AccountOwnershipKind.SHARED) {
+                    TextButton(onClick = onContribution) {
+                        Text(stringResource(R.string.account_contribution_add))
+                    }
+                }
+            }
         }
     }
 }
@@ -700,6 +708,13 @@ private fun AccountFormScreen(
                 onCheckedChange = { onOwnershipChange(if (it) AccountOwnershipKind.SHARED else AccountOwnershipKind.PERSONAL) },
             )
         }
+        if (form.errorField == AccountFormField.OWNERSHIP && form.errorRes != null) {
+            Text(
+                text = stringResource(form.errorRes),
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
 
         if (form.ownershipKind == AccountOwnershipKind.SHARED) {
             Text(stringResource(R.string.account_members_title), style = MaterialTheme.typography.titleSmall)
@@ -711,6 +726,10 @@ private fun AccountFormScreen(
                     },
                 )
             }
+            MemberPercentTotals(
+                members = form.members,
+                onSplitEqually = { onFormChange(form.copy(members = form.members.splitEqually())) },
+            )
             if (form.errorField == AccountFormField.MEMBERS && form.errorRes != null) {
                 Text(stringResource(form.errorRes), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             }
@@ -869,6 +888,60 @@ private fun AccountMemberEditor(
     }
 }
 
+/**
+ * Running totals for both percentage columns, so a shared account reaches 100% in the editor
+ * rather than at save time, plus the even split the arithmetic otherwise leaves to the user.
+ */
+@Composable
+private fun MemberPercentTotals(
+    members: List<AccountMemberFormState>,
+    onSplitEqually: () -> Unit,
+) {
+    if (members.none { it.enabled }) return
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        MemberPercentTotal(
+            label = stringResource(R.string.account_member_ownership),
+            basisPoints = members.basisPointTotal { it.ownershipPercent },
+            modifier = Modifier.weight(1f),
+        )
+        MemberPercentTotal(
+            label = stringResource(R.string.account_member_expense_split),
+            basisPoints = members.basisPointTotal { it.defaultExpensePercent },
+            modifier = Modifier.weight(1f),
+        )
+    }
+    TextButton(onClick = onSplitEqually) {
+        Text(stringResource(R.string.account_member_split_equally))
+    }
+}
+
+@Composable
+private fun MemberPercentTotal(
+    label: String,
+    basisPoints: Long?,
+    modifier: Modifier = Modifier,
+) {
+    val complete = basisPoints == 10_000L
+    val text = when {
+        basisPoints == null -> "$label · ${stringResource(R.string.account_member_total_invalid)}"
+        complete -> "$label ${formatBasisPointsCompact(basisPoints)}"
+        basisPoints < 10_000L -> "$label ${formatBasisPointsCompact(basisPoints)} · " +
+            stringResource(R.string.account_member_total_remaining, formatBasisPointsCompact(10_000L - basisPoints))
+        else -> "$label ${formatBasisPointsCompact(basisPoints)} · " +
+            stringResource(R.string.account_member_total_excess, formatBasisPointsCompact(basisPoints - 10_000L))
+    }
+    Text(
+        text = text,
+        modifier = modifier,
+        style = MaterialTheme.typography.bodySmall,
+        color = if (complete) FinanceTheme.colors.mutedText else MaterialTheme.colorScheme.error,
+    )
+}
+
 @Composable
 private fun ContributionFormScreen(
     form: ContributionFormState,
@@ -889,7 +962,8 @@ private fun ContributionFormScreen(
             .padding(bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        PageHeaderRow(onBack = onBack, title = stringResource(R.string.account_contribution_title, form.sharedAccountName))
+        val sharedAccountName = accounts.firstOrNull { it.id == form.sharedAccountId }?.name.orEmpty()
+        PageHeaderRow(onBack = onBack, title = stringResource(R.string.account_contribution_title, sharedAccountName))
         form.errorMessage?.let { InlineFailureBanner(diagnostic = it, messageRes = R.string.failure_save_movement) }
         form.errorRes?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error) }
         OutlinedTextField(
@@ -1086,6 +1160,25 @@ private fun AccountFlowScreen(
         }
 
         HorizontalDivider()
+
+        // Who this account belongs to. Membership is otherwise only visible inside the edit form.
+        if (account.ownershipKind == AccountOwnershipKind.SHARED && account.members.isNotEmpty()) {
+            val owner = stringResource(R.string.account_member_owner)
+            Text(
+                text = stringResource(
+                    R.string.account_members_summary,
+                    account.members.joinToString(" · ") { member ->
+                        "${member.personName ?: owner} ${formatBasisPointsCompact(member.ownershipBasisPoints)}"
+                    },
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 10.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = FinanceTheme.colors.mutedText,
+            )
+            HorizontalDivider()
+        }
 
         // Movement list
         when {

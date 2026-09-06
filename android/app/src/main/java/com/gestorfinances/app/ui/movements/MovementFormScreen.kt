@@ -26,6 +26,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.R
+import com.gestorfinances.app.data.repository.AccountOwnershipKind
 import com.gestorfinances.app.data.repository.AccountSummary
 import com.gestorfinances.app.data.repository.CategoryRecord
 import com.gestorfinances.app.data.repository.MovementType
@@ -68,6 +69,7 @@ fun MovementFormScreen(
     onOptionalToggled: () -> Unit,
     onAdvancedToggled: () -> Unit,
     onCreatePersonInSplit: (String) -> Unit,
+    onRecordContribution: (accountId: String, amount: String, sourceAccountId: String?) -> Unit,
     onDismiss: () -> Unit,
     onSave: () -> Unit,
     onOverride: () -> Unit,
@@ -264,6 +266,7 @@ fun MovementFormScreen(
                 form = form,
                 accounts = accounts,
                 onFormChange = onFormChange,
+                onRecordContribution = onRecordContribution,
             )
             else -> Unit
         }
@@ -284,6 +287,8 @@ fun MovementFormScreen(
                     ExpenseDetailsSection(
                         form = form,
                         people = people,
+                        fundedBySharedAccount = accounts.firstOrNull { it.id == form.accountId }
+                            ?.ownershipKind == AccountOwnershipKind.SHARED,
                         onFormChange = onFormChange,
                         onSharedToggled = onSharedToggled,
                         onSplitEditorChange = onSplitEditorChange,
