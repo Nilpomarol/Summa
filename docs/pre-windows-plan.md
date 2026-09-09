@@ -46,7 +46,7 @@ Exit: goals remain mathematically consistent through allocation edits, account-v
 - Update account value, net worth, debt, message, and analysis queries so the meanings remain labelled and reconcilable.
 - Do not build per-member capital accounts or retroactively infer exact ownership from historical consumption.
 
-Status: in progress. The shared contract, migrations, Android flows, and both test harnesses are complete at schema 16, and the account, expense, transfer, and contribution paths are verified on a device. Refusing to un-share an account that carries shared history is enforced by the writing repository and covered by tests, but has not been exercised on a device. The gate stays open pending that check and a final review of the flows against the exit condition.
+Status: in progress. The current shared contract is complete at schema 16, but the Android usability review found incomplete or ambiguous flows around withdrawals, income ownership, shared-account expense funding, account-context amounts, and contribution presentation. The selected next implementation task is [Shared Accounts Usability](shared-accounts-usability.md). Refusing to un-share an account that carries shared history is enforced and covered by tests but still requires device verification.
 
 Exit: a shared account can represent its bank balance and the owner's patrimonial share while splits still answer who economically consumed an expense and debt still answers who owes whom.
 
