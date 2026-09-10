@@ -82,25 +82,16 @@ class AccountsViewModel(
     fun onWithdrawalClicked(account: AccountSummary) =
         showContributionFor(account.id, direction = ContributionDirection.OUT)
 
-    /**
-     * Opens the contribution form for a shared account. Another screen can seed it: a transfer
-     * into a shared account is really a contribution, so the movement form hands the amount and
-     * date over rather than leaving the user to retype them here.
-     */
-    fun showContributionFor(
+    /** Opens the member-money form for a shared account, in the given direction. */
+    private fun showContributionFor(
         accountId: String,
-        amount: String = "",
-        date: String = LocalDate.now().toString(),
-        sourceAccountId: String? = null,
         direction: ContributionDirection = ContributionDirection.IN,
     ) {
         _state.value = _state.value.copy(
             contributionForm = ContributionFormState(
                 sharedAccountId = accountId,
                 direction = direction,
-                amount = amount,
-                date = date,
-                sourceAccountId = sourceAccountId,
+                date = LocalDate.now().toString(),
             ),
         )
     }

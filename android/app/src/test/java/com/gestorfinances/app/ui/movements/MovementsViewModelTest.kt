@@ -604,7 +604,7 @@ class MovementsViewModelTest {
     // A transfer can never cross the personal/shared ownership line. The error must land on the
     // side that is actually shared, since that is the field the user has to change.
     @Test
-    fun transferIntoASharedAccountBlamesTheDestinationField() = runTest(dispatcher) {
+    fun transferIntoASharedAccountIsSavedAsAContribution() = runTest(dispatcher) {
         freshStore().use { store ->
             store.accounts.create(accountDraft("checking"), createdAt = NOW)
             store.people.create(personDraft("laura"), createdAt = NOW)
@@ -623,15 +623,19 @@ class MovementsViewModelTest {
                 ),
             )
             viewModel.onSaveClicked()
+            advanceUntilIdle()
 
-            assertEquals(R.string.movement_validation_shared_transfer, viewModel.form().errorRes)
-            assertEquals(MovementFormField.DESTINATION_ACCOUNT, viewModel.form().errorField)
-            assertTrue(store.movements.listActive().isEmpty())
+            assertNull(viewModel.state.value.form)
+            val contribution = store.movements.listActive().single()
+            assertEquals(MovementType.CONTRIBUTION, contribution.type)
+            assertEquals(ContributionDirection.IN, contribution.contributionDirection)
+            assertEquals(-1_000L, store.accounts.getActive("checking")!!.currentBalanceCents)
+            assertEquals(1_000L, store.accounts.getActive("common")!!.currentBalanceCents)
         }
     }
 
     @Test
-    fun transferOutOfASharedAccountBlamesTheOriginField() = runTest(dispatcher) {
+    fun transferOutOfASharedAccountIsSavedAsAWithdrawal() = runTest(dispatcher) {
         freshStore().use { store ->
             store.accounts.create(accountDraft("checking"), createdAt = NOW)
             store.people.create(personDraft("laura"), createdAt = NOW)
@@ -650,10 +654,48 @@ class MovementsViewModelTest {
                 ),
             )
             viewModel.onSaveClicked()
+            advanceUntilIdle()
+
+            assertNull(viewModel.state.value.form)
+            val withdrawal = store.movements.listActive().single()
+            assertEquals(MovementType.CONTRIBUTION, withdrawal.type)
+            assertEquals(ContributionDirection.OUT, withdrawal.contributionDirection)
+            assertEquals(-1_000L, store.accounts.getActive("common")!!.currentBalanceCents)
+            assertEquals(1_000L, store.accounts.getActive("checking")!!.currentBalanceCents)
+        }
+    }
+
+    @Test
+    fun aSavedTransferIsNotRewrittenIntoAContribution() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            store.accounts.create(accountDraft("savings", displayOrder = 1), createdAt = NOW)
+            store.people.create(personDraft("laura"), createdAt = NOW)
+            store.accounts.create(sharedAccountDraft("common", "laura"), createdAt = NOW)
+            val viewModel = viewModel(store)
+            viewModel.onAddClicked()
+            advanceUntilIdle()
+            viewModel.onFormChanged(
+                viewModel.form().copy(
+                    type = MovementType.TRANSFER,
+                    amount = "10",
+                    date = "2026-01-01",
+                    accountId = "checking",
+                    destinationAccountId = "savings",
+                ),
+            )
+            viewModel.onSaveClicked()
+            advanceUntilIdle()
+            val transfer = store.movements.listActive().single()
+
+            viewModel.onEditClicked(transfer)
+            advanceUntilIdle()
+            viewModel.onFormChanged(viewModel.form().copy(destinationAccountId = "common"))
+            viewModel.onSaveClicked()
 
             assertEquals(R.string.movement_validation_shared_transfer, viewModel.form().errorRes)
-            assertEquals(MovementFormField.ACCOUNT, viewModel.form().errorField)
-            assertTrue(store.movements.listActive().isEmpty())
+            assertEquals(MovementFormField.DESTINATION_ACCOUNT, viewModel.form().errorField)
+            assertEquals(MovementType.TRANSFER, store.movements.listActive().single().type)
         }
     }
 

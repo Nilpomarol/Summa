@@ -467,6 +467,7 @@ internal fun FormOptionalSection(
     onRecurringFrequencyChanged: (RecurrenceFrequency) -> Unit,
     onOptionalToggled: () -> Unit,
     onAdvancedToggled: () -> Unit,
+    transferCrossesOwnership: Boolean = false,
     expenseDetails: (@Composable () -> Unit)? = null,
 ) {
     FormDisclosureRow(
@@ -485,7 +486,8 @@ internal fun FormOptionalSection(
         val recurringAllowed = when (form.type) {
             MovementType.EXPENSE -> form.expenseKind != ExpenseKind.DEBT
             MovementType.INCOME -> !form.isSettlement
-            MovementType.TRANSFER -> true
+            // Saved as a contribution or withdrawal, which do not recur.
+            MovementType.TRANSFER -> !transferCrossesOwnership
             else -> false
         }
         if (recurringAllowed) {

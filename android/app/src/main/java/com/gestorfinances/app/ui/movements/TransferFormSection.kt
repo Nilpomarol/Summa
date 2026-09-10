@@ -1,17 +1,13 @@
 package com.gestorfinances.app.ui.movements
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.gestorfinances.app.data.repository.ContributionDirection
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountOwnershipKind
 import com.gestorfinances.app.data.repository.AccountSummary
@@ -29,12 +25,6 @@ internal fun TransferFormSection(
     form: MovementFormState,
     accounts: List<AccountSummary>,
     onFormChange: (MovementFormState) -> Unit,
-    onRecordContribution: (
-        sharedAccountId: String,
-        amount: String,
-        ownerAccountId: String?,
-        direction: ContributionDirection,
-    ) -> Unit,
 ) {
     val accountError = form.errorField == MovementFormField.ACCOUNT
     val destinationError = form.errorField == MovementFormField.DESTINATION_ACCOUNT
@@ -68,49 +58,22 @@ internal fun TransferFormSection(
         )
     }
 
-    // Money crossing between personal and shared ownership is a contribution or a withdrawal, not a
-    // transfer; between two shared accounts it is an ordinary transfer.
-    // Saying so while the accounts are being picked beats failing at save with nowhere to go.
-    val sharedOwnership = { id: String? -> accounts.firstOrNull { it.id == id }?.ownershipKind }
-    val sourceIsShared = sharedOwnership(form.accountId) == AccountOwnershipKind.SHARED
-    val destinationIsShared = sharedOwnership(form.destinationAccountId) == AccountOwnershipKind.SHARED
-    when {
-        sourceIsShared && destinationIsShared -> Unit
-        sourceIsShared -> Column {
-            InlineBanner(
-                kind = BannerKind.Info,
-                text = stringResource(R.string.movement_transfer_out_of_shared),
-            )
-            TextButton(
-                onClick = {
-                    onRecordContribution(
-                        requireNotNull(form.accountId),
-                        form.amount,
-                        form.destinationAccountId,
-                        ContributionDirection.OUT,
-                    )
+    // Between one of the owner's accounts and a shared account the money changes owner rather than
+    // just moving, so a new one is saved as a contribution or withdrawal; between two shared accounts
+    // it is an ordinary transfer. A saved transfer is refused at save instead.
+    val ownership = { id: String? -> accounts.firstOrNull { it.id == id }?.ownershipKind }
+    val sourceIsShared = ownership(form.accountId) == AccountOwnershipKind.SHARED
+    val destinationIsShared = ownership(form.destinationAccountId) == AccountOwnershipKind.SHARED
+    if (form.isNew && form.destinationAccountId != null && sourceIsShared != destinationIsShared) {
+        InlineBanner(
+            kind = BannerKind.Info,
+            text = stringResource(
+                if (destinationIsShared) {
+                    R.string.movement_transfer_saved_as_contribution
+                } else {
+                    R.string.movement_transfer_saved_as_withdrawal
                 },
-            ) {
-                Text(stringResource(R.string.movement_transfer_out_of_shared_action))
-            }
-        }
-        destinationIsShared -> Column {
-            InlineBanner(
-                kind = BannerKind.Info,
-                text = stringResource(R.string.movement_transfer_into_shared),
-            )
-            TextButton(
-                onClick = {
-                    onRecordContribution(
-                        requireNotNull(form.destinationAccountId),
-                        form.amount,
-                        form.accountId,
-                        ContributionDirection.IN,
-                    )
-                },
-            ) {
-                Text(stringResource(R.string.movement_transfer_into_shared_action))
-            }
-        }
+            ),
+        )
     }
 }

@@ -1,5 +1,7 @@
 package com.gestorfinances.app.ui.movements
 
+import com.gestorfinances.app.data.repository.ContributionDraft
+import com.gestorfinances.app.data.repository.ContributionDirection
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -684,6 +686,29 @@ class MovementsViewModel(
         )
     }
 
+    /**
+     * A new transfer between one of the owner's personal accounts and a shared account moves the
+     * owner's own money into or out of the shared account: a contribution or a withdrawal, never a
+     * transfer. Contributions do not recur, so the form offers no recurrence for one.
+     */
+    private fun saveTransferAsContribution(form: MovementFormState, amountCents: Long, date: String) {
+        val intoShared = isSharedAccount(form.destinationAccountId)
+        val draft = ContributionDraft(
+            id = UUID.randomUUID().toString(),
+            sharedAccountId = requireNotNull(if (intoShared) form.destinationAccountId else form.accountId),
+            direction = if (intoShared) ContributionDirection.IN else ContributionDirection.OUT,
+            contributorKind = SplitParticipantKind.USER,
+            personId = null,
+            sourceAccountId = if (intoShared) form.accountId else form.destinationAccountId,
+            amountCents = amountCents,
+            date = date,
+            name = form.name.nullIfBlank(),
+            notes = form.notes.nullIfBlank(),
+        )
+        val now = Instant.now().toString()
+        launchSave(form) { accountRepository.createContribution(draft, createdAt = now) }
+    }
+
     private fun launchSave(form: MovementFormState, write: () -> Unit) {
         viewModelScope.launch {
             val result = withContext(ioDispatcher) { runCatching(write) }
@@ -824,6 +849,8 @@ class MovementsViewModel(
         // An income carries the same allocation choice when it lands in a shared account.
         val incomeOnSharedAccount = form.type == MovementType.INCOME && isSharedAccount(form.accountId)
         val carriesAllocation = form.type == MovementType.EXPENSE || incomeOnSharedAccount
+        val crossesOwnership = form.type == MovementType.TRANSFER &&
+            isSharedAccount(form.accountId) != isSharedAccount(form.destinationAccountId)
         val isForOther = carriesAllocation && form.expenseKind == ExpenseKind.FOR_OTHER
         val isShared = carriesAllocation && form.expenseKind == ExpenseKind.SHARED
         val effectiveSplitEditor = form.splitEditor.takeIf { isShared }
@@ -841,10 +868,9 @@ class MovementsViewModel(
                 R.string.movement_validation_destination_required to MovementFormField.DESTINATION_ACCOUNT
             form.type == MovementType.TRANSFER && form.accountId == form.destinationAccountId ->
                 R.string.movement_validation_transfer_same_account to MovementFormField.DESTINATION_ACCOUNT
-            // Only a crossing between personal and shared ownership is refused: between two shared
-            // accounts it is an ordinary transfer. Blame the shared side, the field to change.
-            form.type == MovementType.TRANSFER &&
-                isSharedAccount(form.accountId) != isSharedAccount(form.destinationAccountId) ->
+            // A new transfer crossing ownership is saved as a contribution or withdrawal below, but a
+            // saved transfer is not rewritten into one. Blame the shared side, the field to change.
+            crossesOwnership && !form.isNew ->
                 R.string.movement_validation_shared_transfer to if (isSharedAccount(form.accountId)) {
                     MovementFormField.ACCOUNT
                 } else {
@@ -867,6 +893,11 @@ class MovementsViewModel(
 
         if (error != null) {
             showValidationError(form, error)
+            return
+        }
+
+        if (crossesOwnership) {
+            saveTransferAsContribution(form, requireNotNull(amount), requireNotNull(date).toString())
             return
         }
 

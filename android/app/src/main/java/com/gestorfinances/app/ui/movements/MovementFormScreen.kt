@@ -25,7 +25,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import com.gestorfinances.app.data.repository.ContributionDirection
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountOwnershipKind
 import com.gestorfinances.app.data.repository.AccountSummary
@@ -70,12 +69,6 @@ fun MovementFormScreen(
     onOptionalToggled: () -> Unit,
     onAdvancedToggled: () -> Unit,
     onCreatePersonInSplit: (String) -> Unit,
-    onRecordContribution: (
-        sharedAccountId: String,
-        amount: String,
-        ownerAccountId: String?,
-        direction: ContributionDirection,
-    ) -> Unit,
     onDismiss: () -> Unit,
     onSave: () -> Unit,
     onOverride: () -> Unit,
@@ -247,6 +240,12 @@ fun MovementFormScreen(
             }
         }
 
+        // A transfer crossing personal and shared ownership is saved as a contribution or withdrawal.
+        val transferCrossesOwnership = form.type == MovementType.TRANSFER &&
+            form.destinationAccountId != null &&
+            (accounts.firstOrNull { it.id == form.accountId }?.ownershipKind == AccountOwnershipKind.SHARED) !=
+            (accounts.firstOrNull { it.id == form.destinationAccountId }?.ownershipKind == AccountOwnershipKind.SHARED)
+
         // A shared account finances its own expense, unless someone else paid for it outright.
         val fundedBySharedAccount = form.type == MovementType.EXPENSE &&
             form.expenseKind != ExpenseKind.DEBT &&
@@ -282,7 +281,6 @@ fun MovementFormScreen(
                 form = form,
                 accounts = accounts,
                 onFormChange = onFormChange,
-                onRecordContribution = onRecordContribution,
             )
             else -> Unit
         }
@@ -298,6 +296,7 @@ fun MovementFormScreen(
             onRecurringFrequencyChanged = onRecurringFrequencyChanged,
             onOptionalToggled = onOptionalToggled,
             onAdvancedToggled = onAdvancedToggled,
+            transferCrossesOwnership = transferCrossesOwnership,
             expenseDetails = if (form.type == MovementType.EXPENSE) {
                 {
                     ExpenseDetailsSection(
