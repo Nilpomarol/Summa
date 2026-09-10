@@ -140,18 +140,25 @@ class SharedAccountRepositoryTest {
             now,
         )
 
+        accounts.createContribution(
+            ContributionDraft("withdrawal", "shared", ContributionDirection.OUT, SplitParticipantKind.USER, null, "personal", 1_000, "2026-09-07", null, null),
+            now,
+        )
+
         val shared = movements.listActiveForAccount("shared")
+        val personal = movements.listActiveForAccount("personal")
         // The whole expense left the shared account, whatever the user's own share of it was, and
-        // the contribution reads as money in on one side and money out on the other.
+        // member money reads as in on one side and out on the other, whichever way it moved.
         assertEquals(
-            mapOf("contribution" to 2_000L, "expense" to -5_000L),
+            mapOf("contribution" to 2_000L, "expense" to -5_000L, "withdrawal" to -1_000L),
             shared.associate { it.movement.id to it.deltaCents },
         )
         assertEquals(
-            mapOf("contribution" to -2_000L),
-            movements.listActiveForAccount("personal").associate { it.movement.id to it.deltaCents },
+            mapOf("contribution" to -2_000L, "withdrawal" to 1_000L),
+            personal.associate { it.movement.id to it.deltaCents },
         )
         assertEquals(accounts.getActive("shared")!!.currentBalanceCents, 10_000 + shared.sumOf { it.deltaCents })
+        assertEquals(accounts.getActive("personal")!!.currentBalanceCents, 10_000 + personal.sumOf { it.deltaCents })
     }
 
     @Test
