@@ -175,7 +175,7 @@
     <string name="movement_type_contribution">Aportació</string>
     <string name="movement_detail_financing">Finançament</string>
     <string name="movement_detail_financing_shared_account">El compte compartit</string>
-    <string name="movement_shared_account_funding">El compte compartit paga aquesta despesa. El repartiment diu qui la consumeix.</string>
+    <string name="movement_shared_account_funding">El compte compartit paga aquesta despesa. El repartiment diu qui la consumeix i no crea deutes entre vosaltres.</string>
     <string name="movement_validation_shared_transfer">Els canvis de propietat amb un compte compartit s’han de registrar com una aportació.</string>
     <string name="movement_transfer_into_shared">Un traspàs no canvia de qui són els diners. Posar-los en un compte compartit és una aportació.</string>
     <string name="movement_transfer_into_shared_action">Fes una aportació</string>
@@ -289,6 +289,7 @@
     <string name="split_reconcile_remaining">Queden %1$s per assignar</string>
     <string name="split_reconcile_over">Sobra %1$s</string>
     <string name="split_remainder_to_payer">Els cèntims sobrants van a qui ha pagat.</string>
+    <string name="split_remainder_to_user">Els cèntims sobrants van a la teva part.</string>
     <string name="split_validation_total_positive">L\'import total ha de ser superior a zero.</string>
     <string name="split_validation_payer_required">Tria qui ha pagat.</string>
     <string name="split_validation_participant_required">Tria com a mínim una persona.</string>
@@ -372,6 +373,7 @@
     <string name="movement_field_amount">Import</string>
     <string name="movement_field_date">Data</string>
     <string name="movement_field_account">Compte</string>
+    <string name="movement_field_paid_from">Pagat des de</string>
     <string name="movement_field_origin_account">Compte d\'origen</string>
     <string name="movement_field_destination_account">Compte destí</string>
     <string name="movement_field_category">Categoria</string>
@@ -415,6 +417,8 @@
     <string name="movement_shared_badge">Compartit</string>
     <string name="movement_amount_accessibility_your_share">La teva part: %1$s. %2$s</string>
     <string name="movement_amount_accessibility_total">Total de la despesa: %1$s</string>
+    <string name="movement_amount_accessibility_account">Moviment del compte: %1$s</string>
+    <string name="movement_amount_accessibility_your_share_short">La teva part de la despesa: %1$s</string>
     <string name="movement_amount_accessibility_owes">Deus aquesta part de %1$s.</string>
     <string name="movement_amount_accessibility_owed">Et deuen el total de %1$s.</string>
     <string name="movement_amount_accessibility_assumed">Assumeixes aquesta part de la despesa.</string>
@@ -428,6 +432,7 @@
     <string name="movement_label_i_paid_for">He pagat per %1$s</string>
     <string name="movement_recurring_badge">Recurrent</string>
     <string name="movement_total_short">Total %1$s</string>
+    <string name="movement_your_share_short">La teva part %1$s</string>
     <string name="movement_field_shared_support">Reparteix aquesta despesa amb altres persones.</string>
     <string name="movement_field_settlement">Liquidació</string>
     <string name="movement_field_recurring">Recurrent</string>
@@ -443,6 +448,7 @@
     <string name="movement_create_person_name_hint">Nom de la persona</string>
     <string name="movement_no_trip">Sense viatge</string>
     <string name="movement_split_summary">%1$d participants · la teva part: %2$s</string>
+    <string name="movement_split_summary_account">Moviment del compte: %1$s · la teva despesa: %2$s</string>
     <string name="movement_existing_split_unchanged">Aquest moviment ja té un repartiment. Es mantindrà igual si no l\'edites.</string>
     <string name="movement_paid_by_person">Pagat per %1$s</string>
     <string name="movement_settlement_person_to_user">%1$s t\'ha pagat</string>

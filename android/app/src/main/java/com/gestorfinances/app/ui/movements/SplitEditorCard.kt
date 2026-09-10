@@ -55,6 +55,8 @@ fun SplitEditorCard(
     onChange: (SplitEditorState) -> Unit,
     modifier: Modifier = Modifier,
     onCreatePerson: (String) -> Unit = {},
+    // A shared account financed the expense: nobody paid it, so there is no payer to choose.
+    fundedByAccount: Boolean = false,
 ) {
     val totalCents = remember(amountInput) {
         parseEuroCents(amountInput, allowNegative = false)
@@ -67,7 +69,12 @@ fun SplitEditorCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            SplitSummaryHeader(splitEditor = splitEditor, calculation = calculation)
+            SplitSummaryHeader(
+                splitEditor = splitEditor,
+                calculation = calculation,
+                totalCents = totalCents,
+                fundedByAccount = fundedByAccount,
+            )
 
             SegmentedControl(
                 options = SplitEntryMethod.entries,
@@ -101,7 +108,7 @@ fun SplitEditorCard(
                 onCreatePerson = { showCreatePersonDialog = true },
             )
 
-            if (splitEditor.participantIds.size > 1) {
+            if (!fundedByAccount && splitEditor.participantIds.size > 1) {
                 PayerSelect(
                     splitEditor = splitEditor,
                     people = people,
@@ -111,7 +118,9 @@ fun SplitEditorCard(
 
             if (splitEditor.method == SplitEntryMethod.EQUAL) {
                 Text(
-                    text = stringResource(R.string.split_remainder_to_payer),
+                    text = stringResource(
+                        if (fundedByAccount) R.string.split_remainder_to_user else R.string.split_remainder_to_payer,
+                    ),
                     color = FinanceTheme.colors.mutedText,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -139,17 +148,25 @@ fun SplitEditorCard(
 private fun SplitSummaryHeader(
     splitEditor: SplitEditorState,
     calculation: SplitEditorCalculation,
+    totalCents: Long?,
+    fundedByAccount: Boolean,
 ) {
     val userShare = calculation.sharesCentsByParticipantId[USER_PARTICIPANT_ID]
     Text(
-        text = if (userShare != null) {
-            stringResource(
+        text = when {
+            // The two numbers a shared-account expense means: what leaves the account, and how much
+            // of it is the user's own spending.
+            fundedByAccount && userShare != null && totalCents != null -> stringResource(
+                R.string.movement_split_summary_account,
+                formatEuroCents(-totalCents),
+                formatEuroCents(userShare),
+            )
+            userShare != null -> stringResource(
                 R.string.movement_split_summary,
                 splitEditor.participantIds.size,
                 formatEuroCents(userShare),
             )
-        } else {
-            stringResource(R.string.movement_field_shared_support)
+            else -> stringResource(R.string.movement_field_shared_support)
         },
         color = FinanceTheme.colors.mutedText,
         style = MaterialTheme.typography.bodyMedium,

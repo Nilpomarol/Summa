@@ -80,6 +80,29 @@ class MovementUiStateSmokeTest {
     }
 
     @Test
+    fun accountLedgerLeadsWithTheAccountMovementAndCaptionsMyShare() {
+        val shared = movement(
+            id = "shared",
+            type = MovementType.EXPENSE,
+            accountId = "joint",
+            accountName = "Conjunt",
+            isShared = true,
+            userShareCents = 1_500,
+        )
+        val transfer = movement(
+            id = "transfer",
+            type = MovementType.TRANSFER,
+            accountId = "joint",
+            accountName = "Conjunt",
+        )
+
+        assertEquals(MovementAmountRole.MOVEMENT, shared.primaryAmountRole(inAccount = true))
+        assertEquals(MovementAmountRole.YOUR_SHARE, shared.secondaryAmountRole(inAccount = true))
+        assertEquals(MovementAmountRole.MOVEMENT, transfer.primaryAmountRole(inAccount = true))
+        assertEquals(null, transfer.secondaryAmountRole(inAccount = true))
+    }
+
+    @Test
     fun visibleMovementsApplyMainFiltersTogether() {
         val state = MovementsUiState(
             movements = listOf(

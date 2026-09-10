@@ -141,7 +141,7 @@ Contract implications: `v_actual_income` takes the app owner's split line when t
 
 1. Decide and document the finance semantics for withdrawals, shared-to-shared movements, and income ownership. Done, in [Decided semantics](#decided-semantics).
 2. Extend the shared contract for those semantics. Done at schema 17: `account_contributions.direction`, the matching `v_account_flow` signs, `v_actual_income` reading the app owner's split line, `v_person_balance` restricted to expense movements, migration 017, golden cases for a withdrawal and an allocated income, Android bindings, and both harnesses.
-3. Correct the Android expense form and account-context movement presentation.
+3. Correct the Android expense form and account-context movement presentation. Done: on a shared account the expense form names the account it is paid from, drops the payer controls, and previews the account debit beside the owner's expense; every account ledger leads with the canonical `v_account_flow` delta and captions the owner's share beneath a shared expense.
 4. Implement contribution presentation, editing/correction, and dismissal protection.
 5. Build the shared-account detail overview and contextual actions.
 6. Improve account creation and ownership editing.

@@ -241,6 +241,11 @@ fun MovementFormScreen(
             }
         }
 
+        // A shared account finances its own expense, unless someone else paid for it outright.
+        val fundedBySharedAccount = form.type == MovementType.EXPENSE &&
+            form.expenseKind != ExpenseKind.DEBT &&
+            accounts.firstOrNull { it.id == form.accountId }?.ownershipKind == AccountOwnershipKind.SHARED
+
         // Type-specific body. Optional metadata is disclosed below so the required variant fields
         // stay in the primary flow.
         when (form.type) {
@@ -248,6 +253,7 @@ fun MovementFormScreen(
                 form = form,
                 accounts = accounts,
                 people = people,
+                fundedBySharedAccount = fundedBySharedAccount,
                 onFormChange = onFormChange,
                 onSharedToggled = onSharedToggled,
                 onSplitEditorChange = onSplitEditorChange,
@@ -287,8 +293,7 @@ fun MovementFormScreen(
                     ExpenseDetailsSection(
                         form = form,
                         people = people,
-                        fundedBySharedAccount = accounts.firstOrNull { it.id == form.accountId }
-                            ?.ownershipKind == AccountOwnershipKind.SHARED,
+                        fundedBySharedAccount = fundedBySharedAccount,
                         onFormChange = onFormChange,
                         onSharedToggled = onSharedToggled,
                         onSplitEditorChange = onSplitEditorChange,

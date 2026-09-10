@@ -173,6 +173,15 @@ data class SplitLineDraft(
     val owedPercent: Double? = null,
 )
 
+/**
+ * A movement in one account's ledger, with what it did to that account's balance: the canonical
+ * `v_account_flow` delta, so the ledger reconciles to the balance and never recomputes it.
+ */
+data class AccountLedgerEntry(
+    val movement: MovementSummary,
+    val deltaCents: Long,
+)
+
 data class AccountFlowEntry(
     val accountId: String,
     val date: String,
@@ -210,9 +219,12 @@ class MovementRepository(
             mapMovementSummary(id ?: "", type ?: "", amount_cents ?: 0L, date ?: "", account_id, account_name, account_color, dest_account_id, destination_account_name, destination_account_color, category_id, category_name, category_nature, category_icon, category_color, trip_id, trip_name, trip_color, tag_id, tag_name, template_id, name, payee, notes, is_one_time ?: 0L, created_at ?: "", updated_at ?: "", archived_at, refunds_expense_id, refunds_expense_name, refunds_expense_archived ?: 0L, paid_by_person_name, is_shared ?: 0L, financing_kind, payer_id, settlement_direction, settlement_person_name, user_share_cents ?: 0L, is_recurring ?: 0L)
         }.executeAsList()
 
-    fun listActiveForAccount(accountId: String): List<MovementSummary> =
-        queries.activeMovementSummariesForAccount(accountId) { id, type, amount_cents, date, account_id_, account_name, account_color, dest_account_id, destination_account_name, destination_account_color, category_id, category_name, category_nature, category_icon, category_color, trip_id, trip_name, trip_color, tag_id, tag_name, template_id, name, payee, notes, is_one_time, created_at, updated_at, archived_at, refunds_expense_id, refunds_expense_name, refunds_expense_archived, paid_by_person_name, is_shared, financing_kind, payer_id, settlement_direction, settlement_person_name, user_share_cents, is_recurring ->
-            mapMovementSummary(id ?: "", type ?: "", amount_cents ?: 0L, date ?: "", account_id_, account_name, account_color, dest_account_id, destination_account_name, destination_account_color, category_id, category_name, category_nature, category_icon, category_color, trip_id, trip_name, trip_color, tag_id, tag_name, template_id, name, payee, notes, is_one_time ?: 0L, created_at ?: "", updated_at ?: "", archived_at, refunds_expense_id, refunds_expense_name, refunds_expense_archived ?: 0L, paid_by_person_name, is_shared ?: 0L, financing_kind, payer_id, settlement_direction, settlement_person_name, user_share_cents ?: 0L, is_recurring ?: 0L)
+    fun listActiveForAccount(accountId: String): List<AccountLedgerEntry> =
+        queries.activeMovementSummariesForAccount(accountId) { id, type, amount_cents, date, account_id_, account_name, account_color, dest_account_id, destination_account_name, destination_account_color, category_id, category_name, category_nature, category_icon, category_color, trip_id, trip_name, trip_color, tag_id, tag_name, template_id, name, payee, notes, is_one_time, created_at, updated_at, archived_at, refunds_expense_id, refunds_expense_name, refunds_expense_archived, paid_by_person_name, is_shared, financing_kind, payer_id, settlement_direction, settlement_person_name, user_share_cents, is_recurring, account_delta_cents ->
+            AccountLedgerEntry(
+                movement = mapMovementSummary(id ?: "", type ?: "", amount_cents ?: 0L, date ?: "", account_id_, account_name, account_color, dest_account_id, destination_account_name, destination_account_color, category_id, category_name, category_nature, category_icon, category_color, trip_id, trip_name, trip_color, tag_id, tag_name, template_id, name, payee, notes, is_one_time ?: 0L, created_at ?: "", updated_at ?: "", archived_at, refunds_expense_id, refunds_expense_name, refunds_expense_archived ?: 0L, paid_by_person_name, is_shared ?: 0L, financing_kind, payer_id, settlement_direction, settlement_person_name, user_share_cents ?: 0L, is_recurring ?: 0L),
+                deltaCents = requireNotNull(account_delta_cents),
+            )
         }.executeAsList()
 
     fun listActiveForCategory(categoryId: String): List<MovementSummary> =

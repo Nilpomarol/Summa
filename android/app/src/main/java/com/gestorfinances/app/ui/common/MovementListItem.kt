@@ -68,15 +68,23 @@ internal enum class MovementAmountRole {
     TOTAL,
 }
 
-internal fun MovementSummary.primaryAmountRole(): MovementAmountRole =
-    if ((isShared && type == MovementType.EXPENSE) || type == MovementType.EXTERNAL_EXPENSE) {
+/**
+ * Personal views lead with the user's own share of a shared or external expense. An account's own
+ * ledger leads with what the movement did to that account instead, so the list reconciles to its
+ * balance, and captions the user's share beneath a shared expense.
+ */
+internal fun MovementSummary.primaryAmountRole(inAccount: Boolean = false): MovementAmountRole =
+    if (!inAccount && ((isShared && type == MovementType.EXPENSE) || type == MovementType.EXTERNAL_EXPENSE)) {
         MovementAmountRole.YOUR_SHARE
     } else {
         MovementAmountRole.MOVEMENT
     }
 
-internal fun MovementSummary.secondaryAmountRole(): MovementAmountRole? =
-    if (primaryAmountRole() == MovementAmountRole.YOUR_SHARE) MovementAmountRole.TOTAL else null
+internal fun MovementSummary.secondaryAmountRole(inAccount: Boolean = false): MovementAmountRole? = when {
+    primaryAmountRole(inAccount) == MovementAmountRole.YOUR_SHARE -> MovementAmountRole.TOTAL
+    inAccount && isShared && type == MovementType.EXPENSE -> MovementAmountRole.YOUR_SHARE
+    else -> null
+}
 
 /**
  * Where a row sits in its run of movements. The run shares one surface, so only its ends are
@@ -105,7 +113,8 @@ fun movementRowPosition(index: Int, count: Int): MovementRowPosition = when {
  * icon, so a run of movements reads as one ledger rather than as a stack of cards. Colour comes
  * from the filled identity tile at the head of the row, not from the surface behind it.
  * [position] tells the row where it sits in that run; pass [movementRowPosition] for an indexed
- * list.
+ * list. [accountDeltaCents] is what the movement did to the balance of the account whose ledger
+ * holds the row, from canonical account flow; pass it only there, and the row leads with it.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -113,6 +122,7 @@ fun MovementListItem(
     movement: MovementSummary,
     onClick: () -> Unit = {},
     personEffectCents: Long? = null,
+    accountDeltaCents: Long? = null,
     showDate: Boolean = true,
     position: MovementRowPosition = MovementRowPosition.ONLY,
 ) {
@@ -232,6 +242,8 @@ fun MovementListItem(
                         style = MaterialTheme.typography.titleSmall,
                         signed = true,
                     )
+                } else if (accountDeltaCents != null) {
+                    AccountDeltaAmount(movement, accountDeltaCents, typeColor)
                 } else {
                     val isShared = movement.isShared && movement.type == MovementType.EXPENSE
                     val isExternal = movement.type == MovementType.EXTERNAL_EXPENSE
@@ -290,6 +302,37 @@ fun MovementListItem(
                 color = FinanceTheme.colors.cardBorder,
             )
         }
+    }
+}
+
+/**
+ * An account ledger's figure: what the movement did to that account's balance, signed like any
+ * other flow, with the user's own share captioned beneath a shared expense when it differs.
+ */
+@Composable
+private fun AccountDeltaAmount(movement: MovementSummary, deltaCents: Long, color: Color) {
+    val deltaText = formatEuroCents(deltaCents).let { if (deltaCents > 0) "+$it" else it }
+    val deltaDescription = stringResource(R.string.movement_amount_accessibility_account, deltaText)
+    MoneyText(
+        cents = deltaCents,
+        modifier = Modifier.clearAndSetSemantics { contentDescription = deltaDescription },
+        color = color,
+        style = MaterialTheme.typography.titleSmall,
+        signed = true,
+    )
+    val shareCents = movement.userShareCents
+    if (movement.secondaryAmountRole(inAccount = true) == MovementAmountRole.YOUR_SHARE &&
+        shareCents >= 0 && shareCents != abs(deltaCents)
+    ) {
+        val shareText = formatEuroCents(shareCents)
+        val shareDescription = stringResource(R.string.movement_amount_accessibility_your_share_short, shareText)
+        Text(
+            text = stringResource(R.string.movement_your_share_short, shareText),
+            modifier = Modifier.clearAndSetSemantics { contentDescription = shareDescription },
+            color = FinanceTheme.colors.mutedText,
+            style = MaterialTheme.typography.labelSmall,
+            textAlign = TextAlign.End,
+        )
     }
 }
 
