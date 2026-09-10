@@ -25,36 +25,6 @@ WHERE (category_id = :category_id
                           WHERE parent_id = :category_id AND archived_at IS NULL))
 ORDER BY date DESC, created_at DESC;
 
-accountFlowForAccount:
-SELECT
-    v_account_flow.account_id,
-    v_account_flow.date,
-    v_account_flow.movement_id,
-    v_account_flow.delta_cents,
-    COALESCE(movements.type, 'contribution') AS type,
-    COALESCE(movements.name, account_contributions.name) AS name,
-    movements.payee,
-    COALESCE(movements.notes, account_contributions.notes) AS notes,
-    movements.category_id,
-    categories.name AS category_name,
-    COALESCE(movements.account_id, account_contributions.source_account_id) AS origin_account_id,
-    origin_accounts.name AS origin_account_name,
-    COALESCE(movements.dest_account_id, account_contributions.shared_account_id) AS destination_account_id,
-    destination_accounts.name AS destination_account_name
-FROM v_account_flow
-LEFT JOIN movements
-    ON movements.id = v_account_flow.movement_id
-LEFT JOIN account_contributions
-    ON account_contributions.id = v_account_flow.movement_id
-LEFT JOIN accounts AS origin_accounts
-    ON origin_accounts.id = COALESCE(movements.account_id, account_contributions.source_account_id)
-LEFT JOIN accounts AS destination_accounts
-    ON destination_accounts.id = COALESCE(movements.dest_account_id, account_contributions.shared_account_id)
-LEFT JOIN categories
-    ON categories.id = movements.category_id
-WHERE v_account_flow.account_id = :account_id
-ORDER BY v_account_flow.date DESC, movements.created_at DESC;
-
 movementCountsByTemplate:
 SELECT
     template_id,
@@ -62,36 +32,6 @@ SELECT
 FROM v_movement_summary
 WHERE template_id IS NOT NULL
 GROUP BY template_id;
-
-movementsForCategory:
-SELECT
-    v_account_flow.account_id,
-    v_account_flow.date,
-    v_account_flow.movement_id,
-    v_account_flow.delta_cents,
-    movements.type,
-    movements.name,
-    movements.payee,
-    movements.notes,
-    movements.category_id,
-    categories.name AS category_name,
-    movements.account_id AS origin_account_id,
-    origin_accounts.name AS origin_account_name,
-    movements.dest_account_id AS destination_account_id,
-    destination_accounts.name AS destination_account_name
-FROM v_account_flow
-JOIN movements
-    ON movements.id = v_account_flow.movement_id
-JOIN accounts AS origin_accounts
-    ON origin_accounts.id = movements.account_id
-LEFT JOIN accounts AS destination_accounts
-    ON destination_accounts.id = movements.dest_account_id
-LEFT JOIN categories
-    ON categories.id = movements.category_id
-WHERE (movements.category_id = :category_id
-       OR movements.category_id IN (SELECT id FROM categories
-                                    WHERE parent_id = :category_id AND archived_at IS NULL))
-ORDER BY movements.date DESC, movements.created_at DESC;
 
 insertMovement:
 INSERT INTO movements(

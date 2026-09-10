@@ -220,16 +220,12 @@ class CoreLedgerRepositoryTest {
             assertEquals(7_250L, accounts.getValue("checking").currentBalanceCents)
             assertEquals(6_000L, accounts.getValue("savings").currentBalanceCents)
 
-            val checkingFlow = store.movements.accountFlowForAccount("checking")
-            assertEquals(listOf(-1_000L, 750L, -2_500L), checkingFlow.map { it.deltaCents })
-            assertEquals("Supermercat", checkingFlow.last().categoryName)
+            // The account ledger takes each figure from v_account_flow, newest first: a transfer
+            // leaves its origin, and the expense keeps its category.
+            val checkingLedger = store.movements.listActiveForAccount("checking")
+            assertEquals(listOf(-1_000L, 750L, -2_500L), checkingLedger.map { it.deltaCents })
+            assertEquals("Supermercat", checkingLedger.last().movement.categoryName)
             assertTrue(store.movements.getActive("expense")!!.isOneTime)
-
-            // movementsForCategory derives its sign from v_account_flow (M14) rather than a
-            // hand-rolled CASE, so an expense must come back negative like accountFlowForAccount.
-            val groceriesFlow = store.movements.movementsForCategory("groceries")
-            assertEquals(listOf(-2_500L), groceriesFlow.map { it.deltaCents })
-            assertEquals("Supermercat", groceriesFlow.single().categoryName)
 
             store.movements.archive("expense", archivedAt = LATER)
 
