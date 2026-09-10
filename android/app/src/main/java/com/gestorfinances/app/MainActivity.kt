@@ -65,6 +65,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStoreOwner
+import com.gestorfinances.app.data.repository.MovementType
 import com.gestorfinances.app.data.repository.DatabaseMeta
 import com.gestorfinances.app.data.repository.MovementSummary
 import com.gestorfinances.app.data.repository.PersonSummary
@@ -912,10 +913,17 @@ private fun LedgerShell(
                     nav = nav.back()
                 },
                 onEdit = { movement ->
-                    movementsViewModel.onEditClicked(movement) {
-                        nav = nav.copy(
-                            overlay = AppOverlay.MovementForm(returnTo = overlay),
-                        )
+                    if (movement.type == MovementType.CONTRIBUTION) {
+                        // A contribution is corrected in its shared account's own form.
+                        movementsViewModel.onDetailDismissed()
+                        showManagement(ManagementDestination.ACCOUNTS)
+                        accountsViewModel.editContribution(movement.id)
+                    } else {
+                        movementsViewModel.onEditClicked(movement) {
+                            nav = nav.copy(
+                                overlay = AppOverlay.MovementForm(returnTo = overlay),
+                            )
+                        }
                     }
                 },
                 onDeleteCommitted = showDeleteUndo,

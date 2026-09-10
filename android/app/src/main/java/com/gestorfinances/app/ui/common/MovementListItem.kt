@@ -346,28 +346,28 @@ private fun AccountDeltaAmount(movement: MovementSummary, deltaCents: Long, colo
 private fun MovementSource(movement: MovementSummary): Boolean {
     when (movement.type) {
         MovementType.TRANSFER -> {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(3.dp),
-            ) {
-                IdentityLabel(
-                    text = movement.accountName.orEmpty(),
-                    tint = movement.accountColor,
-                    modifier = Modifier.weight(1f, fill = false),
-                )
-                Icon(
-                    imageVector = Icons.AutoMirrored.Outlined.ArrowRightAlt,
-                    contentDescription = null,
-                    tint = FinanceTheme.colors.mutedText,
-                    modifier = Modifier.size(14.dp),
-                )
-                IdentityLabel(
-                    text = movement.destinationAccountName
-                        ?: stringResource(R.string.movement_destination_missing),
-                    tint = movement.destinationAccountColor,
-                    modifier = Modifier.weight(1f, fill = false),
-                )
-            }
+            MovementRoute(
+                fromText = movement.accountName.orEmpty(),
+                fromTint = movement.accountColor,
+                toText = movement.destinationAccountName
+                    ?: stringResource(R.string.movement_destination_missing),
+                toTint = movement.destinationAccountColor,
+            )
+            return true
+        }
+        MovementType.CONTRIBUTION -> {
+            // Who put the money in, into which shared account: a person wears a person's mark, the
+            // owner is named by the account the money left, or plainly when it came from outside.
+            val person = movement.paidByPersonName?.takeIf { movement.payerId != null }
+            MovementRoute(
+                fromText = person ?: movement.accountName ?: stringResource(R.string.account_member_owner),
+                fromTint = if (person == null) movement.accountColor else null,
+                fromIcon = if (person != null) Icons.Outlined.Group else null,
+                fromFallbackTint = if (person != null) FinanceTheme.colors.shared else null,
+                toText = movement.destinationAccountName
+                    ?: stringResource(R.string.movement_destination_missing),
+                toTint = movement.destinationAccountColor,
+            )
             return true
         }
         MovementType.EXTERNAL_EXPENSE -> {
@@ -398,6 +398,41 @@ private fun MovementSource(movement: MovementSummary): Boolean {
             IdentityLabel(text = account, tint = movement.accountColor)
             return true
         }
+    }
+}
+
+/** Where money went from and to, as two identity labels either side of an arrow. */
+@Composable
+private fun MovementRoute(
+    fromText: String,
+    fromTint: String?,
+    toText: String,
+    toTint: String?,
+    fromIcon: ImageVector? = null,
+    fromFallbackTint: Color? = null,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        IdentityLabel(
+            text = fromText,
+            tint = fromTint,
+            fallbackTint = fromFallbackTint,
+            icon = fromIcon,
+            modifier = Modifier.weight(1f, fill = false),
+        )
+        Icon(
+            imageVector = Icons.AutoMirrored.Outlined.ArrowRightAlt,
+            contentDescription = null,
+            tint = FinanceTheme.colors.mutedText,
+            modifier = Modifier.size(14.dp),
+        )
+        IdentityLabel(
+            text = toText,
+            tint = toTint,
+            modifier = Modifier.weight(1f, fill = false),
+        )
     }
 }
 

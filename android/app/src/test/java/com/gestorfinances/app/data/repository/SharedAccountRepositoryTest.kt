@@ -148,6 +148,42 @@ class SharedAccountRepositoryTest {
         assertEquals(accounts.getActive("shared")!!.currentBalanceCents, 10_000 + shared.sumOf { it.deltaCents })
     }
 
+    @Test
+    fun `a contribution can be corrected but keeps its account and direction`() {
+        val database = RepositoryTestSupport.newDatabase()
+        val accounts = AccountRepository(database.accountsQueries, database.sharedAccountsQueries)
+        val people = PersonRepository(database.peopleQueries)
+        val now = "2026-09-06T10:00:00Z"
+        people.create(PersonDraft("person", "Alba", null, null, null), now)
+        accounts.create(account("personal", AccountOwnershipKind.PERSONAL, 10_000), now)
+        accounts.create(sharedAccount(), now)
+        val recorded = ContributionDraft("contribution", "shared", ContributionDirection.IN, SplitParticipantKind.USER, null, "personal", 2_000, "2026-09-06", null, null)
+        accounts.createContribution(recorded, now)
+
+        // It was Alba's money after all: the owner's personal account gets its 2 000 back.
+        val corrected = recorded.copy(
+            contributorKind = SplitParticipantKind.PERSON,
+            personId = "person",
+            sourceAccountId = null,
+            amountCents = 2_500,
+            name = "Nòmina",
+        )
+        accounts.updateContribution(corrected, "2026-09-07T10:00:00Z")
+
+        assertEquals(corrected, accounts.getContribution("contribution"))
+        assertEquals(10_000, accounts.getActive("personal")!!.currentBalanceCents)
+        assertEquals(12_500, accounts.getActive("shared")!!.currentBalanceCents)
+        assertTrue(
+            runCatching { accounts.updateContribution(corrected.copy(direction = ContributionDirection.OUT), now) }
+                .exceptionOrNull() is IllegalArgumentException,
+        )
+        // A person's money never names one of the owner's accounts.
+        assertTrue(
+            runCatching { accounts.updateContribution(corrected.copy(sourceAccountId = "personal"), now) }
+                .exceptionOrNull() is IllegalArgumentException,
+        )
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun `shared percentages must reconcile`() {
         val database = RepositoryTestSupport.newDatabase()

@@ -96,6 +96,33 @@ class AccountsViewModel(
         )
     }
 
+    /** Opens the contribution form on an existing contribution so it can be corrected. */
+    fun editContribution(id: String) {
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching { requireNotNull(accountRepository.getContribution(id)) { "Contribution not found." } }
+            }
+            _state.value = result.fold(
+                onSuccess = { recorded ->
+                    _state.value.copy(
+                        contributionForm = ContributionFormState(
+                            sharedAccountId = recorded.sharedAccountId,
+                            id = recorded.id,
+                            direction = recorded.direction,
+                            amount = formatEuroInput(recorded.amountCents),
+                            date = recorded.date,
+                            personId = recorded.personId,
+                            sourceAccountId = recorded.sourceAccountId,
+                            name = recorded.name.orEmpty(),
+                            notes = recorded.notes.orEmpty(),
+                        ),
+                    )
+                },
+                onFailure = { _state.value.copy(errorMessage = it.message ?: it.javaClass.simpleName) },
+            )
+        }
+    }
+
     fun onContributionFormChanged(form: ContributionFormState) {
         _state.value = _state.value.copy(contributionForm = form.copy(errorRes = null, errorMessage = null))
     }
@@ -121,25 +148,32 @@ class AccountsViewModel(
         viewModelScope.launch {
             val result = withContext(Dispatchers.IO) {
                 runCatching {
-                    accountRepository.createContribution(
-                        ContributionDraft(
-                            id = UUID.randomUUID().toString(),
-                            sharedAccountId = form.sharedAccountId,
-                            direction = ContributionDirection.IN,
-                            contributorKind = if (form.personId == null) SplitParticipantKind.USER else SplitParticipantKind.PERSON,
-                            personId = form.personId,
-                            sourceAccountId = form.sourceAccountId.takeIf { form.personId == null },
-                            amountCents = requireNotNull(amount),
-                            date = form.date,
-                            name = form.name.trim().ifEmpty { null },
-                            notes = form.notes.trim().ifEmpty { null },
-                        ),
-                        createdAt = now,
+                    val draft = ContributionDraft(
+                        id = form.id ?: UUID.randomUUID().toString(),
+                        sharedAccountId = form.sharedAccountId,
+                        direction = form.direction,
+                        contributorKind = if (form.personId == null) SplitParticipantKind.USER else SplitParticipantKind.PERSON,
+                        personId = form.personId,
+                        sourceAccountId = form.sourceAccountId.takeIf { form.personId == null },
+                        amountCents = requireNotNull(amount),
+                        date = form.date,
+                        name = form.name.trim().ifEmpty { null },
+                        notes = form.notes.trim().ifEmpty { null },
                     )
+                    if (form.id == null) {
+                        accountRepository.createContribution(draft, createdAt = now)
+                    } else {
+                        accountRepository.updateContribution(draft, updatedAt = now)
+                    }
                 }
             }
             result.fold(
-                onSuccess = { _state.value = _state.value.copy(contributionForm = null); refreshAccounts() },
+                onSuccess = {
+                    _state.value = _state.value.copy(contributionForm = null)
+                    refreshAccounts()
+                    // The ledger the form was opened over now holds a different figure.
+                    _state.value.flowDetail?.let { onFlowClicked(it.account) }
+                },
                 onFailure = { _state.value = _state.value.copy(contributionForm = form.copy(errorMessage = it.message ?: it.javaClass.simpleName)) },
             )
         }
@@ -553,6 +587,9 @@ data class AccountMemberFormState(
 
 data class ContributionFormState(
     val sharedAccountId: String,
+    /** The contribution being corrected, or null for a new one. */
+    val id: String? = null,
+    val direction: ContributionDirection = ContributionDirection.IN,
     val amount: String = "",
     val date: String,
     val personId: String? = null,
