@@ -3,8 +3,10 @@ package com.gestorfinances.app.ui.accounts
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.db.GestorDatabase
+import com.gestorfinances.app.data.repository.AccountOwnershipKind
 import com.gestorfinances.app.data.repository.AccountRepository
 import com.gestorfinances.app.data.repository.MovementRepository
+import com.gestorfinances.app.data.repository.PersonRepository
 import com.gestorfinances.app.data.repository.TemplateRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -80,12 +82,53 @@ class AccountsViewModelTest {
         }
     }
 
+    @Test
+    fun turningAnAccountSharedMakesNobodyAMember() = runTest(dispatcher) {
+        freshStore().use { store ->
+            val viewModel = viewModel(store)
+            viewModel.onAddClicked()
+            viewModel.onFormChanged(
+                viewModel.state.value.form!!.copy(
+                    name = "Conjunt",
+                    members = listOf(
+                        AccountMemberFormState(null, "", true, "100,00", "100,00"),
+                        AccountMemberFormState("alba", "Alba", false, "0,00", "0,00"),
+                    ),
+                ),
+            )
+
+            viewModel.onOwnershipChanged(AccountOwnershipKind.SHARED)
+
+            assertEquals(listOf<String?>(null), viewModel.state.value.form!!.members.filter { it.enabled }.map { it.personId })
+            viewModel.onSaveClicked()
+            assertEquals(R.string.account_validation_shared_members, viewModel.state.value.form!!.errorRes)
+        }
+    }
+
+    @Test
+    fun aPersonCreatedFromTheAccountFormJoinsItAsAMember() = runTest(dispatcher) {
+        freshStore().use { store ->
+            val viewModel = viewModel(store)
+            viewModel.onAddClicked()
+            viewModel.onOwnershipChanged(AccountOwnershipKind.SHARED)
+
+            viewModel.onCreatePersonForAccount("  Alba  ")
+            advanceUntilIdle()
+
+            val alba = store.people.listActive().single()
+            assertEquals("Alba", alba.name)
+            assertTrue(viewModel.state.value.form!!.members.single { it.personId == alba.id }.enabled)
+        }
+    }
+
     private fun viewModel(store: TestStore): AccountsViewModel =
         AccountsViewModel(
             goalRepository = store.goals,
             accountRepository = store.accounts,
             movementRepository = store.movements,
             templateRepository = store.templates,
+            personRepository = store.people,
+            ioDispatcher = dispatcher,
         )
 
     private fun freshStore(): TestStore {
@@ -96,9 +139,10 @@ class AccountsViewModelTest {
         return TestStore(
             driver = driver,
             goals = com.gestorfinances.app.data.repository.GoalRepository(database.goalsQueries, database.analysisQueries),
-            accounts = AccountRepository(database.accountsQueries),
+            accounts = AccountRepository(database.accountsQueries, database.sharedAccountsQueries),
             movements = MovementRepository(database.movementsQueries, database.splitsQueries),
             templates = TemplateRepository(database.templatesQueries),
+            people = PersonRepository(database.peopleQueries),
         )
     }
 
@@ -108,6 +152,7 @@ class AccountsViewModelTest {
         val accounts: AccountRepository,
         val movements: MovementRepository,
         val templates: TemplateRepository,
+        val people: PersonRepository,
     ) : AutoCloseable {
         override fun close() {
             driver.close()

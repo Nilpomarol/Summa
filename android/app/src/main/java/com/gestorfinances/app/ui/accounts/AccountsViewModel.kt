@@ -1,5 +1,7 @@
 package com.gestorfinances.app.ui.accounts
 
+import com.gestorfinances.app.data.repository.PersonDraft
+import kotlinx.coroutines.CoroutineDispatcher
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -46,6 +48,7 @@ class AccountsViewModel(
     private val templateRepository: TemplateRepository,
     private val notificationRefresher: NotificationRefresher = NotificationRefresher.NoOp,
     private val personRepository: PersonRepository? = null,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
     private val _state = MutableStateFlow(AccountsUiState())
     val state: StateFlow<AccountsUiState> = _state.asStateFlow()
@@ -105,7 +108,7 @@ class AccountsViewModel(
     /** Opens the contribution form on an existing contribution so it can be corrected. */
     fun editContribution(id: String) {
         viewModelScope.launch {
-            val result = withContext(Dispatchers.IO) {
+            val result = withContext(ioDispatcher) {
                 runCatching { requireNotNull(accountRepository.getContribution(id)) { "Contribution not found." } }
             }
             _state.value = result.fold(
@@ -152,7 +155,7 @@ class AccountsViewModel(
         }
         val now = Instant.now().toString()
         viewModelScope.launch {
-            val result = withContext(Dispatchers.IO) {
+            val result = withContext(ioDispatcher) {
                 runCatching {
                     val draft = ContributionDraft(
                         id = form.id ?: UUID.randomUUID().toString(),
@@ -191,19 +194,47 @@ class AccountsViewModel(
 
     fun onOwnershipChanged(kind: AccountOwnershipKind) {
         val form = _state.value.form ?: return
+        // Making an account shared makes nobody a member: the owner chooses who is, then how to split.
         val members = if (form.members.isEmpty()) defaultMemberForms(_state.value.people) else form.members
-        val hasPerson = members.any { it.personId != null && it.enabled }
-        val adjusted = if (kind == AccountOwnershipKind.SHARED && !hasPerson) {
-            val firstPersonId = members.firstOrNull { it.personId != null }?.personId
-            members.map {
-                when {
-                    it.personId == null -> it.copy(enabled = true, ownershipPercent = "50,00", defaultExpensePercent = "50,00")
-                    it.personId == firstPersonId -> it.copy(enabled = true, ownershipPercent = "50,00", defaultExpensePercent = "50,00")
-                    else -> it
+        onFormChanged(form.copy(ownershipKind = kind, members = members))
+    }
+
+    /** Creates a person from the account form and adds them to it as a member. */
+    fun onCreatePersonForAccount(name: String) {
+        val trimmedName = name.trim()
+        if (trimmedName.isEmpty()) return
+        viewModelScope.launch {
+            val now = Instant.now().toString()
+            val personId = UUID.randomUUID().toString()
+            val result = withContext(ioDispatcher) {
+                runCatching {
+                    val people = requireNotNull(personRepository) { "Person repository is unavailable." }
+                    people.create(
+                        PersonDraft(id = personId, name = trimmedName, avatar = null, color = null, notes = null),
+                        createdAt = now,
+                    )
+                    people.listActive()
                 }
             }
-        } else members
-        onFormChanged(form.copy(ownershipKind = kind, members = adjusted))
+            result.fold(
+                onSuccess = { people ->
+                    val form = _state.value.form ?: return@fold
+                    _state.value = _state.value.copy(
+                        people = people,
+                        form = form.copy(
+                            members = form.members + AccountMemberFormState(personId, trimmedName, true, "0,00", "0,00"),
+                            errorRes = null,
+                            errorField = null,
+                        ),
+                    )
+                },
+                onFailure = {
+                    _state.value = _state.value.copy(
+                        form = _state.value.form?.copy(errorMessage = it.message ?: it.javaClass.simpleName),
+                    )
+                },
+            )
+        }
     }
 
     fun onMoveUpClicked(account: AccountSummary) {
@@ -216,7 +247,7 @@ class AccountsViewModel(
 
     fun onArchiveClicked(account: AccountSummary) {
         viewModelScope.launch {
-            val result = withContext(Dispatchers.IO) {
+            val result = withContext(ioDispatcher) {
                 runCatching {
                     templateRepository.listActive().count {
                         it.status == TemplateStatus.ACTIVE &&
@@ -239,7 +270,7 @@ class AccountsViewModel(
     private fun reloadFlow() {
         val open = _state.value.flowDetail ?: return
         viewModelScope.launch {
-            val result = withContext(Dispatchers.IO) { runCatching { loadFlow(open.account) } }
+            val result = withContext(ioDispatcher) { runCatching { loadFlow(open.account) } }
             result.onSuccess { (fresh, entries) ->
                 if (_state.value.flowDetail?.account?.id == fresh.id) {
                     _state.value = _state.value.copy(
@@ -258,7 +289,7 @@ class AccountsViewModel(
             ),
         )
         viewModelScope.launch {
-            val result = withContext(Dispatchers.IO) {
+            val result = withContext(ioDispatcher) {
                 runCatching { loadFlow(account) }
             }
             _state.value = result.fold(
@@ -296,7 +327,7 @@ class AccountsViewModel(
         val account = _state.value.archiveCandidate?.account ?: return
         val now = Instant.now().toString()
         viewModelScope.launch {
-            val result = withContext(Dispatchers.IO) {
+            val result = withContext(ioDispatcher) {
                 runCatching {
                     val pausedTemplateIds = templateRepository.listActive()
                         .filter {
@@ -338,7 +369,7 @@ class AccountsViewModel(
     private fun undoDelete(operation: AccountDeleteOperation) {
         val restoredAt = Instant.now().toString()
         viewModelScope.launch {
-            val result = withContext(Dispatchers.IO) {
+            val result = withContext(ioDispatcher) {
                 runCatching {
                     movementRepository.runInTransaction {
                         accountRepository.restore(
@@ -420,7 +451,7 @@ class AccountsViewModel(
             // Un-sharing is refused rather than silently stranding the expenses and contributions
             // that named this account as shared; ask the repository before it has to throw.
             if (form.id != null && form.ownershipKind == AccountOwnershipKind.PERSONAL) {
-                val hasSharedHistory = withContext(Dispatchers.IO) {
+                val hasSharedHistory = withContext(ioDispatcher) {
                     runCatching { accountRepository.hasSharedHistory(form.id) }.getOrDefault(false)
                 }
                 if (hasSharedHistory) {
@@ -433,7 +464,7 @@ class AccountsViewModel(
                     return@launch
                 }
             }
-            val result = withContext(Dispatchers.IO) {
+            val result = withContext(ioDispatcher) {
                 runCatching {
                     if (form.id == null) {
                         accountRepository.create(draft, createdAt = now)
@@ -460,7 +491,7 @@ class AccountsViewModel(
     private fun refreshAccounts() {
         viewModelScope.launch {
             _state.value = _state.value.copy(isLoading = true, errorMessage = null)
-            val result = withContext(Dispatchers.IO) {
+            val result = withContext(ioDispatcher) {
                 runCatching {
                     val accounts = accountRepository.listActive()
                     val allocations = goalRepository.accountAllocations()
@@ -483,7 +514,7 @@ class AccountsViewModel(
 
     private fun refreshNotifications() {
         viewModelScope.launch {
-            withContext(Dispatchers.IO) {
+            withContext(ioDispatcher) {
                 runCatching { notificationRefresher.refreshNotifications() }
             }
         }
@@ -502,7 +533,7 @@ class AccountsViewModel(
         val now = Instant.now().toString()
 
         viewModelScope.launch {
-            val result = withContext(Dispatchers.IO) {
+            val result = withContext(ioDispatcher) {
                 runCatching {
                     ordered.forEachIndexed { index, item ->
                         accountRepository.update(item.toDraft(displayOrder = index.toLong()), updatedAt = now)
@@ -597,6 +628,8 @@ data class AccountFormState(
     val showAdvanced: Boolean = false,
     val ownershipKind: AccountOwnershipKind = AccountOwnershipKind.PERSONAL,
     val members: List<AccountMemberFormState> = emptyList(),
+    /** An existing account's balance now, which ownership is a share of; null for a new account. */
+    val currentBalanceCents: Long? = null,
     val errorRes: Int? = null,
     val errorField: AccountFormField? = null,
     val errorMessage: String? = null,
@@ -637,6 +670,7 @@ private fun AccountSummary.toFormState(people: List<PersonSummary>): AccountForm
         displayOrder = displayOrder,
         lowBalanceThreshold = lowBalanceThresholdCents?.let(::formatEuroInput) ?: "",
         ownershipKind = ownershipKind,
+        currentBalanceCents = currentBalanceCents,
         members = buildList {
             addAll(members.map {
             AccountMemberFormState(

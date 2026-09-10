@@ -1,5 +1,6 @@
 package com.gestorfinances.app.ui.accounts
 
+import com.gestorfinances.app.ui.common.CreatePersonDialog
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -141,6 +142,7 @@ fun AccountsScreen(
                 form = form,
                 onFormChange = viewModel::onFormChanged,
                 onOwnershipChange = viewModel::onOwnershipChanged,
+                onCreatePerson = viewModel::onCreatePersonForAccount,
                 onBack = requestFormDismissal,
                 onSave = viewModel::onSaveClicked,
                 modifier = modifier,
@@ -610,6 +612,7 @@ private fun AccountFormScreen(
     form: AccountFormState,
     onFormChange: (AccountFormState) -> Unit,
     onOwnershipChange: (AccountOwnershipKind) -> Unit,
+    onCreatePerson: (String) -> Unit,
     onBack: () -> Unit,
     onSave: () -> Unit,
     modifier: Modifier = Modifier,
@@ -733,6 +736,16 @@ private fun AccountFormScreen(
 
         if (form.ownershipKind == AccountOwnershipKind.SHARED) {
             Text(stringResource(R.string.account_members_title), style = MaterialTheme.typography.titleSmall)
+            Text(
+                text = stringResource(R.string.account_member_ownership_help),
+                style = MaterialTheme.typography.bodySmall,
+                color = FinanceTheme.colors.mutedText,
+            )
+            Text(
+                text = stringResource(R.string.account_member_expense_split_help),
+                style = MaterialTheme.typography.bodySmall,
+                color = FinanceTheme.colors.mutedText,
+            )
             form.members.forEachIndexed { index, member ->
                 AccountMemberEditor(
                     member = member,
@@ -741,10 +754,24 @@ private fun AccountFormScreen(
                     },
                 )
             }
+            var creatingPerson by remember { mutableStateOf(false) }
+            TextButton(onClick = { creatingPerson = true }) {
+                Text(stringResource(R.string.account_member_add_person))
+            }
+            if (creatingPerson) {
+                CreatePersonDialog(
+                    onConfirm = { name ->
+                        creatingPerson = false
+                        onCreatePerson(name)
+                    },
+                    onDismiss = { creatingPerson = false },
+                )
+            }
             MemberPercentTotals(
                 members = form.members,
                 onSplitEqually = { onFormChange(form.copy(members = form.members.splitEqually())) },
             )
+            OwnershipPreview(form)
             if (form.errorField == AccountFormField.MEMBERS && form.errorRes != null) {
                 Text(stringResource(form.errorRes), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             }
@@ -842,6 +869,24 @@ private fun AccountPreviewCard(form: AccountFormState) {
             )
         }
     }
+}
+
+/**
+ * What the owner's percentage means for this account, as a share of its balance. The euro value is
+ * left to the canonical view, which rounds it, rather than being worked out again here.
+ */
+@Composable
+private fun OwnershipPreview(form: AccountFormState) {
+    val ownerBasisPoints = form.members.filter { it.personId == null }.basisPointTotal { it.ownershipPercent } ?: return
+    val balanceCents = form.currentBalanceCents ?: parseEuroCents(form.startingBalance, allowNegative = true) ?: return
+    Text(
+        text = stringResource(
+            R.string.account_member_ownership_preview,
+            formatEuroCents(balanceCents),
+            formatBasisPointsCompact(ownerBasisPoints),
+        ),
+        style = MaterialTheme.typography.bodySmall,
+    )
 }
 
 @Composable
