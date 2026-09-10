@@ -1,5 +1,7 @@
 package com.gestorfinances.app.ui.movements
 
+import com.gestorfinances.app.data.repository.ContributionDraft
+import com.gestorfinances.app.data.repository.ContributionDirection
 import com.gestorfinances.app.data.repository.ExpenseFunding
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import com.gestorfinances.app.R
@@ -63,6 +65,37 @@ class MovementsViewModelTest {
     @After
     fun tearDown() {
         Dispatchers.resetMain()
+    }
+
+    @Test
+    fun aContributionCanBeDeletedAndRestoredFromItsDetail() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.people.create(personDraft("alba"), NOW)
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            store.accounts.create(sharedAccountDraft("joint", "alba"), createdAt = NOW)
+            store.accounts.createContribution(
+                ContributionDraft("c1", "joint", ContributionDirection.IN, SplitParticipantKind.USER, null, "checking", 2_000, "2026-01-01", null, null),
+                NOW,
+            )
+            val viewModel = viewModel(store)
+            val contribution = store.movements.getActive("c1")!!
+
+            viewModel.onDetailClicked(contribution)
+            viewModel.onArchiveClicked(contribution)
+            advanceUntilIdle()
+            var undo: (() -> Unit)? = null
+            viewModel.onArchiveConfirmed(revertDueDate = false) { undo = it }
+            advanceUntilIdle()
+
+            assertNull(store.movements.getActive("c1"))
+            assertEquals(0L, store.accounts.getActive("joint")!!.currentBalanceCents)
+
+            // Undo brings it back, balance and all.
+            requireNotNull(undo).invoke()
+            advanceUntilIdle()
+            assertTrue(store.movements.getActive("c1") != null)
+            assertEquals(2_000L, store.accounts.getActive("joint")!!.currentBalanceCents)
+        }
     }
 
     @Test
