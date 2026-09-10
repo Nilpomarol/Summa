@@ -185,6 +185,63 @@ class AccountRepository(
     }
 
     fun createContribution(draft: ContributionDraft, createdAt: String) {
+        validateContribution(draft)
+        requireNotNull(sharedQueries) { "Shared-account queries are unavailable." }.insertContribution(
+            id = draft.id,
+            shared_account_id = draft.sharedAccountId,
+            direction = draft.direction.dbValue,
+            contributor_kind = draft.contributorKind.dbValue,
+            person_id = draft.personId,
+            source_account_id = draft.sourceAccountId,
+            amount_cents = draft.amountCents,
+            date = draft.date,
+            name = draft.name,
+            notes = draft.notes,
+            created_at = createdAt,
+            updated_at = createdAt,
+        )
+    }
+
+    /**
+     * Corrects a contribution's amount, date, contributor, owner-side account, name and notes. The
+     * shared account and direction are what it was recorded as, so a correction never changes them.
+     */
+    fun updateContribution(draft: ContributionDraft, updatedAt: String) {
+        val recorded = requireNotNull(getContribution(draft.id)) { "Contribution not found." }
+        require(recorded.sharedAccountId == draft.sharedAccountId && recorded.direction == draft.direction) {
+            "A correction keeps the contribution's shared account and direction."
+        }
+        validateContribution(draft)
+        requireNotNull(sharedQueries).updateContribution(
+            contributor_kind = draft.contributorKind.dbValue,
+            person_id = draft.personId,
+            source_account_id = draft.sourceAccountId,
+            amount_cents = draft.amountCents,
+            date = draft.date,
+            name = draft.name,
+            notes = draft.notes,
+            updated_at = updatedAt,
+            id = draft.id,
+        )
+    }
+
+    fun getContribution(id: String): ContributionDraft? =
+        requireNotNull(sharedQueries).contributionById(id) { contributionId, sharedAccountId, direction, contributorKind, personId, sourceAccountId, amountCents, date, name, notes ->
+            ContributionDraft(
+                id = contributionId,
+                sharedAccountId = sharedAccountId,
+                direction = ContributionDirection.fromDb(direction),
+                contributorKind = SplitParticipantKind.entries.first { it.dbValue == contributorKind },
+                personId = personId,
+                sourceAccountId = sourceAccountId,
+                amountCents = amountCents,
+                date = date,
+                name = name,
+                notes = notes,
+            )
+        }.executeAsOneOrNull()
+
+    private fun validateContribution(draft: ContributionDraft) {
         require(draft.amountCents > 0) { "Contribution amount must be positive." }
         val account = requireNotNull(getActive(draft.sharedAccountId)) { "Shared account is required." }
         require(account.ownershipKind == AccountOwnershipKind.SHARED) { "Contribution target must be shared." }
@@ -206,20 +263,6 @@ class AccountRepository(
         require(draft.sourceAccountId == null || getActive(draft.sourceAccountId)?.ownershipKind == AccountOwnershipKind.PERSONAL) {
             "The owner's side must be an owner-controlled account."
         }
-        requireNotNull(sharedQueries) { "Shared-account queries are unavailable." }.insertContribution(
-            id = draft.id,
-            shared_account_id = draft.sharedAccountId,
-            direction = draft.direction.dbValue,
-            contributor_kind = draft.contributorKind.dbValue,
-            person_id = draft.personId,
-            source_account_id = draft.sourceAccountId,
-            amount_cents = draft.amountCents,
-            date = draft.date,
-            name = draft.name,
-            notes = draft.notes,
-            created_at = createdAt,
-            updated_at = createdAt,
-        )
     }
 
     fun archiveContribution(id: String, archivedAt: String) {

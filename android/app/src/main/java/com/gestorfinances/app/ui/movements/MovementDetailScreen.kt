@@ -265,16 +265,39 @@ private fun MovementDetailContent(
                 )
             )
 
-            // Origin Account
-            val originAcc = accounts.firstOrNull { it.id == movement.accountId }
-            add(
-                GridItemData(
-                    icon = accountIcon(originAcc?.icon),
-                    iconColor = originAcc?.color?.let { categoryColor(it) } ?: visual.second,
-                    label = stringResource(R.string.movement_field_account),
-                    value = movement.accountName ?: "—"
+            if (movement.type == MovementType.CONTRIBUTION) {
+                // A contribution names who put the money in and, for the owner, where it came from.
+                add(
+                    GridItemData(
+                        icon = Icons.Outlined.Person,
+                        iconColor = visual.second,
+                        label = stringResource(R.string.account_contribution_member),
+                        value = movement.paidByPersonName ?: stringResource(R.string.account_member_owner),
+                    )
                 )
-            )
+                if (movement.payerId == null) {
+                    val sourceAcc = accounts.firstOrNull { it.id == movement.accountId }
+                    add(
+                        GridItemData(
+                            icon = accountIcon(sourceAcc?.icon),
+                            iconColor = sourceAcc?.color?.let { categoryColor(it) } ?: visual.second,
+                            label = stringResource(R.string.account_contribution_source),
+                            value = movement.accountName ?: stringResource(R.string.account_contribution_external_source),
+                        )
+                    )
+                }
+            } else {
+                // Origin Account
+                val originAcc = accounts.firstOrNull { it.id == movement.accountId }
+                add(
+                    GridItemData(
+                        icon = accountIcon(originAcc?.icon),
+                        iconColor = originAcc?.color?.let { categoryColor(it) } ?: visual.second,
+                        label = stringResource(R.string.movement_field_account),
+                        value = movement.accountName ?: "—"
+                    )
+                )
+            }
 
             // Destination account for transfers and contributions.
             if (movement.type == MovementType.TRANSFER || movement.type == MovementType.CONTRIBUTION) {
@@ -283,7 +306,13 @@ private fun MovementDetailContent(
                     GridItemData(
                         icon = accountIcon(destAcc?.icon),
                         iconColor = destAcc?.color?.let { categoryColor(it) } ?: visual.second,
-                        label = stringResource(R.string.movement_field_destination_account),
+                        label = stringResource(
+                            if (movement.type == MovementType.CONTRIBUTION) {
+                                R.string.movement_detail_contribution_destination
+                            } else {
+                                R.string.movement_field_destination_account
+                            },
+                        ),
                         value = movement.destinationAccountName ?: "—"
                     )
                 )
@@ -483,8 +512,7 @@ private fun MovementDetailContent(
 
         // Action footer. Secondary actions stay grouped at the leading edge while Edit remains
         // the primary trailing action.
-        val canEdit = movement.type != MovementType.SETTLEMENT &&
-            movement.type != MovementType.REFUND && movement.type != MovementType.CONTRIBUTION
+        val canEdit = movement.type != MovementType.SETTLEMENT && movement.type != MovementType.REFUND
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,

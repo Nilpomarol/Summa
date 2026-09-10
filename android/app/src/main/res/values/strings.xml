@@ -152,6 +152,7 @@
     <string name="account_contribution_source">Compte d’origen</string>
     <string name="account_contribution_external_source">Fora dels meus comptes</string>
     <string name="account_contribution_save">Desa l’aportació</string>
+    <string name="account_contribution_effect">Una aportació no canvia els percentatges de propietat ni liquida cap deute.</string>
     <string name="account_advanced_options">Opcions avançades</string>
     <string name="account_preview_placeholder">Nom del compte</string>
     <string name="entity_color_custom">Color personalitzat</string>
@@ -376,6 +377,7 @@
     <string name="movement_field_paid_from">Pagat des de</string>
     <string name="movement_field_origin_account">Compte d\'origen</string>
     <string name="movement_field_destination_account">Compte destí</string>
+    <string name="movement_detail_contribution_destination">Compte compartit</string>
     <string name="movement_field_category">Categoria</string>
     <string name="movement_field_name">Concepte</string>
     <string name="movement_field_payee">Beneficiari</string>

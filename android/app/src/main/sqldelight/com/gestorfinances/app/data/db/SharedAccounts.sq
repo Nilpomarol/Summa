@@ -48,6 +48,24 @@ UPDATE account_contributions
 SET archived_at = NULL, updated_at = :updated_at
 WHERE id = :id AND archived_at = :archived_at;
 
+-- A correction keeps the shared account and direction a contribution was recorded with.
+updateContribution:
+UPDATE account_contributions
+SET contributor_kind = :contributor_kind,
+    person_id = :person_id,
+    source_account_id = :source_account_id,
+    amount_cents = :amount_cents,
+    date = :date,
+    name = :name,
+    notes = :notes,
+    updated_at = :updated_at
+WHERE id = :id AND archived_at IS NULL;
+
+contributionById:
+SELECT id, shared_account_id, direction, contributor_kind, person_id, source_account_id, amount_cents, date, name, notes
+FROM account_contributions
+WHERE id = :id AND archived_at IS NULL;
+
 -- Shared-account history an account can never shed: expenses it financed and contributions made
 -- into it. Archived rows count, because both can be restored.
 sharedHistoryCount:

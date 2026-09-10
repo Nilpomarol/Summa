@@ -144,7 +144,16 @@ fun AccountsScreen(
             )
         }
         contributionForm != null -> {
-            BackHandler(onBack = viewModel::onContributionDismissed)
+            val requestContributionDismissal = rememberFormDismissGuard(
+                formKey = contributionForm.id ?: "new-contribution:${contributionForm.sharedAccountId}",
+                currentValue = contributionForm,
+                hasMeaningfulChanges = { initial, current ->
+                    initial.copy(errorRes = null, errorMessage = null) !=
+                        current.copy(errorRes = null, errorMessage = null)
+                },
+                onDiscard = viewModel::onContributionDismissed,
+            )
+            BackHandler(onBack = requestContributionDismissal)
             ContributionFormScreen(
                 form = contributionForm,
                 accounts = state.accounts,
@@ -153,7 +162,7 @@ fun AccountsScreen(
                         ?.members?.any { it.personId == person.id } == true
                 },
                 onFormChange = viewModel::onContributionFormChanged,
-                onBack = viewModel::onContributionDismissed,
+                onBack = requestContributionDismissal,
                 onSave = viewModel::onContributionSaveClicked,
                 modifier = modifier,
             )
@@ -966,6 +975,11 @@ private fun ContributionFormScreen(
         PageHeaderRow(onBack = onBack, title = stringResource(R.string.account_contribution_title, sharedAccountName))
         form.errorMessage?.let { InlineFailureBanner(diagnostic = it, messageRes = R.string.failure_save_movement) }
         form.errorRes?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error) }
+        Text(
+            text = stringResource(R.string.account_contribution_effect),
+            style = MaterialTheme.typography.bodySmall,
+            color = FinanceTheme.colors.mutedText,
+        )
         OutlinedTextField(
             value = form.amount,
             onValueChange = { onFormChange(form.copy(amount = it)) },
