@@ -40,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.gestorfinances.app.data.repository.ContributionDirection
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountSummary
 import com.gestorfinances.app.data.repository.CategoryRecord
@@ -271,7 +272,13 @@ private fun MovementDetailContent(
                     GridItemData(
                         icon = Icons.Outlined.Person,
                         iconColor = visual.second,
-                        label = stringResource(R.string.account_contribution_member),
+                        label = stringResource(
+                            if (movement.contributionDirection == ContributionDirection.OUT) {
+                                R.string.account_withdrawal_member
+                            } else {
+                                R.string.account_contribution_member
+                            },
+                        ),
                         value = movement.paidByPersonName ?: stringResource(R.string.account_member_owner),
                     )
                 )
@@ -281,7 +288,13 @@ private fun MovementDetailContent(
                         GridItemData(
                             icon = accountIcon(sourceAcc?.icon),
                             iconColor = sourceAcc?.color?.let { categoryColor(it) } ?: visual.second,
-                            label = stringResource(R.string.account_contribution_source),
+                            label = stringResource(
+                                if (movement.contributionDirection == ContributionDirection.OUT) {
+                                    R.string.account_withdrawal_destination
+                                } else {
+                                    R.string.account_contribution_source
+                                },
+                            ),
                             value = movement.accountName ?: stringResource(R.string.account_contribution_external_source),
                         )
                     )

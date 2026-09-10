@@ -91,6 +91,12 @@ class SharedAccountRepositoryTest {
         assertEquals(2_800, shared.ownerValueCents)
         // Taking money out is not a settlement: nobody owes anybody for it.
         assertEquals(0, people.getActive("person")!!.balanceCents)
+        // And wherever it is listed, it says the money left.
+        assertEquals(
+            ContributionDirection.OUT,
+            MovementRepository(database.movementsQueries, database.splitsQueries)
+                .getActive("withdrawal")!!.contributionDirection,
+        )
     }
 
     @Test

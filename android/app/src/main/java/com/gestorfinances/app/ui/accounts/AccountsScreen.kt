@@ -32,6 +32,8 @@ import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.AlertDialog
+import com.gestorfinances.app.ui.common.SecondaryButton
+import com.gestorfinances.app.data.repository.ContributionDirection
 import com.gestorfinances.app.ui.common.AppDropdownMenu
 import com.gestorfinances.app.ui.common.AppDropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -109,6 +111,7 @@ fun AccountsScreen(
     viewModel: AccountsViewModel,
     onViewAnalysis: (accountId: String, accountName: String) -> Unit = { _, _ -> },
     onMovementDetail: (MovementSummary) -> Unit = {},
+    onAddExpense: (accountId: String) -> Unit = {},
     onViewGoals: (String) -> Unit = {},
     onDeleteCommitted: DeleteUndoHandler = {},
     modifier: Modifier = Modifier,
@@ -173,6 +176,9 @@ fun AccountsScreen(
                 detail = flowDetail,
                 onBack = viewModel::onFlowDismissed,
                 onRetry = { viewModel.onFlowClicked(flowDetail.account) },
+                onAddExpense = { onAddExpense(flowDetail.account.id) },
+                onContribution = { viewModel.onContributionClicked(flowDetail.account) },
+                onWithdrawal = { viewModel.onWithdrawalClicked(flowDetail.account) },
                 onViewAnalysis = {
                     viewModel.onFlowDismissed()
                     onViewAnalysis(flowDetail.account.id, flowDetail.account.name)
@@ -972,14 +978,45 @@ private fun ContributionFormScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         val sharedAccountName = accounts.firstOrNull { it.id == form.sharedAccountId }?.name.orEmpty()
-        PageHeaderRow(onBack = onBack, title = stringResource(R.string.account_contribution_title, sharedAccountName))
+        val withdrawal = form.direction == ContributionDirection.OUT
+        PageHeaderRow(
+            onBack = onBack,
+            title = stringResource(
+                if (withdrawal) R.string.account_withdrawal_title else R.string.account_contribution_title,
+                sharedAccountName,
+            ),
+        )
         form.errorMessage?.let { InlineFailureBanner(diagnostic = it, messageRes = R.string.failure_save_movement) }
         form.errorRes?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error) }
         Text(
-            text = stringResource(R.string.account_contribution_effect),
+            text = stringResource(
+                if (withdrawal) R.string.account_withdrawal_effect else R.string.account_contribution_effect,
+            ),
             style = MaterialTheme.typography.bodySmall,
             color = FinanceTheme.colors.mutedText,
         )
+        // What each balance does, as the amount itself: the resulting balances and the owner's share
+        // stay with the canonical views rather than being worked out here.
+        parseEuroCents(form.amount, allowNegative = false)?.takeIf { it > 0 }?.let { cents ->
+            val signed = { value: Long -> formatEuroCents(value).let { if (value > 0) "+$it" else it } }
+            val sharedChange = signed(if (withdrawal) -cents else cents)
+            val ownerAccountName = accounts.firstOrNull { it.id == form.sourceAccountId }?.name
+                ?.takeIf { form.personId == null }
+            Text(
+                text = if (ownerAccountName != null) {
+                    stringResource(
+                        R.string.account_contribution_changes_both,
+                        sharedAccountName,
+                        sharedChange,
+                        ownerAccountName,
+                        signed(if (withdrawal) cents else -cents),
+                    )
+                } else {
+                    stringResource(R.string.account_contribution_changes_shared, sharedAccountName, sharedChange)
+                },
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
         OutlinedTextField(
             value = form.amount,
             onValueChange = { onFormChange(form.copy(amount = it)) },
@@ -996,7 +1033,9 @@ private fun ContributionFormScreen(
             modifier = Modifier.fillMaxWidth(),
         )
         FormSelect(
-            label = stringResource(R.string.account_contribution_member),
+            label = stringResource(
+                if (withdrawal) R.string.account_withdrawal_member else R.string.account_contribution_member,
+            ),
             options = buildList {
                 add(SelectOption(id = null, label = stringResource(R.string.account_member_owner)))
                 people.forEach { add(SelectOption(id = it.id, label = it.name)) }
@@ -1007,7 +1046,9 @@ private fun ContributionFormScreen(
         if (form.personId == null) {
             val noSource = stringResource(R.string.account_contribution_external_source)
             FormSelect(
-                label = stringResource(R.string.account_contribution_source),
+                label = stringResource(
+                    if (withdrawal) R.string.account_withdrawal_destination else R.string.account_contribution_source,
+                ),
                 options = buildList {
                     add(SelectOption(id = null, label = noSource))
                     accounts.filter { it.id != form.sharedAccountId && it.ownershipKind == AccountOwnershipKind.PERSONAL }
@@ -1034,7 +1075,11 @@ private fun ContributionFormScreen(
         )
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedButton(onClick = onBack, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.common_cancel)) }
-            PrimaryButton(text = stringResource(R.string.account_contribution_save), onClick = onSave, modifier = Modifier.weight(1f))
+            PrimaryButton(
+                text = stringResource(if (withdrawal) R.string.account_withdrawal_save else R.string.account_contribution_save),
+                onClick = onSave,
+                modifier = Modifier.weight(1f),
+            )
         }
     }
 }
@@ -1110,6 +1155,9 @@ private fun AccountFlowScreen(
     onRetry: () -> Unit,
     onViewAnalysis: () -> Unit,
     onMovementDetail: (MovementSummary) -> Unit,
+    onAddExpense: () -> Unit,
+    onContribution: () -> Unit,
+    onWithdrawal: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val account = detail.account
@@ -1175,24 +1223,64 @@ private fun AccountFlowScreen(
 
         HorizontalDivider()
 
-        // Who this account belongs to. Membership is otherwise only visible inside the edit form.
-        if (account.ownershipKind == AccountOwnershipKind.SHARED && account.members.isNotEmpty()) {
-            val owner = stringResource(R.string.account_member_owner)
-            Text(
-                text = stringResource(
-                    R.string.account_members_summary,
-                    account.members.joinToString(" · ") { member ->
-                        "${member.personName ?: owner} ${formatBasisPointsCompact(member.ownershipBasisPoints)}"
-                    },
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 10.dp),
-                style = MaterialTheme.typography.bodySmall,
-                color = FinanceTheme.colors.mutedText,
+        // The balance the ledger below reconciles to. A shared account also says what of it is the
+        // owner's, who else owns it, and what can be done with its money from here.
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            MoneyText(
+                cents = account.currentBalanceCents,
+                style = MaterialTheme.typography.headlineSmall,
             )
-            HorizontalDivider()
+            if (account.ownershipKind == AccountOwnershipKind.SHARED) {
+                Text(
+                    text = stringResource(
+                        R.string.account_shared_value,
+                        formatEuroCents(account.ownerValueCents),
+                        formatBasisPointsCompact(account.ownerOwnershipBasisPoints),
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = FinanceTheme.colors.mutedText,
+                )
+                if (account.members.isNotEmpty()) {
+                    val owner = stringResource(R.string.account_member_owner)
+                    Text(
+                        text = stringResource(
+                            R.string.account_members_summary,
+                            account.members.joinToString(" · ") { member ->
+                                "${member.personName ?: owner} ${formatBasisPointsCompact(member.ownershipBasisPoints)}"
+                            },
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = FinanceTheme.colors.mutedText,
+                    )
+                }
+                Row(
+                    modifier = Modifier.padding(top = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    SecondaryButton(
+                        text = stringResource(R.string.movement_type_expense),
+                        onClick = onAddExpense,
+                        modifier = Modifier.weight(1f),
+                    )
+                    SecondaryButton(
+                        text = stringResource(R.string.movement_type_contribution),
+                        onClick = onContribution,
+                        modifier = Modifier.weight(1f),
+                    )
+                    SecondaryButton(
+                        text = stringResource(R.string.account_withdrawal_action),
+                        onClick = onWithdrawal,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
         }
+        HorizontalDivider()
 
         // Movement list
         when {

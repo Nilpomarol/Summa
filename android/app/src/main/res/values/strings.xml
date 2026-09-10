@@ -153,6 +153,14 @@
     <string name="account_contribution_external_source">Fora dels meus comptes</string>
     <string name="account_contribution_save">Desa l’aportació</string>
     <string name="account_contribution_effect">Una aportació no canvia els percentatges de propietat ni liquida cap deute.</string>
+    <string name="account_contribution_changes_shared">%1$s: %2$s</string>
+    <string name="account_contribution_changes_both">%1$s: %2$s · %3$s: %4$s</string>
+    <string name="account_withdrawal_action">Treu diners</string>
+    <string name="account_withdrawal_title">Retirada de %1$s</string>
+    <string name="account_withdrawal_member">Qui treu els diners</string>
+    <string name="account_withdrawal_destination">Compte destí</string>
+    <string name="account_withdrawal_effect">Una retirada no canvia els percentatges de propietat ni liquida cap deute: la part de cada membre baixa en proporció al que surt.</string>
+    <string name="account_withdrawal_save">Desa la retirada</string>
     <string name="account_advanced_options">Opcions avançades</string>
     <string name="account_preview_placeholder">Nom del compte</string>
     <string name="entity_color_custom">Color personalitzat</string>
@@ -174,13 +182,15 @@
     <string name="account_validation_shared_percentages">La propietat i el repartiment de despeses han de sumar 100%% cadascun.</string>
     <string name="account_validation_shared_history">Aquest compte ha finançat despeses compartides o ha rebut aportacions, i no pot tornar a ser personal. Crea un compte nou si cal.</string>
     <string name="movement_type_contribution">Aportació</string>
+    <string name="movement_type_withdrawal">Retirada</string>
     <string name="movement_detail_financing">Finançament</string>
     <string name="movement_detail_financing_shared_account">El compte compartit</string>
     <string name="movement_shared_account_funding">El compte compartit paga aquesta despesa. El repartiment diu qui la consumeix i no crea deutes entre vosaltres.</string>
-    <string name="movement_validation_shared_transfer">Els canvis de propietat amb un compte compartit s’han de registrar com una aportació.</string>
+    <string name="movement_validation_shared_transfer">Els canvis de propietat amb un compte compartit s’han de registrar com una aportació o una retirada.</string>
     <string name="movement_transfer_into_shared">Un traspàs no canvia de qui són els diners. Posar-los en un compte compartit és una aportació.</string>
     <string name="movement_transfer_into_shared_action">Fes una aportació</string>
-    <string name="movement_transfer_out_of_shared">Un compte compartit no pot ser l’origen d’un traspàs: els diners no són només teus.</string>
+    <string name="movement_transfer_out_of_shared_action">Fes una retirada</string>
+    <string name="movement_transfer_out_of_shared">Treure diners d’un compte compartit cap a un compte teu és una retirada, no un traspàs.</string>
 
     <!-- Categories -->
     <string name="category_list_title">Categories</string>

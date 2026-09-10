@@ -1,3 +1,8 @@
+-- Summa v17 -> v18 migration.
+-- A contribution row in the movement summary says which way its money moved, so a withdrawal reads
+-- as leaving its shared account wherever movements are listed, not only in that account's ledger.
+
+DROP VIEW IF EXISTS v_movement_summary;
 CREATE VIEW v_movement_summary AS
 SELECT
     movements.id,
@@ -210,3 +215,5 @@ LEFT JOIN accounts source_account
 LEFT JOIN people contributor
     ON contributor.id = contribution.person_id
 WHERE contribution.archived_at IS NULL;
+
+UPDATE meta SET value = '18' WHERE key = 'schema_version';

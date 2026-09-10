@@ -36,6 +36,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.gestorfinances.app.data.repository.ContributionDirection
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.MovementSummary
 import com.gestorfinances.app.data.repository.MovementType
@@ -356,18 +357,35 @@ private fun MovementSource(movement: MovementSummary): Boolean {
             return true
         }
         MovementType.CONTRIBUTION -> {
-            // Who put the money in, into which shared account: a person wears a person's mark, the
-            // owner is named by the account the money left, or plainly when it came from outside.
+            // A contribution runs from the member into the shared account and a withdrawal runs back
+            // out. A person wears a person's mark; the owner is named by their own account on the
+            // other side, or plainly when the money came from or went outside their accounts.
             val person = movement.paidByPersonName?.takeIf { movement.payerId != null }
-            MovementRoute(
-                fromText = person ?: movement.accountName ?: stringResource(R.string.account_member_owner),
-                fromTint = if (person == null) movement.accountColor else null,
-                fromIcon = if (person != null) Icons.Outlined.Group else null,
-                fromFallbackTint = if (person != null) FinanceTheme.colors.shared else null,
-                toText = movement.destinationAccountName
-                    ?: stringResource(R.string.movement_destination_missing),
-                toTint = movement.destinationAccountColor,
-            )
+            val memberText = person ?: movement.accountName ?: stringResource(R.string.account_member_owner)
+            val memberTint = if (person == null) movement.accountColor else null
+            val memberIcon = if (person != null) Icons.Outlined.Group else null
+            val memberFallbackTint = if (person != null) FinanceTheme.colors.shared else null
+            val sharedText = movement.destinationAccountName
+                ?: stringResource(R.string.movement_destination_missing)
+            if (movement.contributionDirection == ContributionDirection.OUT) {
+                MovementRoute(
+                    fromText = sharedText,
+                    fromTint = movement.destinationAccountColor,
+                    toText = memberText,
+                    toTint = memberTint,
+                    toIcon = memberIcon,
+                    toFallbackTint = memberFallbackTint,
+                )
+            } else {
+                MovementRoute(
+                    fromText = memberText,
+                    fromTint = memberTint,
+                    toText = sharedText,
+                    toTint = movement.destinationAccountColor,
+                    fromIcon = memberIcon,
+                    fromFallbackTint = memberFallbackTint,
+                )
+            }
             return true
         }
         MovementType.EXTERNAL_EXPENSE -> {
@@ -410,6 +428,8 @@ private fun MovementRoute(
     toTint: String?,
     fromIcon: ImageVector? = null,
     fromFallbackTint: Color? = null,
+    toIcon: ImageVector? = null,
+    toFallbackTint: Color? = null,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -431,6 +451,8 @@ private fun MovementRoute(
         IdentityLabel(
             text = toText,
             tint = toTint,
+            fallbackTint = toFallbackTint,
+            icon = toIcon,
             modifier = Modifier.weight(1f, fill = false),
         )
     }
@@ -550,7 +572,11 @@ private fun BadgeIcon(
 
 @Composable
 internal fun MovementSummary.movementTitle(): String =
-    name ?: payee ?: categoryName ?: type.label()
+    name ?: payee ?: categoryName ?: if (contributionDirection == ContributionDirection.OUT) {
+        stringResource(R.string.movement_type_withdrawal)
+    } else {
+        type.label()
+    }
 
 /**
  * The rest of the qualifying line: everything only some movements carry - the category, the trip,

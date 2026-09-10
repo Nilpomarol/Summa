@@ -52,6 +52,7 @@ class AccountsViewModel(
 
     fun onScreenShown() {
         refreshAccounts()
+        reloadFlow()
     }
 
     fun resetForMenuNavigation() {
@@ -75,6 +76,9 @@ class AccountsViewModel(
 
     fun onContributionClicked(account: AccountSummary) = showContributionFor(account.id)
 
+    fun onWithdrawalClicked(account: AccountSummary) =
+        showContributionFor(account.id, direction = ContributionDirection.OUT)
+
     /**
      * Opens the contribution form for a shared account. Another screen can seed it: a transfer
      * into a shared account is really a contribution, so the movement form hands the amount and
@@ -85,10 +89,12 @@ class AccountsViewModel(
         amount: String = "",
         date: String = LocalDate.now().toString(),
         sourceAccountId: String? = null,
+        direction: ContributionDirection = ContributionDirection.IN,
     ) {
         _state.value = _state.value.copy(
             contributionForm = ContributionFormState(
                 sharedAccountId = accountId,
+                direction = direction,
                 amount = amount,
                 date = date,
                 sourceAccountId = sourceAccountId,
@@ -171,8 +177,8 @@ class AccountsViewModel(
                 onSuccess = {
                     _state.value = _state.value.copy(contributionForm = null)
                     refreshAccounts()
-                    // The ledger the form was opened over now holds a different figure.
-                    _state.value.flowDetail?.let { onFlowClicked(it.account) }
+                    // The account page the form was opened over now holds different figures.
+                    reloadFlow()
                 },
                 onFailure = { _state.value = _state.value.copy(contributionForm = form.copy(errorMessage = it.message ?: it.javaClass.simpleName)) },
             )
@@ -225,6 +231,25 @@ class AccountsViewModel(
         }
     }
 
+    /** The account as it stands now with its ledger: the page shows both, so both load together. */
+    private fun loadFlow(account: AccountSummary): Pair<AccountSummary, List<AccountLedgerEntry>> =
+        (accountRepository.getActive(account.id) ?: account) to movementRepository.listActiveForAccount(account.id)
+
+    /** Reloads an open account page in place after its data changed, without a loading flash. */
+    private fun reloadFlow() {
+        val open = _state.value.flowDetail ?: return
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) { runCatching { loadFlow(open.account) } }
+            result.onSuccess { (fresh, entries) ->
+                if (_state.value.flowDetail?.account?.id == fresh.id) {
+                    _state.value = _state.value.copy(
+                        flowDetail = AccountFlowDetailState(account = fresh, entries = entries),
+                    )
+                }
+            }
+        }
+    }
+
     fun onFlowClicked(account: AccountSummary) {
         _state.value = _state.value.copy(
             flowDetail = AccountFlowDetailState(
@@ -234,14 +259,14 @@ class AccountsViewModel(
         )
         viewModelScope.launch {
             val result = withContext(Dispatchers.IO) {
-                runCatching { movementRepository.listActiveForAccount(account.id) }
+                runCatching { loadFlow(account) }
             }
             _state.value = result.fold(
-                onSuccess = {
+                onSuccess = { (fresh, entries) ->
                     _state.value.copy(
                         flowDetail = AccountFlowDetailState(
-                            account = account,
-                            entries = it,
+                            account = fresh,
+                            entries = entries,
                             isLoading = false,
                         ),
                     )

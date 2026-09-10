@@ -51,7 +51,7 @@ Application validation should mirror important database constraints to provide u
 | `v_actual_income` | User-owned income net of any allocation to other members |
 | `v_person_balance` | Derived debt direction and amount per person |
 | `v_movement_shared` | Shared-movement helper data |
-| `v_movement_summary` | Unified movement/external-split list and detail projection. Carries the account's, the destination account's and the trip's own colour alongside their names; the external-split branch has no accounts, so both account colours are `NULL` there |
+| `v_movement_summary` | Unified movement/external-split list and detail projection. Carries the account's, the destination account's and the trip's own colour alongside their names; the external-split branch has no accounts, so both account colours are `NULL` there. A contribution row also carries its `contribution_direction`; every other row leaves it `NULL` |
 | `v_trip_actual_total` | Derived actual expense per trip |
 | `v_goal_allocation` | Signed sum of a goal's active planning allocations |
 | `v_goal_progress` | Saved and remaining cents per goal, by funding mode |
@@ -129,7 +129,7 @@ Any red golden test blocks delivery of a money-rule or shared-contract change.
 
 ## Approved pre-Windows contract changes
 
-Schema version `17` is the implemented authority. Savings goals and shared accounts have shipped and are described above with the rest of the contract. The remaining change is an approved target whose meanings and invariants are fixed by [pre-windows-plan.md](pre-windows-plan.md).
+Schema version `18` is the implemented authority. Savings goals and shared accounts have shipped and are described above with the rest of the contract. The remaining change is an approved target whose meanings and invariants are fixed by [pre-windows-plan.md](pre-windows-plan.md).
 
 ### Investment valuations
 

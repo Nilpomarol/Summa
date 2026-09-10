@@ -25,6 +25,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import com.gestorfinances.app.data.repository.ContributionDirection
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountOwnershipKind
 import com.gestorfinances.app.data.repository.AccountSummary
@@ -69,7 +70,12 @@ fun MovementFormScreen(
     onOptionalToggled: () -> Unit,
     onAdvancedToggled: () -> Unit,
     onCreatePersonInSplit: (String) -> Unit,
-    onRecordContribution: (accountId: String, amount: String, sourceAccountId: String?) -> Unit,
+    onRecordContribution: (
+        sharedAccountId: String,
+        amount: String,
+        ownerAccountId: String?,
+        direction: ContributionDirection,
+    ) -> Unit,
     onDismiss: () -> Unit,
     onSave: () -> Unit,
     onOverride: () -> Unit,

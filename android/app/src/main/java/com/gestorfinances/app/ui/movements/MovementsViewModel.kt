@@ -102,7 +102,7 @@ class MovementsViewModel(
         onAddClicked(tripId = null)
     }
 
-    fun onAddClicked(tripId: String?, debtPayerPersonId: String? = null) {
+    fun onAddClicked(tripId: String?, debtPayerPersonId: String? = null, accountId: String? = null) {
         viewModelScope.launch {
             val result = loadMovementData()
             result.fold(
@@ -110,7 +110,7 @@ class MovementsViewModel(
                     val form = if (it.accounts.isEmpty() && debtPayerPersonId == null) {
                         null
                     } else {
-                        newMovementForm(it, tripId, debtPayerPersonId)
+                        newMovementForm(it, tripId, debtPayerPersonId, accountId)
                     }
                     _state.value = _state.value.copy(
                         movements = it.movements,
@@ -825,11 +825,15 @@ class MovementsViewModel(
                 R.string.movement_validation_destination_required to MovementFormField.DESTINATION_ACCOUNT
             form.type == MovementType.TRANSFER && form.accountId == form.destinationAccountId ->
                 R.string.movement_validation_transfer_same_account to MovementFormField.DESTINATION_ACCOUNT
-            // Blame the side that is actually shared, so the error lands on the field to change.
-            form.type == MovementType.TRANSFER && isSharedAccount(form.accountId) ->
-                R.string.movement_validation_shared_transfer to MovementFormField.ACCOUNT
-            form.type == MovementType.TRANSFER && isSharedAccount(form.destinationAccountId) ->
-                R.string.movement_validation_shared_transfer to MovementFormField.DESTINATION_ACCOUNT
+            // Only a crossing between personal and shared ownership is refused: between two shared
+            // accounts it is an ordinary transfer. Blame the shared side, the field to change.
+            form.type == MovementType.TRANSFER &&
+                isSharedAccount(form.accountId) != isSharedAccount(form.destinationAccountId) ->
+                R.string.movement_validation_shared_transfer to if (isSharedAccount(form.accountId)) {
+                    MovementFormField.ACCOUNT
+                } else {
+                    MovementFormField.DESTINATION_ACCOUNT
+                }
             category != null && !category.supports(form.type) ->
                 R.string.movement_validation_category_invalid to MovementFormField.CATEGORY
             form.tagId != null && (form.tripId == null || tag == null || !tag.supportsTrip(trip)) ->
@@ -1437,9 +1441,12 @@ private fun newMovementForm(
     data: LoadedMovementData,
     tripId: String?,
     debtPayerPersonId: String? = null,
+    presetAccountId: String? = null,
 ): MovementFormState {
     val trip = tripId?.let { selectedId -> data.trips.firstOrNull { it.id == selectedId } }
-    val accountId = trip?.defaultAccountId ?: defaultAccountId(data.accounts)
+    val accountId = presetAccountId?.takeIf { id -> data.accounts.any { it.id == id } }
+        ?: trip?.defaultAccountId
+        ?: defaultAccountId(data.accounts)
     val account = data.accounts.firstOrNull { it.id == accountId }
     val sharedAccount = debtPayerPersonId == null && account?.ownershipKind == AccountOwnershipKind.SHARED
     return MovementFormState(
