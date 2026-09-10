@@ -359,6 +359,15 @@ android {
         versionName = "0.1.0"
     }
 
+    buildTypes {
+        // A debug install sits beside the release app instead of replacing it: its own package,
+        // so its own launcher entry and its own database, never the release app's real data.
+        debug {
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+        }
+    }
+
     buildFeatures {
         compose = true
         buildConfig = true
