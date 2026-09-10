@@ -145,7 +145,13 @@ Contract implications: `v_actual_income` takes the app owner's split line when t
 4. Implement contribution presentation, editing/correction, and dismissal protection. Done: a contribution row reads as a route from its contributor or source account into the shared account; its detail names who contributes, the source, and the shared account; Edit opens the contribution form, which corrects amount, date, contributor, source, name and notes while keeping the shared account and direction; the form asks before discarding changes and says a contribution neither changes ownership nor settles debt. Every contribution is inward until step 5, so `direction` reaches `v_movement_summary` with the withdrawal flow.
 5. Build the shared-account detail overview and contextual actions. Done at schema 18: every account page states the balance its ledger reconciles to, and a shared account's page adds the owner's value and percentage, its members, and Despesa, Aportació and Treu diners actions. A withdrawal reuses the contribution form in the outward direction, states each account's change as the amount itself, and describes the effect on ownership in words rather than recomputing the owner's value. `v_movement_summary` gains `contribution_direction`, so withdrawals read out of their shared account wherever they are listed. Transfers between two shared accounts are ordinary transfers; a transfer form crossing ownership in either direction offers the matching contribution or withdrawal.
 6. Improve account creation and ownership editing. Done: making an account shared makes nobody a member; the owner switches members on, can add a person from the form, and splits evenly with the existing action. The members section explains ownership and default expenses, and states the owner's percentage as a share of the account's balance without recomputing its euro value. Account pickers mark shared accounts.
-7. Complete focused tests and verify every flow on a real device.
+7. Complete focused tests and verify every flow on a real device. Focused tests done: a shared-account expense saved from its account's page, a withdrawal saved and corrected from that page, and both ledgers reconciling to their balances with money leaving. Device verification is pending.
+
+## Remaining before acceptance
+
+- Income into a shared account is still recorded wholly as the app owner's, and the income form offers no ownership choice, so depositing into a shared account still decides whose income it is. The contract already supports the allocation split from step 2; the Android income flow does not use it.
+- A shared-account expense's detail page names its funding but not its debt effect, and captions the account movement only as a total.
+- Device verification of steps 3 to 6.
 
 ## Acceptance criteria
 

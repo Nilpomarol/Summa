@@ -1,5 +1,13 @@
 package com.gestorfinances.app.ui.accounts
 
+import org.junit.Assert.assertNull
+import com.gestorfinances.app.data.repository.SplitParticipantKind
+import com.gestorfinances.app.data.repository.PersonDraft
+import com.gestorfinances.app.data.repository.MovementType
+import com.gestorfinances.app.data.repository.ContributionDirection
+import com.gestorfinances.app.data.repository.AccountType
+import com.gestorfinances.app.data.repository.AccountMemberDraft
+import com.gestorfinances.app.data.repository.AccountDraft
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.db.GestorDatabase
@@ -120,6 +128,66 @@ class AccountsViewModelTest {
             assertTrue(viewModel.state.value.form!!.members.single { it.personId == alba.id }.enabled)
         }
     }
+
+    @Test
+    fun aWithdrawalFromTheAccountPageLeavesTheAccountAndStaysOutwardWhenCorrected() = runTest(dispatcher) {
+        freshStore().use { store ->
+            val at = "2026-01-01T00:00:00Z"
+            store.people.create(PersonDraft("alba", "Alba", null, null, null), at)
+            store.accounts.create(accountDraft("personal", displayOrder = 0), createdAt = at)
+            store.accounts.create(
+                accountDraft("shared", displayOrder = 1).copy(
+                    startingBalanceCents = 10_000,
+                    ownershipKind = AccountOwnershipKind.SHARED,
+                    members = listOf(
+                        AccountMemberDraft(SplitParticipantKind.USER, null, 5_000L, 5_000L),
+                        AccountMemberDraft(SplitParticipantKind.PERSON, "alba", 5_000L, 5_000L),
+                    ),
+                ),
+                createdAt = at,
+            )
+            val viewModel = viewModel(store)
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+
+            viewModel.onWithdrawalClicked(viewModel.state.value.accounts.single { it.id == "shared" })
+            val form = viewModel.state.value.contributionForm!!
+            assertEquals(ContributionDirection.OUT, form.direction)
+            viewModel.onContributionFormChanged(form.copy(amount = "20", sourceAccountId = "personal"))
+            viewModel.onContributionSaveClicked()
+            advanceUntilIdle()
+
+            assertNull(viewModel.state.value.contributionForm)
+            assertEquals(2_000L, store.accounts.getActive("personal")!!.currentBalanceCents)
+            assertEquals(8_000L, store.accounts.getActive("shared")!!.currentBalanceCents)
+
+            // Correcting it reopens the form outward, and saving keeps it outward.
+            val withdrawal = store.movements.listActive().single { it.type == MovementType.CONTRIBUTION }
+            viewModel.editContribution(withdrawal.id)
+            advanceUntilIdle()
+            val correction = viewModel.state.value.contributionForm!!
+            assertEquals(ContributionDirection.OUT, correction.direction)
+            viewModel.onContributionFormChanged(correction.copy(amount = "25"))
+            viewModel.onContributionSaveClicked()
+            advanceUntilIdle()
+
+            assertEquals(7_500L, store.accounts.getActive("shared")!!.currentBalanceCents)
+            assertEquals(ContributionDirection.OUT, store.accounts.getContribution(withdrawal.id)!!.direction)
+        }
+    }
+
+    private fun accountDraft(id: String, displayOrder: Long): AccountDraft =
+        AccountDraft(
+            id = id,
+            name = id,
+            startingBalanceCents = 0,
+            type = AccountType.BANK,
+            icon = null,
+            color = null,
+            isDefault = displayOrder == 0L,
+            displayOrder = displayOrder,
+            lowBalanceThresholdCents = null,
+        )
 
     private fun viewModel(store: TestStore): AccountsViewModel =
         AccountsViewModel(

@@ -1,5 +1,6 @@
 package com.gestorfinances.app.ui.movements
 
+import com.gestorfinances.app.data.repository.ExpenseFunding
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.db.GestorDatabase
@@ -62,6 +63,35 @@ class MovementsViewModelTest {
     @After
     fun tearDown() {
         Dispatchers.resetMain()
+    }
+
+    @Test
+    fun expenseOnASharedAccountIsFundedByItAndCreatesNoDebt() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.people.create(personDraft("alba"), NOW)
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            store.accounts.create(sharedAccountDraft("joint", "alba"), createdAt = NOW)
+            val viewModel = viewModel(store)
+            viewModel.onAddClicked(tripId = null, accountId = "joint")
+            advanceUntilIdle()
+
+            // Opened from the account's page, the form is on that account and already splits by
+            // its default allocation.
+            assertEquals("joint", viewModel.form().accountId)
+            assertEquals(ExpenseKind.SHARED, viewModel.form().expenseKind)
+            viewModel.onFormChanged(
+                viewModel.form().copy(type = MovementType.EXPENSE, amount = "60", date = "2026-01-01"),
+            )
+            viewModel.onSaveClicked()
+            advanceUntilIdle()
+
+            assertNull(viewModel.state.value.form)
+            val expense = store.movements.listActive().single()
+            assertEquals(ExpenseFunding.SHARED_ACCOUNT, expense.financingKind)
+            assertEquals(3_000L, expense.userShareCents)
+            assertEquals(-6_000L, store.accounts.getActive("joint")!!.currentBalanceCents)
+            assertEquals(0L, store.people.getActive("alba")!!.balanceCents)
+        }
     }
 
     @Test
