@@ -58,6 +58,9 @@ fun SplitEditorCard(
     onCreatePerson: (String) -> Unit = {},
     // A shared account financed the expense: nobody paid it, so there is no payer to choose.
     fundedByAccount: Boolean = false,
+    // An income into a shared account is being allocated: nobody paid either, and the header names
+    // the owner's part of the income instead of an expense.
+    accountIncome: Boolean = false,
 ) {
     val totalCents = remember(amountInput) {
         parseEuroCents(amountInput, allowNegative = false)
@@ -75,6 +78,7 @@ fun SplitEditorCard(
                 calculation = calculation,
                 totalCents = totalCents,
                 fundedByAccount = fundedByAccount,
+                accountIncome = accountIncome,
             )
 
             SegmentedControl(
@@ -109,7 +113,7 @@ fun SplitEditorCard(
                 onCreatePerson = { showCreatePersonDialog = true },
             )
 
-            if (!fundedByAccount && splitEditor.participantIds.size > 1) {
+            if (!fundedByAccount && !accountIncome && splitEditor.participantIds.size > 1) {
                 PayerSelect(
                     splitEditor = splitEditor,
                     people = people,
@@ -120,7 +124,7 @@ fun SplitEditorCard(
             if (splitEditor.method == SplitEntryMethod.EQUAL) {
                 Text(
                     text = stringResource(
-                        if (fundedByAccount) R.string.split_remainder_to_user else R.string.split_remainder_to_payer,
+                        if (fundedByAccount || accountIncome) R.string.split_remainder_to_user else R.string.split_remainder_to_payer,
                     ),
                     color = FinanceTheme.colors.mutedText,
                     style = MaterialTheme.typography.bodySmall,
@@ -151,6 +155,7 @@ private fun SplitSummaryHeader(
     calculation: SplitEditorCalculation,
     totalCents: Long?,
     fundedByAccount: Boolean,
+    accountIncome: Boolean,
 ) {
     val userShare = calculation.sharesCentsByParticipantId[USER_PARTICIPANT_ID]
     Text(
@@ -160,6 +165,10 @@ private fun SplitSummaryHeader(
             fundedByAccount && userShare != null && totalCents != null -> stringResource(
                 R.string.movement_split_summary_account,
                 formatEuroCents(-totalCents),
+                formatEuroCents(userShare),
+            )
+            accountIncome && userShare != null -> stringResource(
+                R.string.movement_split_summary_income,
                 formatEuroCents(userShare),
             )
             userShare != null -> stringResource(

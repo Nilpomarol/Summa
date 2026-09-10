@@ -430,6 +430,19 @@ class MovementsViewModel(
                 showOptional = true,
                 removeExistingSplit = false,
             )
+        } else if (
+            form.type == MovementType.INCOME &&
+            account?.ownershipKind == AccountOwnershipKind.SHARED &&
+            (previous?.type != MovementType.INCOME || previous?.accountId != form.accountId)
+        ) {
+            // Arriving at an income on a shared account asks whose it is afresh, rather than
+            // inheriting the expense form's split or another account's answer.
+            form.copy(
+                expenseKind = null,
+                splitEditor = account.defaultExpenseSplitEditor(),
+                forOtherPersonId = null,
+                removeExistingSplit = false,
+            )
         } else form
         _state.value = _state.value.copy(form = normalizeForm(withAccountDefaults))
     }
@@ -808,8 +821,11 @@ class MovementsViewModel(
         // still hold a prior kind's selection (retained, not nulled, per data-loss protection),
         // so validation and the draft below must gate on the *effective* (final) kind rather than
         // the raw field, or a stale split from a since-abandoned kind would wrongly block/write.
-        val isForOther = form.type == MovementType.EXPENSE && form.expenseKind == ExpenseKind.FOR_OTHER
-        val isShared = form.type == MovementType.EXPENSE && form.expenseKind == ExpenseKind.SHARED
+        // An income carries the same allocation choice when it lands in a shared account.
+        val incomeOnSharedAccount = form.type == MovementType.INCOME && isSharedAccount(form.accountId)
+        val carriesAllocation = form.type == MovementType.EXPENSE || incomeOnSharedAccount
+        val isForOther = carriesAllocation && form.expenseKind == ExpenseKind.FOR_OTHER
+        val isShared = carriesAllocation && form.expenseKind == ExpenseKind.SHARED
         val effectiveSplitEditor = form.splitEditor.takeIf { isShared }
         val splitDraft = effectiveSplitEditor?.toMovementSplitDraft(amount)
         // Whether the *kind* can carry a split at all -- true for SHARED even when splitEditor is
@@ -838,6 +854,9 @@ class MovementsViewModel(
                 R.string.movement_validation_category_invalid to MovementFormField.CATEGORY
             form.tagId != null && (form.tripId == null || tag == null || !tag.supportsTrip(trip)) ->
                 R.string.tag_validation_trip_required to MovementFormField.TAG
+            // Landing in a shared account never decides whose income it is.
+            incomeOnSharedAccount && form.expenseKind == null ->
+                R.string.movement_validation_income_owner to MovementFormField.INCOME_OWNER
             isForOther && (form.forOtherPersonId == null || form.forOtherPersonId !in activePersonIds) ->
                 R.string.settlement_validation_person_required to MovementFormField.PERSON
             effectiveSplitEditor != null && splitDraft == null ->
@@ -1329,6 +1348,7 @@ enum class MovementFormField {
     TAG,
     PERSON,
     SPLIT,
+    INCOME_OWNER,
 }
 
 /** The two destructive-save shapes [MovementsViewModel.saveDirectMovement] warns about before writing
@@ -1615,7 +1635,7 @@ private fun MovementSummary.toFormState(
     }
 
     val expenseKind = when {
-        type != MovementType.EXPENSE -> null
+        type != MovementType.EXPENSE && type != MovementType.INCOME -> null
         splitEditor != null -> ExpenseKind.SHARED
         else -> ExpenseKind.PERSONAL
     }

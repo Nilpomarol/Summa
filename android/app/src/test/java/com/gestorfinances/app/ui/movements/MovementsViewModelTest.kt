@@ -99,6 +99,58 @@ class MovementsViewModelTest {
     }
 
     @Test
+    fun incomeIntoASharedAccountMustSayWhoseItIs() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.people.create(personDraft("alba"), NOW)
+            store.accounts.create(sharedAccountDraft("joint", "alba"), createdAt = NOW)
+            val viewModel = viewModel(store)
+            viewModel.onAddClicked(tripId = null, accountId = "joint")
+            advanceUntilIdle()
+
+            viewModel.onFormChanged(
+                viewModel.form().copy(type = MovementType.INCOME, amount = "60", date = "2026-01-01"),
+            )
+            // The expense form's split does not follow the form into an income.
+            assertNull(viewModel.form().expenseKind)
+            viewModel.onSaveClicked()
+
+            assertEquals(R.string.movement_validation_income_owner, viewModel.form().errorRes)
+            assertEquals(MovementFormField.INCOME_OWNER, viewModel.form().errorField)
+            assertTrue(store.movements.listActive().isEmpty())
+        }
+    }
+
+    @Test
+    fun sharedIncomeCountsOnlyTheOwnersPartAndCreatesNoDebt() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.people.create(personDraft("alba"), NOW)
+            store.accounts.create(sharedAccountDraft("joint", "alba"), createdAt = NOW)
+            val viewModel = viewModel(store)
+            viewModel.onAddClicked(tripId = null, accountId = "joint")
+            advanceUntilIdle()
+            viewModel.onFormChanged(
+                viewModel.form().copy(type = MovementType.INCOME, amount = "60", date = "2026-01-01"),
+            )
+
+            viewModel.onSharedToggled(true)
+            viewModel.onSaveClicked()
+            advanceUntilIdle()
+
+            assertNull(viewModel.state.value.form)
+            val income = store.movements.listActive().single()
+            val lines = store.splits.getForMovement(income.id)!!.lines
+            assertEquals(3_000L, lines.single { it.participantKind == SplitParticipantKind.USER }.owedAmountCents)
+            assertEquals(6_000L, store.accounts.getActive("joint")!!.currentBalanceCents)
+            assertEquals(0L, store.people.getActive("alba")!!.balanceCents)
+
+            // Reopened, it still says the income is shared.
+            viewModel.onEditClicked(income)
+            advanceUntilIdle()
+            assertEquals(ExpenseKind.SHARED, viewModel.form().expenseKind)
+        }
+    }
+
+    @Test
     fun expenseOnASharedAccountIsFundedByItAndCreatesNoDebt() = runTest(dispatcher) {
         freshStore().use { store ->
             store.people.create(personDraft("alba"), NOW)
