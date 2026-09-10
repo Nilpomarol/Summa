@@ -1,6 +1,6 @@
 {
   "rule": "shared_account",
-  "description": "Shared accounts keep physical balance, owner patrimonial value, economic expense allocation and interpersonal debt separate. Contributions change account flow only, and a shared-account-funded expense creates no debt to the app owner.",
+  "description": "Shared accounts keep physical balance, owner patrimonial value, economic allocation and interpersonal debt separate. Member money moves in and out of the account without becoming income, expense or debt; a shared-account-funded expense creates no debt to the app owner; and an income allocated across members counts only the owner's share as actual income.",
   "cases": [
     {
       "name": "contributions and shared financing reconcile without becoming actual income or debt",
@@ -21,7 +21,35 @@
         "shared_owner_value_cents": 4000,
         "net_worth_cents": 11000,
         "actual_expense_cents": 2400,
+        "actual_income_cents": 0,
         "person_balance_cents": 600
+      }
+    },
+    {
+      "name": "withdrawals leave the pot and an allocated income counts only the owner's share",
+      "input": {
+        "personal_start_cents": 20000,
+        "shared_start_cents": 5000,
+        "owner_ownership_basis_points": 3333,
+        "owner_contribution_cents": 1000,
+        "person_contribution_cents": 2000,
+        "owner_withdrawal_cents": 700,
+        "person_withdrawal_cents": 1300,
+        "shared_expense_cents": 3000,
+        "shared_expense_owner_share_cents": 1000,
+        "owner_financed_expense_cents": 2000,
+        "owner_financed_person_share_cents": 800,
+        "shared_income_cents": 4000,
+        "shared_income_owner_share_cents": 1500
+      },
+      "expected": {
+        "personal_physical_cents": 17700,
+        "shared_physical_cents": 7000,
+        "shared_owner_value_cents": 2333,
+        "net_worth_cents": 20033,
+        "actual_expense_cents": 2200,
+        "actual_income_cents": 1500,
+        "person_balance_cents": 800
       }
     }
   ]

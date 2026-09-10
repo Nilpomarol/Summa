@@ -211,8 +211,7 @@ public sealed class GoldenVectorTests
             // after it: the deferred foreign key only resolves at commit, so the fixture goes in
             // as one transaction, the way the app writes it.
             using var transaction = connection.BeginTransaction();
-            connection.Execute(
-                """
+            var fixture = """
                 INSERT INTO accounts (id,name,starting_balance_cents,type,ownership_kind,created_at,updated_at) VALUES
                   ('personal','Personal',@PersonalStart,'bank','personal',@Now,@Now),
                   ('shared','Shared',@SharedStart,'bank','personal',@Now,@Now);
@@ -221,9 +220,9 @@ public sealed class GoldenVectorTests
                   ('member-user','shared','user',NULL,@OwnerBps,4000,@Now,@Now),
                   ('member-person','shared','person','person',10000-@OwnerBps,6000,@Now,@Now);
                 UPDATE accounts SET ownership_kind = 'shared' WHERE id = 'shared';
-                INSERT INTO account_contributions (id,shared_account_id,contributor_kind,person_id,source_account_id,amount_cents,date,created_at,updated_at) VALUES
-                  ('owner-contribution','shared','user',NULL,'personal',@OwnerContribution,'2026-01-02',@Now,@Now),
-                  ('person-contribution','shared','person','person',NULL,@PersonContribution,'2026-01-03',@Now,@Now);
+                INSERT INTO account_contributions (id,shared_account_id,direction,contributor_kind,person_id,source_account_id,amount_cents,date,created_at,updated_at) VALUES
+                  ('owner-contribution','shared','in','user',NULL,'personal',@OwnerContribution,'2026-01-02',@Now,@Now),
+                  ('person-contribution','shared','in','person','person',NULL,@PersonContribution,'2026-01-03',@Now,@Now);
                 INSERT INTO movements (id,type,amount_cents,date,account_id,expense_funding,shared_split_id,created_at,updated_at) VALUES
                   ('shared-expense','expense',@SharedExpense,'2026-01-04','shared','shared_account','shared-split',@Now,@Now),
                   ('owner-expense','expense',@OwnerExpense,'2026-01-05','personal','owner',NULL,@Now,@Now);
@@ -235,13 +234,54 @@ public sealed class GoldenVectorTests
                   ('shared-person','shared-split','person','person',@SharedExpense-@SharedOwnerShare,@Now,@Now),
                   ('owner-user','owner-split','user',NULL,@OwnerExpense-@OwnerPersonShare,@Now,@Now),
                   ('owner-person','owner-split','person','person',@OwnerPersonShare,@Now,@Now);
-                """,
+                """;
+            // A member takes money out the same way it went in, and an income into the shared
+            // account carries the allocation that says whose income it is.
+            if (input.OptionalLong("owner_withdrawal_cents") > 0)
+            {
+                fixture += """
+
+                    INSERT INTO account_contributions (id,shared_account_id,direction,contributor_kind,person_id,source_account_id,amount_cents,date,created_at,updated_at) VALUES
+                      ('owner-withdrawal','shared','out','user',NULL,'personal',@OwnerWithdrawal,'2026-01-06',@Now,@Now);
+                    """;
+            }
+
+            if (input.OptionalLong("person_withdrawal_cents") > 0)
+            {
+                fixture += """
+
+                    INSERT INTO account_contributions (id,shared_account_id,direction,contributor_kind,person_id,source_account_id,amount_cents,date,created_at,updated_at) VALUES
+                      ('person-withdrawal','shared','out','person','person',NULL,@PersonWithdrawal,'2026-01-07',@Now,@Now);
+                    """;
+            }
+
+            if (input.OptionalLong("shared_income_cents") > 0)
+            {
+                fixture += """
+
+                    INSERT INTO movements (id,type,amount_cents,date,account_id,created_at,updated_at) VALUES
+                      ('shared-income','income',@SharedIncome,'2026-01-08','shared',@Now,@Now);
+                    INSERT INTO splits (id,movement_id,entry_method,created_at,updated_at) VALUES
+                      ('income-split','shared-income','exact',@Now,@Now);
+                    INSERT INTO split_lines (id,split_id,participant_kind,person_id,owed_amount_cents,created_at,updated_at) VALUES
+                      ('income-user','income-split','user',NULL,@SharedIncomeOwnerShare,@Now,@Now),
+                      ('income-person','income-split','person','person',@SharedIncome-@SharedIncomeOwnerShare,@Now,@Now);
+                    """;
+            }
+
+            connection.Execute(
+                fixture,
                 new {
                     PersonalStart = input.Long("personal_start_cents"), SharedStart = input.Long("shared_start_cents"),
                     OwnerBps = input.Long("owner_ownership_basis_points"), OwnerContribution = input.Long("owner_contribution_cents"),
                     PersonContribution = input.Long("person_contribution_cents"), SharedExpense = input.Long("shared_expense_cents"),
                     SharedOwnerShare = input.Long("shared_expense_owner_share_cents"), OwnerExpense = input.Long("owner_financed_expense_cents"),
-                    OwnerPersonShare = input.Long("owner_financed_person_share_cents"), Now = now
+                    OwnerPersonShare = input.Long("owner_financed_person_share_cents"),
+                    OwnerWithdrawal = input.OptionalLong("owner_withdrawal_cents") ?? 0,
+                    PersonWithdrawal = input.OptionalLong("person_withdrawal_cents") ?? 0,
+                    SharedIncome = input.OptionalLong("shared_income_cents") ?? 0,
+                    SharedIncomeOwnerShare = input.OptionalLong("shared_income_owner_share_cents") ?? 0,
+                    Now = now
                 },
                 transaction);
             transaction.Commit();
@@ -250,7 +290,8 @@ public sealed class GoldenVectorTests
             Assert.AreEqual(expected.Long("shared_physical_cents"), connection.SingleLong("SELECT current_balance_cents FROM v_account_balance WHERE account_id='shared'"), testCase.Name());
             Assert.AreEqual(expected.Long("shared_owner_value_cents"), connection.SingleLong("SELECT owner_value_cents FROM v_account_value WHERE account_id='shared'"), testCase.Name());
             Assert.AreEqual(expected.Long("net_worth_cents"), connection.SingleLong("SELECT SUM(owner_value_cents) FROM v_account_value"), testCase.Name());
-            Assert.AreEqual(expected.Long("actual_expense_cents"), connection.SingleLong("SELECT SUM(amount_cents) FROM v_actual_expense"), testCase.Name());
+            Assert.AreEqual(expected.Long("actual_expense_cents"), connection.SingleLong("SELECT COALESCE(SUM(amount_cents),0) FROM v_actual_expense"), testCase.Name());
+            Assert.AreEqual(expected.Long("actual_income_cents"), connection.SingleLong("SELECT COALESCE(SUM(amount_cents),0) FROM v_actual_income"), testCase.Name());
             Assert.AreEqual(expected.Long("person_balance_cents"), connection.SingleLong("SELECT balance_cents FROM v_person_balance WHERE person_id='person'"), testCase.Name());
         }
     }

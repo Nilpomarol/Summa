@@ -33,7 +33,7 @@ SELECT
     shared_account_id AS account_id,
     date,
     id AS movement_id,
-    amount_cents AS delta_cents
+    CASE direction WHEN 'in' THEN amount_cents ELSE -amount_cents END AS delta_cents
 FROM account_contributions
 WHERE archived_at IS NULL
 
@@ -43,7 +43,7 @@ SELECT
     source_account_id AS account_id,
     date,
     id AS movement_id,
-    -amount_cents AS delta_cents
+    CASE direction WHEN 'in' THEN -amount_cents ELSE amount_cents END AS delta_cents
 FROM account_contributions
 WHERE source_account_id IS NOT NULL
   AND archived_at IS NULL;

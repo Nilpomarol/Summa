@@ -14,6 +14,7 @@ VIEW_FILES = [
     "v_movement_summary.sql",
     "v_account_flow.sql",
     "v_account_balance.sql",
+    "v_account_value.sql",
     "v_actual_expense.sql",
     "v_actual_income.sql",
     "v_person_balance.sql",
@@ -33,18 +34,6 @@ ANALYSIS_QUERY_FILES = [
     "analysis_income_vs_expense.sql",
     "analysis_period_totals.sql",
 ]
-UPGRADE_MIGRATION_FILES = [
-    "007_simplify_budget_rules.sql",
-    "008_add_budget_inclusion_rules.sql",
-    "009_derive_refund_attribution.sql",
-    "010_remove_auto_categorization.sql",
-    "011_add_recurring_settlements.sql",
-    "012_add_savings_goals.sql",
-    "013_add_identity_colors_to_movement_summary.sql",
-    "014_add_destination_account_color.sql",
-]
-VIEW_NAMES = [path.removesuffix(".sql") for path in VIEW_FILES]
-MIGRATION_VIEW_NAMES = [path.removesuffix(".sql") for path in MIGRATION_VIEW_FILES]
 
 
 def fail(message: str) -> None:
@@ -69,6 +58,20 @@ def check_views(conn: sqlite3.Connection, views: list[str]) -> None:
         conn.execute(f"SELECT * FROM {view} LIMIT 0").fetchall()
 
 
+def integrity_triggers() -> str:
+    """The trigger section of migration 016, which a fresh install applies after schema.sql."""
+    migration = read_sql(ROOT / "shared" / "migrations" / "016_enforce_shared_account_integrity.sql")
+    after_guard = migration.split("DROP TABLE shared_account_integrity_guard;")[-1]
+    return after_guard.split("UPDATE meta SET value = '16' WHERE key = 'schema_version';")[0]
+
+
+def build_fresh_install(conn: sqlite3.Connection) -> None:
+    """The database a fresh install builds, in the order Android and the .NET harness build it."""
+    conn.executescript(read_sql(ROOT / "shared" / "schema" / "schema.sql"))
+    conn.executescript(integrity_triggers())
+    apply_views(conn, VIEW_FILES + MIGRATION_VIEW_FILES)
+
+
 def analysis_query(name: str) -> str:
     return read_sql(ROOT / "shared" / "queries" / name)
 
@@ -77,10 +80,7 @@ def validate_analysis_queries() -> None:
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
     try:
-        conn.executescript(read_sql(ROOT / "shared" / "migrations" / "001_initial.sql"))
-        apply_views(conn)
-        for name in UPGRADE_MIGRATION_FILES:
-            conn.executescript(read_sql(ROOT / "shared" / "migrations" / name))
+        build_fresh_install(conn)
         seed_analysis_fixture(conn)
 
         activity_months = conn.execute(
@@ -258,50 +258,34 @@ def seed_analysis_fixture(conn: sqlite3.Connection) -> None:
     )
 
 
-def validate_entrypoint(
-    label: str,
-    path: Path,
-    expect_seeded_meta: bool,
-    fresh_install: bool,
-) -> None:
+# Upgrades are not replayed here. Today's views over the v6 baseline describe a database no
+# device ever had, and SQLite rejects the next ALTER TABLE for it. Android's MigrationTest checks
+# each migration against the schema version just before it instead.
+def main() -> None:
     conn = sqlite3.connect(":memory:")
     try:
-        conn.executescript(read_sql(path))
-        apply_views(conn, VIEW_FILES + MIGRATION_VIEW_FILES if fresh_install else VIEW_FILES)
+        build_fresh_install(conn)
         meta = dict(conn.execute("SELECT key, value FROM meta").fetchall())
     except sqlite3.Error as exc:
-        fail(f"{label}: {exc}")
+        fail(f"fresh install: {exc}")
     finally:
         conn.close()
+    if meta:
+        fail(f"fresh install: schema.sql should not seed meta, got {meta}")
 
-    if expect_seeded_meta:
-        expected = {"schema_version": "6", "snapshot_version": "0"}
-        if meta != expected:
-            fail(f"{label}: expected meta seed {expected}, got {meta}")
-    elif meta:
-        fail(f"{label}: schema.sql should not seed meta, got {meta}")
-
-
-def main() -> None:
-    validate_entrypoint("schema", ROOT / "shared" / "schema" / "schema.sql", False, True)
-    validate_entrypoint("migration", ROOT / "shared" / "migrations" / "001_initial.sql", True, False)
     conn = sqlite3.connect(":memory:")
     try:
         conn.executescript(read_sql(ROOT / "shared" / "migrations" / "001_initial.sql"))
-        apply_views(conn)
-        for name in UPGRADE_MIGRATION_FILES:
-            conn.executescript(read_sql(ROOT / "shared" / "migrations" / name))
-        check_views(conn, MIGRATION_VIEW_NAMES)
         meta = dict(conn.execute("SELECT key, value FROM meta").fetchall())
-        expected = {"schema_version": "14", "snapshot_version": "0"}
-        if meta != expected:
-            fail(f"upgrade migrations: expected meta {expected}, got {meta}")
     except sqlite3.Error as exc:
-        fail(f"upgrade migrations: {exc}")
+        fail(f"baseline migration: {exc}")
     finally:
         conn.close()
+    if meta != {"schema_version": "6", "snapshot_version": "0"}:
+        fail(f"baseline migration: expected the v6 meta seed, got {meta}")
+
     validate_analysis_queries()
-    print("validated shared SQL schema, migration, views, and analysis queries")
+    print("validated shared SQL fresh install, baseline migration, views, and analysis queries")
 
 
 if __name__ == "__main__":

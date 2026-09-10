@@ -31,10 +31,10 @@ INSERT INTO account_members(
 
 insertContribution:
 INSERT INTO account_contributions(
-    id, shared_account_id, contributor_kind, person_id, source_account_id,
+    id, shared_account_id, direction, contributor_kind, person_id, source_account_id,
     amount_cents, date, name, notes, created_at, updated_at
 ) VALUES (
-    :id, :shared_account_id, :contributor_kind, :person_id, :source_account_id,
+    :id, :shared_account_id, :direction, :contributor_kind, :person_id, :source_account_id,
     :amount_cents, :date, :name, :notes, :created_at, :updated_at
 );
 

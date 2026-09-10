@@ -42,7 +42,7 @@ public sealed class SqliteSmokeTests
 
         var meta = connection.Query<MetaRow>("SELECT key AS Key, value AS Value FROM meta ORDER BY key;").ToList();
         CollectionAssert.AreEqual(
-            new[] { "schema_version=16", "snapshot_version=0" },
+            new[] { "schema_version=17", "snapshot_version=0" },
             meta.Select(row => $"{row.Key}={row.Value}").ToArray());
 
         var budgetColumns = connection.Query<string>("SELECT name FROM pragma_table_info('budgets');").ToArray();
@@ -52,6 +52,9 @@ public sealed class SqliteSmokeTests
 
         var movementColumns = connection.Query<string>("SELECT name FROM pragma_table_info('movements');").ToArray();
         CollectionAssert.IsSubsetOf(new[] { "settlement_scope", "expense_funding" }, movementColumns);
+
+        var contributionColumns = connection.Query<string>("SELECT name FROM pragma_table_info('account_contributions');").ToArray();
+        CollectionAssert.IsSubsetOf(new[] { "direction" }, contributionColumns);
 
         // The v11 rebuild must leave templates able to schedule settlements, with no scratch table.
         var templateColumns = connection.Query<string>("SELECT name FROM pragma_table_info('templates');").ToArray();

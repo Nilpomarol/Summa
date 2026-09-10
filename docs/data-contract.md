@@ -48,7 +48,7 @@ Application validation should mirror important database constraints to provide u
 | `v_account_balance` | Opening balance plus derived active flow |
 | `v_account_value` | Physical balance, owner ownership percentage, and owner patrimonial value |
 | `v_actual_expense` | User-owned expense net of shared portions and refunds |
-| `v_actual_income` | User-owned income |
+| `v_actual_income` | User-owned income net of any allocation to other members |
 | `v_person_balance` | Derived debt direction and amount per person |
 | `v_movement_shared` | Shared-movement helper data |
 | `v_movement_summary` | Unified movement/external-split list and detail projection. Carries the account's, the destination account's and the trip's own colour alongside their names; the external-split branch has no accounts, so both account colours are `NULL` there |
@@ -75,9 +75,10 @@ Balances, debt, actual values, and flow must come from these views or shared que
 - A personal account is wholly owner-controlled. A shared account has one app-owner member and one or more active existing people, with ownership and default expense percentages stored as integer basis points. Each percentage set totals 10,000. SQLite validates the complete set when an account becomes shared; member changes are staged while it is personal and then validated atomically.
 - `v_account_balance` remains the physical balance. `v_account_value` rounds the owner percentage of that balance to the nearest cent, symmetrically for negative values; net worth and dedicated-goal value consume this patrimonial amount.
 - Split lines describe economic consumption. `movements.expense_funding` independently records whether the app owner or the shared account financed an expense. A shared-account-financed expense changes the full physical balance and the user's split changes actual expense, but it creates no person-to-owner debt. Such an expense names the split it is consumed through in `movements.shared_split_id`, written before the split itself inside the same transaction on a deferred foreign key, and it keeps that identifier for life.
-- `account_contributions` records an active member placing money in an active shared account. An optional active personal source account creates paired negative/positive physical flow; an outside contribution creates only the shared-account inflow. Contributions are excluded from actual income, actual expense, settlements, and debt.
-- Ordinary transfers remain between owner-controlled personal accounts. Crossing into shared ownership uses a contribution; the contract does not infer member capital balances or historical ownership from these flows.
-- Ownership is one-way once used: an account that financed a shared expense or received a contribution stays shared, archived rows included, because both keep naming a shared account and can be restored. Membership staging makes every account update pass transiently through `personal`, so this rule is enforced by the writing repository against the caller’s intended ownership rather than by a trigger on the transition.
+- `account_contributions` records an active member moving money into or out of an active shared account; `direction` says which way. `source_account_id` names the app owner's own account on the other side, the source of an inward row and the destination of an outward one, and creates the paired opposite flow; a person's row names no account in either direction, because the contract does not track their accounts. Neither direction is actual income, actual expense, a settlement, or debt, and neither changes ownership percentages: ownership stays a stated proportion rather than a per-member capital account, so a member taking out more than their share moves every member's value proportionally until the percentages are edited.
+- An income into a shared account may carry an allocation split of the same shape as an expense split. `v_actual_income` counts the app owner's line alone; an income without a split is wholly the app owner's. The money sits in the pot and the ownership percentage governs it, so a shared-account income creates no debt in either direction. Debt therefore reads split lines from expense movements only.
+- Ordinary transfers remain between accounts of the same ownership: personal to personal, or shared to shared, where each account's owner value follows its own percentage. Crossing between personal and shared ownership uses a contribution or a withdrawal, so the ownership meaning stays explicit; the contract does not infer member capital balances or historical ownership from these flows.
+- Ownership is one-way once used: an account that financed a shared expense or carries member money in or out stays shared, archived rows included, because both keep naming a shared account and can be restored. Membership staging makes every account update pass transiently through `personal`, so this rule is enforced by the writing repository against the caller’s intended ownership rather than by a trigger on the transition.
 
 ## Golden procedural rules
 
@@ -128,7 +129,7 @@ Any red golden test blocks delivery of a money-rule or shared-contract change.
 
 ## Approved pre-Windows contract changes
 
-Schema version `16` is the implemented authority. Savings goals and shared accounts have shipped and are described above with the rest of the contract. The remaining change is an approved target whose meanings and invariants are fixed by [pre-windows-plan.md](pre-windows-plan.md).
+Schema version `17` is the implemented authority. Savings goals and shared accounts have shipped and are described above with the rest of the contract. The remaining change is an approved target whose meanings and invariants are fixed by [pre-windows-plan.md](pre-windows-plan.md).
 
 ### Investment valuations
 

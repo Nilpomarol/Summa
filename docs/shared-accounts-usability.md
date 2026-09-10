@@ -101,10 +101,46 @@ Use **Ingrés** when the money is economically new income.
 - Detail pages always label total amount, personal amount, funding source, allocation, and debt effect when applicable.
 - Contributions and withdrawals show contributor or recipient plus source and destination.
 
+## Decided semantics
+
+Step 1 of the implementation order. These meanings are fixed; the contract work in step 2 implements them. Every rule below keeps physical balance, owner patrimonial value, economic allocation, and interpersonal debt separate.
+
+### Money out of a shared account
+
+A withdrawal is the exact mirror of a contribution: an active member takes money out of an active shared account.
+
+- It is not income, not expense, and not a settlement. It creates no debt and does not change ownership percentages.
+- The shared account loses the full amount. When the app owner withdraws, an active personal destination account may be named and receives the paired positive flow; an unnamed destination is money leaving to the outside.
+- A person member withdraws to the outside only, because the app does not track that person's accounts. This mirrors the existing rule that a person's contribution cannot name a source account.
+- The owner's value follows the reduced balance through the unchanged ownership percentage.
+
+Known ceiling: ownership is a stated proportion, not a per-member capital account. A member who takes out more than their share reduces every member's value proportionally, and the correction is an explicit ownership-percentage edit. Per-member capital accounts stay out of Gate 3.
+
+Data implication: `account_contributions` gains a direction so one table holds member money in and out; `v_account_flow` reverses both signs for an outward row, and the source-account rules become source-or-destination rules. The table keeps its name to avoid a rename across both platforms, and the contract describes it as member money entering and leaving a shared account.
+
+### Movement between accounts
+
+- Personal to shared and shared to personal remain a contribution or a withdrawal. The ownership meaning stays explicit rather than hidden inside a transfer.
+- Shared to shared is an ordinary transfer: both physical balances change, nothing becomes income, expense, or debt, and each account's owner value follows its own ownership percentage.
+- Transfers stay uncategorized and unsplit.
+
+No schema change: only the Android rule that blocks any transfer touching a shared account narrows to the personal-versus-shared crossing.
+
+### Income ownership
+
+Deposit location never decides economic ownership.
+
+- An income into a shared account may carry an allocation split with the same shape as an expense split. The app owner's line is actual income; the rest is not.
+- An income without a split stays wholly the app owner's income, which keeps every existing income correct.
+- Shared-account income creates no debt in either direction. The money sits in the pot and the ownership percentage governs it, exactly as for a shared-account-financed expense.
+- Income into a personal account stays wholly the app owner's. Allocating it would mean holding another person's money, which is a debt question and is deferred out of Gate 3.
+
+Contract implications: `v_actual_income` takes the app owner's split line when the income carries a split and the full amount otherwise; `v_person_balance` restricts its split-line term to expense movements so an income allocation can never become debt. No new column: the split reaches the movement through `movement_id`, and a lost split degrades to the safe default of wholly-owner income.
+
 ## Implementation order
 
-1. Decide and document the finance semantics for withdrawals, shared-to-shared movements, and income ownership.
-2. Extend the shared contract, migrations, canonical queries, golden vectors, and both platform test harnesses where those semantics require new data.
+1. Decide and document the finance semantics for withdrawals, shared-to-shared movements, and income ownership. Done, in [Decided semantics](#decided-semantics).
+2. Extend the shared contract for those semantics. Done at schema 17: `account_contributions.direction`, the matching `v_account_flow` signs, `v_actual_income` reading the app owner's split line, `v_person_balance` restricted to expense movements, migration 017, golden cases for a withdrawal and an allocated income, Android bindings, and both harnesses.
 3. Correct the Android expense form and account-context movement presentation.
 4. Implement contribution presentation, editing/correction, and dismissal protection.
 5. Build the shared-account detail overview and contextual actions.
