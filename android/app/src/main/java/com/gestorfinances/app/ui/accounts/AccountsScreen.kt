@@ -1218,10 +1218,11 @@ private fun AccountFlowScreen(
                         .fillMaxWidth(),
                     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
                 ) {
-                    itemsIndexed(detail.entries) { index, movement ->
+                    itemsIndexed(detail.entries) { index, entry ->
                         MovementListItem(
-                            movement = movement,
-                            onClick = { onMovementDetail(movement) },
+                            movement = entry.movement,
+                            onClick = { onMovementDetail(entry.movement) },
+                            accountDeltaCents = entry.deltaCents,
                             position = movementRowPosition(index, detail.entries.size),
                         )
                     }

@@ -8,6 +8,7 @@ import com.gestorfinances.app.data.repository.AccountAllocation
 import com.gestorfinances.app.data.repository.GoalRepository
 import com.gestorfinances.app.domain.rules.GoalFundingMode
 import com.gestorfinances.app.data.repository.AccountDraft
+import com.gestorfinances.app.data.repository.AccountLedgerEntry
 import com.gestorfinances.app.data.repository.AccountRepository
 import com.gestorfinances.app.data.repository.AccountSummary
 import com.gestorfinances.app.data.repository.AccountType
@@ -510,7 +511,7 @@ private data class AccountDeleteOperation(
 
 data class AccountFlowDetailState(
     val account: AccountSummary,
-    val entries: List<MovementSummary> = emptyList(),
+    val entries: List<AccountLedgerEntry> = emptyList(),
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
 )

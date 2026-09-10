@@ -93,6 +93,61 @@ class SharedAccountRepositoryTest {
         assertEquals(0, people.getActive("person")!!.balanceCents)
     }
 
+    @Test
+    fun `an account ledger reconciles to its balance through each movement's own delta`() {
+        val database = RepositoryTestSupport.newDatabase()
+        val accounts = AccountRepository(database.accountsQueries, database.sharedAccountsQueries)
+        val people = PersonRepository(database.peopleQueries)
+        val movements = MovementRepository(database.movementsQueries, database.splitsQueries)
+        val now = "2026-09-06T10:00:00Z"
+        people.create(PersonDraft("person", "Alba", null, null, null), now)
+        accounts.create(account("personal", AccountOwnershipKind.PERSONAL, 10_000), now)
+        accounts.create(sharedAccount(), now)
+        accounts.createContribution(
+            ContributionDraft("contribution", "shared", ContributionDirection.IN, SplitParticipantKind.USER, null, "personal", 2_000, "2026-09-06", null, null),
+            now,
+        )
+        movements.create(
+            MovementDraft(
+                id = "expense",
+                type = MovementType.EXPENSE,
+                amountCents = 5_000,
+                date = "2026-09-06",
+                accountId = "shared",
+                destinationAccountId = null,
+                categoryId = null,
+                name = "Compra",
+                payee = null,
+                notes = null,
+                isOneTime = false,
+                expenseFunding = ExpenseFunding.SHARED_ACCOUNT,
+                splitWrite = MovementSplitWrite.Replace(
+                    MovementSplitDraft(
+                        SplitEntryMethod.EXACT,
+                        listOf(
+                            SplitLineDraft(SplitParticipantKind.USER, null, 2_000),
+                            SplitLineDraft(SplitParticipantKind.PERSON, "person", 3_000),
+                        ),
+                    ),
+                ),
+            ),
+            now,
+        )
+
+        val shared = movements.listActiveForAccount("shared")
+        // The whole expense left the shared account, whatever the user's own share of it was, and
+        // the contribution reads as money in on one side and money out on the other.
+        assertEquals(
+            mapOf("contribution" to 2_000L, "expense" to -5_000L),
+            shared.associate { it.movement.id to it.deltaCents },
+        )
+        assertEquals(
+            mapOf("contribution" to -2_000L),
+            movements.listActiveForAccount("personal").associate { it.movement.id to it.deltaCents },
+        )
+        assertEquals(accounts.getActive("shared")!!.currentBalanceCents, 10_000 + shared.sumOf { it.deltaCents })
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun `shared percentages must reconcile`() {
         val database = RepositoryTestSupport.newDatabase()

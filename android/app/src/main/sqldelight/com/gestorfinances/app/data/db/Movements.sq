@@ -2,10 +2,15 @@ activeMovementSummaries:
 SELECT * FROM v_movement_summary
 ORDER BY date DESC, created_at DESC;
 
+-- An account's own ledger: exactly the movements that changed its balance, each with what it did
+-- to that balance, so the list reconciles to the balance instead of recomputing it.
 activeMovementSummariesForAccount:
-SELECT * FROM v_movement_summary
-WHERE account_id = :account_id OR dest_account_id = :account_id
-ORDER BY date DESC, created_at DESC;
+SELECT v_movement_summary.*, v_account_flow.delta_cents AS account_delta_cents
+FROM v_movement_summary
+JOIN v_account_flow
+    ON v_account_flow.movement_id = v_movement_summary.id
+   AND v_account_flow.account_id = :account_id
+ORDER BY v_movement_summary.date DESC, v_movement_summary.created_at DESC;
 
 movementById:
 SELECT * FROM v_movement_summary

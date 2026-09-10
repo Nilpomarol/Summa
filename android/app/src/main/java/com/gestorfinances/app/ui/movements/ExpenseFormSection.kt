@@ -37,6 +37,7 @@ import com.gestorfinances.app.ui.theme.FinanceTheme
 /**
  * The compact EXPENSE body. Payer and account/person share one row; sharing and claims are
  * disclosed from the common optional area so all three movement types have the same base body.
+ * On a shared account the account pays, so that row holds only the account it is paid from.
  *
  * The four [ExpenseKind]s map 1:1 to the user's mental model:
  * - [ExpenseKind.PERSONAL] — user paid, for self.
@@ -49,6 +50,7 @@ internal fun ExpenseFormSection(
     form: MovementFormState,
     accounts: List<AccountSummary>,
     people: List<PersonSummary>,
+    fundedBySharedAccount: Boolean,
     onFormChange: (MovementFormState) -> Unit,
     onSharedToggled: (Boolean) -> Unit,
     onSplitEditorChange: (SplitEditorState) -> Unit,
@@ -79,7 +81,9 @@ internal fun ExpenseFormSection(
             )
         } else {
             AccountSelect(
-                label = stringResource(R.string.movement_field_account),
+                label = stringResource(
+                    if (fundedBySharedAccount) R.string.movement_field_paid_from else R.string.movement_field_account,
+                ),
                 selectedId = form.accountId,
                 accounts = accounts,
                 onSelect = { onFormChange(form.copy(accountId = it)) },
@@ -88,59 +92,63 @@ internal fun ExpenseFormSection(
                 supportingText = accountErrorText,
             )
         }
-        val paidByMe = form.expenseKind != ExpenseKind.DEBT
-        val payerControlShape = MaterialTheme.shapes.small
-        Surface(
-            modifier = Modifier
-                .wrapContentWidth()
-                .heightIn(min = 44.dp)
-                .clip(payerControlShape)
-                .toggleable(
-                    value = paidByMe,
-                    role = Role.Checkbox,
-                    onValueChange = { isMe ->
-                        onFormChange(
-                            if (isMe) form.copy(expenseKind = ExpenseKind.PERSONAL, forOtherPersonId = null)
-                            else form.copy(expenseKind = ExpenseKind.DEBT),
-                        )
-                    },
-                )
-                .padding(horizontal = 2.dp),
-            shape = payerControlShape,
-            color = if (paidByMe) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
-            contentColor = if (paidByMe) MaterialTheme.colorScheme.onPrimaryContainer else FinanceTheme.colors.mutedText,
-            border = BorderStroke(
-                1.dp,
-                if (paidByMe) MaterialTheme.colorScheme.primary.copy(alpha = 0.45f) else FinanceTheme.colors.cardBorder,
-            ),
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
+        // A shared account pays its own expenses: who paid is not a question there, and switching
+        // the payer would only reset the split that says who consumed it.
+        if (!fundedBySharedAccount) {
+            val paidByMe = form.expenseKind != ExpenseKind.DEBT
+            val payerControlShape = MaterialTheme.shapes.small
+            Surface(
+                modifier = Modifier
+                    .wrapContentWidth()
+                    .heightIn(min = 44.dp)
+                    .clip(payerControlShape)
+                    .toggleable(
+                        value = paidByMe,
+                        role = Role.Checkbox,
+                        onValueChange = { isMe ->
+                            onFormChange(
+                                if (isMe) form.copy(expenseKind = ExpenseKind.PERSONAL, forOtherPersonId = null)
+                                else form.copy(expenseKind = ExpenseKind.DEBT),
+                            )
+                        },
+                    )
+                    .padding(horizontal = 2.dp),
+                shape = payerControlShape,
+                color = if (paidByMe) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                contentColor = if (paidByMe) MaterialTheme.colorScheme.onPrimaryContainer else FinanceTheme.colors.mutedText,
+                border = BorderStroke(
+                    1.dp,
+                    if (paidByMe) MaterialTheme.colorScheme.primary.copy(alpha = 0.45f) else FinanceTheme.colors.cardBorder,
+                ),
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(18.dp)
-                        .background(
-                            if (paidByMe) MaterialTheme.colorScheme.primary else FinanceTheme.colors.cardBorder,
-                            CircleShape,
-                        ),
-                    contentAlignment = Alignment.Center,
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    if (paidByMe) {
-                        Icon(
-                            imageVector = Icons.Outlined.Done,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(12.dp),
-                        )
+                    Box(
+                        modifier = Modifier
+                            .size(18.dp)
+                            .background(
+                                if (paidByMe) MaterialTheme.colorScheme.primary else FinanceTheme.colors.cardBorder,
+                                CircleShape,
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (paidByMe) {
+                            Icon(
+                                imageVector = Icons.Outlined.Done,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(12.dp),
+                            )
+                        }
                     }
+                    Text(
+                        text = stringResource(R.string.movement_whopaid_me_compact),
+                        style = MaterialTheme.typography.labelLarge,
+                    )
                 }
-                Text(
-                    text = stringResource(R.string.movement_whopaid_me_compact),
-                    style = MaterialTheme.typography.labelLarge,
-                )
             }
         }
     }
@@ -222,6 +230,7 @@ internal fun ExpenseDetailsSection(
                     splitEditor = form.splitEditor,
                     people = people,
                     amountInput = form.amount,
+                    fundedByAccount = fundedBySharedAccount,
                     onChange = onSplitEditorChange,
                     onCreatePerson = onCreatePersonInSplit,
                     modifier = Modifier.scrollToWhen(splitError),
