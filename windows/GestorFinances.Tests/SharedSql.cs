@@ -38,20 +38,6 @@ internal static class SharedSql
         "analysis_period_totals.sql"
     ];
 
-    private static readonly string[] UpgradeMigrationFiles =
-    [
-        "007_simplify_budget_rules.sql",
-        "008_add_budget_inclusion_rules.sql",
-        "009_derive_refund_attribution.sql",
-        "010_remove_auto_categorization.sql",
-        "011_add_recurring_settlements.sql",
-        "012_add_savings_goals.sql",
-        "013_add_identity_colors_to_movement_summary.sql",
-        "014_add_destination_account_color.sql",
-        "015_add_shared_accounts.sql",
-        "016_enforce_shared_account_integrity.sql"
-    ];
-
     public static string RepositoryRoot { get; } = FindRepositoryRoot();
 
     public static IReadOnlyList<string> AnalysisFiles => AnalysisQueryFiles;
@@ -62,7 +48,7 @@ internal static class SharedSql
     public static void ApplyBaseline(SqliteConnection connection)
     {
         connection.Execute(ReadSharedFile("schema", "schema.sql"));
-        connection.Execute("INSERT INTO meta(key,value) VALUES ('schema_version','16'),('snapshot_version','0');");
+        connection.Execute("INSERT INTO meta(key,value) VALUES ('schema_version','17'),('snapshot_version','0');");
         connection.Execute(SharedAccountIntegrityTriggers());
 
         foreach (var viewFile in ViewFiles)

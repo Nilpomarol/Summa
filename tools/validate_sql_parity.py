@@ -14,6 +14,7 @@ VIEW_FILES = [
     "v_movement_summary.sql",
     "v_account_flow.sql",
     "v_account_balance.sql",
+    "v_account_value.sql",
     "v_actual_expense.sql",
     "v_actual_income.sql",
     "v_person_balance.sql",
@@ -33,16 +34,6 @@ ANALYSIS_QUERY_FILES = [
     "analysis_income_vs_expense.sql",
     "analysis_period_totals.sql",
 ]
-UPGRADE_MIGRATION_FILES = [
-    "007_simplify_budget_rules.sql",
-    "008_add_budget_inclusion_rules.sql",
-    "009_derive_refund_attribution.sql",
-    "010_remove_auto_categorization.sql",
-    "011_add_recurring_settlements.sql",
-    "012_add_savings_goals.sql",
-    "013_add_identity_colors_to_movement_summary.sql",
-    "014_add_destination_account_color.sql",
-]
 
 
 def fail(message: str) -> None:
@@ -54,6 +45,22 @@ def read(path: Path) -> str:
     if not path.exists():
         fail(f"missing file: {path}")
     return path.read_text(encoding="utf-8")
+
+
+def migration_files() -> list[str]:
+    return sorted(path.name for path in (ROOT / "shared" / "migrations").glob("*.sql"))
+
+
+def latest_schema_version() -> str:
+    """The version the highest-numbered migration upgrades to, which a fresh install must seed."""
+    latest = migration_files()[-1]
+    match = re.search(
+        r"UPDATE meta SET value = '(\d+)' WHERE key = 'schema_version';",
+        read(ROOT / "shared" / "migrations" / latest),
+    )
+    if not match or int(latest[:3]) != int(match.group(1)):
+        fail(f"{latest}: must end by setting schema_version to its own number")
+    return match.group(1)
 
 
 def extract_strings(label: str, text: str, pattern: str) -> list[str]:
@@ -75,9 +82,6 @@ def validate_shared_inventory() -> None:
         fail(f"missing shared schema: {schema}")
     if not migration.exists():
         fail(f"missing shared migration: {migration}")
-    for file_name in UPGRADE_MIGRATION_FILES:
-        if not (ROOT / "shared" / "migrations" / file_name).exists():
-            fail(f"missing shared migration: {file_name}")
 
     actual_queries = sorted(path.name for path in (ROOT / "shared" / "queries").glob("*.sql"))
     expected_queries = sorted(VIEW_FILES + MIGRATION_VIEW_FILES + ANALYSIS_QUERY_FILES)
@@ -107,11 +111,11 @@ def validate_android_wiring() -> None:
             "Android sharedAnalysisQueryFiles mismatch: "
             f"expected {ANALYSIS_QUERY_FILES}, got {android_analysis_queries}"
         )
-    if 'sharedRoot.file("migrations/001_initial.sql")' not in build_gradle:
-        fail("Android SQLDelight wiring must read shared/migrations/001_initial.sql")
-    for file_name in UPGRADE_MIGRATION_FILES:
+    for file_name in migration_files():
         if f'sharedRoot.file("migrations/{file_name}")' not in build_gradle:
             fail(f"Android SQLDelight wiring must read shared/migrations/{file_name}")
+    if f"('schema_version', '{latest_schema_version()}')" not in build_gradle:
+        fail(f"Android fresh install must seed schema_version {latest_schema_version()}")
     if 'sharedRoot.file("queries/$it")' not in build_gradle:
         fail("Android SQLDelight wiring must read shared/queries entries")
     if 'sharedRoot.file("queries/${it.first}")' not in build_gradle:
@@ -147,20 +151,10 @@ def validate_windows_wiring() -> None:
             "Windows AnalysisQueryFiles mismatch: "
             f"expected {ANALYSIS_QUERY_FILES}, got {windows_analysis_queries}"
         )
-    if 'ReadSharedFile("migrations", "001_initial.sql")' not in shared_sql:
-        fail("Windows SQL loader must read shared/migrations/001_initial.sql")
-    windows_migrations = extract_strings(
-        "windows/GestorFinances.Tests/SharedSql.cs",
-        shared_sql,
-        r"UpgradeMigrationFiles\s*=\s*\[(.*?)\]",
-    )
-    if windows_migrations != UPGRADE_MIGRATION_FILES:
-        fail(
-            "Windows UpgradeMigrationFiles mismatch: "
-            f"expected {UPGRADE_MIGRATION_FILES}, got {windows_migrations}"
-        )
-    if 'ReadSharedFile("migrations", migrationFile)' not in shared_sql:
-        fail("Windows SQL loader must apply upgrade migrations")
+    if 'ReadSharedFile("schema", "schema.sql")' not in shared_sql:
+        fail("Windows SQL loader must build from shared/schema/schema.sql")
+    if f"('schema_version','{latest_schema_version()}')" not in shared_sql:
+        fail(f"Windows baseline must seed schema_version {latest_schema_version()}")
     if 'ReadSharedFile("queries", viewFile)' not in shared_sql:
         fail("Windows SQL loader must read shared/queries entries")
 

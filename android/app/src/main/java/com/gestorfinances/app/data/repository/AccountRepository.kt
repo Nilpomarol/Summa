@@ -77,9 +77,20 @@ data class AccountMemberDraft(
     val defaultExpenseBasisPoints: Long,
 )
 
+/** Which way member money moves between a shared account and the member's own pocket. */
+enum class ContributionDirection(val dbValue: String) {
+    IN("in"),
+    OUT("out");
+
+    companion object {
+        fun fromDb(value: String) = entries.first { it.dbValue == value }
+    }
+}
+
 data class ContributionDraft(
     val id: String,
     val sharedAccountId: String,
+    val direction: ContributionDirection,
     val contributorKind: SplitParticipantKind,
     val personId: String?,
     val sourceAccountId: String?,
@@ -183,18 +194,22 @@ class AccountRepository(
         require(account.members.any { it.participantKind == draft.contributorKind && it.personId == draft.personId }) {
             "The contributor must be an active account member."
         }
+        // The other side is only ever the app owner's own account: the source of money coming in,
+        // the destination of money going out. A person's own accounts are not tracked, so their
+        // rows name no account in either direction.
         require(draft.sourceAccountId == null || draft.contributorKind == SplitParticipantKind.USER) {
-            "Only the app owner can contribute from an owned account."
+            "Only the app owner's own account can be the other side."
         }
         require(draft.sourceAccountId == null || draft.sourceAccountId != draft.sharedAccountId) {
-            "Contribution source and destination must differ."
+            "The two sides of the movement must differ."
         }
         require(draft.sourceAccountId == null || getActive(draft.sourceAccountId)?.ownershipKind == AccountOwnershipKind.PERSONAL) {
-            "Contribution source must be an owner-controlled account."
+            "The owner's side must be an owner-controlled account."
         }
         requireNotNull(sharedQueries) { "Shared-account queries are unavailable." }.insertContribution(
             id = draft.id,
             shared_account_id = draft.sharedAccountId,
+            direction = draft.direction.dbValue,
             contributor_kind = draft.contributorKind.dbValue,
             person_id = draft.personId,
             source_account_id = draft.sourceAccountId,

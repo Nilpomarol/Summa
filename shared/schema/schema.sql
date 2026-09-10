@@ -257,9 +257,14 @@ CREATE INDEX idx_movements_import_batch
     ON movements(import_batch_id)
     WHERE import_batch_id IS NOT NULL;
 
+-- Member money entering and leaving a shared account. `direction` says which way it moves, and
+-- `source_account_id` names the app owner's personal account on the other side: the source of an
+-- inward row, the destination of an outward one. Neither direction is income, expense, settlement
+-- or debt, and neither changes ownership percentages.
 CREATE TABLE account_contributions (
     id                 TEXT    PRIMARY KEY,
     shared_account_id  TEXT    NOT NULL REFERENCES accounts(id),
+    direction          TEXT    NOT NULL DEFAULT 'in' CHECK (direction IN ('in','out')),
     contributor_kind   TEXT    NOT NULL CHECK (contributor_kind IN ('user','person')),
     person_id          TEXT    REFERENCES people(id),
     source_account_id  TEXT    REFERENCES accounts(id),

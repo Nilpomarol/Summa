@@ -13,6 +13,7 @@ import com.gestorfinances.app.data.repository.AccountSummary
 import com.gestorfinances.app.data.repository.AccountType
 import com.gestorfinances.app.data.repository.AccountOwnershipKind
 import com.gestorfinances.app.data.repository.AccountMemberDraft
+import com.gestorfinances.app.data.repository.ContributionDirection
 import com.gestorfinances.app.data.repository.ContributionDraft
 import com.gestorfinances.app.data.repository.MovementRepository
 import com.gestorfinances.app.data.repository.MovementSummary
@@ -123,6 +124,7 @@ class AccountsViewModel(
                         ContributionDraft(
                             id = UUID.randomUUID().toString(),
                             sharedAccountId = form.sharedAccountId,
+                            direction = ContributionDirection.IN,
                             contributorKind = if (form.personId == null) SplitParticipantKind.USER else SplitParticipantKind.PERSON,
                             personId = form.personId,
                             sourceAccountId = form.sourceAccountId.takeIf { form.personId == null },

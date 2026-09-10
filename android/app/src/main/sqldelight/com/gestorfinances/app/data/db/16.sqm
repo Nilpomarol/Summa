@@ -1,0 +1,139 @@
+-- Generated from ../../shared/migrations/017_add_shared_account_money_out.sql.
+-- Do not edit directly; edit the shared SQL file instead.
+
+-- Summa v16 -> v17 migration.
+-- Money leaves a shared account the same way it enters, and income stops being wholly the app
+-- owner's just because it landed in a shared account.
+
+-- Member money now moves both ways. Existing rows are contributions, so they default to 'in'.
+ALTER TABLE account_contributions
+    ADD COLUMN direction TEXT NOT NULL DEFAULT 'in'
+    CHECK (direction IN ('in','out'));
+
+DROP VIEW IF EXISTS v_account_flow;
+CREATE VIEW v_account_flow AS
+SELECT
+    account_id,
+    date,
+    id AS movement_id,
+    CASE type
+        WHEN 'income' THEN amount_cents
+        WHEN 'refund' THEN amount_cents
+        WHEN 'expense' THEN -amount_cents
+        WHEN 'transfer' THEN -amount_cents
+        WHEN 'settlement' THEN CASE settlement_direction
+            WHEN 'person_to_user' THEN amount_cents
+            WHEN 'user_to_person' THEN -amount_cents
+        END
+    END AS delta_cents
+FROM movements
+WHERE archived_at IS NULL
+
+UNION ALL
+
+SELECT
+    dest_account_id AS account_id,
+    date,
+    id AS movement_id,
+    amount_cents AS delta_cents
+FROM movements
+WHERE type = 'transfer'
+  AND archived_at IS NULL
+
+UNION ALL
+
+SELECT
+    shared_account_id AS account_id,
+    date,
+    id AS movement_id,
+    CASE direction WHEN 'in' THEN amount_cents ELSE -amount_cents END AS delta_cents
+FROM account_contributions
+WHERE archived_at IS NULL
+
+UNION ALL
+
+SELECT
+    source_account_id AS account_id,
+    date,
+    id AS movement_id,
+    CASE direction WHEN 'in' THEN -amount_cents ELSE amount_cents END AS delta_cents
+FROM account_contributions
+WHERE source_account_id IS NOT NULL
+  AND archived_at IS NULL;
+
+DROP VIEW IF EXISTS v_actual_income;
+-- An income allocated across the members of a shared account counts only the app owner's line.
+-- An income without a split is wholly the app owner's, which is every income by default.
+CREATE VIEW v_actual_income AS
+SELECT
+    m.id AS source_id,
+    m.date,
+    m.category_id,
+    m.trip_id,
+    CASE
+        WHEN s.id IS NULL THEN m.amount_cents
+        ELSE COALESCE((
+            SELECT sl.owed_amount_cents
+            FROM split_lines sl
+            WHERE sl.split_id = s.id
+              AND sl.participant_kind = 'user'
+              AND sl.archived_at IS NULL
+        ), 0)
+    END AS amount_cents
+FROM movements m
+LEFT JOIN splits s
+    ON s.movement_id = m.id
+   AND s.archived_at IS NULL
+WHERE m.type = 'income'
+  AND m.archived_at IS NULL;
+
+-- An income allocation is a split like any other, so debt has to name the movement type it means.
+DROP VIEW IF EXISTS v_person_balance;
+CREATE VIEW v_person_balance AS
+SELECT
+    p.id AS person_id,
+    COALESCE((
+        SELECT SUM(sl.owed_amount_cents)
+        FROM split_lines sl
+        JOIN splits s
+            ON s.id = sl.split_id
+        JOIN movements m
+            ON m.id = s.movement_id
+        WHERE sl.person_id = p.id
+          AND sl.participant_kind = 'person'
+          AND s.payer_person_id IS NULL
+          AND m.type = 'expense'
+          AND COALESCE(m.expense_funding, 'owner') = 'owner'
+          AND m.archived_at IS NULL
+          AND s.archived_at IS NULL
+          AND sl.archived_at IS NULL
+    ), 0)
+    - COALESCE((
+        SELECT SUM(sl.owed_amount_cents)
+        FROM split_lines sl
+        JOIN splits s
+            ON s.id = sl.split_id
+        WHERE s.payer_person_id = p.id
+          AND sl.participant_kind = 'user'
+          AND s.archived_at IS NULL
+          AND sl.archived_at IS NULL
+    ), 0)
+    - COALESCE((
+        SELECT SUM(m.amount_cents)
+        FROM movements m
+        WHERE m.type = 'settlement'
+          AND m.person_id = p.id
+          AND m.settlement_direction = 'person_to_user'
+          AND m.archived_at IS NULL
+    ), 0)
+    + COALESCE((
+        SELECT SUM(m.amount_cents)
+        FROM movements m
+        WHERE m.type = 'settlement'
+          AND m.person_id = p.id
+          AND m.settlement_direction = 'user_to_person'
+          AND m.archived_at IS NULL
+    ), 0) AS balance_cents
+FROM people p;
+
+UPDATE meta SET value = '17' WHERE key = 'schema_version';

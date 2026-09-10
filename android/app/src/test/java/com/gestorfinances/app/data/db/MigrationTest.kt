@@ -12,6 +12,83 @@ import org.junit.Test
 class MigrationTest {
 
     @Test
+    fun `v16 to v17 migration lets money leave a shared account and stops income allocations becoming debt`() {
+        val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+        driver.execute(null, "PRAGMA foreign_keys = ON", 0)
+        GestorDatabase.Schema.create(driver)
+        // v16 views: contributions only ever entered, income was whole, and debt read split lines
+        // from any movement. v_account_flow is recreated under its own name, so its dependents
+        // stay valid when the column it would otherwise name is dropped.
+        driver.execute(null, "DROP VIEW v_account_flow", 0)
+        driver.execute(null, """
+            CREATE VIEW v_account_flow AS
+            SELECT account_id,date,id AS movement_id,
+              CASE type WHEN 'income' THEN amount_cents WHEN 'refund' THEN amount_cents
+                WHEN 'expense' THEN -amount_cents WHEN 'transfer' THEN -amount_cents
+                WHEN 'settlement' THEN CASE settlement_direction WHEN 'person_to_user' THEN amount_cents ELSE -amount_cents END END AS delta_cents
+            FROM movements WHERE archived_at IS NULL
+            UNION ALL SELECT dest_account_id,date,id,amount_cents FROM movements WHERE type='transfer' AND archived_at IS NULL
+            UNION ALL SELECT shared_account_id,date,id,amount_cents FROM account_contributions WHERE archived_at IS NULL
+            UNION ALL SELECT source_account_id,date,id,-amount_cents FROM account_contributions WHERE source_account_id IS NOT NULL AND archived_at IS NULL
+        """.trimIndent(), 0)
+        driver.execute(null, "DROP VIEW v_actual_income", 0)
+        driver.execute(null, """
+            CREATE VIEW v_actual_income AS
+            SELECT id AS source_id, date, category_id, trip_id, amount_cents
+            FROM movements WHERE type = 'income' AND archived_at IS NULL
+        """.trimIndent(), 0)
+        driver.execute(null, "DROP VIEW v_person_balance", 0)
+        driver.execute(null, """
+            CREATE VIEW v_person_balance AS
+            SELECT p.id AS person_id,
+              COALESCE((SELECT SUM(sl.owed_amount_cents) FROM split_lines sl
+                JOIN splits s ON s.id = sl.split_id JOIN movements m ON m.id = s.movement_id
+                WHERE sl.person_id = p.id AND sl.participant_kind = 'person' AND s.payer_person_id IS NULL
+                  AND COALESCE(m.expense_funding, 'owner') = 'owner'
+                  AND m.archived_at IS NULL AND s.archived_at IS NULL AND sl.archived_at IS NULL), 0)
+              - COALESCE((SELECT SUM(sl.owed_amount_cents) FROM split_lines sl JOIN splits s ON s.id = sl.split_id
+                WHERE s.payer_person_id = p.id AND sl.participant_kind = 'user'
+                  AND s.archived_at IS NULL AND sl.archived_at IS NULL), 0)
+              - COALESCE((SELECT SUM(amount_cents) FROM movements WHERE type = 'settlement' AND person_id = p.id
+                AND settlement_direction = 'person_to_user' AND archived_at IS NULL), 0)
+              + COALESCE((SELECT SUM(amount_cents) FROM movements WHERE type = 'settlement' AND person_id = p.id
+                AND settlement_direction = 'user_to_person' AND archived_at IS NULL), 0) AS balance_cents
+            FROM people p
+        """.trimIndent(), 0)
+        driver.execute(null, "ALTER TABLE account_contributions DROP COLUMN direction", 0)
+        driver.execute(null, "UPDATE meta SET value='16' WHERE key='schema_version'", 0)
+        val at = "2026-01-01T00:00:00Z"
+        listOf(
+            "INSERT INTO people(id,name,created_at,updated_at) VALUES ('person','Alba','$at','$at')",
+            "INSERT INTO accounts(id,name,starting_balance_cents,type,ownership_kind,created_at,updated_at) VALUES ('personal','Personal',10000,'bank','personal','$at','$at'),('shared','Shared',10000,'bank','personal','$at','$at')",
+            "INSERT INTO account_members(id,account_id,participant_kind,person_id,ownership_basis_points,default_expense_basis_points,created_at,updated_at) VALUES ('owner','shared','user',NULL,5000,5000,'$at','$at'),('member','shared','person','person',5000,5000,'$at','$at')",
+            "UPDATE accounts SET ownership_kind='shared' WHERE id='shared'",
+            "INSERT INTO account_contributions(id,shared_account_id,contributor_kind,person_id,source_account_id,amount_cents,date,created_at,updated_at) VALUES ('contribution','shared','user',NULL,'personal',2000,'2026-01-02','$at','$at')",
+            "INSERT INTO movements(id,type,amount_cents,date,account_id,created_at,updated_at) VALUES ('income','income',3000,'2026-01-03','shared','$at','$at')",
+            "INSERT INTO splits(id,movement_id,entry_method,created_at,updated_at) VALUES ('income-split','income','exact','$at','$at')",
+            "INSERT INTO split_lines(id,split_id,participant_kind,person_id,owed_amount_cents,created_at,updated_at) VALUES ('income-user','income-split','user',NULL,1200,'$at','$at'),('income-person','income-split','person','person',1800,'$at','$at')",
+        ).forEach { driver.execute(null, it, 0) }
+        // The v16 flaw the migration removes: the other member's share of an income read as debt.
+        assertEquals(1_800L, driver.selectLong("SELECT balance_cents FROM v_person_balance WHERE person_id='person'"))
+
+        GestorDatabase.Schema.migrate(driver, 16, 17)
+
+        assertEquals("17", driver.selectString("SELECT value FROM meta WHERE key='schema_version'"))
+        assertEquals("in", driver.selectString("SELECT direction FROM account_contributions WHERE id='contribution'"))
+        assertEquals(15_000L, driver.selectLong("SELECT current_balance_cents FROM v_account_balance WHERE account_id='shared'"))
+        assertEquals(0L, driver.selectLong("SELECT balance_cents FROM v_person_balance WHERE person_id='person'"))
+        assertEquals(1_200L, driver.selectLong("SELECT SUM(amount_cents) FROM v_actual_income"))
+
+        driver.execute(null, "INSERT INTO account_contributions(id,shared_account_id,direction,contributor_kind,person_id,source_account_id,amount_cents,date,created_at,updated_at) VALUES ('withdrawal','shared','out','user',NULL,'personal',500,'2026-01-04','$at','$at')", 0)
+        assertEquals(14_500L, driver.selectLong("SELECT current_balance_cents FROM v_account_balance WHERE account_id='shared'"))
+        assertEquals(8_500L, driver.selectLong("SELECT current_balance_cents FROM v_account_balance WHERE account_id='personal'"))
+        assertFails {
+            driver.execute(null, "INSERT INTO account_contributions(id,shared_account_id,direction,contributor_kind,person_id,amount_cents,date,created_at,updated_at) VALUES ('sideways','shared','sideways','person','person',100,'2026-01-04','$at','$at')", 0)
+        }
+        assertEquals(0L, driver.selectLong("SELECT COUNT(*) FROM pragma_foreign_key_check"))
+    }
+
+    @Test
     fun `v15 to v16 migration enforces shared account integrity`() {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         driver.execute(null, "PRAGMA foreign_keys = ON", 0)

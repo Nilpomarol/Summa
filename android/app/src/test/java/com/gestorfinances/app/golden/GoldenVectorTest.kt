@@ -200,9 +200,9 @@ class GoldenVectorTest {
                           ('member-user','shared','user',NULL,${input.long("owner_ownership_basis_points")},4000,'$NOW','$NOW'),
                           ('member-person','shared','person','person',${10_000 - input.long("owner_ownership_basis_points")},6000,'$NOW','$NOW');
                         UPDATE accounts SET ownership_kind = 'shared' WHERE id = 'shared';
-                        INSERT INTO account_contributions (id,shared_account_id,contributor_kind,person_id,source_account_id,amount_cents,date,created_at,updated_at) VALUES
-                          ('owner-contribution','shared','user',NULL,'personal',${input.long("owner_contribution_cents")},'2026-01-02','$NOW','$NOW'),
-                          ('person-contribution','shared','person','person',NULL,${input.long("person_contribution_cents")},'2026-01-03','$NOW','$NOW');
+                        INSERT INTO account_contributions (id,shared_account_id,direction,contributor_kind,person_id,source_account_id,amount_cents,date,created_at,updated_at) VALUES
+                          ('owner-contribution','shared','in','user',NULL,'personal',${input.long("owner_contribution_cents")},'2026-01-02','$NOW','$NOW'),
+                          ('person-contribution','shared','in','person','person',NULL,${input.long("person_contribution_cents")},'2026-01-03','$NOW','$NOW');
                         INSERT INTO movements (id,type,amount_cents,date,account_id,expense_funding,shared_split_id,created_at,updated_at) VALUES
                           ('shared-expense','expense',${input.long("shared_expense_cents")},'2026-01-04','shared','shared_account','shared-split','$NOW','$NOW'),
                           ('owner-expense','expense',${input.long("owner_financed_expense_cents")},'2026-01-05','personal','owner',NULL,'$NOW','$NOW');
@@ -214,7 +214,12 @@ class GoldenVectorTest {
                           ('shared-person','shared-split','person','person',${input.long("shared_expense_cents") - input.long("shared_expense_owner_share_cents")},'$NOW','$NOW'),
                           ('owner-user','owner-split','user',NULL,${input.long("owner_financed_expense_cents") - input.long("owner_financed_person_share_cents")},'$NOW','$NOW'),
                           ('owner-person','owner-split','person','person',${input.long("owner_financed_person_share_cents")},'$NOW','$NOW');
-                        """.trimIndent()
+                        """.trimIndent() +
+                        // A member takes money out the same way it went in, and an income into the
+                        // shared account carries the allocation that says whose income it is.
+                        withdrawal("owner-withdrawal", "user", "NULL", "'personal'", input.optionalLong("owner_withdrawal_cents"), "2026-01-06") +
+                        withdrawal("person-withdrawal", "person", "'person'", "NULL", input.optionalLong("person_withdrawal_cents"), "2026-01-07") +
+                        sharedIncome(input.optionalLong("shared_income_cents"), input.optionalLong("shared_income_owner_share_cents"))
                     // A shared-account expense names the split it is consumed through, which is
                     // written after it: the deferred foreign key only resolves at commit, so the
                     // fixture goes in as one transaction, the way the app writes it.
@@ -228,7 +233,8 @@ class GoldenVectorTest {
                 assertEquals(case.name(), expected.long("shared_physical_cents"), connection.singleLong("SELECT current_balance_cents FROM v_account_balance WHERE account_id='shared'"))
                 assertEquals(case.name(), expected.long("shared_owner_value_cents"), connection.singleLong("SELECT owner_value_cents FROM v_account_value WHERE account_id='shared'"))
                 assertEquals(case.name(), expected.long("net_worth_cents"), connection.singleLong("SELECT SUM(owner_value_cents) FROM v_account_value"))
-                assertEquals(case.name(), expected.long("actual_expense_cents"), connection.singleLong("SELECT SUM(amount_cents) FROM v_actual_expense"))
+                assertEquals(case.name(), expected.long("actual_expense_cents"), connection.singleLong("SELECT COALESCE(SUM(amount_cents),0) FROM v_actual_expense"))
+                assertEquals(case.name(), expected.long("actual_income_cents"), connection.singleLong("SELECT COALESCE(SUM(amount_cents),0) FROM v_actual_income"))
                 assertEquals(case.name(), expected.long("person_balance_cents"), connection.singleLong("SELECT balance_cents FROM v_person_balance WHERE person_id='person'"))
             }
         }
@@ -529,6 +535,33 @@ class GoldenVectorTest {
     }
 
     private fun JsonObject.cases(): List<JsonObject> = array("cases").map { it.jsonObject }
+    /** One member money-out row, or nothing when the case does not exercise a withdrawal. */
+    private fun withdrawal(
+        id: String,
+        contributorKind: String,
+        personId: String,
+        ownerAccountId: String,
+        amountCents: Long?,
+        date: String,
+    ): String = if (amountCents == null) "" else """
+
+        INSERT INTO account_contributions (id,shared_account_id,direction,contributor_kind,person_id,source_account_id,amount_cents,date,created_at,updated_at)
+        VALUES ('$id','shared','out','$contributorKind',$personId,$ownerAccountId,$amountCents,'$date','$NOW','$NOW');
+    """.trimIndent()
+
+    /** An income into the shared account carrying the allocation that says whose income it is. */
+    private fun sharedIncome(amountCents: Long?, ownerShareCents: Long?): String =
+        if (amountCents == null) "" else """
+
+            INSERT INTO movements (id,type,amount_cents,date,account_id,created_at,updated_at)
+            VALUES ('shared-income','income',$amountCents,'2026-01-08','shared','$NOW','$NOW');
+            INSERT INTO splits (id,movement_id,entry_method,created_at,updated_at)
+            VALUES ('income-split','shared-income','exact','$NOW','$NOW');
+            INSERT INTO split_lines (id,split_id,participant_kind,person_id,owed_amount_cents,created_at,updated_at) VALUES
+              ('income-user','income-split','user',NULL,${ownerShareCents ?: 0},'$NOW','$NOW'),
+              ('income-person','income-split','person','person',${amountCents - (ownerShareCents ?: 0)},'$NOW','$NOW');
+        """.trimIndent()
+
     private fun JsonObject.name(): String = string("name")
     private fun JsonObject.obj(key: String): JsonObject = getValue(key).jsonObject
     private fun JsonObject.array(key: String): JsonArray = getValue(key).jsonArray

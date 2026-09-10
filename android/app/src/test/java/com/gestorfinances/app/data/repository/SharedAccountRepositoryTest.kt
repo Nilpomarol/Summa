@@ -27,7 +27,7 @@ class SharedAccountRepositoryTest {
             now,
         )
         accounts.createContribution(
-            ContributionDraft("contribution", "shared", SplitParticipantKind.USER, null, "personal", 2_000, "2026-09-06", null, null),
+            ContributionDraft("contribution", "shared", ContributionDirection.IN, SplitParticipantKind.USER, null, "personal", 2_000, "2026-09-06", null, null),
             now,
         )
         movements.create(
@@ -66,6 +66,33 @@ class SharedAccountRepositoryTest {
         assertTrue(movements.getActive("expense")!!.financingKind == ExpenseFunding.SHARED_ACCOUNT)
     }
 
+    @Test
+    fun `money leaves a shared account the same way it enters`() {
+        val database = RepositoryTestSupport.newDatabase()
+        val accounts = AccountRepository(database.accountsQueries, database.sharedAccountsQueries)
+        val people = PersonRepository(database.peopleQueries)
+        val now = "2026-09-06T10:00:00Z"
+        people.create(PersonDraft("person", "Alba", null, null, null), now)
+        accounts.create(account("personal", AccountOwnershipKind.PERSONAL, 10_000), now)
+        accounts.create(sharedAccount(), now)
+        accounts.createContribution(
+            ContributionDraft("withdrawal", "shared", ContributionDirection.OUT, SplitParticipantKind.USER, null, "personal", 2_000, "2026-09-06", null, null),
+            now,
+        )
+        accounts.createContribution(
+            ContributionDraft("person-withdrawal", "shared", ContributionDirection.OUT, SplitParticipantKind.PERSON, "person", null, 1_000, "2026-09-07", null, null),
+            now,
+        )
+
+        val personal = accounts.getActive("personal")!!
+        val shared = accounts.getActive("shared")!!
+        assertEquals(12_000, personal.currentBalanceCents)
+        assertEquals(7_000, shared.currentBalanceCents)
+        assertEquals(2_800, shared.ownerValueCents)
+        // Taking money out is not a settlement: nobody owes anybody for it.
+        assertEquals(0, people.getActive("person")!!.balanceCents)
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun `shared percentages must reconcile`() {
         val database = RepositoryTestSupport.newDatabase()
@@ -96,7 +123,7 @@ class SharedAccountRepositoryTest {
         people.create(PersonDraft("person", "Alba", null, null, null), now)
         accounts.create(sharedAccount(), now)
         accounts.createContribution(
-            ContributionDraft("contribution", "shared", SplitParticipantKind.USER, null, null, 2_000, "2026-09-06", null, null),
+            ContributionDraft("contribution", "shared", ContributionDirection.IN, SplitParticipantKind.USER, null, null, 2_000, "2026-09-06", null, null),
             now,
         )
 
