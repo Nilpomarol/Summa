@@ -564,10 +564,11 @@ private fun LedgerShell(
     fun openMovementForm(
         tripId: String? = null,
         returnTo: AppOverlay? = null,
+        accountId: String? = null,
     ) {
         val hasAccount = movementsState.accounts.isNotEmpty() || accountsState.accounts.isNotEmpty()
         if (hasAccount) {
-            movementsViewModel.onAddClicked(tripId)
+            movementsViewModel.onAddClicked(tripId, accountId = accountId)
             nav = nav.copy(
                 overlay = AppOverlay.MovementForm(
                     tripId = tripId,
@@ -790,6 +791,7 @@ private fun LedgerShell(
                         showTopLevel(TopLevelSection.ANALYSIS)
                     },
                     onMovementDetail = openMovementDetail,
+                    onAddExpense = { accountId -> openMovementForm(accountId = accountId) },
                     onDeleteCommitted = showDeleteUndo,
                     modifier = Modifier
                         .fillMaxSize()
@@ -993,14 +995,15 @@ private fun LedgerShell(
                     onOptionalToggled = movementsViewModel::onOptionalToggled,
                     onAdvancedToggled = movementsViewModel::onAdvancedToggled,
                     onCreatePersonInSplit = movementsViewModel::onCreatePersonInSplit,
-                    onRecordContribution = { accountId, amount, sourceAccountId ->
+                    onRecordContribution = { sharedAccountId, amount, ownerAccountId, direction ->
                         movementsViewModel.onFormDismissed()
                         showManagement(ManagementDestination.ACCOUNTS)
                         accountsViewModel.showContributionFor(
-                            accountId = accountId,
+                            accountId = sharedAccountId,
                             amount = amount,
                             date = form.date,
-                            sourceAccountId = sourceAccountId,
+                            sourceAccountId = ownerAccountId,
+                            direction = direction,
                         )
                     },
                     onDismiss = {

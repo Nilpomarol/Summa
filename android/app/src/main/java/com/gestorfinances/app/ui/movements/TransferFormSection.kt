@@ -11,6 +11,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.gestorfinances.app.data.repository.ContributionDirection
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountOwnershipKind
 import com.gestorfinances.app.data.repository.AccountSummary
@@ -28,7 +29,12 @@ internal fun TransferFormSection(
     form: MovementFormState,
     accounts: List<AccountSummary>,
     onFormChange: (MovementFormState) -> Unit,
-    onRecordContribution: (accountId: String, amount: String, sourceAccountId: String?) -> Unit,
+    onRecordContribution: (
+        sharedAccountId: String,
+        amount: String,
+        ownerAccountId: String?,
+        direction: ContributionDirection,
+    ) -> Unit,
 ) {
     val accountError = form.errorField == MovementFormField.ACCOUNT
     val destinationError = form.errorField == MovementFormField.DESTINATION_ACCOUNT
@@ -62,16 +68,32 @@ internal fun TransferFormSection(
         )
     }
 
-    // Money crossing between personal and shared ownership is a contribution, not a transfer.
+    // Money crossing between personal and shared ownership is a contribution or a withdrawal, not a
+    // transfer; between two shared accounts it is an ordinary transfer.
     // Saying so while the accounts are being picked beats failing at save with nowhere to go.
     val sharedOwnership = { id: String? -> accounts.firstOrNull { it.id == id }?.ownershipKind }
     val sourceIsShared = sharedOwnership(form.accountId) == AccountOwnershipKind.SHARED
     val destinationIsShared = sharedOwnership(form.destinationAccountId) == AccountOwnershipKind.SHARED
     when {
-        sourceIsShared -> InlineBanner(
-            kind = BannerKind.Alert,
-            text = stringResource(R.string.movement_transfer_out_of_shared),
-        )
+        sourceIsShared && destinationIsShared -> Unit
+        sourceIsShared -> Column {
+            InlineBanner(
+                kind = BannerKind.Info,
+                text = stringResource(R.string.movement_transfer_out_of_shared),
+            )
+            TextButton(
+                onClick = {
+                    onRecordContribution(
+                        requireNotNull(form.accountId),
+                        form.amount,
+                        form.destinationAccountId,
+                        ContributionDirection.OUT,
+                    )
+                },
+            ) {
+                Text(stringResource(R.string.movement_transfer_out_of_shared_action))
+            }
+        }
         destinationIsShared -> Column {
             InlineBanner(
                 kind = BannerKind.Info,
@@ -83,6 +105,7 @@ internal fun TransferFormSection(
                         requireNotNull(form.destinationAccountId),
                         form.amount,
                         form.accountId,
+                        ContributionDirection.IN,
                     )
                 },
             ) {

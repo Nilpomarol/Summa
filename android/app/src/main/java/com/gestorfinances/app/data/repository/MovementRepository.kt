@@ -63,6 +63,8 @@ data class MovementSummary(
     val updatedAt: String,
     val archivedAt: String?,
     val financingKind: ExpenseFunding? = null,
+    /** Set only when [type] is CONTRIBUTION: whether money entered or left the shared account. */
+    val contributionDirection: ContributionDirection? = null,
 )
 
 data class MovementDraft(
@@ -215,26 +217,26 @@ class MovementRepository(
     }
 
     fun listActive(): List<MovementSummary> =
-        queries.activeMovementSummaries { id, type, amount_cents, date, account_id, account_name, account_color, dest_account_id, destination_account_name, destination_account_color, category_id, category_name, category_nature, category_icon, category_color, trip_id, trip_name, trip_color, tag_id, tag_name, template_id, name, payee, notes, is_one_time, created_at, updated_at, archived_at, refunds_expense_id, refunds_expense_name, refunds_expense_archived, paid_by_person_name, is_shared, financing_kind, payer_id, settlement_direction, settlement_person_name, user_share_cents, is_recurring ->
-            mapMovementSummary(id ?: "", type ?: "", amount_cents ?: 0L, date ?: "", account_id, account_name, account_color, dest_account_id, destination_account_name, destination_account_color, category_id, category_name, category_nature, category_icon, category_color, trip_id, trip_name, trip_color, tag_id, tag_name, template_id, name, payee, notes, is_one_time ?: 0L, created_at ?: "", updated_at ?: "", archived_at, refunds_expense_id, refunds_expense_name, refunds_expense_archived ?: 0L, paid_by_person_name, is_shared ?: 0L, financing_kind, payer_id, settlement_direction, settlement_person_name, user_share_cents ?: 0L, is_recurring ?: 0L)
+        queries.activeMovementSummaries { id, type, amount_cents, date, account_id, account_name, account_color, dest_account_id, destination_account_name, destination_account_color, category_id, category_name, category_nature, category_icon, category_color, trip_id, trip_name, trip_color, tag_id, tag_name, template_id, name, payee, notes, is_one_time, created_at, updated_at, archived_at, refunds_expense_id, refunds_expense_name, refunds_expense_archived, paid_by_person_name, is_shared, financing_kind, payer_id, settlement_direction, settlement_person_name, user_share_cents, is_recurring, contribution_direction ->
+            mapMovementSummary(id ?: "", type ?: "", amount_cents ?: 0L, date ?: "", account_id, account_name, account_color, dest_account_id, destination_account_name, destination_account_color, category_id, category_name, category_nature, category_icon, category_color, trip_id, trip_name, trip_color, tag_id, tag_name, template_id, name, payee, notes, is_one_time ?: 0L, created_at ?: "", updated_at ?: "", archived_at, refunds_expense_id, refunds_expense_name, refunds_expense_archived ?: 0L, paid_by_person_name, is_shared ?: 0L, financing_kind, payer_id, settlement_direction, settlement_person_name, user_share_cents ?: 0L, is_recurring ?: 0L, contribution_direction)
         }.executeAsList()
 
     fun listActiveForAccount(accountId: String): List<AccountLedgerEntry> =
-        queries.activeMovementSummariesForAccount(accountId) { id, type, amount_cents, date, account_id_, account_name, account_color, dest_account_id, destination_account_name, destination_account_color, category_id, category_name, category_nature, category_icon, category_color, trip_id, trip_name, trip_color, tag_id, tag_name, template_id, name, payee, notes, is_one_time, created_at, updated_at, archived_at, refunds_expense_id, refunds_expense_name, refunds_expense_archived, paid_by_person_name, is_shared, financing_kind, payer_id, settlement_direction, settlement_person_name, user_share_cents, is_recurring, account_delta_cents ->
+        queries.activeMovementSummariesForAccount(accountId) { id, type, amount_cents, date, account_id_, account_name, account_color, dest_account_id, destination_account_name, destination_account_color, category_id, category_name, category_nature, category_icon, category_color, trip_id, trip_name, trip_color, tag_id, tag_name, template_id, name, payee, notes, is_one_time, created_at, updated_at, archived_at, refunds_expense_id, refunds_expense_name, refunds_expense_archived, paid_by_person_name, is_shared, financing_kind, payer_id, settlement_direction, settlement_person_name, user_share_cents, is_recurring, contribution_direction, account_delta_cents ->
             AccountLedgerEntry(
-                movement = mapMovementSummary(id ?: "", type ?: "", amount_cents ?: 0L, date ?: "", account_id_, account_name, account_color, dest_account_id, destination_account_name, destination_account_color, category_id, category_name, category_nature, category_icon, category_color, trip_id, trip_name, trip_color, tag_id, tag_name, template_id, name, payee, notes, is_one_time ?: 0L, created_at ?: "", updated_at ?: "", archived_at, refunds_expense_id, refunds_expense_name, refunds_expense_archived ?: 0L, paid_by_person_name, is_shared ?: 0L, financing_kind, payer_id, settlement_direction, settlement_person_name, user_share_cents ?: 0L, is_recurring ?: 0L),
+                movement = mapMovementSummary(id ?: "", type ?: "", amount_cents ?: 0L, date ?: "", account_id_, account_name, account_color, dest_account_id, destination_account_name, destination_account_color, category_id, category_name, category_nature, category_icon, category_color, trip_id, trip_name, trip_color, tag_id, tag_name, template_id, name, payee, notes, is_one_time ?: 0L, created_at ?: "", updated_at ?: "", archived_at, refunds_expense_id, refunds_expense_name, refunds_expense_archived ?: 0L, paid_by_person_name, is_shared ?: 0L, financing_kind, payer_id, settlement_direction, settlement_person_name, user_share_cents ?: 0L, is_recurring ?: 0L, contribution_direction),
                 deltaCents = requireNotNull(account_delta_cents),
             )
         }.executeAsList()
 
     fun listActiveForCategory(categoryId: String): List<MovementSummary> =
-        queries.activeMovementSummariesForCategory(categoryId) { id, type, amount_cents, date, account_id, account_name, account_color, dest_account_id, destination_account_name, destination_account_color, category_id_, category_name, category_nature, category_icon, category_color, trip_id, trip_name, trip_color, tag_id, tag_name, template_id, name, payee, notes, is_one_time, created_at, updated_at, archived_at, refunds_expense_id, refunds_expense_name, refunds_expense_archived, paid_by_person_name, is_shared, financing_kind, payer_id, settlement_direction, settlement_person_name, user_share_cents, is_recurring ->
-            mapMovementSummary(id ?: "", type ?: "", amount_cents ?: 0L, date ?: "", account_id, account_name, account_color, dest_account_id, destination_account_name, destination_account_color, category_id_, category_name, category_nature, category_icon, category_color, trip_id, trip_name, trip_color, tag_id, tag_name, template_id, name, payee, notes, is_one_time ?: 0L, created_at ?: "", updated_at ?: "", archived_at, refunds_expense_id, refunds_expense_name, refunds_expense_archived ?: 0L, paid_by_person_name, is_shared ?: 0L, financing_kind, payer_id, settlement_direction, settlement_person_name, user_share_cents ?: 0L, is_recurring ?: 0L)
+        queries.activeMovementSummariesForCategory(categoryId) { id, type, amount_cents, date, account_id, account_name, account_color, dest_account_id, destination_account_name, destination_account_color, category_id_, category_name, category_nature, category_icon, category_color, trip_id, trip_name, trip_color, tag_id, tag_name, template_id, name, payee, notes, is_one_time, created_at, updated_at, archived_at, refunds_expense_id, refunds_expense_name, refunds_expense_archived, paid_by_person_name, is_shared, financing_kind, payer_id, settlement_direction, settlement_person_name, user_share_cents, is_recurring, contribution_direction ->
+            mapMovementSummary(id ?: "", type ?: "", amount_cents ?: 0L, date ?: "", account_id, account_name, account_color, dest_account_id, destination_account_name, destination_account_color, category_id_, category_name, category_nature, category_icon, category_color, trip_id, trip_name, trip_color, tag_id, tag_name, template_id, name, payee, notes, is_one_time ?: 0L, created_at ?: "", updated_at ?: "", archived_at, refunds_expense_id, refunds_expense_name, refunds_expense_archived ?: 0L, paid_by_person_name, is_shared ?: 0L, financing_kind, payer_id, settlement_direction, settlement_person_name, user_share_cents ?: 0L, is_recurring ?: 0L, contribution_direction)
         }.executeAsList()
 
     fun getActive(id: String): MovementSummary? =
-        queries.movementById(id) { id_, type, amount_cents, date, account_id, account_name, account_color, dest_account_id, destination_account_name, destination_account_color, category_id, category_name, category_nature, category_icon, category_color, trip_id, trip_name, trip_color, tag_id, tag_name, template_id, name, payee, notes, is_one_time, created_at, updated_at, archived_at, refunds_expense_id, refunds_expense_name, refunds_expense_archived, paid_by_person_name, is_shared, financing_kind, payer_id, settlement_direction, settlement_person_name, user_share_cents, is_recurring ->
-            mapMovementSummary(id_ ?: "", type ?: "", amount_cents ?: 0L, date ?: "", account_id, account_name, account_color, dest_account_id, destination_account_name, destination_account_color, category_id, category_name, category_nature, category_icon, category_color, trip_id, trip_name, trip_color, tag_id, tag_name, template_id, name, payee, notes, is_one_time ?: 0L, created_at ?: "", updated_at ?: "", archived_at, refunds_expense_id, refunds_expense_name, refunds_expense_archived ?: 0L, paid_by_person_name, is_shared ?: 0L, financing_kind, payer_id, settlement_direction, settlement_person_name, user_share_cents ?: 0L, is_recurring ?: 0L)
+        queries.movementById(id) { id_, type, amount_cents, date, account_id, account_name, account_color, dest_account_id, destination_account_name, destination_account_color, category_id, category_name, category_nature, category_icon, category_color, trip_id, trip_name, trip_color, tag_id, tag_name, template_id, name, payee, notes, is_one_time, created_at, updated_at, archived_at, refunds_expense_id, refunds_expense_name, refunds_expense_archived, paid_by_person_name, is_shared, financing_kind, payer_id, settlement_direction, settlement_person_name, user_share_cents, is_recurring, contribution_direction ->
+            mapMovementSummary(id_ ?: "", type ?: "", amount_cents ?: 0L, date ?: "", account_id, account_name, account_color, dest_account_id, destination_account_name, destination_account_color, category_id, category_name, category_nature, category_icon, category_color, trip_id, trip_name, trip_color, tag_id, tag_name, template_id, name, payee, notes, is_one_time ?: 0L, created_at ?: "", updated_at ?: "", archived_at, refunds_expense_id, refunds_expense_name, refunds_expense_archived ?: 0L, paid_by_person_name, is_shared ?: 0L, financing_kind, payer_id, settlement_direction, settlement_person_name, user_share_cents ?: 0L, is_recurring ?: 0L, contribution_direction)
         }.executeAsOneOrNull()
 
     fun accountFlowForAccount(accountId: String): List<AccountFlowEntry> =
@@ -610,6 +612,7 @@ private fun mapMovementSummary(
     settlementPersonName: String?,
     userShareCents: Long,
     isRecurring: Long,
+    contributionDirection: String?,
 ): MovementSummary =
     MovementSummary(
         id = id,
@@ -639,6 +642,7 @@ private fun mapMovementSummary(
         isOneTime = isOneTime != 0L,
         isShared = isShared != 0L,
         financingKind = financingKind?.let(ExpenseFunding::fromDb),
+        contributionDirection = contributionDirection?.let(ContributionDirection::fromDb),
         userShareCents = userShareCents,
         isRecurring = isRecurring != 0L,
         paidByPersonName = paidByPersonName,

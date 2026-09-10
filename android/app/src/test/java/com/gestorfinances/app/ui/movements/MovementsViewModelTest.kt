@@ -65,6 +65,34 @@ class MovementsViewModelTest {
     }
 
     @Test
+    fun transferBetweenTwoSharedAccountsIsAnOrdinaryTransfer() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.people.create(personDraft("alba"), NOW)
+            store.accounts.create(sharedAccountDraft("joint", "alba"), createdAt = NOW)
+            store.accounts.create(sharedAccountDraft("holiday", "alba"), createdAt = NOW)
+            val viewModel = viewModel(store)
+            viewModel.onAddClicked()
+            advanceUntilIdle()
+
+            viewModel.onFormChanged(
+                viewModel.form().copy(
+                    type = MovementType.TRANSFER,
+                    amount = "25",
+                    date = "2026-01-01",
+                    accountId = "joint",
+                    destinationAccountId = "holiday",
+                ),
+            )
+            viewModel.onSaveClicked()
+            advanceUntilIdle()
+
+            assertNull(viewModel.state.value.form)
+            assertEquals(-2_500L, store.accounts.getActive("joint")!!.currentBalanceCents)
+            assertEquals(2_500L, store.accounts.getActive("holiday")!!.currentBalanceCents)
+        }
+    }
+
+    @Test
     fun amountMustBePositive() = runTest(dispatcher) {
         freshStore().use { store ->
             store.accounts.create(accountDraft("checking"), createdAt = NOW)

@@ -12,6 +12,31 @@ import org.junit.Test
 class MigrationTest {
 
     @Test
+    fun `v17 to v18 migration lets a contribution row say which way its money moved`() {
+        val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+        driver.execute(null, "PRAGMA foreign_keys = ON", 0)
+        GestorDatabase.Schema.create(driver)
+        // v17's movement summary had no direction column, and nothing else changed.
+        driver.execute(null, "DROP VIEW v_movement_summary", 0)
+        driver.execute(null, "UPDATE meta SET value='17' WHERE key='schema_version'", 0)
+        val at = "2026-01-01T00:00:00Z"
+        listOf(
+            "INSERT INTO people(id,name,created_at,updated_at) VALUES ('person','Alba','$at','$at')",
+            "INSERT INTO accounts(id,name,starting_balance_cents,type,ownership_kind,created_at,updated_at) VALUES ('personal','Personal',10000,'bank','personal','$at','$at'),('shared','Shared',10000,'bank','personal','$at','$at')",
+            "INSERT INTO account_members(id,account_id,participant_kind,person_id,ownership_basis_points,default_expense_basis_points,created_at,updated_at) VALUES ('owner','shared','user',NULL,5000,5000,'$at','$at'),('member','shared','person','person',5000,5000,'$at','$at')",
+            "UPDATE accounts SET ownership_kind='shared' WHERE id='shared'",
+            "INSERT INTO account_contributions(id,shared_account_id,direction,contributor_kind,person_id,source_account_id,amount_cents,date,created_at,updated_at) VALUES ('withdrawal','shared','out','user',NULL,'personal',500,'2026-01-04','$at','$at')",
+            "INSERT INTO movements(id,type,amount_cents,date,account_id,created_at,updated_at) VALUES ('income','income',3000,'2026-01-03','personal','$at','$at')",
+        ).forEach { driver.execute(null, it, 0) }
+
+        GestorDatabase.Schema.migrate(driver, 17, 18)
+
+        assertEquals("18", driver.selectString("SELECT value FROM meta WHERE key='schema_version'"))
+        assertEquals("out", driver.selectString("SELECT contribution_direction FROM v_movement_summary WHERE id='withdrawal'"))
+        assertNull(driver.selectString("SELECT contribution_direction FROM v_movement_summary WHERE id='income'"))
+    }
+
+    @Test
     fun `v16 to v17 migration lets money leave a shared account and stops income allocations becoming debt`() {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         driver.execute(null, "PRAGMA foreign_keys = ON", 0)
@@ -55,6 +80,8 @@ class MigrationTest {
                 AND settlement_direction = 'user_to_person' AND archived_at IS NULL), 0) AS balance_cents
             FROM people p
         """.trimIndent(), 0)
+        // The current movement summary names the column too; none of the v16 checks read it.
+        driver.execute(null, "DROP VIEW v_movement_summary", 0)
         driver.execute(null, "ALTER TABLE account_contributions DROP COLUMN direction", 0)
         driver.execute(null, "UPDATE meta SET value='16' WHERE key='schema_version'", 0)
         val at = "2026-01-01T00:00:00Z"
