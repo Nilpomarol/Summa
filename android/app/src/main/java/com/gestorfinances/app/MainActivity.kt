@@ -995,17 +995,6 @@ private fun LedgerShell(
                     onOptionalToggled = movementsViewModel::onOptionalToggled,
                     onAdvancedToggled = movementsViewModel::onAdvancedToggled,
                     onCreatePersonInSplit = movementsViewModel::onCreatePersonInSplit,
-                    onRecordContribution = { sharedAccountId, amount, ownerAccountId, direction ->
-                        movementsViewModel.onFormDismissed()
-                        showManagement(ManagementDestination.ACCOUNTS)
-                        accountsViewModel.showContributionFor(
-                            accountId = sharedAccountId,
-                            amount = amount,
-                            date = form.date,
-                            sourceAccountId = ownerAccountId,
-                            direction = direction,
-                        )
-                    },
                     onDismiss = {
                         if (movementsState.form == null) closeMovementForm()
                         else requestMovementFormDismissal()
