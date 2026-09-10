@@ -235,6 +235,7 @@ class MovementRepository(
         val persistedDraft = prepareSharedFundingDraft(draft, existingMovement = false)
         requireDirectMovementType(persistedDraft.type)
         validateSplitWrite(persistedDraft)
+        validateIncomeAllocation(persistedDraft)
         validateSharedFundingSplit(persistedDraft, existingMovement = false, hasActiveSplit = false)
         queries.transaction {
             queries.insertMovement(
@@ -268,6 +269,7 @@ class MovementRepository(
         val persistedDraft = prepareSharedFundingDraft(draft, existingMovement = true)
         requireDirectMovementType(persistedDraft.type)
         validateSplitWrite(persistedDraft)
+        validateIncomeAllocation(persistedDraft)
         validateSharedFundingSplit(
             draft = persistedDraft,
             existingMovement = true,
@@ -449,6 +451,14 @@ class MovementRepository(
                 else -> null
             },
         )
+    }
+
+    /** An income is allocated between members only in a shared account; in a personal one it is the owner's. */
+    private fun validateIncomeAllocation(draft: MovementDraft) {
+        if (draft.type != MovementType.INCOME || draft.splitWrite !is MovementSplitWrite.Replace) return
+        require(queries.accountOwnershipKind(draft.accountId).executeAsOneOrNull() == AccountOwnershipKind.SHARED.dbValue) {
+            "Only an income into a shared account can be allocated between members."
+        }
     }
 
     private fun applySplitWrite(
@@ -664,8 +674,8 @@ private fun validateSplitWrite(draft: MovementDraft) {
         "Tagged movements must be attached to a trip."
     }
     val split = (draft.splitWrite as? MovementSplitWrite.Replace)?.draft ?: return
-    require(draft.type == MovementType.EXPENSE) {
-        "Only expense movements can have a movement-backed split."
+    require(draft.type == MovementType.EXPENSE || draft.type == MovementType.INCOME) {
+        "Only expenses and incomes can have a movement-backed split."
     }
     require(split.lines.sumOf { it.owedAmountCents } == draft.amountCents) {
         "Split lines must reconcile with the movement amount."

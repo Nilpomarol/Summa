@@ -198,6 +198,51 @@ class SharedAccountRepositoryTest {
     }
 
     @Test
+    fun `an income is allocated between members only in a shared account`() {
+        val database = RepositoryTestSupport.newDatabase()
+        val accounts = AccountRepository(database.accountsQueries, database.sharedAccountsQueries)
+        val people = PersonRepository(database.peopleQueries)
+        val movements = MovementRepository(database.movementsQueries, database.splitsQueries)
+        val now = "2026-09-06T10:00:00Z"
+        people.create(PersonDraft("person", "Alba", null, null, null), now)
+        accounts.create(account("personal", AccountOwnershipKind.PERSONAL, 0), now)
+        accounts.create(sharedAccount(), now)
+        fun allocatedIncome(id: String, accountId: String) = MovementDraft(
+            id = id,
+            type = MovementType.INCOME,
+            amountCents = 3_000,
+            date = "2026-09-06",
+            accountId = accountId,
+            destinationAccountId = null,
+            categoryId = null,
+            name = "Nòmina",
+            payee = null,
+            notes = null,
+            isOneTime = false,
+            expenseFunding = ExpenseFunding.OWNER,
+            splitWrite = MovementSplitWrite.Replace(
+                MovementSplitDraft(
+                    SplitEntryMethod.EXACT,
+                    listOf(
+                        SplitLineDraft(SplitParticipantKind.USER, null, 1_200),
+                        SplitLineDraft(SplitParticipantKind.PERSON, "person", 1_800),
+                    ),
+                ),
+            ),
+        )
+
+        // In a personal account the income is wholly the owner's, so an allocation is refused.
+        assertTrue(
+            runCatching { movements.create(allocatedIncome("personal-income", "personal"), now) }
+                .exceptionOrNull() is IllegalArgumentException,
+        )
+        movements.create(allocatedIncome("shared-income", "shared"), now)
+
+        assertTrue(movements.getActive("shared-income")!!.isShared)
+        assertEquals(0, people.getActive("person")!!.balanceCents)
+    }
+
+    @Test
     fun `editing a shared account's percentages replaces its members`() {
         val database = RepositoryTestSupport.newDatabase()
         val accounts = AccountRepository(database.accountsQueries, database.sharedAccountsQueries)

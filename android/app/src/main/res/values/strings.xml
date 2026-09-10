@@ -424,6 +424,16 @@
     <string name="movement_forwhom_personal">Només per a mi</string>
     <string name="movement_forwhom_shared">Compartida</string>
     <string name="movement_forwhom_other">Per a un altre</string>
+    <string name="movement_income_owner_title">De qui és aquest ingrés?</string>
+    <string name="movement_income_owner_placeholder">Tria-ho</string>
+    <string name="movement_income_owner_mine">Meu</string>
+    <string name="movement_income_owner_shared">Compartit</string>
+    <string name="movement_income_owner_other">D’un altre membre</string>
+    <string name="movement_income_owner_member">Membre</string>
+    <string name="movement_income_owner_help">En un compte compartit, tria quina part compta com a ingrés teu. Cap opció no crea deutes entre vosaltres.</string>
+    <string name="movement_income_counted">Compta als teus ingressos: %1$s</string>
+    <string name="movement_split_summary_income">La teva part de l’ingrés: %1$s</string>
+    <string name="movement_validation_income_owner">Tria de qui és aquest ingrés.</string>
     <string name="movement_debt_payer">Persona que ha pagat</string>
     <string name="movement_debt_amount_help">L\'import que li deus.</string>
     <string name="movement_field_trip">Viatge</string>

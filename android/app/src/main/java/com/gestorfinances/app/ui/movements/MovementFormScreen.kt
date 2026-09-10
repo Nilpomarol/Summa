@@ -273,6 +273,10 @@ fun MovementFormScreen(
                 onFormChange = onFormChange,
                 onSettlementToggled = onSettlementToggled,
                 onSettlementPersonSelected = onSettlementPersonSelected,
+                onSharedToggled = onSharedToggled,
+                onSplitEditorChange = onSplitEditorChange,
+                onOtherPersonSelected = onOtherPersonSelected,
+                onCreatePersonInSplit = onCreatePersonInSplit,
             )
             MovementType.TRANSFER -> TransferFormSection(
                 form = form,

@@ -25,6 +25,10 @@ WHERE (category_id = :category_id
                           WHERE parent_id = :category_id AND archived_at IS NULL))
 ORDER BY date DESC, created_at DESC;
 
+-- The writing repository allows an income allocation only into a shared account.
+accountOwnershipKind:
+SELECT ownership_kind FROM accounts WHERE id = :id;
+
 movementCountsByTemplate:
 SELECT
     template_id,
