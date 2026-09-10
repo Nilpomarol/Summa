@@ -1,5 +1,6 @@
 package com.gestorfinances.app.ui.movements
 
+import com.gestorfinances.app.ui.common.CreatePersonDialog
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -322,36 +323,6 @@ private fun SplitParticipantRow(
             Spacer(modifier = Modifier.size(32.dp))
         }
     }
-}
-
-@Composable
-private fun CreatePersonDialog(
-    onConfirm: (String) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    var personName by remember { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.movement_create_person_title)) },
-        text = {
-            OutlinedTextField(
-                value = personName,
-                onValueChange = { personName = it },
-                label = { Text(stringResource(R.string.movement_create_person_name_hint)) },
-                singleLine = true,
-                shape = MaterialTheme.shapes.small,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { if (personName.isNotBlank()) onConfirm(personName.trim()) },
-            ) { Text(stringResource(R.string.common_save)) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
-        },
-    )
 }
 
 @Composable

@@ -143,6 +143,10 @@
     <string name="account_member_ownership">Propietat</string>
     <string name="account_member_expense_split">Despeses</string>
     <string name="account_member_split_equally">Reparteix igualment</string>
+    <string name="account_member_ownership_help">Propietat: quina part del saldo forma part del teu patrimoni.</string>
+    <string name="account_member_expense_split_help">Despeses per defecte: com es repartiran les noves despeses; es pot canviar en cada moviment.</string>
+    <string name="account_member_add_person">Afegeix una persona</string>
+    <string name="account_member_ownership_preview">Del saldo de %1$s, el %2$s compta al teu patrimoni.</string>
     <string name="account_member_total_remaining">falta %1$s</string>
     <string name="account_member_total_excess">sobra %1$s</string>
     <string name="account_member_total_invalid">percentatge no vàlid</string>

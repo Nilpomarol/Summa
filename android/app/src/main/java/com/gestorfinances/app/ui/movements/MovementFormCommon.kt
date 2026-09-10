@@ -2,6 +2,7 @@
 
 package com.gestorfinances.app.ui.movements
 
+import com.gestorfinances.app.data.repository.AccountOwnershipKind
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -174,12 +175,18 @@ internal fun AccountSelect(
     isError: Boolean = false,
     supportingText: String? = null,
 ) {
+    val sharedBadge = stringResource(R.string.account_shared_badge)
     FormSelect(
         label = label,
         options = accounts.map { account ->
             SelectOption(
                 id = account.id,
-                label = account.name,
+                // A shared account changes what the form asks, so it says so before it is chosen.
+                label = if (account.ownershipKind == AccountOwnershipKind.SHARED) {
+                    "${account.name} · $sharedBadge"
+                } else {
+                    account.name
+                },
                 leading = { ColorDot(colorHex = account.color) },
             )
         },
