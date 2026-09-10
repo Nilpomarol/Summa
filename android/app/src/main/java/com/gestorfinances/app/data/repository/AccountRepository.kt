@@ -266,11 +266,12 @@ class AccountRepository(
     }
 
     fun archiveContribution(id: String, archivedAt: String) {
-        requireNotNull(sharedQueries).archiveContribution(id, archivedAt, archivedAt)
+        // Named for the same reason as archiveMembersForAccount: positionally, this matched no row.
+        requireNotNull(sharedQueries).archiveContribution(archived_at = archivedAt, updated_at = archivedAt, id = id)
     }
 
     fun restoreContribution(id: String, deletedAt: String, restoredAt: String) {
-        requireNotNull(sharedQueries).restoreContribution(id, deletedAt, restoredAt)
+        requireNotNull(sharedQueries).restoreContribution(updated_at = restoredAt, id = id, archived_at = deletedAt)
     }
 
     /**
@@ -316,7 +317,9 @@ class AccountRepository(
 
     private fun replaceMembers(draft: AccountDraft, timestamp: String) {
         val shared = sharedQueries ?: return
-        shared.archiveMembersForAccount(draft.id, timestamp, timestamp)
+        // Named: SQLDelight orders a query's parameters by first use in the statement, so a
+        // positional call here once archived nothing and left the old members active.
+        shared.archiveMembersForAccount(archived_at = timestamp, updated_at = timestamp, account_id = draft.id)
         if (draft.ownershipKind == AccountOwnershipKind.SHARED) {
             draft.members.forEach { member ->
                 shared.insertMember(

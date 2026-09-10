@@ -197,6 +197,33 @@ class SharedAccountRepositoryTest {
         )
     }
 
+    @Test
+    fun `editing a shared account's percentages replaces its members`() {
+        val database = RepositoryTestSupport.newDatabase()
+        val accounts = AccountRepository(database.accountsQueries, database.sharedAccountsQueries)
+        val people = PersonRepository(database.peopleQueries)
+        val now = "2026-09-06T10:00:00Z"
+        people.create(PersonDraft("person", "Alba", null, null, null), now)
+        accounts.create(sharedAccount(), now)
+
+        accounts.update(
+            account(
+                "shared",
+                AccountOwnershipKind.SHARED,
+                10_000,
+                listOf(
+                    AccountMemberDraft(SplitParticipantKind.USER, null, 5_000, 5_000),
+                    AccountMemberDraft(SplitParticipantKind.PERSON, "person", 5_000, 5_000),
+                ),
+            ),
+            "2026-09-07T10:00:00Z",
+        )
+
+        val shared = accounts.getActive("shared")!!
+        assertEquals(listOf(5_000L, 5_000L), shared.members.map { it.ownershipBasisPoints })
+        assertEquals(5_000L, shared.ownerOwnershipBasisPoints)
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun `shared percentages must reconcile`() {
         val database = RepositoryTestSupport.newDatabase()
