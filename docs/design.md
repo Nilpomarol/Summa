@@ -63,7 +63,7 @@ The movement row is the densest shared component in the product: it carries Inic
 - The row leads with a filled tile in the category's own saved colour with the icon knocked out of it. Any movement that has a category takes that colour, including an expense someone else paid; only a movement with no category — transfer, settlement, refund — falls back to its functional colour.
 - A named account or person on the qualifying line is a small mark in its saved colour followed by plain text, never a tinted container. A person takes an icon rather than a dot, so shared activity and debt never rest on colour alone.
 - Weight separates the three jobs: the name in primary ink, the amount in mono figures beside it, and the qualifying line in the subtle supporting-text step, which stays above the contrast floor for small text rather than fading into the page.
-- Shared and external expenses lead with the user's own share and caption the full total beneath it. The movement page states the same two numbers the same way round.
+- Shared and external expenses, and incomes allocated between members, lead with the user's own share and caption the full total beneath it. The movement page states the same two numbers the same way round.
 - An account's own ledger is the exception: every row leads with what the movement did to that account's balance, signed, and a shared expense captions the user's share beneath it, so the list reconciles to the balance above it. The figure comes from canonical account flow, never from the row.
 
 ## Baseline principles

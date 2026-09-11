@@ -217,6 +217,7 @@ private fun MovementDetailContent(
     // expense actually cost) is a separate number and gets called out as a caption, mirroring the
     // list-row convention in MovementListItem.kt.
     val isSharedExpense = movement.isShared && movement.type == MovementType.EXPENSE
+    val isSharedIncome = movement.isShared && movement.type == MovementType.INCOME
     val isExternal = movement.type == MovementType.EXTERNAL_EXPENSE
     val fundedBySharedAccount = movement.type == MovementType.EXPENSE &&
         movement.financingKind == ExpenseFunding.SHARED_ACCOUNT
@@ -233,7 +234,11 @@ private fun MovementDetailContent(
         // Header: Icon chip, Title, Large amount
         MovementSheetHeader(
             title = movement.movementTitle(),
-            amountCents = if (isSharedExpense) -movement.userShareCents else movement.signedAmountCents(),
+            amountCents = when {
+                isSharedExpense -> -movement.userShareCents
+                isSharedIncome -> movement.userShareCents
+                else -> movement.signedAmountCents()
+            },
             type = movement.type,
             icon = visual.first,
             iconColor = visual.second,
@@ -244,7 +249,7 @@ private fun MovementDetailContent(
                     R.string.movement_detail_account_movement_short,
                     formatEuroCents(-movement.amountCents),
                 )
-                isSharedExpense || isExternal ->
+                isSharedExpense || isSharedIncome || isExternal ->
                     stringResource(R.string.movement_total_short, formatEuroCents(movement.amountCents))
                 else -> null
             },

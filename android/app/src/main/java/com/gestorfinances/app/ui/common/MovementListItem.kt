@@ -70,12 +70,13 @@ internal enum class MovementAmountRole {
 }
 
 /**
- * Personal views lead with the user's own share of a shared or external expense. An account's own
+ * Personal views lead with the user's own share of a shared or external expense, or of an income
+ * allocated between members. An account's own
  * ledger leads with what the movement did to that account instead, so the list reconciles to its
  * balance, and captions the user's share beneath a shared expense.
  */
 internal fun MovementSummary.primaryAmountRole(inAccount: Boolean = false): MovementAmountRole =
-    if (!inAccount && ((isShared && type == MovementType.EXPENSE) || type == MovementType.EXTERNAL_EXPENSE)) {
+    if (!inAccount && ((isShared && (type == MovementType.EXPENSE || type == MovementType.INCOME)) || type == MovementType.EXTERNAL_EXPENSE)) {
         MovementAmountRole.YOUR_SHARE
     } else {
         MovementAmountRole.MOVEMENT
@@ -83,7 +84,7 @@ internal fun MovementSummary.primaryAmountRole(inAccount: Boolean = false): Move
 
 internal fun MovementSummary.secondaryAmountRole(inAccount: Boolean = false): MovementAmountRole? = when {
     primaryAmountRole(inAccount) == MovementAmountRole.YOUR_SHARE -> MovementAmountRole.TOTAL
-    inAccount && isShared && type == MovementType.EXPENSE -> MovementAmountRole.YOUR_SHARE
+    inAccount && isShared && (type == MovementType.EXPENSE || type == MovementType.INCOME) -> MovementAmountRole.YOUR_SHARE
     else -> null
 }
 
@@ -247,24 +248,29 @@ fun MovementListItem(
                     AccountDeltaAmount(movement, accountDeltaCents, typeColor)
                 } else {
                     val isShared = movement.isShared && movement.type == MovementType.EXPENSE
+                    val isSharedIncome = movement.isShared && movement.type == MovementType.INCOME
                     val isExternal = movement.type == MovementType.EXTERNAL_EXPENSE
 
-                    if (isShared || isExternal) {
-                        // My share leads, and both are money leaving, so both carry the same
-                        // leading minus every other expense row shows.
-                        val shareCents =
-                            -(if (isExternal) movement.amountCents else movement.userShareCents)
+                    if (isShared || isSharedIncome || isExternal) {
+                        // My share leads. An expense's share is money leaving, so it carries the
+                        // leading minus every other expense row shows; an income's share arrives.
+                        val shareCents = when {
+                            isExternal -> -movement.amountCents
+                            isSharedIncome -> movement.userShareCents
+                            else -> -movement.userShareCents
+                        }
                         MoneyText(
                             cents = shareCents,
                             modifier = Modifier.clearAndSetSemantics {
                                 contentDescription = amountAccessibilityDescription
                             },
-                            color = if (isExternal) {
-                                FinanceTheme.colors.debt
-                            } else {
-                                FinanceTheme.colors.shared
+                            color = when {
+                                isExternal -> FinanceTheme.colors.debt
+                                isSharedIncome -> FinanceTheme.colors.income
+                                else -> FinanceTheme.colors.shared
                             },
                             style = MaterialTheme.typography.titleSmall,
+                            signed = isSharedIncome,
                         )
                         // The total only earns a line when it differs from the share above it.
                         if (abs(shareCents) != movement.amountCents) {
@@ -522,6 +528,9 @@ private fun MovementSummary.primaryAmountContentDescription(): String {
         val direction = when {
             type == MovementType.EXTERNAL_EXPENSE ->
                 stringResource(R.string.movement_amount_accessibility_owes, shareText)
+            // An income is shared, not owed: say whose larger income the part comes from.
+            type == MovementType.INCOME ->
+                stringResource(R.string.movement_amount_accessibility_income_part, formatEuroCents(amountCents))
             userShareCents == 0L ->
                 stringResource(R.string.movement_amount_accessibility_owed, formatEuroCents(amountCents))
             else ->

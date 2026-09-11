@@ -12,6 +12,32 @@ import org.junit.Test
 class MigrationTest {
 
     @Test
+    fun `v18 to v19 migration gives an allocated income the owner's share`() {
+        val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+        driver.execute(null, "PRAGMA foreign_keys = ON", 0)
+        GestorDatabase.Schema.create(driver)
+        // v18's movement summary gave only expenses a share, and nothing else changed.
+        driver.execute(null, "DROP VIEW v_movement_summary", 0)
+        driver.execute(null, "UPDATE meta SET value='18' WHERE key='schema_version'", 0)
+        val at = "2026-01-01T00:00:00Z"
+        listOf(
+            "INSERT INTO people(id,name,created_at,updated_at) VALUES ('person','Alba','$at','$at')",
+            "INSERT INTO accounts(id,name,starting_balance_cents,type,ownership_kind,created_at,updated_at) VALUES ('personal','Personal',10000,'bank','personal','$at','$at'),('shared','Shared',10000,'bank','personal','$at','$at')",
+            "INSERT INTO account_members(id,account_id,participant_kind,person_id,ownership_basis_points,default_expense_basis_points,created_at,updated_at) VALUES ('owner','shared','user',NULL,5000,5000,'$at','$at'),('member','shared','person','person',5000,5000,'$at','$at')",
+            "UPDATE accounts SET ownership_kind='shared' WHERE id='shared'",
+            "INSERT INTO movements(id,type,amount_cents,date,account_id,created_at,updated_at) VALUES ('income','income',3000,'2026-01-03','shared','$at','$at'),('salary','income',2000,'2026-01-04','personal','$at','$at')",
+            "INSERT INTO splits(id,movement_id,entry_method,created_at,updated_at) VALUES ('income-split','income','exact','$at','$at')",
+            "INSERT INTO split_lines(id,split_id,participant_kind,person_id,owed_amount_cents,created_at,updated_at) VALUES ('income-user','income-split','user',NULL,1200,'$at','$at'),('income-person','income-split','person','person',1800,'$at','$at')",
+        ).forEach { driver.execute(null, it, 0) }
+
+        GestorDatabase.Schema.migrate(driver, 18, 19)
+
+        assertEquals("19", driver.selectString("SELECT value FROM meta WHERE key='schema_version'"))
+        assertEquals(1_200L, driver.selectLong("SELECT user_share_cents FROM v_movement_summary WHERE id='income'"))
+        assertEquals(-1L, driver.selectLong("SELECT user_share_cents FROM v_movement_summary WHERE id='salary'"))
+    }
+
+    @Test
     fun `v17 to v18 migration lets a contribution row say which way its money moved`() {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         driver.execute(null, "PRAGMA foreign_keys = ON", 0)
