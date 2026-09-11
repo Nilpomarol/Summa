@@ -218,6 +218,8 @@ private fun MovementDetailContent(
     // list-row convention in MovementListItem.kt.
     val isSharedExpense = movement.isShared && movement.type == MovementType.EXPENSE
     val isExternal = movement.type == MovementType.EXTERNAL_EXPENSE
+    val fundedBySharedAccount = movement.type == MovementType.EXPENSE &&
+        movement.financingKind == ExpenseFunding.SHARED_ACCOUNT
 
     Column(
         modifier = Modifier
@@ -236,10 +238,15 @@ private fun MovementDetailContent(
             icon = visual.first,
             iconColor = visual.second,
             amountColor = if (isSharedExpense) FinanceTheme.colors.shared else FinanceTheme.colors.amountColor(movement.type),
-            totalCaption = if (isSharedExpense || isExternal) {
-                stringResource(R.string.movement_total_short, formatEuroCents(movement.amountCents))
-            } else {
-                null
+            totalCaption = when {
+                // The shared account paid, so the other figure is what left that account.
+                fundedBySharedAccount -> stringResource(
+                    R.string.movement_detail_account_movement_short,
+                    formatEuroCents(-movement.amountCents),
+                )
+                isSharedExpense || isExternal ->
+                    stringResource(R.string.movement_total_short, formatEuroCents(movement.amountCents))
+                else -> null
             },
         )
 
@@ -331,13 +338,22 @@ private fun MovementDetailContent(
                 )
             }
 
-            if (movement.type == MovementType.EXPENSE && movement.financingKind == ExpenseFunding.SHARED_ACCOUNT) {
+            if (fundedBySharedAccount) {
                 add(
                     GridItemData(
                         icon = Icons.Outlined.AccountBalance,
                         iconColor = visual.second,
                         label = stringResource(R.string.movement_detail_financing),
                         value = stringResource(R.string.movement_detail_financing_shared_account),
+                    ),
+                )
+                // The split says who consumed it; with the account paying, nobody owes anybody.
+                add(
+                    GridItemData(
+                        icon = Icons.Outlined.Handshake,
+                        iconColor = visual.second,
+                        label = stringResource(R.string.movement_detail_debt),
+                        value = stringResource(R.string.movement_detail_debt_none_shared_account),
                     ),
                 )
             }
