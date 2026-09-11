@@ -103,6 +103,23 @@ class MovementUiStateSmokeTest {
     }
 
     @Test
+    fun anAllocatedIncomeLeadsWithMyPartLikeASharedExpense() {
+        val income = movement(
+            id = "income",
+            type = MovementType.INCOME,
+            accountId = "joint",
+            accountName = "Conjunt",
+            isShared = true,
+            userShareCents = 1_200,
+        )
+
+        assertEquals(MovementAmountRole.YOUR_SHARE, income.primaryAmountRole())
+        assertEquals(MovementAmountRole.TOTAL, income.secondaryAmountRole())
+        assertEquals(MovementAmountRole.MOVEMENT, income.primaryAmountRole(inAccount = true))
+        assertEquals(MovementAmountRole.YOUR_SHARE, income.secondaryAmountRole(inAccount = true))
+    }
+
+    @Test
     fun visibleMovementsApplyMainFiltersTogether() {
         val state = MovementsUiState(
             movements = listOf(

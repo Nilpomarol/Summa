@@ -63,6 +63,9 @@ val generatedMigration16 = layout.projectDirectory.file(
 val generatedMigration17 = layout.projectDirectory.file(
     "src/main/sqldelight/com/gestorfinances/app/data/db/17.sqm",
 )
+val generatedMigration18 = layout.projectDirectory.file(
+    "src/main/sqldelight/com/gestorfinances/app/data/db/18.sqm",
+)
 val generatedSharedAccountIntegrityAsset = layout.projectDirectory.file(
     "src/main/assets/shared_account_integrity.sql",
 )
@@ -112,6 +115,7 @@ val syncSharedSqlForSqlDelight by tasks.registering {
     val sharedMigration016 = sharedRoot.file("migrations/016_enforce_shared_account_integrity.sql")
     val sharedMigration017 = sharedRoot.file("migrations/017_add_shared_account_money_out.sql")
     val sharedMigration018 = sharedRoot.file("migrations/018_add_contribution_direction_to_movement_summary.sql")
+    val sharedMigration019 = sharedRoot.file("migrations/019_add_income_share_to_movement_summary.sql")
     val sharedViews = sharedViewFiles.map { sharedRoot.file("queries/$it") }
     val sharedAnalysisQueries = sharedAnalysisQueryFiles.map { sharedRoot.file("queries/${it.first}") }
 
@@ -134,6 +138,7 @@ val syncSharedSqlForSqlDelight by tasks.registering {
     inputs.file(sharedMigration016)
     inputs.file(sharedMigration017)
     inputs.file(sharedMigration018)
+    inputs.file(sharedMigration019)
     inputs.files(sharedViews)
     inputs.files(sharedAnalysisQueries)
     outputs.file(generatedSharedSql)
@@ -155,6 +160,7 @@ val syncSharedSqlForSqlDelight by tasks.registering {
     outputs.file(generatedMigration15)
     outputs.file(generatedMigration16)
     outputs.file(generatedMigration17)
+    outputs.file(generatedMigration18)
     outputs.file(generatedSharedAccountIntegrityAsset)
 
     doLast {
@@ -175,7 +181,7 @@ val syncSharedSqlForSqlDelight by tasks.registering {
                 appendLine()
                 appendLine()
                 appendLine("INSERT INTO meta (key, value) VALUES")
-                appendLine("    ('schema_version', '18'),")
+                appendLine("    ('schema_version', '19'),")
                 appendLine("    ('snapshot_version', '0');")
                 sharedViews.forEach { queryFile ->
                     appendLine()
@@ -333,6 +339,14 @@ val syncSharedSqlForSqlDelight by tasks.registering {
                 appendLine("-- Do not edit directly; edit the shared SQL file instead.")
                 appendLine()
                 append(sharedMigration018.asFile.readText())
+            },
+        )
+        generatedMigration18.asFile.writeText(
+            buildString {
+                appendLine("-- Generated from ../../shared/migrations/019_add_income_share_to_movement_summary.sql.")
+                appendLine("-- Do not edit directly; edit the shared SQL file instead.")
+                appendLine()
+                append(sharedMigration019.asFile.readText())
             },
         )
         generatedSharedAccountIntegrityAsset.asFile.apply {

@@ -449,6 +449,7 @@
     <string name="movement_amount_accessibility_owes">Deus aquesta part de %1$s.</string>
     <string name="movement_amount_accessibility_owed">Et deuen el total de %1$s.</string>
     <string name="movement_amount_accessibility_assumed">Assumeixes aquesta part de la despesa.</string>
+    <string name="movement_amount_accessibility_income_part">Part d’un ingrés de %1$s.</string>
     <string name="movement_amount_accessibility_expense">Despesa, sortida de diners: %1$s</string>
     <string name="movement_amount_accessibility_income">Ingrés, entrada de diners: %1$s</string>
     <string name="movement_amount_accessibility_transfer">Transferència entre comptes: %1$s</string>

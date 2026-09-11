@@ -46,7 +46,7 @@ Exit: goals remain mathematically consistent through allocation edits, account-v
 - Update account value, net worth, debt, message, and analysis queries so the meanings remain labelled and reconcilable.
 - Do not build per-member capital accounts or retroactively infer exact ownership from historical consumption.
 
-Status: in progress. The shared contract is complete at schema 18, and steps 1 to 6 of [Shared Accounts Usability](shared-accounts-usability.md) are implemented with focused tests. The gate stays open for that task's remaining acceptance work (leading an allocated income with the owner's part) and for device verification, including refusing to un-share an account that carries shared history.
+Status: in progress. The shared contract is complete at schema 19, and [Shared Accounts Usability](shared-accounts-usability.md) is implemented with focused tests. The gate stays open for device verification of those flows, including refusing to un-share an account that carries shared history.
 
 Exit: a shared account can represent its bank balance and the owner's patrimonial share while splits still answer who economically consumed an expense and debt still answers who owes whom.
 

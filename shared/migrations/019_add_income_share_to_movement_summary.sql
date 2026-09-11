@@ -1,3 +1,8 @@
+-- Summa v18 -> v19 migration.
+-- An income allocated between a shared account's members carries the owner's share in the movement
+-- summary, so lists and details lead with the owner's part as they already do for a shared expense.
+
+DROP VIEW IF EXISTS v_movement_summary;
 CREATE VIEW v_movement_summary AS
 SELECT
     movements.id,
@@ -210,3 +215,5 @@ LEFT JOIN accounts source_account
 LEFT JOIN people contributor
     ON contributor.id = contribution.person_id
 WHERE contribution.archived_at IS NULL;
+
+UPDATE meta SET value = '19' WHERE key = 'schema_version';

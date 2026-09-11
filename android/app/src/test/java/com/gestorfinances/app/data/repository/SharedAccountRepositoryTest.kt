@@ -239,6 +239,7 @@ class SharedAccountRepositoryTest {
         movements.create(allocatedIncome("shared-income", "shared"), now)
 
         assertTrue(movements.getActive("shared-income")!!.isShared)
+        assertEquals(1_200L, movements.getActive("shared-income")!!.userShareCents)
         assertEquals(0, people.getActive("person")!!.balanceCents)
     }
 
