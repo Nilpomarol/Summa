@@ -150,7 +150,6 @@ Contract implications: `v_actual_income` takes the app owner's split line when t
 ## Remaining before acceptance
 
 - An allocated income still leads with its full amount in movement lists and on its detail page, because `v_movement_summary` computes the owner's share only for expenses; leading with the owner's part needs a view migration.
-- A shared-account expense's detail page names its funding but not its debt effect, and captions the account movement only as a total.
 - Device verification of steps 3 to 6.
 
 ## Acceptance criteria

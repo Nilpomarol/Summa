@@ -189,6 +189,9 @@
     <string name="movement_type_withdrawal">Retirada</string>
     <string name="movement_detail_financing">Finançament</string>
     <string name="movement_detail_financing_shared_account">El compte compartit</string>
+    <string name="movement_detail_account_movement_short">Moviment del compte %1$s</string>
+    <string name="movement_detail_debt">Deutes</string>
+    <string name="movement_detail_debt_none_shared_account">No en crea: la paga el compte compartit</string>
     <string name="movement_shared_account_funding">El compte compartit paga aquesta despesa. El repartiment diu qui la consumeix i no crea deutes entre vosaltres.</string>
     <string name="movement_validation_shared_transfer">Un traspàs desat no es pot convertir en una aportació o una retirada. Elimina’l i registra’l de nou.</string>
     <string name="movement_transfer_saved_as_contribution">Es desarà com una aportació al compte compartit: no canvia els percentatges de propietat ni liquida cap deute.</string>
