@@ -1,7 +1,6 @@
 package com.gestorfinances.app.ui.people
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountRepository
@@ -41,11 +40,6 @@ class PeopleViewModel(
     val state: StateFlow<PeopleUiState> = _state.asStateFlow()
 
     fun onScreenShown() {
-        refreshPeople()
-    }
-
-    fun resetForMenuNavigation() {
-        _state.value = PeopleUiState()
         refreshPeople()
     }
 
@@ -337,26 +331,6 @@ class PeopleViewModel(
             withContext(ioDispatcher) {
                 runCatching { notificationRefresher.refreshNotifications() }
             }
-        }
-    }
-
-    class Factory(
-        private val personRepository: PersonRepository,
-        private val movementRepository: MovementRepository,
-        private val accountRepository: AccountRepository,
-        private val notificationRefresher: NotificationRefresher = NotificationRefresher.NoOp,
-    ) : ViewModelProvider.Factory {
-        @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            if (modelClass.isAssignableFrom(PeopleViewModel::class.java)) {
-                return PeopleViewModel(
-                    personRepository = personRepository,
-                    movementRepository = movementRepository,
-                    accountRepository = accountRepository,
-                    notificationRefresher = notificationRefresher,
-                ) as T
-            }
-            throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }
     }
 }

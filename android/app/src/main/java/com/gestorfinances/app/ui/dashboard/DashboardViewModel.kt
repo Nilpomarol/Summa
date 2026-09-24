@@ -1,7 +1,6 @@
 package com.gestorfinances.app.ui.dashboard
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.gestorfinances.app.data.repository.AccountRepository
 import com.gestorfinances.app.data.repository.AccountSummary
@@ -117,32 +116,6 @@ class DashboardViewModel(
                     )
                 },
             )
-        }
-    }
-
-    class Factory(
-        private val analysisRepository: AnalysisRepository,
-        private val accountRepository: AccountRepository,
-        private val movementRepository: MovementRepository,
-        private val tripRepository: TripRepository,
-        private val categoryRepository: CategoryRepository,
-        private val budgetRepository: BudgetRepository,
-        private val templateRepository: TemplateRepository,
-    ) : ViewModelProvider.Factory {
-        @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            if (modelClass.isAssignableFrom(DashboardViewModel::class.java)) {
-                return DashboardViewModel(
-                    analysisRepository = analysisRepository,
-                    accountRepository = accountRepository,
-                    movementRepository = movementRepository,
-                    tripRepository = tripRepository,
-                    categoryRepository = categoryRepository,
-                    budgetRepository = budgetRepository,
-                    templateRepository = templateRepository,
-                ) as T
-            }
-            throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }
     }
 }

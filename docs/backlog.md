@@ -34,7 +34,6 @@ Out of scope: securities/holdings, units, trades, live prices, dividends, corpor
 
 Continue reducing accidental complexity where it has a concrete payoff:
 
-- simplify app-shell/navigation orchestration;
 - split the oversized movement feature by user flow;
 - evaluate whether externally-paid expenses should become normal movements with an alternate payer.
 

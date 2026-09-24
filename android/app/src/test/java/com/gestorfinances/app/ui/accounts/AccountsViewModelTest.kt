@@ -189,6 +189,29 @@ class AccountsViewModelTest {
             lowBalanceThresholdCents = null,
         )
 
+    @Test
+    fun aRequestedAddFormOpensAfterTheFirstLoadWithRealDefaults() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("personal", displayOrder = 0), createdAt = "2026-01-01T00:00:00Z")
+            val viewModel = viewModel(store)
+
+            viewModel.onAddRequested()
+            assertNull(viewModel.state.value.form)
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+
+            val form = viewModel.state.value.form!!
+            assertEquals(1L, form.displayOrder)
+            assertEquals(false, form.isDefault)
+
+            // The request is consumed: later reloads leave a dismissed form closed.
+            viewModel.onFormDismissed()
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+            assertNull(viewModel.state.value.form)
+        }
+    }
+
     private fun viewModel(store: TestStore): AccountsViewModel =
         AccountsViewModel(
             goalRepository = store.goals,

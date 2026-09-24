@@ -1,7 +1,6 @@
 package com.gestorfinances.app.ui.settings
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.backup.BackupException
@@ -62,8 +61,6 @@ class SettingsViewModel(
             lastSuccessfulBackupAt = autoBackup.lastSuccessfulBackupAt,
         )
     }
-
-    fun resetForMenuNavigation() = onScreenShown()
 
     fun onRecurringLeadDaysChanged(value: String) {
         _state.value = _state.value.copy(recurringLeadDays = value, errorRes = null)
@@ -364,32 +361,6 @@ class SettingsViewModel(
             messageRes = R.string.settings_backup_error_generic,
             arg = error.message ?: error.javaClass.simpleName,
         )
-
-    class Factory(
-        private val preferences: NotificationPreferences,
-        private val backupFolderRepository: BackupFolderRepository,
-        private val backupOperations: BackupOperations,
-        private val autoBackupSettings: AutoBackupSettingsRepository,
-        private val autoBackupScheduler: AutoBackupScheduler,
-        private val themePreferences: ThemeSettingsRepository,
-        private val notificationRefresher: NotificationRefresher,
-    ) : ViewModelProvider.Factory {
-        @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            if (modelClass.isAssignableFrom(SettingsViewModel::class.java)) {
-                return SettingsViewModel(
-                    preferences = preferences,
-                    backupFolderRepository = backupFolderRepository,
-                    backupOperations = backupOperations,
-                    autoBackupSettings = autoBackupSettings,
-                    autoBackupScheduler = autoBackupScheduler,
-                    themePreferences = themePreferences,
-                    notificationRefresher = notificationRefresher,
-                ) as T
-            }
-            throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
-        }
-    }
 }
 
 data class SettingsUiState(

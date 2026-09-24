@@ -1,7 +1,6 @@
 package com.gestorfinances.app.ui.trips
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountRepository
@@ -50,11 +49,6 @@ class TripsViewModel(
     val state: StateFlow<TripsUiState> = _state.asStateFlow()
 
     fun onScreenShown() {
-        refresh()
-    }
-
-    fun resetForMenuNavigation() {
-        _state.value = TripsUiState()
         refresh()
     }
 
@@ -332,30 +326,6 @@ class TripsViewModel(
                     )
                 },
             )
-        }
-    }
-
-    class Factory(
-        private val tripRepository: TripRepository,
-        private val tripAnalysisRepository: TripAnalysisRepository,
-        private val movementRepository: MovementRepository,
-        private val accountRepository: AccountRepository,
-        private val budgetRepository: BudgetRepository,
-        private val tagRepository: TagRepository,
-    ) : ViewModelProvider.Factory {
-        @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            if (modelClass.isAssignableFrom(TripsViewModel::class.java)) {
-                return TripsViewModel(
-                    tripRepository = tripRepository,
-                    tripAnalysisRepository = tripAnalysisRepository,
-                    movementRepository = movementRepository,
-                    accountRepository = accountRepository,
-                    budgetRepository = budgetRepository,
-                    tagRepository = tagRepository,
-                ) as T
-            }
-            throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }
     }
 }

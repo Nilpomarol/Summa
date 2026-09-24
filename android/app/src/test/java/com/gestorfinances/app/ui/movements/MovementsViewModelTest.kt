@@ -1720,6 +1720,28 @@ class MovementsViewModelTest {
         }
     }
 
+    @Test
+    fun addingWithoutAnyAccountReportsItInsteadOfOpeningAForm() = runTest(dispatcher) {
+        freshStore().use { store ->
+            val viewModel = viewModel(store)
+            var noAccounts = false
+
+            viewModel.onAddClicked(tripId = null, onNoAccounts = { noAccounts = true })
+            advanceUntilIdle()
+
+            assertTrue(noAccounts)
+            assertNull(viewModel.state.value.form)
+
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            noAccounts = false
+            viewModel.onAddClicked(tripId = null, onNoAccounts = { noAccounts = true })
+            advanceUntilIdle()
+
+            assertEquals(false, noAccounts)
+            assertEquals("checking", viewModel.form().accountId)
+        }
+    }
+
     private fun MovementsViewModel.form(): MovementFormState = state.value.form!!
 
     private fun viewModel(store: TestStore): MovementsViewModel =

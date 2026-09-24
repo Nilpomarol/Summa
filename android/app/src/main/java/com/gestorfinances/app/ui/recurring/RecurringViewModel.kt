@@ -1,7 +1,6 @@
 package com.gestorfinances.app.ui.recurring
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountRepository
@@ -715,36 +714,6 @@ class RecurringViewModel(
             withContext(ioDispatcher) {
                 runCatching { notificationRefresher.refreshNotifications() }
             }
-        }
-    }
-
-    class Factory(
-        private val templateRepository: TemplateRepository,
-        private val accountRepository: AccountRepository,
-        private val categoryRepository: CategoryRepository,
-        private val tripRepository: TripRepository,
-        private val tagRepository: TagRepository,
-        private val movementRepository: MovementRepository,
-        private val splitRepository: SplitRepository,
-        private val personRepository: PersonRepository,
-        private val notificationRefresher: NotificationRefresher = NotificationRefresher.NoOp,
-    ) : ViewModelProvider.Factory {
-        @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            if (modelClass.isAssignableFrom(RecurringViewModel::class.java)) {
-                return RecurringViewModel(
-                    templateRepository = templateRepository,
-                    accountRepository = accountRepository,
-                    categoryRepository = categoryRepository,
-                    tripRepository = tripRepository,
-                    tagRepository = tagRepository,
-                    movementRepository = movementRepository,
-                    splitRepository = splitRepository,
-                    personRepository = personRepository,
-                    notificationRefresher = notificationRefresher,
-                ) as T
-            }
-            throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }
     }
 }

@@ -1,5 +1,7 @@
 package com.gestorfinances.app.ui.movements
 
+import com.gestorfinances.app.di.AppContainer
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -108,6 +110,25 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneOffset
+
+/**
+ * The app-wide movements ViewModel: the ledger page and the movement sheets that any page can open
+ * share it, so it lives as long as the Activity rather than one page visit.
+ */
+@Composable
+fun movementsViewModel(appContainer: AppContainer): MovementsViewModel = viewModel {
+    MovementsViewModel(
+        movementRepository = appContainer.movementRepository,
+        accountRepository = appContainer.accountRepository,
+        categoryRepository = appContainer.categoryRepository,
+        personRepository = appContainer.personRepository,
+        tripRepository = appContainer.tripRepository,
+        tagRepository = appContainer.tagRepository,
+        splitRepository = appContainer.splitRepository,
+        notificationRefresher = appContainer.notificationCoordinator,
+        templateRepository = appContainer.templateRepository,
+    )
+}
 
 @Composable
 fun MovementsScreen(

@@ -3,7 +3,6 @@ package com.gestorfinances.app.ui.movements
 import com.gestorfinances.app.data.repository.ContributionDraft
 import com.gestorfinances.app.data.repository.ContributionDirection
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountRepository
@@ -104,12 +103,19 @@ class MovementsViewModel(
         onAddClicked(tripId = null)
     }
 
-    fun onAddClicked(tripId: String?, debtPayerPersonId: String? = null, accountId: String? = null) {
+    /** [onNoAccounts] runs instead of opening a form when there is no account to record it in. */
+    fun onAddClicked(
+        tripId: String?,
+        debtPayerPersonId: String? = null,
+        accountId: String? = null,
+        onNoAccounts: () -> Unit = {},
+    ) {
         viewModelScope.launch {
             val result = loadMovementData()
             result.fold(
                 onSuccess = {
                     val form = if (it.accounts.isEmpty() && debtPayerPersonId == null) {
+                        onNoAccounts()
                         null
                     } else {
                         newMovementForm(it, tripId, debtPayerPersonId, accountId)
@@ -1236,36 +1242,6 @@ class MovementsViewModel(
             )
         }
     }
-
-    class Factory(
-        private val movementRepository: MovementRepository,
-        private val accountRepository: AccountRepository,
-        private val categoryRepository: CategoryRepository,
-        private val personRepository: PersonRepository,
-        private val tripRepository: TripRepository,
-        private val tagRepository: TagRepository,
-        private val splitRepository: SplitRepository? = null,
-        private val notificationRefresher: NotificationRefresher = NotificationRefresher.NoOp,
-        private val templateRepository: TemplateRepository? = null,
-    ) : ViewModelProvider.Factory {
-        @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            if (modelClass.isAssignableFrom(MovementsViewModel::class.java)) {
-                return MovementsViewModel(
-                    movementRepository = movementRepository,
-                    accountRepository = accountRepository,
-                    categoryRepository = categoryRepository,
-                    personRepository = personRepository,
-                    tripRepository = tripRepository,
-                    tagRepository = tagRepository,
-                    splitRepository = splitRepository,
-                    notificationRefresher = notificationRefresher,
-                    templateRepository = templateRepository,
-                ) as T
-            }
-            throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
-        }
-    }
 }
 
 data class MovementsUiState(
@@ -1289,8 +1265,8 @@ data class MovementsUiState(
     val visibleMovements: List<MovementSummary>
         get() = movements.filter { filters.matches(it) }
 
-    /** True while any of this ViewModel's own pages/dialogs (`AppOverlay.MovementForm`/
-     * `MovementDetail`, or the local archive/refund state nested inside the latter) is open --
+    /** True while any of this ViewModel's own sheets/dialogs (the movement form or detail, or
+     * the local archive/refund state nested inside the latter) is open --
      * used to keep other app-level auto-triggered overlays (e.g. the due-reminders sheet) from
      * appearing on top of one of these. */
     val hasOpenDialog: Boolean get() =

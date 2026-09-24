@@ -1,5 +1,7 @@
 package com.gestorfinances.app.ui.people
 
+import com.gestorfinances.app.di.AppContainer
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -100,6 +102,17 @@ import com.gestorfinances.app.ui.movements.FormDatePicker
 import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.categoryColor
 import com.gestorfinances.app.ui.theme.categoryTint
+
+/** This page visit's ViewModel, scoped to its navigation entry. */
+@Composable
+fun peopleViewModel(appContainer: AppContainer): PeopleViewModel = viewModel {
+    PeopleViewModel(
+        personRepository = appContainer.personRepository,
+        movementRepository = appContainer.movementRepository,
+        accountRepository = appContainer.accountRepository,
+        notificationRefresher = appContainer.notificationCoordinator,
+    )
+}
 
 @Composable
 fun PeopleScreen(

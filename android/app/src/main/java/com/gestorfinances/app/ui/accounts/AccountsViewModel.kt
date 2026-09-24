@@ -3,7 +3,6 @@ package com.gestorfinances.app.ui.accounts
 import com.gestorfinances.app.data.repository.PersonDraft
 import kotlinx.coroutines.CoroutineDispatcher
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountAllocation
@@ -52,15 +51,16 @@ class AccountsViewModel(
 ) : ViewModel() {
     private val _state = MutableStateFlow(AccountsUiState())
     val state: StateFlow<AccountsUiState> = _state.asStateFlow()
+    private var addFormRequested = false
+
+    /** Opens the new-account form once the next load finishes, so its defaults see real data. */
+    fun onAddRequested() {
+        addFormRequested = true
+    }
 
     fun onScreenShown() {
         refreshAccounts()
         reloadFlow()
-    }
-
-    fun resetForMenuNavigation() {
-        _state.value = AccountsUiState()
-        refreshAccounts()
     }
 
     fun onAddClicked() {
@@ -500,6 +500,10 @@ class AccountsViewModel(
                     )
                 },
             )
+            if (addFormRequested && result.isSuccess) {
+                addFormRequested = false
+                onAddClicked()
+            }
         }
     }
 
@@ -537,23 +541,6 @@ class AccountsViewModel(
                     _state.value = _state.value.copy(errorMessage = it.message ?: it.javaClass.simpleName)
                 },
             )
-        }
-    }
-
-    class Factory(
-        private val accountRepository: AccountRepository,
-        private val goalRepository: GoalRepository,
-        private val movementRepository: MovementRepository,
-        private val templateRepository: TemplateRepository,
-        private val notificationRefresher: NotificationRefresher = NotificationRefresher.NoOp,
-        private val personRepository: PersonRepository? = null,
-    ) : ViewModelProvider.Factory {
-        @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            if (modelClass.isAssignableFrom(AccountsViewModel::class.java)) {
-                return AccountsViewModel(accountRepository, goalRepository, movementRepository, templateRepository, notificationRefresher, personRepository) as T
-            }
-            throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }
     }
 }

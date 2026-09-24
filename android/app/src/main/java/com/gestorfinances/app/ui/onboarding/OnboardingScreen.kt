@@ -1,5 +1,7 @@
 package com.gestorfinances.app.ui.onboarding
 
+import com.gestorfinances.app.di.AppContainer
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -33,6 +35,15 @@ import com.gestorfinances.app.ui.common.PrimaryButton
 import com.gestorfinances.app.ui.common.InlineFailureBanner
 import com.gestorfinances.app.ui.common.label
 import com.gestorfinances.app.ui.theme.FinanceTheme
+
+/** The first-run gate's ViewModel; it decides whether the app opens into onboarding. */
+@Composable
+fun onboardingViewModel(appContainer: AppContainer): OnboardingViewModel = viewModel {
+    OnboardingViewModel(
+        accountRepository = appContainer.accountRepository,
+        categoryRepository = appContainer.categoryRepository,
+    )
+}
 
 @Composable
 fun OnboardingScreen(

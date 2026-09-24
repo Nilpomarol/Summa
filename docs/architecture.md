@@ -25,6 +25,7 @@ The goal is traceability, not architectural layering for its own sake.
 - Repositories are the database boundary and may return UI-ready/domain-ready models when that keeps the flow simple.
 - Pure helpers are appropriate for deterministic rules such as recurrence, split allocation, or duplicate detection.
 - `AppContainer` owns lightweight application dependencies.
+- Navigation Compose owns the page back stack. Each page visit gets its own ViewModel, built next to its screen from `AppContainer`, and cross-feature context travels as route arguments. Only state that outlives a page is app-wide: the movement sheets, recurring reminders, settings/restore effects, and onboarding.
 - Prefer concrete implementations. Do not add interfaces, service layers, coordinators, buses, or abstractions without a current need.
 - Prefer screen/flow-local state over whole-app orchestration.
 - Use IO dispatching for database work and immutable observable UI state.

@@ -1,5 +1,7 @@
 package com.gestorfinances.app.ui.dashboard
 
+import com.gestorfinances.app.di.AppContainer
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -118,9 +120,25 @@ private val CATEGORY_RULE_HEIGHT = 3.dp
  */
 private val CATEGORY_RULE_INSET = 32.dp
 
+/** This page visit's ViewModel, scoped to its navigation entry. */
+@Composable
+fun dashboardViewModel(appContainer: AppContainer): DashboardViewModel = viewModel {
+    DashboardViewModel(
+        analysisRepository = appContainer.analysisRepository,
+        accountRepository = appContainer.accountRepository,
+        movementRepository = appContainer.movementRepository,
+        tripRepository = appContainer.tripRepository,
+        categoryRepository = appContainer.categoryRepository,
+        budgetRepository = appContainer.budgetRepository,
+        templateRepository = appContainer.templateRepository,
+    )
+}
+
 @Composable
 fun DashboardScreen(
     viewModel: DashboardViewModel,
+    /** Changes after every movement write, so the page reloads while it stays visible. */
+    dataVersion: Long,
     onDrillDown: (MovementFilters) -> Unit,
     onMovementDetail: (MovementSummary) -> Unit,
     onAccountAnalysis: (AccountSummary) -> Unit,
@@ -131,7 +149,7 @@ fun DashboardScreen(
 ) {
     val state by viewModel.state.collectAsState()
 
-    LaunchedEffect(viewModel) {
+    LaunchedEffect(viewModel, dataVersion) {
         viewModel.onScreenShown()
     }
 

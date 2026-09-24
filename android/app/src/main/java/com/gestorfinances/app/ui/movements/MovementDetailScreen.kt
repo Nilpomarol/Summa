@@ -84,8 +84,8 @@ import com.gestorfinances.app.ui.theme.categoryColor
 private const val MovementDetailSheetMaxHeightFraction = 0.88f
 
 /**
- * Movement detail sheet. Reached via `AppOverlay.MovementDetail`
- * (MainActivity), since a movement can be viewed from any screen. [onBack] pops that overlay;
+ * Movement detail sheet, opened through [MovementSheets] since a movement can be viewed from any
+ * screen. [onBack] closes the sheet;
  * "Edit" and "Add refund" are local swaps within this same page — refund reuses
  * `state.detailMovement` (kept set while the refund form is open, see
  * [MovementsViewModel.onAddRefundClicked]) so cancelling it reveals the detail content again,
@@ -115,9 +115,8 @@ fun MovementDetailScreen(
     }
 
     if (refundForm != null) {
-        // System/gesture back must reveal the movement detail again, not exit the whole
-        // AppOverlay.MovementDetail page -- the global BackHandler in MainActivity only pops
-        // the overlay, so this nested swap needs its own handler (mirrors TripFormScreen nested
+        // System/gesture back must reveal the movement detail again, not close the whole
+        // detail sheet, so this nested swap needs its own handler (mirrors TripFormScreen nested
         // in TripDetailScreen, SettlementScreen nested in PersonDetailScreen).
         BackHandler(onBack = requireNotNull(requestRefundDismissal))
     }

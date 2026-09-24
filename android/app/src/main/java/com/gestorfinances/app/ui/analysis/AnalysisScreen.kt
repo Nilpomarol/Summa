@@ -1,5 +1,8 @@
 package com.gestorfinances.app.ui.analysis
 
+import com.gestorfinances.app.di.AppContainer
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.gestorfinances.app.ui.navigation.Route
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
@@ -23,14 +26,29 @@ import com.gestorfinances.app.ui.common.IncomeExpenseChartPoint
 import com.gestorfinances.app.ui.common.formatMonthYear
 import java.time.YearMonth
 
+/** This page visit's ViewModel, starting from the filters [route] was opened with. */
+@Composable
+fun analysisViewModel(appContainer: AppContainer, route: Route.Analysis): AnalysisViewModel = viewModel {
+    AnalysisViewModel(
+        analysisRepository = appContainer.analysisRepository,
+        accountRepository = appContainer.accountRepository,
+        categoryRepository = appContainer.categoryRepository,
+    ).apply {
+        if (route.accountId != null && route.accountName != null) setAccountFilter(route.accountId, route.accountName)
+        if (route.categoryId != null && route.categoryName != null) setCategoryFilter(route.categoryId, route.categoryName)
+    }
+}
+
 @Composable
 internal fun AnalysisScreen(
     viewModel: AnalysisViewModel,
+    /** Changes after every movement write, so the page reloads while it stays visible. */
+    dataVersion: Long,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsState()
 
-    LaunchedEffect(viewModel) {
+    LaunchedEffect(viewModel, dataVersion) {
         viewModel.onScreenShown()
     }
 
