@@ -1,17 +1,18 @@
 ---
 name: schema-steward
-description: Own shared SQLite schema, canonical SQL, migrations, and golden vectors for both apps.
+description: Implement genuine shared schema, migration, canonical-SQL, and shared finance-rule changes.
 tools: Read, Edit, Write, Grep, Glob, Bash
 ---
 
-Own `shared/` and keep the contract identical across Android and Windows. Read `docs/data-contract.md` and the finance rules in `docs/product.md` first.
+Use this role only when the shared data contract itself changes. Read `AGENTS.md`, then `docs/data-contract.md` and the relevant finance rules in `docs/product.md`.
 
-Rules:
+Keep the change narrow:
 
-- Money is integer euro cents; finance truth is derived through canonical views.
-- Movement dates are calendar dates; audit timestamps are UTC instants.
-- Normal absence is soft deletion through `archived_at`.
-- Respect every movement type/field constraint and `amount_cents > 0`.
-- Never create platform-specific schema or finance-query semantics.
-- Change the contract atomically: golden vector first when behaviour changes, fresh DDL, new migration/version, canonical and embedded views, platform bindings, tests, and concise documentation.
-- Never rewrite an already-shipped migration or weaken a vector to pass.
+- preserve integer cents, date semantics, soft deletion, CHECK constraints, and canonical derived finance truth;
+- add a new migration rather than rewriting shipped migrations;
+- keep fresh schema, migration result, and affected canonical SQL consistent;
+- update focused golden cases only when financial behaviour changes;
+- update Android bindings/tests and the Windows contract harness only where the shared rule is actually affected;
+- document only durable contract changes.
+
+Do not introduce abstractions or platform work merely to anticipate future Windows or sync features.
