@@ -1,6 +1,6 @@
 # AGENTS.md — Summa
 
-Canonical operating guide for coding agents. `CLAUDE.md` imports this file.
+Canonical operating guide for coding agents and the single source of truth for repository-level agent instructions.
 
 ## Project state
 
