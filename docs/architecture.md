@@ -1,116 +1,64 @@
 # Architecture
 
-## Topology
+## Current system
 
-Summa uses two native applications around one SQLite contract:
-
-```text
-Android (current writer) ─┐
-                          ├─ shared schema, SQL, golden rules, tokens
-Windows (future surface) ─┘
-```
-
-Each platform opens a local SQLite file. Android is currently the only product surface and therefore the only writer in practice. No server is required for normal use.
-
-## Shared logic strategy
-
-The repository shares behaviour in two forms:
-
-1. Schema and set-based finance logic are single-sourced as SQL under `shared/` and consumed verbatim by both platforms.
-2. Procedural rules are implemented in Kotlin and C#, with equivalence enforced by the same `shared/golden/*.json` vectors.
-
-This avoids a cross-platform runtime while still preventing Android/Windows finance drift.
-
-## Android
-
-Stack: Kotlin, Jetpack Compose, SQLDelight, SQLite, coroutines, and `StateFlow`.
-
-The working dependency direction is:
+Summa is currently an Android application backed by a local SQLite database. Android is the only product surface in active use.
 
 ```text
-Compose screen → ViewModel/state → domain rule or repository → SQLDelight → SQLite
+Compose UI
+    ↓
+ViewModel / screen state
+    ↓
+repository or small domain rule
+    ↓
+SQLDelight
+    ↓
+SQLite
 ```
 
-- Screens render state and send user intent; they do not perform finance queries.
-- ViewModels coordinate forms, warnings, navigation-facing state, and repository work.
-- Repositories are the database boundary and map SQLDelight rows into domain/UI-ready models.
-- Pure domain rules cover recurrence, split allocation, duplicate detection, and categorization.
-- `AppContainer` owns lightweight application dependencies. Avoid speculative service layers or interfaces without a real second implementation.
-- Long-running database work uses the IO dispatcher; UI state is exposed as immutable flows/state.
-- User-visible strings live in Android resources and are Catalan.
+The goal is traceability, not architectural layering for its own sake.
 
-The build prepares the shared schema and analysis SQL for SQLDelight. A shared query must not gain an Android-only semantic fork.
+## Android boundaries
 
-## Windows
+- Screens render state and send user intent; they do not run finance queries.
+- ViewModels coordinate screen/flow state, validation, warnings, and repository work.
+- Repositories are the database boundary and may return UI-ready/domain-ready models when that keeps the flow simple.
+- Pure helpers are appropriate for deterministic rules such as recurrence, split allocation, or duplicate detection.
+- `AppContainer` owns lightweight application dependencies.
+- Prefer concrete implementations. Do not add interfaces, service layers, coordinators, buses, or abstractions without a current need.
+- Prefer screen/flow-local state over whole-app orchestration.
+- Use IO dispatching for database work and immutable observable UI state.
 
-The current `windows/` project is a .NET test harness for the shared contract. The future app uses C#, WinUI 3, Microsoft.Data.Sqlite, Dapper, and simple MVVM.
+## Data and finance truth
 
-Windows will execute the shared schema and canonical SQL directly. EF Core and finance logic expressed through ORM queries are out of scope. Desktop-only CSV import belongs in the Windows application and commits each accepted batch atomically.
+`shared/schema`, `shared/migrations`, and the genuinely canonical SQL under `shared/queries` define the database contract. Canonical finance derivations include account flow/balance/value, actual income/expense, debt, trip actuals, and goal progress.
 
-See [windows-plan.md](windows-plan.md) for the preserved implementation sequence.
+Platform code may map these results but must not create another source of financial truth.
+
+Procedural finance rules that need exact parity are covered by focused golden vectors under `shared/golden`.
+
+See [data-contract.md](data-contract.md).
 
 ## Transactions and warnings
 
-Operations that must succeed together use one database transaction: movement plus split, recurring confirmation plus template advancement, quick-template creation plus movement save, and CSV batch import.
+Operations whose records must stay consistent are written in one transaction—for example a movement with its split or recurring confirmation with template advancement.
 
-Repositories return failures; ViewModels translate them into externalized user feedback. Valid but risky actions use a dismissible warning and explicit continuation. Invalid database shapes remain errors.
+Valid but risky user choices use an understandable warning and explicit continuation. Database-invalid shapes remain errors.
 
-## Backup today
+## Backup
 
-Android can export and restore an unencrypted `.gfbackup` SQLite snapshot through the Storage Access Framework.
+Android exports/restores whole-database `.gfbackup` snapshots through the Storage Access Framework. Restore validates the candidate before replacing the live database. Automatic backup may run on the configured cadence and retains the newest backups.
 
-- Export increments `meta.snapshot_version` and creates a consistent single-file image with `VACUUM INTO` when supported.
-- The Android compatibility fallback checkpoints WAL, closes the database, copies the stable main file, and recreates the app container.
-- Restore validates SQLite integrity, required objects, and metadata before replacing the database.
-- Older or same-version manual backups warn but may be restored deliberately.
-- An optional Android WorkManager job requests an immediate export when first enabled, then repeats daily, weekly, monthly, or quarterly in the selected folder. Every successful export retains only the five newest `.gfbackup` files. Automatic work only uses the live `VACUUM INTO` path; if that safe path is unavailable, it retries later rather than closing the active database for the compatibility fallback.
-- This format is not the future encrypted sync format.
+Backup is implemented. Cross-device synchronization is not.
 
-## Local only synchronization contract
+## Change discipline
 
-The preserved Local only Android/Windows mode is manual handoff, not merging:
+- Prefer the smallest correct change in the existing flow.
+- Remove dead or speculative seams instead of preserving them for hypothetical future work.
+- Do not let a future Windows app or future sync design force current Android abstractions.
+- Shared-contract changes follow [data-contract.md](data-contract.md).
+- Treat the live Android database as potentially real user data.
 
-- Exactly one device holds the control token and may write; the other is strictly read-only.
-- The writer sends monotonically versioned, consistent SQLite snapshots. A receiver rejects a sync snapshot whose version is not newer.
-- Applying a snapshot is atomic: decrypt to a temporary file, validate, fsync, then rename over the live database.
-- Snapshots use a distinct `.gfsnap` format encrypted with AES-256-GCM. The user passphrase is processed with PBKDF2-HMAC-SHA256 (600,000 iterations, random 16-byte salt, 256-bit key); each file uses a unique 12-byte nonce and authenticates its header as AAD.
-- The exchange location contains a token marker naming the writer, session, operation, and referenced snapshot.
-- Desktop can emit checkpoints while keeping control. Returning control emits a final checkpoint and makes desktop read-only.
-- A lost desktop session is never reclaimed automatically. Mobile stays read-only until the user explicitly discards/reclaims the session; later files from a discarded session are never applied silently.
-- Read-only state must be prominent and editing affordances visibly disabled.
+## Future architecture
 
-The current Android `DeviceAccessState` is only a shell seam and always reports writer. Real handoff is not implemented.
-
-## Dependency and change discipline
-
-- Prefer existing platform/library capabilities over new dependencies.
-- Build vertical slices and change the deepest correct layer when a UI discovery exposes a logic problem.
-- Shared-contract changes follow [data-contract.md](data-contract.md) atomically.
-- Treat the Android database as potentially real user data: do not clear or seed it casually.
-
-
-## Planned account-value boundary
-
-The pre-Windows investment slice introduces two meanings that must not be collapsed:
-
-- ledger cash-flow balance: opening balance plus canonical account flow;
-- account value: cash-flow balance for normal accounts, latest valuation for investment accounts.
-
-Net worth consumes account value. Income and expense continue to consume the existing actual-value views, so market movement never becomes ledger activity. Savings goals consume account value or planning allocations and never write finance flow.
-
-Shared accounts add ownership and payer semantics without adding another authenticated app user. The physical balance remains an account fact; the app owner's patrimonial share is a separate derived meaning.
-
-## Later Cloud linked mode
-
-Cloud-linked synchronization is deliberately after Windows core, when two real clients can validate it. It does not replace the local database:
-
-```text
-Android SQLite ↔ change sync ↔ Summa Server ↔ change sync ↔ Windows SQLite
-```
-
-- The server is the synchronization authority and the only process that opens its own server-side SQLite database.
-- Clients stay local-first and work offline; they push mutations and pull revisions when connected.
-- Logical operations such as movement plus split lines remain atomic.
-- Rows use optimistic concurrency. A stale revision produces an explicit conflict; financial edits are never silently resolved with last-write-wins.
-- Local only and Cloud linked are explicit alternative modes for one dataset. Enabling cloud performs an initial upload; detaching performs a final sync/download and prevents an old local snapshot from overwriting cloud state.
-- The snapshot/token contract above remains supported for Local only mode.
+Windows and synchronization are intentionally outside the current architecture contract. Their current ideas live under `docs/future/` and are planning context only. They must not justify present-day infrastructure unless implementation of that future work has actually started.
