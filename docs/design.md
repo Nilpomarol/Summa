@@ -1,106 +1,53 @@
 # Design
 
-## Status
+## Direction
 
-The Android UI redesign is **complete**. Personal Compass and the implemented Android navigation, component vocabulary, themes, forms, sheets, feedback states, and accessibility behaviour are the stable product baseline.
+The Android visual direction is **Personal Compass**: warm, private, precise, and evidence-led. It should feel like a personal tool, not a bank dashboard or trading terminal.
 
-Past redesign plans, audits, remediation checklists, phase labels, and unchecked items are retired. They are historical context only and must not be used as active requirements. Future UI changes are normal feature work or targeted maintenance, not continuation of a redesign phase.
+## Durable principles
 
-## Implemented baseline
+- Financial meaning is explicit and never depends on colour alone.
+- Prefer calm layered surfaces, restrained elevation, and compact charts over decorative effects.
+- Currency uses tabular/monospaced figures where practical.
+- Reuse semantic components when the same interaction genuinely repeats; do not generalize one-off layouts.
+- User-facing copy is Catalan and resource-backed.
+- Support narrow widths, text scaling, TalkBack, light/dark/system themes, keyboard-safe forms, and explicit loading/error/empty/disabled states.
+- Save failures keep entered values and show concise user-facing feedback.
+- Destructive finance actions use understandable confirmation when needed and successful soft deletion offers Undo.
+- Forms protect meaningful unsaved changes.
 
-The current Android shell uses:
+## Navigation baseline
 
-- root destinations `Inici`, `Moviments`, centered new-movement action, `Anàlisi`, and `Més`;
-- a Més sheet for accounts, categories, people, trips, recurring activity, budgets, savings goals, and settings;
-- an intentionally compact, single-page Analysis overview for month, year, and all-time periods, without legacy tabs or drill-down navigation;
-- focused full-page movement, trip, and contextual flows;
-- Compose components and semantic colours built from the shared token file;
-- externalized Catalan copy;
-- a locally saved System, Light, or Dark appearance choice applied across the app.
+The current Android root destinations are `Inici`, `Moviments`, centered new-movement action, `Anàlisi`, and `Més`. Selecting a root destination starts from that destination's normal context; contextual navigation may preserve a Back path.
 
-This describes the completed Android baseline. It may evolve deliberately with product needs, but new work starts from it rather than from retired redesign material.
+This is a current baseline, not a permanent architecture constraint. Change it deliberately when product needs justify it.
 
-Selecting a destination through the bottom bar or Més intentionally resets it to its default context. Contextual links remain separate flows and may preserve caller-specific state and Back behavior.
+## Movement presentation
 
-## Established visual direction — Personal Compass
+Movement lists should make the primary financial meaning obvious:
 
-Personal Compass makes detailed personal finance feel calm and human without becoming decorative, playful, or bank-like. It is a visual foundation, not a screen-layout or navigation specification.
+- personal/global contexts normally lead with the app owner's economic amount;
+- an account ledger leads with that account's signed physical delta so the list reconciles with its balance;
+- shared/external activity labels total, owner share, funding source, allocation, or debt effect when those meanings differ;
+- dense secondary metadata should not overwhelm the primary name and amount.
 
-- **Warm, private, and precise.** Sandstone page surfaces, warm-white cards, and dark plum text replace cool clinical neutrals. Visual warmth comes from material and colour, never from lifestyle photography or ornament.
-- **Clear action, then context.** A page may lead with what needs attention, then show the financial evidence behind it. This is a priority principle, not a prescribed dashboard order.
-- **Evidence over decoration.** Currency uses tabular mono figures; charts are compact and paired with labels or lists; a concise written signal is preferable to a dense collection of visualizations.
-- **Gentle structure.** Use opaque layered surfaces, quiet borders, modest elevation, and 16–18 dp large cards/sheets. Avoid gradients, glass effects, oversized shadows, neon, or trading-terminal density.
-- **Meaning is explicit.** Colour reinforces a labelled state; it never carries financial direction, debt, budget status, or shared activity on its own. Risky but valid finance situations remain informative, not punitive.
-- **Platform-native restraint.** Use Material Symbols and Android-appropriate controls. The centred new-movement action remains a product convention; the surrounding layout is decided screen by screen.
+Use the existing movement-row component as the starting point, but do not preserve layout details that no longer improve usability.
 
-The explored mockups illustrate the direction only. They do not establish a universal greeting, a fixed home-page composition, navigation changes, drafts, new product states, or exact copy.
+## Tokens and components
 
-Use a shared component vocabulary where the contract is genuinely shared: cards, list rows, pickers, sheets, menus, filters, and feedback states should look and behave consistently across pages. Reuse the semantic components in `ui/common`; promote patterns proven on more than one screen, but do not create broad generic wrappers or force one-off layouts into a component.
+Current design tokens live in `shared/design/tokens/design-tokens.json` and map to Android theme semantics. Treat them as the current palette/system, not an immutable cross-platform contract.
 
-## Current token authority
-
-Platform-neutral values live in `shared/design/tokens/design-tokens.json`. Android maps them into semantic Compose names under `ui/theme`; the future Windows app will map the same intent into WinUI resources.
-
-The current baseline contains:
-
-- warm light/dark surface and text scales, including a subtle supporting-text step below the muted body label for metadata that sits beside a primary label;
-- plum brand/interaction colours;
-- functional meanings for income, expense, transfer, settlement, refund, debt, shared activity, and warnings;
-- category identity colours separate from money meaning;
-- Schibsted Grotesk for interface text and JetBrains Mono for financial figures;
-- shared spacing, radii, elevations, sizes, icon guidance, and minimum 44 dp touch targets.
-
-Tokens are not sacred during future feature work. When a visual decision becomes part of the product, update the JSON and native mapping together. Avoid adding a second undocumented token system in a screen.
-
-The foundation deliberately leaves layouts, information priority within a page, components not yet shared, interaction patterns, and copy open for focused page/form work. Record a decision here only once it has proved useful beyond that page.
-
-## Movement row
-
-The movement row is the densest shared component in the product: it carries Inici, Moviments, and the account, category, person, trip, and recurring pages, so both platforms render the same idea.
-
-- A run of movements is a ledger, not a stack of cards. Rows have no surface of their own and are parted by a hairline inset under the icon; the last row of a run or of a day group closes without one.
-- A row is two lines, or three when it must be. The name and the amount share the first line; one qualifying line under it carries the date, whose money moved, and the category, trip, and tag. That line wraps once and stops. Whatever does not fit belongs to the movement page, not to a third qualifying line.
-- The row leads with a filled tile in the category's own saved colour with the icon knocked out of it. Any movement that has a category takes that colour, including an expense someone else paid; only a movement with no category — transfer, settlement, refund — falls back to its functional colour.
-- A named account or person on the qualifying line is a small mark in its saved colour followed by plain text, never a tinted container. A person takes an icon rather than a dot, so shared activity and debt never rest on colour alone.
-- Weight separates the three jobs: the name in primary ink, the amount in mono figures beside it, and the qualifying line in the subtle supporting-text step, which stays above the contrast floor for small text rather than fading into the page.
-- Shared and external expenses, and incomes allocated between members, lead with the user's own share and caption the full total beneath it. The movement page states the same two numbers the same way round.
-- An account's own ledger is the exception: every row leads with what the movement did to that account's balance, signed, and a shared expense captions the user's share beneath it, so the list reconciles to the balance above it. The figure comes from canonical account flow, never from the row.
-
-## Baseline principles
-
-Until deliberately changed by a durable product or design decision:
-
-- financial meaning must be understandable without relying on colour alone;
-- actual values and account flow must be named honestly;
-- risky actions show understandable warnings near the relevant action;
-- primary actions remain reachable with the keyboard open;
-- empty, loading, error, disabled, and read-only states are explicit;
-- failed loads explain the affected action in Catalan and offer Retry; save failures keep the entered form values and use concise action-specific copy, never raw technical exception text;
-- layouts support narrow Android widths, text scaling, TalkBack, and dark surfaces;
-- Settings offers System (default), Light, and Dark appearance modes. The saved choice drives the root palette, system bars, banners, charts, dialogs, sheets, and semantic component colours as one theme;
-- saved account and category identity hues remain unchanged; dark rendering raises only overly dark hues so icons and proportional bars stay legible on dark surfaces;
-- global navigation sits on the bottom edge: four section slots, each the app's rounded-square tile with the section's name under it — empty when you are not in that section, ink-filled when you are. Adding a movement is an action rather than a section, so it does not line up with them: it is cut bigger, unlabelled, lit with the hero's ink and glow, and centred in the gap they leave;
-- search is one shared field across the app: a paper pill carrying its own icon, placeholder and clear action rather than Material field chrome, filtering live as the text changes;
-- the movement filters sheet opens on the ink hero panel the dashboard uses, stating what the current filters yield, and lists each filter dimension as a movement-style row: identity tile, what it filters, the value it holds, and a clear button once it is on. Its pickers use the same row, so choosing a filter and reading one look like the same thing. The period picker offers a whole year, a month of it, or a custom range, and the value it reports names whichever was chosen;
-- movement filtering keeps expense, income, and transfer immediately visible; settlement, refund, and external expense sit in one compact “More types” menu rather than enlarging the filter sheet. The ledger shows exactly one pill row under the search field: the type selector, sized to fit a phone width on its own, preceded by a summary pill counting the sheet filters when any are on. That pill clears them and keeps the search text and type; the row scrolls only while it is present and never wraps to a second line;
-- destructive confirmation may use a dialog; user-facing copy consistently says Delete, and a completed normal finance deletion offers snackbar Undo for the whole operation; compact editing generally prefers a sheet or focused page;
-- every editable form compares its current values with the values it opened with: Back, Cancel, sheet swipe-away, and outside-tap close untouched forms immediately and ask before discarding meaningful changes; validation and disclosure-only state does not count as a change;
-- focused, longer forms and bounded short sheets both keep their save action reachable while the body scrolls; IME Next advances, Done submits, and field validation scrolls to and focuses the first invalid control;
-- modal sheets use the shared Android sheet contract: one content-sized expanded state with
-  optional screen-relative height bounds; long forms scroll their body while keeping the primary action
-  reachable, with standard safe-area and keyboard handling, token-aligned shape and scrim, and
-  animated dismissal before backing state or navigation is removed;
-- mobile and desktop share product language but use platform-appropriate layouts.
+Prefer existing focused components in `ui/common` when they fit. Promote a pattern only after it proves useful in more than one place.
 
 ## Working method
 
-For each new feature or targeted UI change:
+For UI work:
 
-1. Inspect the current screen, behaviour, data source, and tests.
-2. Extend the established baseline with the smallest coherent product change.
-3. Preserve the product and data invariants in [product.md](product.md) and [data-contract.md](data-contract.md).
-4. Reuse proven semantic components and keep mobile and desktop layouts platform-appropriate.
-5. Validate proportionally with focused tests and a real-device check when presentation or interaction matters.
-6. Update this document only for a durable cross-app design decision; task status belongs in the relevant plan.
+1. inspect the current screen and behaviour;
+2. make the smallest coherent improvement;
+3. preserve finance/product semantics;
+4. reuse existing patterns when useful;
+5. verify on a device when interaction or layout matters;
+6. update this document only for durable, cross-screen principles.
 
-Code cleanup is not a standing phase or gate. Do it only when required by the selected outcome.
+Completed redesign plans and old UI audits are historical context, not active requirements.
