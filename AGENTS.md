@@ -4,67 +4,68 @@ Canonical operating guide for coding agents. `CLAUDE.md` imports this file.
 
 ## Project state
 
-Summa is an offline-first, local-first personal finance app for one person, euros only, with a Catalan UI. Android (Kotlin/Compose) is the working primary app and database owner. Windows currently has a .NET contract test harness; the WinUI app is future work.
-
-The Android UI redesign is complete. Personal Compass and the implemented Android interaction patterns are the stable baseline for new work. Do not resurrect retired redesign roadmaps, audits, remediation tasks, or unchecked phase checklists.
-
-Before Windows UI work begins, complete the ordered product backlog in `docs/pre-windows-plan.md`. Do not start Windows product implementation while any of its four gates remains open. The .NET shared-contract harness remains active and must stay green.
+Summa is a private, local-first personal finance app for one person, euros only, with a Catalan UI. Android (Kotlin/Compose) is the working product and current implementation authority. Windows is future product work; its current code is only a shared-contract test harness.
 
 The Android database may contain real user data. Never clear, replace, or seed it unless the user explicitly approves an isolated test-data operation.
 
-## Active documentation
+## Read only what the task needs
 
-- `README.md` — entry point and current state.
-- `docs/product.md` — current capabilities and durable product behaviour.
-- `docs/data-contract.md` — shared schema, SQL, migrations, and golden rules.
-- `docs/architecture.md` — native app boundaries, backup, and future sync.
-- `docs/design.md` — completed Android design baseline and durable interaction rules.
-- `docs/pre-windows-plan.md` — ordered, mandatory product work before Windows.
-- `docs/windows-plan.md` — desktop implementation plan after the pre-Windows gates.
-- `shared/design/tokens/design-tokens.json` — machine-readable visual tokens.
+Start here, then open the smallest relevant source/doc set:
 
-Keep documentation concise and current. Record durable behaviour or decisions, not implementation diaries, completed-task histories, speculative backlogs, or per-session checklists.
+- `docs/product.md` — durable product behaviour and finance meaning.
+- `docs/data-contract.md` — shared schema and canonical finance SQL.
+- `docs/design.md` — durable Android design/interaction baseline.
+- `docs/pre-windows-plan.md` — current product backlog before Windows.
+- `docs/architecture.md` / `docs/windows-plan.md` — only when the task actually concerns those future areas.
+
+Do not treat retired plans, audits, completed implementation diaries, or speculative future designs as requirements.
 
 ## Non-negotiable invariants
 
-1. **Integer cents:** all money is integer euro cents. Format euros only at the UI edge.
-2. **Derived finance truth:** balances, debts, account flow, actual income/expense, and trip totals come from canonical SQL views. Never store or recompute them independently in app code.
-3. **One shared contract:** `shared/` owns schema and canonical SQL. Android consumes it through SQLDelight; Windows uses Microsoft.Data.Sqlite and Dapper. No EF Core finance queries.
-4. **Golden rules:** changes to split rounding, template rescaling, recurrence, categorization, duplicate detection, refunds, debt, or account flow update the golden vector first and then both platforms.
-5. **Date types:** movement `date` is a local `YYYY-MM-DD` calendar date; `*_at` fields are UTC instants.
-6. **Soft deletion:** normal flows archive with `archived_at`; they do not hard-delete finance data.
-7. **Warn for risky valid actions:** duplicates, over-refunds, excess settlements, and dependency warnings remain dismissible. Structural database invalidity is still an error.
-8. **Product scope:** one app owner, euros, and local-first storage. Shared accounts model co-ownership with known people without adding app users or authentication. An optional cloud-linked sync mode is future work after Windows core; CSV import remains Windows-only.
-9. **Language:** externalized Catalan UI; English code, identifiers, comments, and technical docs.
-10. **Local only sync:** in snapshot/token mode, only the token holder writes; the other device is read-only. Snapshots are consistent, encrypted, versioned, and atomically applied. Never merge snapshots. Later Cloud linked sync follows the separate optimistic-concurrency contract in `docs/architecture.md`.
-11. **Movement integrity:** `amount_cents > 0`; type and related fields must satisfy schema constraints.
+1. Store money as integer euro cents; format euros only at the UI edge.
+2. Balances, debts, account flow, actual income/expense, and trip totals come from canonical SQL; do not create competing finance truth in app code.
+3. Movement `date` is local `YYYY-MM-DD`; `*_at` fields are UTC instants.
+4. Normal finance deletion is recoverable soft deletion via `archived_at`.
+5. Risky but valid actions warn and allow confirmation; structurally invalid records remain errors.
+6. Keep the product single-owner, euro-only, and local-first. Shared accounts do not create app users/authentication.
+7. User-facing copy is resource-backed Catalan; code, identifiers, comments, and technical docs are English.
+8. Preserve schema constraints, including positive `amount_cents` and movement type/field integrity.
+9. Never damage or silently replace real user data.
 
-## Working rules
+## Working style
 
-- Read the relevant active document before changing its area.
-- Prefer the simplest correct implementation matching existing patterns. Avoid speculative abstraction, new dependencies, parallel frameworks, and one-off helpers.
-- A UI discovery that exposes incorrect logic is fixed at the deepest correct layer: shared contract, repository/domain, ViewModel, UI, strings, tests, and docs as affected.
-- Schema changes are atomic: fresh DDL, new migration and version bump, embedded/canonical views, golden vectors where relevant, Android bindings, Windows harness, tests, and concise docs.
-- Work in thin vertical slices. Preserve unrelated and uncommitted user changes.
-- User-facing strings are resource-backed. Use shared tokens semantically, but redesign may intentionally change them by updating the JSON and native mapping together.
-- Keep recurring UI patterns consistent: inspect and reuse the semantic components in `ui/common` for cards, rows, pickers, sheets, menus, filters, and feedback states. When a pattern has the same visual and interaction contract on more than one screen, promote it to a focused shared component; do not create generic wrappers or abstractions for one-off layouts.
-- Add manual checks with expected results when the user can exercise changed behaviour; keep them in the handoff or focused tests, not as a permanent roadmap.
+- Prefer the smallest correct change that fits the current product. Do not build seams, abstractions, interfaces, flags, or infrastructure only for hypothetical future work.
+- Ordinary localized work is done directly by the current coding session. Do not delegate by default.
+- Keep flows easy to trace. Prefer concrete repositories/services and focused helpers over generic frameworks or pass-through layers.
+- Reuse established UI components when they genuinely match; do not generalize one-off layouts prematurely.
+- Fix logic at the deepest appropriate layer, but do not expand a local task into an architecture rewrite without a concrete benefit.
+- Work in thin vertical slices and preserve unrelated/uncommitted user changes.
+- Update durable docs only when durable behaviour changes. Do not record implementation history in permanent docs.
+- Add focused tests proportional to risk. Run broader suites only when the changed surface warrants them.
 - Do not commit, push, clear data, or create a branch unless asked.
 
-## Optional specialist roles
+## Shared-contract changes
 
-Roles are tools, not required ceremony. Use the smallest relevant set for the selected work. A
-localized, low-risk change can be handled directly without a subagent or separate review pass.
-Use specialist review when it materially reduces risk: `spec-guardian` for shared contracts,
-money rules, data integrity, or broad product behaviour; `simplicity-guardian` for substantial
-refactors, new abstractions, or unusually complex changes.
+A change is a shared-contract change only when it modifies schema, migrations, canonical finance SQL, or a finance rule intentionally shared across platforms.
 
-- `schema-steward` — schema, migrations, canonical SQL, and golden vectors.
-- `android-engineer` — Kotlin, Compose, SQLDelight, and Android tests.
-- `windows-engineer` — C#, WinUI 3, Microsoft.Data.Sqlite/Dapper, and desktop CSV import.
-- `ui-ux-designer` — screen/flow design and Catalan copy; mobile and desktop layouts remain platform-appropriate.
-- `spec-guardian` — read-only correctness review against active contracts.
-- `simplicity-guardian` — read-only review for unnecessary complexity.
+For those changes:
+
+- keep fresh schema + migration + canonical query behaviour consistent;
+- update focused golden cases when the financial result changes;
+- update Android bindings/tests;
+- keep the Windows contract harness green when it exercises the affected shared rule;
+- update concise durable documentation.
+
+Do not require Windows-specific implementation work for ordinary Android changes.
+
+## Optional specialists
+
+There are only two specialist roles. They are optional.
+
+- `reviewer` — read-only review of substantial/risky changes for correctness, regression risk, and unnecessary complexity.
+- `schema-steward` — implementation specialist for genuine shared schema/migration/canonical-SQL changes.
+
+Use neither for a routine localized task. Use `reviewer` when an independent pass materially reduces risk. Use `schema-steward` only when the data contract itself changes.
 
 ## Build and test
 
@@ -75,10 +76,8 @@ Android, from `android/`:
 .\gradlew.bat :app:testDebugUnitTest
 ```
 
-Windows/shared harness, from the repository root:
+Shared Windows harness, only when relevant to shared-contract work:
 
 ```powershell
 dotnet test .\windows\GestorFinances.Tests\GestorFinances.Tests.csproj
 ```
-
-Any red golden test blocks delivery of a money-rule or shared-contract change.
