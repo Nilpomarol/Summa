@@ -13,10 +13,12 @@ The Android database may contain real user data. Never clear, replace, or seed i
 Start here, then open the smallest relevant source/doc set:
 
 - `docs/product.md` — durable product behaviour and finance meaning.
-- `docs/data-contract.md` — shared schema and canonical finance SQL.
-- `docs/design.md` — durable Android design/interaction baseline.
-- `docs/pre-windows-plan.md` — current product backlog before Windows.
-- `docs/architecture.md` / `docs/windows-plan.md` — only when the task actually concerns those future areas.
+- `docs/data-contract.md` — current schema and canonical finance rules.
+- `docs/architecture.md` — current Android architecture.
+- `docs/design.md` — durable Android design principles.
+- `docs/backlog.md` — active product/refactor work.
+
+`docs/future/` contains non-binding planning notes. Do not use future Windows or sync ideas to justify current infrastructure unless implementation of that future work has actually started.
 
 Do not treat retired plans, audits, completed implementation diaries, or speculative future designs as requirements.
 
@@ -46,17 +48,17 @@ Do not treat retired plans, audits, completed implementation diaries, or specula
 
 ## Shared-contract changes
 
-A change is a shared-contract change only when it modifies schema, migrations, canonical finance SQL, or a finance rule intentionally shared across platforms.
+A change is a shared-contract change only when it modifies schema, migrations, canonical finance SQL, or a finance rule intentionally shared across implementations.
 
 For those changes:
 
 - keep fresh schema + migration + canonical query behaviour consistent;
 - update focused golden cases when the financial result changes;
 - update Android bindings/tests;
-- keep the Windows contract harness green when it exercises the affected shared rule;
+- keep the .NET contract harness green when it exercises the affected rule;
 - update concise durable documentation.
 
-Do not require Windows-specific implementation work for ordinary Android changes.
+Do not require Windows-product implementation work for ordinary Android changes.
 
 ## Optional specialists
 
@@ -76,7 +78,7 @@ Android, from `android/`:
 .\gradlew.bat :app:testDebugUnitTest
 ```
 
-Shared Windows harness, only when relevant to shared-contract work:
+.NET shared-contract harness, only when relevant to shared-contract work:
 
 ```powershell
 dotnet test .\windows\GestorFinances.Tests\GestorFinances.Tests.csproj
