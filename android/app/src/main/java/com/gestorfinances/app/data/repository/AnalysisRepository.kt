@@ -76,7 +76,7 @@ class AnalysisRepository(
     private val queries: AnalysisQueries,
 ) {
     fun activityMonths(): List<YearMonth> =
-        queries.activityMonths().executeAsList().mapNotNull { row ->
+        queries.analysisActivityMonths().executeAsList().mapNotNull { row ->
             row.month?.let { runCatching { YearMonth.parse(it) }.getOrNull() }
         }
 

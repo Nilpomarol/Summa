@@ -72,7 +72,7 @@ For a genuine schema/canonical-finance change:
 1. Update `schema.sql` for fresh installs.
 2. Add a forward migration and bump `meta.schema_version`; do not rewrite shipped migrations.
 3. Update only the affected canonical SQL and focused golden cases.
-4. Regenerate/update Android SQLDelight sources/bindings.
+4. Update Android bindings. The Android build generates its SQLDelight inputs from `shared/`: migrations and non-view queries (exposed under their camelCased file name) are discovered automatically; a new `v_*.sql` view must be added to the dependency-ordered `sharedViewFiles` list in `android/app/build.gradle.kts`.
 5. Update mappings/tests in affected implementations or validation harnesses.
 6. Update this document only if a durable meaning changed.
 

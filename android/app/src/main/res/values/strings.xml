@@ -846,9 +846,6 @@
     <string name="notification_low_balance_title">Saldo baix</string>
     <string name="notification_low_balance_body">%1$s: saldo %2$s, llindar %3$s.</string>
 
-    <!-- Sync / read-only -->
-    <string name="sync_read_only_banner">Només lectura. %1$s té el control d\'edició.</string>
-
     <!-- Backups -->
     <string name="settings_backup_title">Còpies de seguretat</string>
     <string name="settings_backup_body">Exporta o restaura una còpia completa de la base de dades en una carpeta que triïs.</string>

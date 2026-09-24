@@ -69,7 +69,6 @@ import com.gestorfinances.app.data.repository.MovementType
 import com.gestorfinances.app.data.repository.DatabaseMeta
 import com.gestorfinances.app.data.repository.MovementSummary
 import com.gestorfinances.app.data.repository.PersonSummary
-import com.gestorfinances.app.data.sync.DeviceAccessState
 import com.gestorfinances.app.di.AppContainer
 import com.gestorfinances.app.ui.accounts.AccountsScreen
 import com.gestorfinances.app.ui.accounts.AccountsViewModel
@@ -80,9 +79,7 @@ import com.gestorfinances.app.ui.budgets.BudgetsViewModel
 import com.gestorfinances.app.ui.categories.CategoriesScreen
 import com.gestorfinances.app.ui.categories.CategoriesViewModel
 import com.gestorfinances.app.ui.categories.CategoryFlowSheet
-import com.gestorfinances.app.ui.common.BannerKind
 import com.gestorfinances.app.ui.common.DeleteUndoHandler
-import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.rememberFormDismissGuard
 import com.gestorfinances.app.ui.dashboard.DashboardScreen
 import com.gestorfinances.app.ui.dashboard.DashboardViewModel
@@ -303,10 +300,6 @@ private fun LedgerShell(
         DatabaseReplacementOverlay(modifier = Modifier.fillMaxSize())
         return
     }
-
-    // No-op today (AppContainer always reports Writer) — a seam for the real sync/token
-    // protocol so the shell doesn't need shape changes once it lands (docs/architecture.md).
-    val deviceAccessState by appContainer.deviceAccessState.collectAsState()
 
     var nav by remember { mutableStateOf(AppNavState.Home) }
     var managementMenuVisible by remember { mutableStateOf(false) }
@@ -651,16 +644,6 @@ private fun LedgerShell(
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = {
-            val access = deviceAccessState
-            if (access is DeviceAccessState.ReadOnly) {
-                InlineBanner(
-                    kind = BannerKind.Alert,
-                    text = stringResource(R.string.sync_read_only_banner, access.holderDeviceName),
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                )
-            }
-        },
         bottomBar = {
             if (nav.routeChrome.showsGlobalNavigation) FinanceBottomBar(
                 selectedSection = nav.section,

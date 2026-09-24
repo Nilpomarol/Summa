@@ -553,12 +553,6 @@
         "height": "{sizing.buttonHeightPx}"
       }
     },
-    "readOnlyBanner": {
-      "background": "{colors.banner.alert.background}",
-      "border": "{colors.banner.alert.border}",
-      "foreground": "{colors.banner.alert.text}",
-      "icon": "lock"
-    },
     "heroPanel": {
       "backgroundFrom": "{colors.hero.inkTop}",
       "backgroundTo": "{colors.hero.inkBottom}",
