@@ -1520,6 +1520,38 @@ class MovementsViewModelTest {
     }
 
     @Test
+    fun cancellingAnEditOpenedFromDetailReturnsToTheSameDetail() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            store.movements.create(
+                movementDraft(id = "exp", amountCents = 5_000, name = "Sabates"),
+                createdAt = NOW,
+            )
+            val viewModel = viewModel(store)
+            val expense = store.movements.getActive("exp")!!
+
+            // Detail -> Edit, as MovementSheets wires it.
+            var sheet: MovementSheet? = MovementSheet.Detail
+            viewModel.onDetailClicked(expense)
+            viewModel.onEditClicked(expense) { sheet = MovementSheet.Form(fromDetail = true) }
+            advanceUntilIdle()
+            val form = sheet as MovementSheet.Form
+            assertTrue(form.fromDetail)
+            assertEquals("exp", viewModel.form().movementId)
+
+            // Cancel -> back to the same detail.
+            viewModel.onFormDismissed()
+            sheet = form.afterClose(saved = false)
+            assertEquals(MovementSheet.Detail, sheet)
+            assertEquals("exp", viewModel.state.value.detailMovement?.id)
+            assertNull(viewModel.state.value.form)
+
+            // A saved edit closes the detail too.
+            assertNull(form.afterClose(saved = true))
+        }
+    }
+
+    @Test
     fun deletingAnExpenseAndUndoingRestoresItsLinkedRefund() = runTest(dispatcher) {
         freshStore().use { store ->
             store.accounts.create(accountDraft("checking"), createdAt = NOW)

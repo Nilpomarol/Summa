@@ -6,6 +6,7 @@ activityCompose = "1.9.3"
 navigation = "2.8.5"
 sqldelight = "2.1.0"
 junit = "4.13.2"
+androidxTestRunner = "1.7.0"
 kotlinxCoroutines = "1.8.1"
 kotlinxSerializationJson = "1.7.3"
 sqliteJdbc = "3.41.2.2"
@@ -25,6 +26,7 @@ androidx-compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling
 sqldelight-android-driver = { module = "app.cash.sqldelight:android-driver", version.ref = "sqldelight" }
 sqldelight-sqlite-driver = { module = "app.cash.sqldelight:sqlite-driver", version.ref = "sqldelight" }
 junit = { module = "junit:junit", version.ref = "junit" }
+androidx-test-runner = { module = "androidx.test:runner", version.ref = "androidxTestRunner" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
 sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqliteJdbc" }

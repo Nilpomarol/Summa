@@ -16,7 +16,10 @@ sealed interface MovementSheet {
     data object Detail : MovementSheet
 
     /** [fromDetail]: editing from the detail sheet, which closing without saving returns to. */
-    data class Form(val fromDetail: Boolean = false) : MovementSheet
+    data class Form(val fromDetail: Boolean = false) : MovementSheet {
+        /** The sheet once this form closes: a saved edit closes the detail too; abandoning one returns to it. */
+        fun afterClose(saved: Boolean): MovementSheet? = if (fromDetail && !saved) Detail else null
+    }
 }
 
 /**
@@ -72,10 +75,9 @@ private fun MovementFormSheet(
     }
     val form = state.form ?: retainedForm ?: return
     val closeMovementForm: () -> Unit = {
-        // A saved edit closes the detail too; abandoning one returns to it.
-        val savedEdit = state.form == null
+        val saved = state.form == null
         viewModel.onFormDismissed()
-        onSheetChange(if (sheet.fromDetail && !savedEdit) MovementSheet.Detail else null)
+        onSheetChange(sheet.afterClose(saved))
     }
     val requestMovementFormDismissal = rememberFormDismissGuard(
         formKey = form.movementId ?: form.externalSplitId ?: "new-movement",
