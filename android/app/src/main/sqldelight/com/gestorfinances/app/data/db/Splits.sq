@@ -13,57 +13,14 @@ insertMovementSplit:
 INSERT INTO splits(
     id,
     movement_id,
-    payer_person_id,
     entry_method,
-    total_amount_cents,
-    date,
-    description,
-    category_id,
-    trip_id,
     created_at,
     updated_at,
     archived_at
 ) VALUES (
     :id,
     :movement_id,
-    NULL,
     :entry_method,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    :created_at,
-    :updated_at,
-    NULL
-);
-
-insertExternalSplit:
-INSERT INTO splits(
-    id,
-    movement_id,
-    payer_person_id,
-    entry_method,
-    total_amount_cents,
-    date,
-    description,
-    category_id,
-    trip_id,
-    tag_id,
-    created_at,
-    updated_at,
-    archived_at
-) VALUES (
-    :id,
-    NULL,
-    :payer_person_id,
-    :entry_method,
-    :total_amount_cents,
-    :date,
-    :description,
-    :category_id,
-    :trip_id,
-    :tag_id,
     :created_at,
     :updated_at,
     NULL
@@ -143,19 +100,5 @@ SELECT
 FROM splits s
 JOIN split_lines sl ON sl.split_id = s.id
 WHERE s.movement_id = :movement_id
-  AND s.archived_at IS NULL
-  AND sl.archived_at IS NULL;
-
-splitWithLinesById:
-SELECT
-    s.id AS split_id,
-    s.entry_method,
-    sl.participant_kind,
-    sl.person_id,
-    sl.owed_amount_cents,
-    sl.owed_percent
-FROM splits s
-JOIN split_lines sl ON sl.split_id = s.id
-WHERE s.id = :id
   AND s.archived_at IS NULL
   AND sl.archived_at IS NULL;

@@ -188,7 +188,8 @@ CREATE TABLE movements (
     type                 TEXT    NOT NULL CHECK (type IN ('expense','income','transfer','settlement','refund')),
     amount_cents         INTEGER NOT NULL CHECK (amount_cents > 0),
     date                 TEXT    NOT NULL,
-    account_id           TEXT    NOT NULL REFERENCES accounts(id),
+    -- The owner's account the money left or entered, NULL only for an expense another person paid.
+    account_id           TEXT    REFERENCES accounts(id),
     dest_account_id      TEXT    REFERENCES accounts(id),
     name                 TEXT,
     payee                TEXT,
@@ -206,6 +207,8 @@ CREATE TABLE movements (
     actual_refund_cents  INTEGER CHECK (actual_refund_cents IS NULL OR actual_refund_cents >= 0),
     expense_funding      TEXT    CHECK (expense_funding IN ('owner','shared_account')),
     shared_split_id      TEXT    REFERENCES splits(id) DEFERRABLE INITIALLY DEFERRED,
+    -- The person who paid an expense, NULL when the app owner paid it from `account_id`.
+    payer_person_id      TEXT    REFERENCES people(id),
     created_at           TEXT    NOT NULL,
     updated_at           TEXT    NOT NULL,
     archived_at          TEXT,
@@ -220,7 +223,10 @@ CREATE TABLE movements (
     CHECK ( (type = 'refund')     = (refunds_expense_id IS NOT NULL) ),
     CHECK ( actual_refund_cents IS NULL OR type = 'refund' ),
     CHECK ( actual_refund_cents IS NULL OR actual_refund_cents <= amount_cents ),
-    CHECK ( is_one_time = 0 OR type = 'expense' )
+    CHECK ( is_one_time = 0 OR type = 'expense' ),
+    CHECK ( (account_id IS NULL) = (payer_person_id IS NOT NULL) ),
+    CHECK ( payer_person_id IS NULL
+            OR (type = 'expense' AND expense_funding IS NULL AND template_id IS NULL) )
 );
 
 CREATE INDEX idx_movements_date
@@ -244,6 +250,10 @@ CREATE INDEX idx_movements_trip
 CREATE INDEX idx_movements_person
     ON movements(person_id)
     WHERE person_id IS NOT NULL;
+
+CREATE INDEX idx_movements_payer
+    ON movements(payer_person_id)
+    WHERE payer_person_id IS NOT NULL;
 
 CREATE INDEX idx_movements_template
     ON movements(template_id)
@@ -288,40 +298,19 @@ CREATE INDEX idx_account_contributions_source_date
     ON account_contributions(source_account_id, date)
     WHERE source_account_id IS NOT NULL;
 
+-- How a movement's amount is allocated between the owner and people. The owner's line is what the
+-- owner bears, and on an expense another person paid it is also what the owner owes that person.
 CREATE TABLE splits (
-    id                 TEXT    PRIMARY KEY,
-    movement_id        TEXT    REFERENCES movements(id) ON DELETE CASCADE,
-    payer_person_id    TEXT    REFERENCES people(id),
-    entry_method       TEXT    NOT NULL CHECK (entry_method IN ('equal','exact','percentage')),
-    total_amount_cents INTEGER CHECK (total_amount_cents IS NULL OR total_amount_cents > 0),
-    date               TEXT,
-    description        TEXT,
-    category_id        TEXT    REFERENCES categories(id),
-    trip_id            TEXT    REFERENCES trips(id),
-    tag_id             TEXT    REFERENCES tags(id),
-    created_at         TEXT    NOT NULL,
-    updated_at         TEXT    NOT NULL,
-    archived_at        TEXT,
-
-    CHECK (
-        (payer_person_id IS NULL AND movement_id IS NOT NULL
-         AND total_amount_cents IS NULL AND date IS NULL
-         AND description IS NULL AND category_id IS NULL AND trip_id IS NULL
-         AND tag_id IS NULL)
-        OR
-        (payer_person_id IS NOT NULL AND movement_id IS NULL
-         AND total_amount_cents IS NOT NULL AND date IS NOT NULL)
-    ),
-    CHECK ( tag_id IS NULL OR trip_id IS NOT NULL )
+    id           TEXT    PRIMARY KEY,
+    movement_id  TEXT    NOT NULL REFERENCES movements(id) ON DELETE CASCADE,
+    entry_method TEXT    NOT NULL CHECK (entry_method IN ('equal','exact','percentage')),
+    created_at   TEXT    NOT NULL,
+    updated_at   TEXT    NOT NULL,
+    archived_at  TEXT
 );
 
 CREATE UNIQUE INDEX idx_splits_movement
-    ON splits(movement_id)
-    WHERE movement_id IS NOT NULL;
-
-CREATE INDEX idx_splits_payer
-    ON splits(payer_person_id)
-    WHERE payer_person_id IS NOT NULL;
+    ON splits(movement_id);
 
 CREATE TABLE split_lines (
     id                TEXT    PRIMARY KEY,

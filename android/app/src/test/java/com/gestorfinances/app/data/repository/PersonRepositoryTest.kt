@@ -63,14 +63,13 @@ class PersonRepositoryTest {
     fun personRepositoryReadsItemizedBalanceBreakdown() {
         freshStore().use { store ->
             seedUserFrontedSplit(store)
-            store.splits.createExternalPaidByPerson(
-                ExternalSplitDraft(
+            store.movements.create(
+                personPaidExpense(
                     id = "external-cinema",
                     payerPersonId = "laura",
-                    totalAmountCents = 250,
-                    userShareCents = 250,
+                    amountCents = 250,
                     date = "2026-01-03",
-                    description = "Cinema",
+                    name = "Cinema",
                     categoryId = null,
                 ),
                 createdAt = NOW,
@@ -168,14 +167,13 @@ class PersonRepositoryTest {
             )
 
             // The user owes pB 1500 from a external-payer external split.
-            store.splits.createExternalPaidByPerson(
-                ExternalSplitDraft(
+            store.movements.create(
+                personPaidExpense(
                     id = "s2",
                     payerPersonId = "pB",
-                    totalAmountCents = 1_500,
-                    userShareCents = 1_500,
+                    amountCents = 1_500,
                     date = "2026-03-03",
-                    description = "Taxi",
+                    name = "Taxi",
                     categoryId = null,
                 ),
                 createdAt = NOW,

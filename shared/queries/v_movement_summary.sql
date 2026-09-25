@@ -31,7 +31,7 @@ SELECT
     movements.refunds_expense_id,
     refunded_expense.name AS refunds_expense_name,
     CASE WHEN refunded_expense.archived_at IS NOT NULL THEN 1 ELSE 0 END AS refunds_expense_archived,
-    NULLIF((
+    COALESCE(payer_people.name, NULLIF((
         SELECT paid_by_people.name
         FROM splits AS paid_by_split
         JOIN split_lines AS paid_by_user_line
@@ -57,18 +57,20 @@ SELECT
                 AND positive_person_line.archived_at IS NULL
           ) = 1
         LIMIT 1
-    ), '') AS paid_by_person_name,
+    ), '')) AS paid_by_person_name,
     COALESCE(v_movement_shared.is_shared, 0) AS is_shared,
     CASE
+        WHEN movements.payer_person_id IS NOT NULL THEN 'person'
         WHEN movements.type = 'expense' THEN COALESCE(movements.expense_funding, 'owner')
         WHEN movements.type IN ('income','transfer','settlement','refund') THEN 'owner'
         ELSE NULL
     END AS financing_kind,
-    movements.person_id AS payer_id,
+    movements.payer_person_id AS payer_id,
     movements.settlement_direction,
     settlement_people.name AS settlement_person_name,
     CASE
-        WHEN v_movement_shared.is_shared = 1 AND movements.type IN ('expense', 'income')
+        WHEN (v_movement_shared.is_shared = 1 AND movements.type IN ('expense', 'income'))
+          OR movements.payer_person_id IS NOT NULL
         THEN COALESCE((
             SELECT sl.owed_amount_cents
             FROM splits s
@@ -85,7 +87,7 @@ SELECT
     CASE WHEN movements.template_id IS NOT NULL THEN 1 ELSE 0 END AS is_recurring,
     NULL AS contribution_direction
 FROM movements
-JOIN accounts
+LEFT JOIN accounts
     ON accounts.id = movements.account_id
 LEFT JOIN accounts AS destination_accounts
     ON destination_accounts.id = movements.dest_account_id
@@ -97,67 +99,13 @@ LEFT JOIN tags
     ON tags.id = movements.tag_id
 LEFT JOIN people AS settlement_people
     ON settlement_people.id = movements.person_id
+LEFT JOIN people AS payer_people
+    ON payer_people.id = movements.payer_person_id
 LEFT JOIN v_movement_shared
     ON v_movement_shared.movement_id = movements.id
 LEFT JOIN movements AS refunded_expense
     ON refunded_expense.id = movements.refunds_expense_id
 WHERE movements.archived_at IS NULL
-
-UNION ALL
-
-SELECT
-    s.id,
-    'external_expense' AS type,
-    s.total_amount_cents AS amount_cents,
-    IFNULL(s.date, '') AS date,
-    NULL AS account_id,
-    NULL AS account_name,
-    NULL AS account_color,
-    NULL AS dest_account_id,
-    NULL AS destination_account_name,
-    NULL AS destination_account_color,
-    s.category_id,
-    c.name AS category_name,
-    c.nature AS category_nature,
-    c.icon AS category_icon,
-    c.color AS category_color,
-    s.trip_id,
-    t.name AS trip_name,
-    t.color AS trip_color,
-    s.tag_id,
-    tg.name AS tag_name,
-    NULL AS template_id,
-    s.description AS name,
-    NULL AS payee,
-    NULL AS notes,
-    0 AS is_one_time,
-    s.created_at,
-    s.updated_at,
-    s.archived_at,
-    NULL AS refunds_expense_id,
-    NULL AS refunds_expense_name,
-    0 AS refunds_expense_archived,
-    p.name AS paid_by_person_name,
-    0 AS is_shared,
-    'person' AS financing_kind,
-    p.id AS payer_id,
-    NULL AS settlement_direction,
-    NULL AS settlement_person_name,
-    sl.owed_amount_cents AS user_share_cents,
-    0 AS is_recurring,
-    NULL AS contribution_direction
-FROM splits s
-JOIN split_lines sl
-    ON sl.split_id = s.id
-   AND sl.participant_kind = 'user'
-   AND sl.archived_at IS NULL
-JOIN people p ON p.id = s.payer_person_id
-LEFT JOIN categories c ON c.id = s.category_id
-LEFT JOIN trips t ON t.id = s.trip_id
-LEFT JOIN tags tg ON tg.id = s.tag_id
-WHERE s.movement_id IS NULL
-  AND s.payer_person_id IS NOT NULL
-  AND s.archived_at IS NULL
 
 UNION ALL
 

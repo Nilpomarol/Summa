@@ -16,7 +16,7 @@ import com.gestorfinances.app.data.repository.CategoryDraft
 import com.gestorfinances.app.data.repository.CategoryKind
 import com.gestorfinances.app.data.repository.CategoryNature
 import com.gestorfinances.app.data.repository.CategoryRepository
-import com.gestorfinances.app.data.repository.ExternalSplitDraft
+import com.gestorfinances.app.data.repository.personPaidExpense
 import com.gestorfinances.app.data.repository.MovementDraft
 import com.gestorfinances.app.data.repository.MovementRepository
 import com.gestorfinances.app.data.repository.MovementSplitDraft
@@ -1650,25 +1650,15 @@ class MovementsViewModelTest {
         }
     }
 
-    // Data-loss regression: MovementSummary.id is splits.id for an EXTERNAL_EXPENSE (DEBT,
-    // "Un altre ha pagat") but movements.id for everything else. Editing an existing DEBT expense
-    // and switching "Qui ha pagat?" to "Jo" must archive the old split and create a real movement
-    // -- not silently no-op an UPDATE against a movements row that never existed.
+    // Whoever paid, an expense is one movement: switching "Qui ha pagat?" to "Jo" updates it in
+    // place, drops what the owner owed, and moves the owner's account.
     @Test
-    fun editingDebtExpenseAndSwitchingPayerToSelfArchivesTheSplitAndCreatesAMovement() = runTest(dispatcher) {
+    fun switchingAPersonPaidExpenseToSelfUpdatesTheSameMovement() = runTest(dispatcher) {
         freshStore().use { store ->
             store.accounts.create(accountDraft("checking"), createdAt = NOW)
             store.people.create(personDraft("laura"), createdAt = NOW)
-            store.splits.createExternalPaidByPerson(
-                ExternalSplitDraft(
-                    id = "ext1",
-                    payerPersonId = "laura",
-                    totalAmountCents = 1_000,
-                    userShareCents = 1_000,
-                    date = "2026-01-01",
-                    description = "Sopar",
-                    categoryId = null,
-                ),
+            store.movements.create(
+                personPaidExpense(id = "ext1", payerPersonId = "laura", amountCents = 1_000, date = "2026-01-01", name = "Sopar"),
                 createdAt = NOW,
             )
             val viewModel = viewModel(store)
@@ -1676,79 +1666,102 @@ class MovementsViewModelTest {
             advanceUntilIdle()
 
             val summary = store.movements.listActive().single()
-            assertEquals(MovementType.EXTERNAL_EXPENSE, summary.type)
+            assertTrue(summary.paidByPerson)
             viewModel.onEditClicked(summary)
             advanceUntilIdle()
+            assertEquals("ext1", viewModel.form().movementId)
+            assertEquals(ExpenseKind.DEBT, viewModel.form().expenseKind)
 
-            assertEquals("ext1", viewModel.form().externalSplitId)
-            assertNull(viewModel.form().movementId)
-
-            // Switch "Qui ha pagat?" from "Un altre" (laura) to "Jo".
             viewModel.editor.onFormChanged(
                 viewModel.form().copy(expenseKind = ExpenseKind.PERSONAL, accountId = "checking"),
             )
             viewModel.editor.onSaveClicked()
             advanceUntilIdle()
 
-            assertNull("the original external split must be archived", store.movements.getActive("ext1"))
-            val active = store.movements.listActive()
-            assertEquals(1, active.size)
-            assertEquals(MovementType.EXPENSE, active.single().type)
-            assertEquals(1_000L, active.single().amountCents)
+            val active = store.movements.listActive().single()
+            assertEquals("ext1", active.id)
+            assertEquals(MovementType.EXPENSE, active.type)
+            assertFalse(active.paidByPerson)
+            assertFalse(active.isShared)
+            assertEquals("checking", active.accountId)
             assertEquals(0L, store.people.getActive("laura")!!.balanceCents)
+            assertEquals(-1_000L, store.accounts.getActive("checking")!!.currentBalanceCents)
             assertNull(viewModel.editor.form.value)
         }
     }
 
-    // Regression (data-loss regression): the reverse direction. Editing an existing
-    // regular movement and switching "Qui ha pagat?" to "Un altre" must archive the old movements
-    // row and create a real external split -- not silently insert a brand-new split while leaving
-    // the original movement live, which would double-count the expense (balances/account flow
-    // corruption). Crossing that boundary also drops fields `splits` can't carry (payee/notes/
-    // recurrence), so the first save attempt must warn instead of saving; only the accepted retry
-    // performs the archive+create.
+    // The reverse: switching to "Un altre" keeps the movement, its payee and notes, takes it out of
+    // the owner's account, and leaves the owner owing the payer. Nothing is lost, so no warning.
     @Test
-    fun editingRegularExpenseAndSwitchingPayerToSomeoneElseWarnsThenArchivesTheMovementAndCreatesASplit() = runTest(dispatcher) {
+    fun switchingAnExpenseToSomeoneElseUpdatesTheSameMovementWithoutWarning() = runTest(dispatcher) {
         freshStore().use { store ->
             store.accounts.create(accountDraft("checking"), createdAt = NOW)
             store.people.create(personDraft("laura"), createdAt = NOW)
             store.movements.create(
-                movementDraft(id = "exp", amountCents = 1_000, name = "Entrades"),
+                movementDraft(id = "exp", amountCents = 1_000, name = "Entrades").copy(payee = "Teatre", notes = "Fila 3"),
                 createdAt = NOW,
             )
             val viewModel = viewModel(store)
             viewModel.onScreenShown()
             advanceUntilIdle()
 
-            val existing = store.movements.getActive("exp")!!
-            viewModel.onEditClicked(existing)
+            viewModel.onEditClicked(store.movements.getActive("exp")!!)
             advanceUntilIdle()
-
-            assertEquals("exp", viewModel.form().movementId)
-            assertNull(viewModel.form().externalSplitId)
-
-            // Switch "Qui ha pagat?" from "Jo" to "Un altre" (laura).
             viewModel.editor.onFormChanged(
                 viewModel.form().copy(expenseKind = ExpenseKind.DEBT, forOtherPersonId = "laura"),
             )
             viewModel.editor.onSaveClicked()
             advanceUntilIdle()
 
-            // First attempt only warns -- no write happens yet.
-            assertEquals(DataLossWarning.PAYER_SWITCH, viewModel.form().pendingDataLossWarning)
-            assertEquals("exp", store.movements.getActive("exp")?.id)
-            assertEquals(0L, store.people.getActive("laura")!!.balanceCents)
+            assertNull(viewModel.editor.form.value)
+            val active = store.movements.listActive().single()
+            assertEquals("exp", active.id)
+            assertTrue(active.paidByPerson)
+            assertEquals("laura", active.payerId)
+            assertNull(active.accountId)
+            assertEquals("Teatre", active.payee)
+            assertEquals("Fila 3", active.notes)
+            assertEquals(-1_000L, store.people.getActive("laura")!!.balanceCents)
+            assertEquals(0L, store.accounts.getActive("checking")!!.currentBalanceCents)
+        }
+    }
 
-            viewModel.editor.onDataLossOverrideClicked()
+    // A recurring expense someone else paid cannot stay linked to its template, which is real
+    // information to lose: the recurrence-stop choice still comes first.
+    @Test
+    fun switchingARecurringExpenseToSomeoneElseAsksWhatHappensToTheRecurrence() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            store.people.create(personDraft("laura"), createdAt = NOW)
+            val viewModel = viewModel(store)
+            viewModel.onAddClicked()
+            advanceUntilIdle()
+            viewModel.editor.onFormChanged(
+                viewModel.form().copy(amount = "20", date = "2026-01-05", accountId = "checking", name = "Gimnàs", isRecurring = true),
+            )
+            viewModel.editor.onSaveClicked()
+            advanceUntilIdle()
+            val created = store.movements.listActive().single()
+            val templateId = requireNotNull(created.templateId)
+
+            viewModel.onEditClicked(created)
+            advanceUntilIdle()
+            viewModel.editor.onFormChanged(
+                viewModel.form().copy(expenseKind = ExpenseKind.DEBT, forOtherPersonId = "laura"),
+            )
+            viewModel.editor.onSaveClicked()
             advanceUntilIdle()
 
-            assertNull("the original movement must be archived", store.movements.getActive("exp"))
-            val active = store.movements.listActive()
-            assertEquals(1, active.size)
-            assertEquals(MovementType.EXTERNAL_EXPENSE, active.single().type)
-            assertEquals(1_000L, active.single().amountCents)
-            assertEquals(-1_000L, store.people.getActive("laura")!!.balanceCents)
-            assertNull(viewModel.editor.form.value)
+            assertEquals(DataLossWarning.RECURRING_STOP, viewModel.form().pendingDataLossWarning)
+            assertFalse(store.movements.getActive(created.id)!!.paidByPerson)
+
+            viewModel.editor.onRecurrenceStopUnlinkClicked()
+            advanceUntilIdle()
+
+            val saved = store.movements.getActive(created.id)!!
+            assertTrue(saved.paidByPerson)
+            assertNull(saved.templateId)
+            assertEquals(TemplateStatus.ACTIVE, store.templates.getActive(templateId)!!.status)
         }
     }
 

@@ -15,7 +15,7 @@ import com.gestorfinances.app.data.db.GestorDatabase
  * ## Multi-write atomicity pattern
  *
  * Operations such as recurring confirmation, quick-template creation, and
- * external-split editing combine logical writes that must share one transaction.
+ * movement-plus-split editing combine logical writes that must share one transaction.
  * Their tests follow the same shape:
  *
  * 1. Build a database via [newDatabase] and set up the minimum fixture the
@@ -41,3 +41,33 @@ object RepositoryTestSupport {
         return GestorDatabase(driver)
     }
 }
+
+/** An expense [payerPersonId] paid, the whole of which the owner owes them, as the movement form saves it. */
+fun personPaidExpense(
+    id: String,
+    payerPersonId: String,
+    amountCents: Long,
+    date: String,
+    name: String?,
+    categoryId: String? = null,
+    tripId: String? = null,
+    tagId: String? = null,
+): MovementDraft = MovementDraft(
+    id = id,
+    type = MovementType.EXPENSE,
+    amountCents = amountCents,
+    date = date,
+    accountId = null,
+    destinationAccountId = null,
+    categoryId = categoryId,
+    tripId = tripId,
+    tagId = tagId,
+    name = name,
+    payee = null,
+    notes = null,
+    isOneTime = false,
+    splitWrite = MovementSplitWrite.Replace(
+        MovementSplitDraft(SplitEntryMethod.EXACT, listOf(SplitLineDraft(SplitParticipantKind.USER, null, amountCents))),
+    ),
+    payerPersonId = payerPersonId,
+)

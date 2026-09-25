@@ -48,7 +48,7 @@ internal static class SharedSql
     public static void ApplyBaseline(SqliteConnection connection)
     {
         connection.Execute(ReadSharedFile("schema", "schema.sql"));
-        connection.Execute("INSERT INTO meta(key,value) VALUES ('schema_version','19'),('snapshot_version','0');");
+        connection.Execute("INSERT INTO meta(key,value) VALUES ('schema_version','20'),('snapshot_version','0');");
         connection.Execute(SharedAccountIntegrityTriggers());
 
         foreach (var viewFile in ViewFiles)

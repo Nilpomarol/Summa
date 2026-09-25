@@ -6,6 +6,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.core.graphics.ColorUtils
+import com.gestorfinances.app.data.repository.MovementSummary
 import com.gestorfinances.app.data.repository.MovementType
 
 /**
@@ -56,7 +57,7 @@ data class FinanceColors(
     val bottomBarDivider: Color,
 )
 
-/** Color of an amount by movement type — expense is plain ink, never a hue. */
+/** Color of an amount by movement type — expense is plain ink, never a hue. See [movementAmountColor]. */
 fun FinanceColors.amountColor(type: MovementType): Color =
     when (type) {
         MovementType.INCOME -> income
@@ -64,9 +65,12 @@ fun FinanceColors.amountColor(type: MovementType): Color =
         MovementType.TRANSFER -> transfer
         MovementType.SETTLEMENT -> settlement
         MovementType.REFUND -> refund
-        MovementType.EXTERNAL_EXPENSE -> debt
         MovementType.CONTRIBUTION -> transfer
     }
+
+/** A movement's amount color: an expense someone else paid is owed, so it reads as debt. */
+fun FinanceColors.movementAmountColor(movement: MovementSummary): Color =
+    if (movement.paidByPerson) debt else amountColor(movement.type)
 
 /** Parse a stored category color hex (`#RRGGBB`); falls back to the neutral category color. */
 fun categoryColor(hex: String?): Color {

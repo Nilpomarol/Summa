@@ -1,6 +1,7 @@
 package com.gestorfinances.app.ui.movements
 
 import com.gestorfinances.app.data.repository.CategoryNature
+import com.gestorfinances.app.data.repository.ExpenseFunding
 import com.gestorfinances.app.data.repository.MovementSummary
 import com.gestorfinances.app.data.repository.MovementType
 import com.gestorfinances.app.ui.common.MovementAmountRole
@@ -59,11 +60,11 @@ class MovementUiStateSmokeTest {
         )
         val external = movement(
             id = "external",
-            type = MovementType.EXTERNAL_EXPENSE,
+            type = MovementType.EXPENSE,
             accountId = null,
             accountName = null,
             userShareCents = 0,
-        )
+        ).copy(financingKind = ExpenseFunding.PERSON)
         val personal = movement(
             id = "personal",
             type = MovementType.EXPENSE,
@@ -285,7 +286,7 @@ class MovementUiStateSmokeTest {
     }
 
     @Test
-    fun expenseFilterIncludesExternalExpense() {
+    fun expenseFilterIncludesPersonPaidExpenseAndPaidByOthersNarrowsToIt() {
         val state = MovementsUiState(
             movements = listOf(
                 movement(
@@ -296,15 +297,19 @@ class MovementUiStateSmokeTest {
                 ),
                 movement(
                     id = "external",
-                    type = MovementType.EXTERNAL_EXPENSE,
-                    accountId = "",
-                    accountName = "",
-                ),
+                    type = MovementType.EXPENSE,
+                    accountId = null,
+                    accountName = null,
+                ).copy(financingKind = ExpenseFunding.PERSON),
             ),
             filters = MovementFilters(type = MovementType.EXPENSE),
         )
 
         assertEquals(listOf("expense", "external"), state.visibleMovements.map { it.id })
+        assertEquals(
+            listOf("external"),
+            state.copy(filters = MovementFilters(type = MovementType.EXPENSE, paidByPersonOnly = true)).visibleMovements.map { it.id },
+        )
     }
 
     private fun movement(

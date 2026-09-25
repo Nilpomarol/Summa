@@ -79,6 +79,7 @@ import com.gestorfinances.app.ui.common.scrollToWhen
 import com.gestorfinances.app.ui.common.signedAmountCents
 import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.amountColor
+import com.gestorfinances.app.ui.theme.movementAmountColor
 import com.gestorfinances.app.ui.theme.categoryColor
 
 private const val MovementDetailSheetMaxHeightFraction = 0.88f
@@ -217,7 +218,7 @@ private fun MovementDetailContent(
     // list-row convention in MovementListItem.kt.
     val isSharedExpense = movement.isShared && movement.type == MovementType.EXPENSE
     val isSharedIncome = movement.isShared && movement.type == MovementType.INCOME
-    val isExternal = movement.type == MovementType.EXTERNAL_EXPENSE
+    val isExternal = movement.paidByPerson
     val fundedBySharedAccount = movement.type == MovementType.EXPENSE &&
         movement.financingKind == ExpenseFunding.SHARED_ACCOUNT
 
@@ -241,7 +242,7 @@ private fun MovementDetailContent(
             type = movement.type,
             icon = visual.first,
             iconColor = visual.second,
-            amountColor = if (isSharedExpense) FinanceTheme.colors.shared else FinanceTheme.colors.amountColor(movement.type),
+            amountColor = if (isSharedExpense) FinanceTheme.colors.shared else FinanceTheme.colors.movementAmountColor(movement),
             totalCaption = when {
                 // The shared account paid, so the other figure is what left that account.
                 fundedBySharedAccount -> stringResource(
@@ -498,8 +499,8 @@ private fun MovementDetailContent(
             SplitBreakdownCard(split = split, people = people)
         }
 
-        // Refunds list for Expense
-        if (movement.type == MovementType.EXPENSE) {
+        // Refunds list for an expense the owner paid; money back from one a person paid is theirs.
+        if (movement.type == MovementType.EXPENSE && !movement.paidByPerson) {
             if (refunds.isNotEmpty()) {
                 HorizontalDivider(color = FinanceTheme.colors.cardBorder)
                 Text(
@@ -556,7 +557,7 @@ private fun MovementDetailContent(
                     onClick = onArchive,
                     text = stringResource(R.string.movement_detail_action_archive),
                 )
-                if (movement.type == MovementType.EXPENSE) {
+                if (movement.type == MovementType.EXPENSE && !movement.paidByPerson) {
                     SecondaryButton(
                         text = stringResource(R.string.movement_detail_refund_action_compact),
                         onClick = onAddRefund,

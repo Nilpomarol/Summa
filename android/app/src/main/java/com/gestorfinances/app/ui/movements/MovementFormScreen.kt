@@ -134,13 +134,6 @@ fun MovementFormScreen(
                 MovementType.TRANSFER -> movementTypeIcon(form.type) to finance.transfer
                 MovementType.SETTLEMENT -> movementTypeIcon(form.type) to finance.settlement
                 MovementType.REFUND -> movementTypeIcon(form.type) to finance.refund
-                MovementType.EXTERNAL_EXPENSE -> {
-                    if (selectedCategory != null) {
-                        categoryIcon(selectedCategory.icon) to finance.debt
-                    } else {
-                        movementTypeIcon(form.type) to finance.debt
-                    }
-                }
                 MovementType.CONTRIBUTION -> movementTypeIcon(form.type) to finance.transfer
             }
         }
@@ -348,7 +341,6 @@ private fun MovementSaveActions(
     val isRecurrenceStop = form.pendingDataLossWarning == DataLossWarning.RECURRING_STOP
     val warningText = when (form.pendingDataLossWarning) {
         DataLossWarning.SPLIT_REMOVED -> stringResource(R.string.movement_warning_split_removed)
-        DataLossWarning.PAYER_SWITCH -> stringResource(R.string.movement_warning_payer_switch_drops_fields)
         DataLossWarning.RECURRING_STOP -> stringResource(R.string.movement_recurring_stop_title)
         null -> stringResource(R.string.movement_duplicate_warning)
     }

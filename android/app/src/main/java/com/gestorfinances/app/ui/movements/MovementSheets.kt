@@ -82,7 +82,7 @@ private fun MovementFormSheet(
         onSheetChange(sheet.afterClose(saved))
     }
     val requestMovementFormDismissal = rememberFormDismissGuard(
-        formKey = form.movementId ?: form.externalSplitId ?: "new-movement",
+        formKey = form.movementId ?: "new-movement",
         currentValue = form,
         hasMeaningfulChanges = { initial, current ->
             initial.withoutTransientUi() != current.withoutTransientUi()

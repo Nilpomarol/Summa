@@ -369,7 +369,8 @@ class GoldenVectorTest {
     }
 
     private fun Connection.insertPeopleReferencedBy(rows: JsonArray) {
-        rows.mapNotNull { it.jsonObject.optionalString("person_id") }.forEach { insertPerson(it) }
+        rows.flatMap { row -> listOf("person_id", "payer_person_id").mapNotNull { row.jsonObject.optionalString(it) } }
+            .forEach { insertPerson(it) }
     }
 
     private fun Connection.insertAccount(row: JsonObject) {
@@ -415,7 +416,7 @@ class GoldenVectorTest {
         insertMovement(
             id = row.string("id"),
             type = row.string("type"),
-            accountId = row.string("account_id"),
+            accountId = row.optionalString("account_id"),
             amountCents = row.long("amount_cents"),
             date = row.string("date"),
             destAccountId = row.optionalString("dest_account_id"),
@@ -424,13 +425,14 @@ class GoldenVectorTest {
             refundsExpenseId = row.optionalString("refunds_expense_id"),
             actualRefundCents = row.optionalLong("actual_refund_cents"),
             archivedAt = row.optionalString("archived_at"),
+            payerPersonId = row.optionalString("payer_person_id"),
         )
     }
 
     private fun Connection.insertMovement(
         id: String,
         type: String,
-        accountId: String,
+        accountId: String?,
         amountCents: Long,
         date: String,
         destAccountId: String? = null,
@@ -439,19 +441,20 @@ class GoldenVectorTest {
         refundsExpenseId: String? = null,
         actualRefundCents: Long? = null,
         archivedAt: String? = null,
+        payerPersonId: String? = null,
     ) {
         prepareStatement(
             """
             INSERT INTO movements(
                 id, type, account_id, dest_account_id, amount_cents, date,
                 person_id, settlement_direction, refunds_expense_id, actual_refund_cents,
-                settlement_scope, expense_funding, created_at, updated_at, archived_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                settlement_scope, expense_funding, payer_person_id, created_at, updated_at, archived_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent(),
         ).use { statement ->
             statement.setString(1, id)
             statement.setString(2, type)
-            statement.setString(3, accountId)
+            statement.setNullableString(3, accountId)
             statement.setNullableString(4, destAccountId)
             statement.setLong(5, amountCents)
             statement.setString(6, date)
@@ -460,10 +463,11 @@ class GoldenVectorTest {
             statement.setNullableString(9, refundsExpenseId)
             statement.setNullableLong(10, actualRefundCents)
             statement.setNullableString(11, if (type == "settlement") "all" else null)
-            statement.setNullableString(12, if (type == "expense") "owner" else null)
-            statement.setString(13, NOW)
+            statement.setNullableString(12, if (type == "expense" && payerPersonId == null) "owner" else null)
+            statement.setNullableString(13, payerPersonId)
             statement.setString(14, NOW)
-            statement.setNullableString(15, archivedAt)
+            statement.setString(15, NOW)
+            statement.setNullableString(16, archivedAt)
             statement.executeUpdate()
         }
     }
@@ -471,20 +475,15 @@ class GoldenVectorTest {
     private fun Connection.insertSplit(row: JsonObject) {
         prepareStatement(
             """
-            INSERT INTO splits(
-                id, movement_id, payer_person_id, entry_method,
-                total_amount_cents, date, created_at, updated_at, archived_at
-            ) VALUES (?, ?, ?, 'equal', ?, ?, ?, ?, ?)
+            INSERT INTO splits(id, movement_id, entry_method, created_at, updated_at, archived_at)
+            VALUES (?, ?, 'equal', ?, ?, ?)
             """.trimIndent(),
         ).use { statement ->
             statement.setString(1, row.string("id"))
-            statement.setNullableString(2, row.optionalString("movement_id"))
-            statement.setNullableString(3, row.optionalString("payer_person_id"))
-            statement.setNullableLong(4, row.optionalLong("total_amount_cents"))
-            statement.setNullableString(5, row.optionalString("date"))
-            statement.setString(6, NOW)
-            statement.setString(7, NOW)
-            statement.setNullableString(8, row.optionalString("archived_at"))
+            statement.setString(2, row.string("movement_id"))
+            statement.setString(3, NOW)
+            statement.setString(4, NOW)
+            statement.setNullableString(5, row.optionalString("archived_at"))
             statement.executeUpdate()
         }
     }

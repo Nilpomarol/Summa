@@ -29,7 +29,7 @@ DEMO_SQL = r"""
 BEGIN IMMEDIATE;
 
 INSERT INTO meta (key, value) VALUES
-    ('schema_version', '19'),
+    ('schema_version', '20'),
     ('snapshot_version', '0');
 
 INSERT INTO accounts (
@@ -210,7 +210,7 @@ def create_database(output: Path) -> None:
                 encoding="utf-8"
             )
         )
-        connection.execute("PRAGMA user_version = 19")
+        connection.execute("PRAGMA user_version = 20")
         connection.executescript(DEMO_SQL)
 
         foreign_key_errors = connection.execute("PRAGMA foreign_key_check").fetchall()

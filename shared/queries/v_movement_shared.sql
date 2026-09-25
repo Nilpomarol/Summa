@@ -1,7 +1,7 @@
 CREATE VIEW v_movement_shared AS
 SELECT
     m.id AS movement_id,
-    EXISTS (
+    m.payer_person_id IS NULL AND EXISTS (
         SELECT 1
         FROM splits s
         WHERE s.movement_id = m.id

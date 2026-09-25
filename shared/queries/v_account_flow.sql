@@ -14,7 +14,9 @@ SELECT
         END
     END AS delta_cents
 FROM movements
-WHERE archived_at IS NULL
+-- An expense another person paid left none of the owner's accounts.
+WHERE account_id IS NOT NULL
+  AND archived_at IS NULL
 
 UNION ALL
 

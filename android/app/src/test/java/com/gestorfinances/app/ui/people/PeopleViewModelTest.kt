@@ -7,7 +7,7 @@ import com.gestorfinances.app.data.repository.AccountDraft
 import com.gestorfinances.app.data.repository.AccountRepository
 import com.gestorfinances.app.data.repository.AccountType
 import com.gestorfinances.app.data.repository.CategoryRepository
-import com.gestorfinances.app.data.repository.ExternalSplitDraft
+import com.gestorfinances.app.data.repository.personPaidExpense
 import com.gestorfinances.app.data.repository.MovementDraft
 import com.gestorfinances.app.data.repository.MovementRepository
 import com.gestorfinances.app.data.repository.MovementType
@@ -133,14 +133,13 @@ class PeopleViewModelTest {
                 PersonDraft(id = "laura", name = "Laura", avatar = null, color = null, notes = null),
                 createdAt = NOW,
             )
-            store.splits.createExternalPaidByPerson(
-                ExternalSplitDraft(
+            store.movements.create(
+                personPaidExpense(
                     id = "ext",
                     payerPersonId = "laura",
-                    totalAmountCents = 600,
-                    userShareCents = 600,
+                    amountCents = 600,
                     date = "2026-01-01",
-                    description = "Taxi",
+                    name = "Taxi",
                     categoryId = null,
                 ),
                 createdAt = NOW,
@@ -158,7 +157,8 @@ class PeopleViewModelTest {
             assertEquals(1, detail.history.size)
             val entry = detail.history.single()
             assertEquals("ext", entry.movement.id)
-            assertEquals(MovementType.EXTERNAL_EXPENSE, entry.movement.type)
+            assertEquals(MovementType.EXPENSE, entry.movement.type)
+            assertTrue(entry.movement.paidByPerson)
             assertEquals(-600L, entry.item.effectCents)
         }
     }
@@ -255,14 +255,13 @@ class PeopleViewModelTest {
                 PersonDraft(id = "laura", name = "Laura", avatar = null, color = null, notes = null),
                 createdAt = NOW,
             )
-            store.splits.createExternalPaidByPerson(
-                ExternalSplitDraft(
+            store.movements.create(
+                personPaidExpense(
                     id = "ext",
                     payerPersonId = "laura",
-                    totalAmountCents = 600,
-                    userShareCents = 600,
+                    amountCents = 600,
                     date = "2026-01-01",
-                    description = null,
+                    name = null,
                     categoryId = null,
                 ),
                 createdAt = NOW,
@@ -341,13 +340,8 @@ class PeopleViewModelTest {
         store.driver.execute(
             null,
             """
-            INSERT INTO splits(
-                id, movement_id, payer_person_id, entry_method, total_amount_cents,
-                date, description, category_id, trip_id, created_at, updated_at, archived_at
-            ) VALUES (
-                'split-dinner', 'dinner', NULL, 'exact', NULL,
-                NULL, NULL, NULL, NULL, '$NOW', '$NOW', NULL
-            )
+            INSERT INTO splits(id, movement_id, entry_method, created_at, updated_at, archived_at)
+            VALUES ('split-dinner', 'dinner', 'exact', '$NOW', '$NOW', NULL)
             """.trimIndent(),
             0,
         )
@@ -388,7 +382,7 @@ class PeopleViewModelTest {
             driver = driver,
             accounts = AccountRepository(database.accountsQueries),
             categories = CategoryRepository(database.categoriesQueries),
-            movements = MovementRepository(database.movementsQueries),
+            movements = MovementRepository(database.movementsQueries, database.splitsQueries),
             people = PersonRepository(database.peopleQueries),
             splits = SplitRepository(database.splitsQueries),
         )

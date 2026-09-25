@@ -41,6 +41,8 @@ The Windows project is only a shared-contract validation harness; there is no Wi
 
 Expense splits describe economic consumption. Funding/payer information describes where the money came from. Debt is derived from active expense splits and settlements; it is not an editable balance.
 
+An expense another person paid is an ordinary expense with that person as its payer: it moves none of the owner's accounts, counts the owner's share as actual expense, and leaves the owner owing the payer that share. Changing who paid edits the same expense.
+
 A settlement may consume all eligible debt or recurring-only debt. Consumption is chronological against debt that existed on the settlement date. Excess settlement remains directional credit for later eligible debt.
 
 Shared-account balance, owner patrimonial value, economic split, and interpersonal debt are separate concepts. A shared-account-financed expense changes the account balance and actual expense according to the split but does not by itself create person-to-owner debt.

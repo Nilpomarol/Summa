@@ -543,7 +543,9 @@ internal static class GoldenDatabaseExtensions
 
     public static void InsertPeopleReferencedBy(this SqliteConnection connection, IEnumerable<JsonElement> rows)
     {
-        foreach (var personId in rows.Select(row => row.OptionalString("person_id")).Where(id => id is not null))
+        foreach (var personId in rows
+                     .SelectMany(row => new[] { row.OptionalString("person_id"), row.OptionalString("payer_person_id") })
+                     .Where(id => id is not null))
         {
             connection.InsertPerson(personId!);
         }
@@ -576,7 +578,7 @@ internal static class GoldenDatabaseExtensions
         connection.InsertMovement(
             id: row.String("id"),
             type: row.String("type"),
-            accountId: row.String("account_id"),
+            accountId: row.OptionalString("account_id"),
             amountCents: row.Long("amount_cents"),
             date: row.String("date"),
             destAccountId: row.OptionalString("dest_account_id"),
@@ -584,13 +586,14 @@ internal static class GoldenDatabaseExtensions
             settlementDirection: row.OptionalString("settlement_direction"),
             refundsExpenseId: row.OptionalString("refunds_expense_id"),
             actualRefundCents: row.OptionalLong("actual_refund_cents"),
-            archivedAt: row.OptionalString("archived_at"));
+            archivedAt: row.OptionalString("archived_at"),
+            payerPersonId: row.OptionalString("payer_person_id"));
 
     public static void InsertMovement(
         this SqliteConnection connection,
         string id,
         string type,
-        string accountId,
+        string? accountId,
         long amountCents,
         string date,
         string? destAccountId = null,
@@ -598,17 +601,18 @@ internal static class GoldenDatabaseExtensions
         string? settlementDirection = null,
         string? refundsExpenseId = null,
         long? actualRefundCents = null,
-        string? archivedAt = null) =>
+        string? archivedAt = null,
+        string? payerPersonId = null) =>
         connection.Execute(
             """
             INSERT INTO movements
                 (id, type, account_id, dest_account_id, amount_cents, date,
                  person_id, settlement_direction, refunds_expense_id, actual_refund_cents,
-                 settlement_scope, expense_funding, created_at, updated_at, archived_at)
+                 settlement_scope, expense_funding, payer_person_id, created_at, updated_at, archived_at)
             VALUES
                 (@Id, @Type, @AccountId, @DestAccountId, @AmountCents, @Date,
                  @PersonId, @SettlementDirection, @RefundsExpenseId, @ActualRefundCents,
-                 @SettlementScope, @ExpenseFunding, @Now, @Now, @ArchivedAt);
+                 @SettlementScope, @ExpenseFunding, @PayerPersonId, @Now, @Now, @ArchivedAt);
             """,
             new
             {
@@ -623,7 +627,8 @@ internal static class GoldenDatabaseExtensions
                 RefundsExpenseId = refundsExpenseId,
                 ActualRefundCents = actualRefundCents,
                 SettlementScope = type == "settlement" ? "all" : null,
-                ExpenseFunding = type == "expense" ? "owner" : null,
+                ExpenseFunding = type == "expense" && payerPersonId is null ? "owner" : null,
+                PayerPersonId = payerPersonId,
                 ArchivedAt = archivedAt,
                 Now
             });
@@ -632,19 +637,14 @@ internal static class GoldenDatabaseExtensions
         connection.Execute(
             """
             INSERT INTO splits
-                (id, movement_id, payer_person_id, entry_method,
-                 total_amount_cents, date, created_at, updated_at, archived_at)
+                (id, movement_id, entry_method, created_at, updated_at, archived_at)
             VALUES
-                (@Id, @MovementId, @PayerPersonId, 'equal',
-                 @TotalAmountCents, @Date, @Now, @Now, @ArchivedAt);
+                (@Id, @MovementId, 'equal', @Now, @Now, @ArchivedAt);
             """,
             new
             {
                 Id = row.String("id"),
-                MovementId = row.OptionalString("movement_id"),
-                PayerPersonId = row.OptionalString("payer_person_id"),
-                TotalAmountCents = row.OptionalLong("total_amount_cents"),
-                Date = row.OptionalString("date"),
+                MovementId = row.String("movement_id"),
                 ArchivedAt = row.OptionalString("archived_at"),
                 Now
             });

@@ -1797,7 +1797,7 @@ private fun TemplateSummary.cadenceLabel(): String =
 
 private fun TemplateSummary.signedAmountCents(): Long {
     val amount = amountCents ?: 0L
-    return if (type == MovementType.EXPENSE || type == MovementType.EXTERNAL_EXPENSE) -amount else amount
+    return if (type == MovementType.EXPENSE) -amount else amount
 }
 
 /** The user's own share, signed the same way as [signedAmountCents] — null when there's no split
@@ -1805,6 +1805,6 @@ private fun TemplateSummary.signedAmountCents(): Long {
 private fun TemplateSummary.signedUserShareCents(): Long? {
     val amount = amountCents ?: return null
     val share = splitConfig?.userShareCents(amount) ?: return null
-    return if (type == MovementType.EXPENSE || type == MovementType.EXTERNAL_EXPENSE) -share else share
+    return if (type == MovementType.EXPENSE) -share else share
 }
 

@@ -489,7 +489,6 @@
     <string name="movement_duplicate_warning">Possible duplicat: ja hi ha un moviment semblant.</string>
     <string name="movement_duplicate_override">Desa igualment</string>
     <string name="movement_warning_split_removed">En desar s\'eliminarà el repartiment d\'aquest moviment.</string>
-    <string name="movement_warning_payer_switch_drops_fields">En desar s\'eliminarà aquest moviment i se\'n crearà un de nou; es perdran el proveïdor, les notes i la recurrència vinculada.</string>
     <string name="movement_validation_amount_required">Introdueix un import.</string>
     <string name="movement_validation_amount_positive">L\'import ha de ser superior a zero.</string>
     <string name="movement_validation_date_required">Tria una data.</string>

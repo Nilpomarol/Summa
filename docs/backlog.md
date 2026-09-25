@@ -34,8 +34,7 @@ Out of scope: securities/holdings, units, trades, live prices, dividends, corpor
 
 Continue reducing accidental complexity where it has a concrete payoff:
 
-- split the oversized movement feature by user flow;
-- evaluate whether externally-paid expenses should become normal movements with an alternate payer.
+- split the oversized movement feature by user flow.
 
 Treat these as independent refactors. Preserve behaviour and real user data; do not combine all of them into one rewrite.
 

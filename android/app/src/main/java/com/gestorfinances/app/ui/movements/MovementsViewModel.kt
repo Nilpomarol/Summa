@@ -142,7 +142,6 @@ class MovementsViewModel(
                 runCatching {
                     val split = when {
                         movement.isShared -> splitRepository?.getForMovement(movement.id)
-                        movement.type == MovementType.EXTERNAL_EXPENSE -> splitRepository?.getForMovementById(movement.id)
                         else -> null
                     }
                     // Load the real template so the form can show the actual linked
@@ -209,7 +208,7 @@ class MovementsViewModel(
         if (movement.type == MovementType.EXPENSE) {
             loadDetailRefunds(movement.id)
         }
-        if (movement.isShared || movement.type == MovementType.EXTERNAL_EXPENSE) {
+        if (movement.isShared || movement.paidByPerson) {
             loadDetailSplit(movement)
         }
     }
@@ -243,11 +242,7 @@ class MovementsViewModel(
         viewModelScope.launch {
             val split = withContext(ioDispatcher) {
                 runCatching {
-                    if (movement.type == MovementType.EXTERNAL_EXPENSE) {
-                        splitRepository?.getForMovementById(movement.id)
-                    } else {
-                        splitRepository?.getForMovement(movement.id)
-                    }
+                    splitRepository?.getForMovement(movement.id)
                 }.getOrNull()
             }
             if (_state.value.detailMovement?.id == movement.id) {
@@ -372,10 +367,7 @@ class MovementsViewModel(
             val result = withContext(ioDispatcher) {
                 runCatching {
                     movementRepository.runInTransaction {
-                        if (movement.type == MovementType.EXTERNAL_EXPENSE) {
-                            requireNotNull(splitRepository) { "split repository unavailable" }
-                                .archiveExternalSplit(movement.id, archivedAt = now)
-                        } else if (movement.type == MovementType.CONTRIBUTION) {
+                        if (movement.type == MovementType.CONTRIBUTION) {
                             accountRepository.archiveContribution(movement.id, archivedAt = now)
                         } else {
                             movementRepository.archive(movement.id, archivedAt = now)
@@ -424,10 +416,7 @@ class MovementsViewModel(
             val result = withContext(ioDispatcher) {
                 runCatching {
                     movementRepository.runInTransaction {
-                        if (operation.movementType == MovementType.EXTERNAL_EXPENSE) {
-                            requireNotNull(splitRepository) { "split repository unavailable" }
-                                .restoreExternalSplit(operation.movementId, operation.deletedAt, restoredAt)
-                        } else if (operation.movementType == MovementType.CONTRIBUTION) {
+                        if (operation.movementType == MovementType.CONTRIBUTION) {
                             accountRepository.restoreContribution(operation.movementId, operation.deletedAt, restoredAt)
                         } else {
                             movementRepository.restore(operation.movementId, operation.deletedAt, restoredAt)
@@ -564,6 +553,8 @@ private data class MovementDeleteOperation(
 data class MovementFilters(
     val query: String = "",
     val type: MovementType? = null,
+    /** The ledger's "paid by someone else" type choice: only expenses a person paid. */
+    val paidByPersonOnly: Boolean = false,
     val accountId: String? = null,
     val categoryId: String? = null,
     val tripId: String? = null,
@@ -652,12 +643,9 @@ private fun MovementFilters.withDateValidation(): MovementFilters {
 
 private fun MovementFilters.matches(movement: MovementSummary): Boolean {
     if (type != null) {
-        val matchesType = when (type) {
-            MovementType.EXPENSE -> movement.type == MovementType.EXPENSE || movement.type == MovementType.EXTERNAL_EXPENSE
-            else -> movement.type == type
-        }
-        if (!matchesType) return false
+        if (movement.type != type) return false
     }
+    if (paidByPersonOnly && !movement.paidByPerson) return false
     if (sourceMode == MovementSourceMode.ACTUAL && movement.type !in actualMovementTypes) return false
     if (accountId != null && movement.accountId != accountId && movement.destinationAccountId != accountId) {
         return false
@@ -712,5 +700,4 @@ private val actualMovementTypes = setOf(
     MovementType.EXPENSE,
     MovementType.INCOME,
     MovementType.REFUND,
-    MovementType.EXTERNAL_EXPENSE,
 )
