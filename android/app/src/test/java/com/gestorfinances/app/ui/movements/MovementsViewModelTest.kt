@@ -107,12 +107,12 @@ class MovementsViewModelTest {
             viewModel.onAddClicked(tripId = null, accountId = "joint")
             advanceUntilIdle()
 
-            viewModel.onFormChanged(
+            viewModel.editor.onFormChanged(
                 viewModel.form().copy(type = MovementType.INCOME, amount = "60", date = "2026-01-01"),
             )
             // The expense form's split does not follow the form into an income.
             assertNull(viewModel.form().expenseKind)
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
 
             assertEquals(R.string.movement_validation_income_owner, viewModel.form().errorRes)
             assertEquals(MovementFormField.INCOME_OWNER, viewModel.form().errorField)
@@ -128,15 +128,15 @@ class MovementsViewModelTest {
             val viewModel = viewModel(store)
             viewModel.onAddClicked(tripId = null, accountId = "joint")
             advanceUntilIdle()
-            viewModel.onFormChanged(
+            viewModel.editor.onFormChanged(
                 viewModel.form().copy(type = MovementType.INCOME, amount = "60", date = "2026-01-01"),
             )
 
-            viewModel.onSharedToggled(true)
-            viewModel.onSaveClicked()
+            viewModel.editor.onSharedToggled(true)
+            viewModel.editor.onSaveClicked()
             advanceUntilIdle()
 
-            assertNull(viewModel.state.value.form)
+            assertNull(viewModel.editor.form.value)
             val income = store.movements.listActive().single()
             val lines = store.splits.getForMovement(income.id)!!.lines
             assertEquals(3_000L, lines.single { it.participantKind == SplitParticipantKind.USER }.owedAmountCents)
@@ -164,13 +164,13 @@ class MovementsViewModelTest {
             // its default allocation.
             assertEquals("joint", viewModel.form().accountId)
             assertEquals(ExpenseKind.SHARED, viewModel.form().expenseKind)
-            viewModel.onFormChanged(
+            viewModel.editor.onFormChanged(
                 viewModel.form().copy(type = MovementType.EXPENSE, amount = "60", date = "2026-01-01"),
             )
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
             advanceUntilIdle()
 
-            assertNull(viewModel.state.value.form)
+            assertNull(viewModel.editor.form.value)
             val expense = store.movements.listActive().single()
             assertEquals(ExpenseFunding.SHARED_ACCOUNT, expense.financingKind)
             assertEquals(3_000L, expense.userShareCents)
@@ -189,7 +189,7 @@ class MovementsViewModelTest {
             viewModel.onAddClicked()
             advanceUntilIdle()
 
-            viewModel.onFormChanged(
+            viewModel.editor.onFormChanged(
                 viewModel.form().copy(
                     type = MovementType.TRANSFER,
                     amount = "25",
@@ -198,10 +198,10 @@ class MovementsViewModelTest {
                     destinationAccountId = "holiday",
                 ),
             )
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
             advanceUntilIdle()
 
-            assertNull(viewModel.state.value.form)
+            assertNull(viewModel.editor.form.value)
             assertEquals(-2_500L, store.accounts.getActive("joint")!!.currentBalanceCents)
             assertEquals(2_500L, store.accounts.getActive("holiday")!!.currentBalanceCents)
         }
@@ -215,10 +215,10 @@ class MovementsViewModelTest {
             viewModel.onAddClicked()
             advanceUntilIdle()
 
-            viewModel.onFormChanged(
+            viewModel.editor.onFormChanged(
                 viewModel.form().copy(amount = "0", date = "2026-01-01", accountId = "checking"),
             )
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
 
             assertEquals(R.string.movement_validation_amount_positive, viewModel.form().errorRes)
             assertEquals(MovementFormField.AMOUNT, viewModel.form().errorField)
@@ -234,10 +234,10 @@ class MovementsViewModelTest {
             viewModel.onAddClicked()
             advanceUntilIdle()
 
-            viewModel.onFormChanged(
+            viewModel.editor.onFormChanged(
                 viewModel.form().copy(amount = "", date = "2026-01-01", accountId = "checking"),
             )
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
 
             assertEquals(R.string.movement_validation_amount_required, viewModel.form().errorRes)
             assertEquals(MovementFormField.AMOUNT, viewModel.form().errorField)
@@ -252,10 +252,10 @@ class MovementsViewModelTest {
             viewModel.onAddClicked()
             advanceUntilIdle()
 
-            viewModel.onFormChanged(
+            viewModel.editor.onFormChanged(
                 viewModel.form().copy(amount = "10", date = "", accountId = "checking"),
             )
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
 
             assertEquals(R.string.movement_validation_date_required, viewModel.form().errorRes)
             assertEquals(MovementFormField.DATE, viewModel.form().errorField)
@@ -270,10 +270,10 @@ class MovementsViewModelTest {
             viewModel.onAddClicked()
             advanceUntilIdle()
 
-            viewModel.onFormChanged(
+            viewModel.editor.onFormChanged(
                 viewModel.form().copy(amount = "10", date = "not-a-date", accountId = "checking"),
             )
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
 
             assertEquals(R.string.movement_validation_date_invalid, viewModel.form().errorRes)
             assertEquals(MovementFormField.DATE, viewModel.form().errorField)
@@ -288,10 +288,10 @@ class MovementsViewModelTest {
             viewModel.onAddClicked()
             advanceUntilIdle()
 
-            viewModel.onFormChanged(
+            viewModel.editor.onFormChanged(
                 viewModel.form().copy(amount = "10", date = "2026-01-01", accountId = null),
             )
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
 
             assertEquals(R.string.movement_validation_account_required, viewModel.form().errorRes)
             assertEquals(MovementFormField.ACCOUNT, viewModel.form().errorField)
@@ -326,7 +326,7 @@ class MovementsViewModelTest {
             advanceUntilIdle()
 
             assertEquals("beach", viewModel.form().tagId)
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
 
             assertEquals(R.string.tag_validation_trip_required, viewModel.form().errorRes)
             assertEquals(MovementFormField.TAG, viewModel.form().errorField)
@@ -342,7 +342,7 @@ class MovementsViewModelTest {
             viewModel.onAddClicked()
             advanceUntilIdle()
 
-            viewModel.onFormChanged(
+            viewModel.editor.onFormChanged(
                 viewModel.form().copy(
                     amount = "10",
                     date = "2026-01-01",
@@ -351,7 +351,7 @@ class MovementsViewModelTest {
                     forOtherPersonId = null,
                 ),
             )
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
 
             assertEquals(R.string.settlement_validation_person_required, viewModel.form().errorRes)
             assertEquals(MovementFormField.PERSON, viewModel.form().errorField)
@@ -366,7 +366,7 @@ class MovementsViewModelTest {
             viewModel.onAddClicked()
             advanceUntilIdle()
 
-            viewModel.onFormChanged(
+            viewModel.editor.onFormChanged(
                 viewModel.form().copy(
                     amount = "10",
                     date = "2026-01-01",
@@ -374,7 +374,7 @@ class MovementsViewModelTest {
                     forOtherPersonId = null,
                 ),
             )
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
 
             assertEquals(R.string.settlement_validation_person_required, viewModel.form().errorRes)
             assertEquals(MovementFormField.PERSON, viewModel.form().errorField)
@@ -389,7 +389,7 @@ class MovementsViewModelTest {
             viewModel.onAddClicked()
             advanceUntilIdle()
 
-            viewModel.onFormChanged(
+            viewModel.editor.onFormChanged(
                 viewModel.form().copy(
                     type = MovementType.INCOME,
                     amount = "10",
@@ -399,7 +399,7 @@ class MovementsViewModelTest {
                     settlementPersonId = null,
                 ),
             )
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
 
             assertEquals(R.string.settlement_validation_person_required, viewModel.form().errorRes)
             assertEquals(MovementFormField.PERSON, viewModel.form().errorField)
@@ -415,7 +415,7 @@ class MovementsViewModelTest {
             viewModel.onAddClicked()
             advanceUntilIdle()
 
-            viewModel.onFormChanged(
+            viewModel.editor.onFormChanged(
                 viewModel.form().copy(
                     type = MovementType.TRANSFER,
                     amount = "10",
@@ -424,7 +424,7 @@ class MovementsViewModelTest {
                     destinationAccountId = "checking",
                 ),
             )
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
 
             assertEquals(
                 R.string.movement_validation_transfer_same_account,
@@ -443,7 +443,7 @@ class MovementsViewModelTest {
             viewModel.onAddClicked()
             advanceUntilIdle()
 
-            viewModel.onFormChanged(
+            viewModel.editor.onFormChanged(
                 viewModel.form().copy(
                     type = MovementType.TRANSFER,
                     amount = "10",
@@ -452,7 +452,7 @@ class MovementsViewModelTest {
                     destinationAccountId = null,
                 ),
             )
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
 
             assertEquals(
                 R.string.movement_validation_destination_required,
@@ -474,7 +474,7 @@ class MovementsViewModelTest {
             viewModel.onAddClicked()
             advanceUntilIdle()
 
-            viewModel.onFormChanged(
+            viewModel.editor.onFormChanged(
                 viewModel.form().copy(
                     amount = "2,50",
                     date = "2026-01-01",
@@ -482,15 +482,15 @@ class MovementsViewModelTest {
                     name = "Cafè",
                 ),
             )
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
 
             assertTrue(viewModel.form().duplicateWarning)
             assertEquals(1, store.movements.listActive().size)
 
-            viewModel.onDuplicateOverrideClicked()
+            viewModel.editor.onDuplicateOverrideClicked()
             advanceUntilIdle()
 
-            assertNull(viewModel.state.value.form)
+            assertNull(viewModel.editor.form.value)
             assertEquals(2, store.movements.listActive().size)
         }
     }
@@ -507,7 +507,7 @@ class MovementsViewModelTest {
             viewModel.onAddClicked()
             advanceUntilIdle()
 
-            viewModel.onFormChanged(
+            viewModel.editor.onFormChanged(
                 viewModel.form().copy(
                     amount = "2,50",
                     date = "2026-01-01",
@@ -515,11 +515,11 @@ class MovementsViewModelTest {
                     name = "Cafè",
                 ),
             )
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
 
             assertTrue(viewModel.form().duplicateWarning)
 
-            viewModel.onWarningDismissed()
+            viewModel.editor.onWarningDismissed()
             advanceUntilIdle()
 
             assertFalse("Revisa clears the warning", viewModel.form().duplicateWarning)
@@ -541,7 +541,7 @@ class MovementsViewModelTest {
             viewModel.onAddClicked()
             advanceUntilIdle()
 
-            viewModel.onFormChanged(
+            viewModel.editor.onFormChanged(
                 viewModel.form().copy(
                     amount = "9,99",
                     date = "2026-01-01",
@@ -549,10 +549,10 @@ class MovementsViewModelTest {
                     name = "Llibre",
                 ),
             )
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
             advanceUntilIdle()
 
-            assertNull(viewModel.state.value.form)
+            assertNull(viewModel.editor.form.value)
             assertFalse(store.movements.listActive().none { it.name == "Llibre" })
             assertEquals(2, store.movements.listActive().size)
         }
@@ -594,7 +594,7 @@ class MovementsViewModelTest {
             advanceUntilIdle()
 
             assertEquals("salary", viewModel.form().categoryId)
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
 
             assertEquals(R.string.movement_validation_category_invalid, viewModel.form().errorRes)
             assertEquals(MovementFormField.CATEGORY, viewModel.form().errorField)
@@ -613,7 +613,7 @@ class MovementsViewModelTest {
             viewModel.onAddClicked()
             advanceUntilIdle()
 
-            viewModel.onFormChanged(
+            viewModel.editor.onFormChanged(
                 viewModel.form().copy(
                     type = MovementType.TRANSFER,
                     amount = "10",
@@ -622,10 +622,10 @@ class MovementsViewModelTest {
                     destinationAccountId = "common",
                 ),
             )
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
             advanceUntilIdle()
 
-            assertNull(viewModel.state.value.form)
+            assertNull(viewModel.editor.form.value)
             val contribution = store.movements.listActive().single()
             assertEquals(MovementType.CONTRIBUTION, contribution.type)
             assertEquals(ContributionDirection.IN, contribution.contributionDirection)
@@ -644,7 +644,7 @@ class MovementsViewModelTest {
             viewModel.onAddClicked()
             advanceUntilIdle()
 
-            viewModel.onFormChanged(
+            viewModel.editor.onFormChanged(
                 viewModel.form().copy(
                     type = MovementType.TRANSFER,
                     amount = "10",
@@ -653,10 +653,10 @@ class MovementsViewModelTest {
                     destinationAccountId = "checking",
                 ),
             )
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
             advanceUntilIdle()
 
-            assertNull(viewModel.state.value.form)
+            assertNull(viewModel.editor.form.value)
             val withdrawal = store.movements.listActive().single()
             assertEquals(MovementType.CONTRIBUTION, withdrawal.type)
             assertEquals(ContributionDirection.OUT, withdrawal.contributionDirection)
@@ -675,7 +675,7 @@ class MovementsViewModelTest {
             val viewModel = viewModel(store)
             viewModel.onAddClicked()
             advanceUntilIdle()
-            viewModel.onFormChanged(
+            viewModel.editor.onFormChanged(
                 viewModel.form().copy(
                     type = MovementType.TRANSFER,
                     amount = "10",
@@ -684,14 +684,14 @@ class MovementsViewModelTest {
                     destinationAccountId = "savings",
                 ),
             )
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
             advanceUntilIdle()
             val transfer = store.movements.listActive().single()
 
             viewModel.onEditClicked(transfer)
             advanceUntilIdle()
-            viewModel.onFormChanged(viewModel.form().copy(destinationAccountId = "common"))
-            viewModel.onSaveClicked()
+            viewModel.editor.onFormChanged(viewModel.form().copy(destinationAccountId = "common"))
+            viewModel.editor.onSaveClicked()
 
             assertEquals(R.string.movement_validation_shared_transfer, viewModel.form().errorRes)
             assertEquals(MovementFormField.DESTINATION_ACCOUNT, viewModel.form().errorField)
@@ -713,7 +713,7 @@ class MovementsViewModelTest {
                 .withMethod(SplitEntryMethod.EXACT)
                 .withExactAmount(USER_PARTICIPANT_ID, "3")
                 .withExactAmount("laura", "4")
-            viewModel.onFormChanged(
+            viewModel.editor.onFormChanged(
                 viewModel.form().copy(
                     amount = "10",
                     date = "2026-01-01",
@@ -723,7 +723,7 @@ class MovementsViewModelTest {
                 ),
             )
 
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
 
             assertEquals(R.string.split_validation_reconcile, viewModel.form().errorRes)
             assertEquals(MovementFormField.SPLIT, viewModel.form().errorField)
@@ -740,7 +740,7 @@ class MovementsViewModelTest {
             viewModel.onAddClicked()
             advanceUntilIdle()
 
-            viewModel.onFormChanged(
+            viewModel.editor.onFormChanged(
                 viewModel.form().copy(
                     amount = "10",
                     date = "2026-01-01",
@@ -750,13 +750,13 @@ class MovementsViewModelTest {
                     splitEditor = SplitEditorState().withPersonToggled("laura"),
                 ),
             )
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
             advanceUntilIdle()
 
             val movement = store.movements.listActive().single()
             assertTrue(movement.isShared)
             assertEquals(500L, store.people.getActive("laura")!!.balanceCents)
-            assertNull(viewModel.state.value.form)
+            assertNull(viewModel.editor.form.value)
         }
     }
 
@@ -793,18 +793,18 @@ class MovementsViewModelTest {
             assertEquals(ExpenseKind.SHARED, viewModel.form().expenseKind)
 
             // Switch to TRANSFER (top-level MovementTypeSelector) and back to EXPENSE.
-            viewModel.onFormChanged(viewModel.form().copy(type = MovementType.TRANSFER))
-            viewModel.onFormChanged(viewModel.form().copy(type = MovementType.EXPENSE))
+            viewModel.editor.onFormChanged(viewModel.form().copy(type = MovementType.TRANSFER))
+            viewModel.editor.onFormChanged(viewModel.form().copy(type = MovementType.EXPENSE))
 
             // The split must never have been nulled/latched for removal along the way.
             assertEquals(ExpenseKind.SHARED, viewModel.form().expenseKind)
             assertEquals(setOf("laura"), viewModel.form().splitEditor?.selectedPersonIds?.toSet())
 
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
             advanceUntilIdle()
 
-            assertNull("no data-loss warning should fire -- the split was never actually removed", viewModel.state.value.form?.pendingDataLossWarning)
-            assertNull(viewModel.state.value.form)
+            assertNull("no data-loss warning should fire -- the split was never actually removed", viewModel.editor.form.value?.pendingDataLossWarning)
+            assertNull(viewModel.editor.form.value)
             val movement = store.movements.getActive("exp")!!
             assertTrue("split must be preserved, never turned into Remove", movement.isShared)
             assertEquals(500L, store.people.getActive("laura")!!.balanceCents)
@@ -842,18 +842,18 @@ class MovementsViewModelTest {
             assertTrue(viewModel.form().existingSplit)
 
             // Explicit un-share via the sharing toggle.
-            viewModel.onSharedToggled(false)
-            viewModel.onSaveClicked()
+            viewModel.editor.onSharedToggled(false)
+            viewModel.editor.onSaveClicked()
             advanceUntilIdle()
 
             // First attempt only warns -- the split must still be there.
             assertEquals(DataLossWarning.SPLIT_REMOVED, viewModel.form().pendingDataLossWarning)
             assertTrue(store.movements.getActive("exp")!!.isShared)
 
-            viewModel.onDataLossOverrideClicked()
+            viewModel.editor.onDataLossOverrideClicked()
             advanceUntilIdle()
 
-            assertNull(viewModel.state.value.form)
+            assertNull(viewModel.editor.form.value)
             val movement = store.movements.getActive("exp")!!
             assertFalse("split must be removed after accepting the warning", movement.isShared)
             assertEquals(0L, store.people.getActive("laura")!!.balanceCents)
@@ -873,7 +873,7 @@ class MovementsViewModelTest {
             viewModel.onAddClicked()
             advanceUntilIdle()
 
-            viewModel.onFormChanged(
+            viewModel.editor.onFormChanged(
                 viewModel.form().copy(
                     amount = "10",
                     date = "2026-01-01",
@@ -885,7 +885,7 @@ class MovementsViewModelTest {
                     recurringFrequency = RecurrenceFrequency.MONTHLY,
                 ),
             )
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
             advanceUntilIdle()
 
             val movement = store.movements.listActive().single()
@@ -936,7 +936,7 @@ class MovementsViewModelTest {
 
             // Simulate the "unchanged split" path: splitEditor stays null (the split itself isn't
             // being edited), only isRecurring flips on for the first time.
-            viewModel.onFormChanged(
+            viewModel.editor.onFormChanged(
                 viewModel.form().copy(
                     splitEditor = null,
                     existingSplit = true,
@@ -944,7 +944,7 @@ class MovementsViewModelTest {
                     recurringFrequency = RecurrenceFrequency.MONTHLY,
                 ),
             )
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
             advanceUntilIdle()
 
             val movement = store.movements.getActive("exp")!!
@@ -973,7 +973,7 @@ class MovementsViewModelTest {
             val viewModel = viewModel(store)
             viewModel.onAddClicked()
             advanceUntilIdle()
-            viewModel.onFormChanged(
+            viewModel.editor.onFormChanged(
                 viewModel.form().copy(
                     amount = "20",
                     date = "2026-01-05",
@@ -983,7 +983,7 @@ class MovementsViewModelTest {
                     recurringFrequency = RecurrenceFrequency.WEEKLY,
                 ),
             )
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
             advanceUntilIdle()
 
             val movement = store.movements.listActive().single()
@@ -1008,7 +1008,7 @@ class MovementsViewModelTest {
             val viewModel = viewModel(store)
             viewModel.onAddClicked()
             advanceUntilIdle()
-            viewModel.onFormChanged(
+            viewModel.editor.onFormChanged(
                 viewModel.form().copy(
                     amount = "20",
                     date = "2026-01-05",
@@ -1019,7 +1019,7 @@ class MovementsViewModelTest {
                     recurringFrequency = RecurrenceFrequency.WEEKLY,
                 ),
             )
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
             advanceUntilIdle()
 
             val movement = store.movements.listActive().single()
@@ -1044,7 +1044,7 @@ class MovementsViewModelTest {
             val viewModel = viewModel(store)
             viewModel.onAddClicked()
             advanceUntilIdle()
-            viewModel.onFormChanged(
+            viewModel.editor.onFormChanged(
                 viewModel.form().copy(
                     amount = "20",
                     date = "2026-01-05",
@@ -1054,7 +1054,7 @@ class MovementsViewModelTest {
                     recurringFrequency = RecurrenceFrequency.WEEKLY,
                 ),
             )
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
             advanceUntilIdle()
 
             val created = store.movements.listActive().single()
@@ -1062,18 +1062,18 @@ class MovementsViewModelTest {
 
             viewModel.onEditClicked(created)
             advanceUntilIdle()
-            viewModel.onFormChanged(viewModel.form().copy(isRecurring = false))
-            viewModel.onSaveClicked()
+            viewModel.editor.onFormChanged(viewModel.form().copy(isRecurring = false))
+            viewModel.editor.onSaveClicked()
             advanceUntilIdle()
 
             // First attempt only warns -- nothing is written yet.
             assertEquals(DataLossWarning.RECURRING_STOP, viewModel.form().pendingDataLossWarning)
             assertEquals(TemplateStatus.ACTIVE, store.templates.getActive(templateId)!!.status)
 
-            viewModel.onRecurrenceStopEndClicked()
+            viewModel.editor.onRecurrenceStopEndClicked()
             advanceUntilIdle()
 
-            assertNull(viewModel.state.value.form)
+            assertNull(viewModel.editor.form.value)
             assertEquals(TemplateStatus.ENDED, store.templates.getActive(templateId)!!.status)
             assertNull(
                 "movement must be unlinked once its template is ended",
@@ -1091,7 +1091,7 @@ class MovementsViewModelTest {
             val viewModel = viewModel(store)
             viewModel.onAddClicked()
             advanceUntilIdle()
-            viewModel.onFormChanged(
+            viewModel.editor.onFormChanged(
                 viewModel.form().copy(
                     amount = "20",
                     date = "2026-01-05",
@@ -1101,7 +1101,7 @@ class MovementsViewModelTest {
                     recurringFrequency = RecurrenceFrequency.WEEKLY,
                 ),
             )
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
             advanceUntilIdle()
 
             val created = store.movements.listActive().single()
@@ -1109,15 +1109,15 @@ class MovementsViewModelTest {
 
             viewModel.onEditClicked(created)
             advanceUntilIdle()
-            viewModel.onFormChanged(viewModel.form().copy(isRecurring = false))
-            viewModel.onSaveClicked()
+            viewModel.editor.onFormChanged(viewModel.form().copy(isRecurring = false))
+            viewModel.editor.onSaveClicked()
             advanceUntilIdle()
             assertEquals(DataLossWarning.RECURRING_STOP, viewModel.form().pendingDataLossWarning)
 
-            viewModel.onRecurrenceStopUnlinkClicked()
+            viewModel.editor.onRecurrenceStopUnlinkClicked()
             advanceUntilIdle()
 
-            assertNull(viewModel.state.value.form)
+            assertNull(viewModel.editor.form.value)
             assertEquals(
                 "unlinking must not touch the template's status",
                 TemplateStatus.ACTIVE,
@@ -1143,7 +1143,7 @@ class MovementsViewModelTest {
             advanceUntilIdle()
             viewModel.onAddClicked()
             advanceUntilIdle()
-            viewModel.onFormChanged(
+            viewModel.editor.onFormChanged(
                 viewModel.form().copy(
                     amount = "20",
                     date = "2026-01-05",
@@ -1156,7 +1156,7 @@ class MovementsViewModelTest {
                     recurringFrequency = RecurrenceFrequency.MONTHLY,
                 ),
             )
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
             advanceUntilIdle()
 
             val movement = store.movements.listActive().single()
@@ -1178,7 +1178,7 @@ class MovementsViewModelTest {
             val viewModel = viewModel(store)
             viewModel.onAddClicked()
             advanceUntilIdle()
-            viewModel.onFormChanged(
+            viewModel.editor.onFormChanged(
                 viewModel.form().copy(
                     amount = "80",
                     date = "2026-01-05",
@@ -1188,7 +1188,7 @@ class MovementsViewModelTest {
                     recurringFrequency = RecurrenceFrequency.MONTHLY,
                 ),
             )
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
             advanceUntilIdle()
             val movement = store.movements.listActive().single()
             val templateId = requireNotNull(movement.templateId)
@@ -1212,7 +1212,7 @@ class MovementsViewModelTest {
             val viewModel = viewModel(store)
             viewModel.onAddClicked()
             advanceUntilIdle()
-            viewModel.onFormChanged(
+            viewModel.editor.onFormChanged(
                 viewModel.form().copy(
                     amount = "80",
                     date = "2026-01-05",
@@ -1222,7 +1222,7 @@ class MovementsViewModelTest {
                     recurringFrequency = RecurrenceFrequency.MONTHLY,
                 ),
             )
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
             advanceUntilIdle()
             val movement = store.movements.listActive().single()
             val templateId = requireNotNull(movement.templateId)
@@ -1243,7 +1243,7 @@ class MovementsViewModelTest {
             val viewModel = viewModel(store)
             viewModel.onAddClicked()
             advanceUntilIdle()
-            viewModel.onFormChanged(
+            viewModel.editor.onFormChanged(
                 viewModel.form().copy(
                     amount = "80",
                     date = "2026-01-05",
@@ -1253,7 +1253,7 @@ class MovementsViewModelTest {
                     recurringFrequency = RecurrenceFrequency.MONTHLY,
                 ),
             )
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
             advanceUntilIdle()
             val movement = store.movements.listActive().single()
             val templateId = requireNotNull(movement.templateId)
@@ -1282,7 +1282,7 @@ class MovementsViewModelTest {
             val viewModel = viewModel(store)
             viewModel.onAddClicked()
             advanceUntilIdle()
-            viewModel.onFormChanged(
+            viewModel.editor.onFormChanged(
                 viewModel.form().copy(
                     amount = "80",
                     date = "2026-01-05",
@@ -1292,7 +1292,7 @@ class MovementsViewModelTest {
                     recurringFrequency = RecurrenceFrequency.MONTHLY,
                 ),
             )
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
             advanceUntilIdle()
             val movement = store.movements.listActive().single()
             val templateId = requireNotNull(movement.templateId)
@@ -1313,7 +1313,7 @@ class MovementsViewModelTest {
             val viewModel = viewModel(store)
             viewModel.onAddClicked()
             advanceUntilIdle()
-            viewModel.onFormChanged(
+            viewModel.editor.onFormChanged(
                 viewModel.form().copy(
                     amount = "80",
                     date = "2026-01-05",
@@ -1323,7 +1323,7 @@ class MovementsViewModelTest {
                     recurringFrequency = RecurrenceFrequency.MONTHLY,
                 ),
             )
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
             advanceUntilIdle()
             val movement = store.movements.listActive().single()
             val templateId = requireNotNull(movement.templateId)
@@ -1349,7 +1349,7 @@ class MovementsViewModelTest {
             viewModel.onAddClicked()
             advanceUntilIdle()
 
-            viewModel.onFormChanged(
+            viewModel.editor.onFormChanged(
                 viewModel.form().copy(
                     amount = "10",
                     date = "2026-01-01",
@@ -1359,7 +1359,7 @@ class MovementsViewModelTest {
                     forOtherPersonId = "laura",
                 ),
             )
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
             advanceUntilIdle()
 
             val movement = store.movements.listActive().single()
@@ -1373,7 +1373,7 @@ class MovementsViewModelTest {
             assertEquals(1_000L, store.people.getActive("laura")!!.balanceCents)
             assertEquals(0L, totals.actualExpenseCents)
             assertEquals(-1_000L, totals.accountFlowCents)
-            assertNull(viewModel.state.value.form)
+            assertNull(viewModel.editor.form.value)
         }
     }
 
@@ -1406,14 +1406,14 @@ class MovementsViewModelTest {
             assertEquals("cash", viewModel.form().accountId)
             assertEquals(true, viewModel.form().showOptional)
 
-            viewModel.onFormChanged(
+            viewModel.editor.onFormChanged(
                 viewModel.form().copy(
                     amount = "12",
                     date = "2026-01-01",
                     name = "Dinar",
                 ),
             )
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
             advanceUntilIdle()
 
             val movement = store.movements.listActive().single()
@@ -1435,24 +1435,24 @@ class MovementsViewModelTest {
 
             viewModel.onAddClicked("mallorca")
             advanceUntilIdle()
-            viewModel.onTagSelected("beach")
+            viewModel.editor.onTagSelected("beach")
 
             assertEquals("beach", viewModel.form().tagId)
 
-            viewModel.onTripSelected("lisboa")
+            viewModel.editor.onTripSelected("lisboa")
 
             assertNull(viewModel.form().tagId)
 
-            viewModel.onTripSelected("mallorca")
-            viewModel.onTagSelected("food")
-            viewModel.onFormChanged(
+            viewModel.editor.onTripSelected("mallorca")
+            viewModel.editor.onTagSelected("food")
+            viewModel.editor.onFormChanged(
                 viewModel.form().copy(
                     amount = "8",
                     date = "2026-01-01",
                     name = "Esmorzar",
                 ),
             )
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
             advanceUntilIdle()
 
             val movement = store.movements.listActive().single()
@@ -1486,7 +1486,7 @@ class MovementsViewModelTest {
             viewModel.onAddClicked(tripId = null)
             advanceUntilIdle()
 
-            assertNull(viewModel.state.value.form)
+            assertNull(viewModel.editor.form.value)
         }
     }
 
@@ -1540,11 +1540,11 @@ class MovementsViewModelTest {
             assertEquals("exp", viewModel.form().movementId)
 
             // Cancel -> back to the same detail.
-            viewModel.onFormDismissed()
+            viewModel.editor.onFormDismissed()
             sheet = form.afterClose(saved = false)
             assertEquals(MovementSheet.Detail, sheet)
             assertEquals("exp", viewModel.state.value.detailMovement?.id)
-            assertNull(viewModel.state.value.form)
+            assertNull(viewModel.editor.form.value)
 
             // A saved edit closes the detail too.
             assertNull(form.afterClose(saved = true))
@@ -1684,10 +1684,10 @@ class MovementsViewModelTest {
             assertNull(viewModel.form().movementId)
 
             // Switch "Qui ha pagat?" from "Un altre" (laura) to "Jo".
-            viewModel.onFormChanged(
+            viewModel.editor.onFormChanged(
                 viewModel.form().copy(expenseKind = ExpenseKind.PERSONAL, accountId = "checking"),
             )
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
             advanceUntilIdle()
 
             assertNull("the original external split must be archived", store.movements.getActive("ext1"))
@@ -1696,7 +1696,7 @@ class MovementsViewModelTest {
             assertEquals(MovementType.EXPENSE, active.single().type)
             assertEquals(1_000L, active.single().amountCents)
             assertEquals(0L, store.people.getActive("laura")!!.balanceCents)
-            assertNull(viewModel.state.value.form)
+            assertNull(viewModel.editor.form.value)
         }
     }
 
@@ -1728,10 +1728,10 @@ class MovementsViewModelTest {
             assertNull(viewModel.form().externalSplitId)
 
             // Switch "Qui ha pagat?" from "Jo" to "Un altre" (laura).
-            viewModel.onFormChanged(
+            viewModel.editor.onFormChanged(
                 viewModel.form().copy(expenseKind = ExpenseKind.DEBT, forOtherPersonId = "laura"),
             )
-            viewModel.onSaveClicked()
+            viewModel.editor.onSaveClicked()
             advanceUntilIdle()
 
             // First attempt only warns -- no write happens yet.
@@ -1739,7 +1739,7 @@ class MovementsViewModelTest {
             assertEquals("exp", store.movements.getActive("exp")?.id)
             assertEquals(0L, store.people.getActive("laura")!!.balanceCents)
 
-            viewModel.onDataLossOverrideClicked()
+            viewModel.editor.onDataLossOverrideClicked()
             advanceUntilIdle()
 
             assertNull("the original movement must be archived", store.movements.getActive("exp"))
@@ -1748,7 +1748,7 @@ class MovementsViewModelTest {
             assertEquals(MovementType.EXTERNAL_EXPENSE, active.single().type)
             assertEquals(1_000L, active.single().amountCents)
             assertEquals(-1_000L, store.people.getActive("laura")!!.balanceCents)
-            assertNull(viewModel.state.value.form)
+            assertNull(viewModel.editor.form.value)
         }
     }
 
@@ -1762,7 +1762,7 @@ class MovementsViewModelTest {
             advanceUntilIdle()
 
             assertTrue(noAccounts)
-            assertNull(viewModel.state.value.form)
+            assertNull(viewModel.editor.form.value)
 
             store.accounts.create(accountDraft("checking"), createdAt = NOW)
             noAccounts = false
@@ -1774,7 +1774,7 @@ class MovementsViewModelTest {
         }
     }
 
-    private fun MovementsViewModel.form(): MovementFormState = state.value.form!!
+    private fun MovementsViewModel.form(): MovementFormState = editor.form.value!!
 
     private fun viewModel(store: TestStore): MovementsViewModel =
         MovementsViewModel(

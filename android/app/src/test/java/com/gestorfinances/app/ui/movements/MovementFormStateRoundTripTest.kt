@@ -42,14 +42,14 @@ class MovementFormStateRoundTripTest {
             vm.onAddClicked()
             advanceUntilIdle()
 
-            vm.onFormChanged(vm.form().copy(
+            vm.editor.onFormChanged(vm.form().copy(
                 amount = "15",
                 date = "2026-01-01",
                 accountId = "checking",
                 name = "Dinar",
                 expenseKind = ExpenseKind.PERSONAL,
             ))
-            vm.onSaveClicked()
+            vm.editor.onSaveClicked()
             advanceUntilIdle()
 
             val movement = store.movements.listActive().single()
@@ -73,7 +73,7 @@ class MovementFormStateRoundTripTest {
             vm.onAddClicked()
             advanceUntilIdle()
 
-            vm.onFormChanged(vm.form().copy(
+            vm.editor.onFormChanged(vm.form().copy(
                 amount = "20",
                 date = "2026-01-01",
                 accountId = "checking",
@@ -81,7 +81,7 @@ class MovementFormStateRoundTripTest {
                 expenseKind = ExpenseKind.SHARED,
                 splitEditor = SplitEditorState().withPersonToggled("anna"),
             ))
-            vm.onSaveClicked()
+            vm.editor.onSaveClicked()
             advanceUntilIdle()
 
             val movement = store.movements.listActive().single()
@@ -105,7 +105,7 @@ class MovementFormStateRoundTripTest {
             vm.onAddClicked()
             advanceUntilIdle()
 
-            vm.onFormChanged(vm.form().copy(
+            vm.editor.onFormChanged(vm.form().copy(
                 amount = "30",
                 date = "2026-01-01",
                 accountId = "checking",
@@ -113,7 +113,7 @@ class MovementFormStateRoundTripTest {
                 expenseKind = ExpenseKind.FOR_OTHER,
                 forOtherPersonId = "anna",
             ))
-            vm.onSaveClicked()
+            vm.editor.onSaveClicked()
             advanceUntilIdle()
 
             val movement = store.movements.listActive().single()
@@ -137,14 +137,14 @@ class MovementFormStateRoundTripTest {
             vm.onAddClicked()
             advanceUntilIdle()
 
-            vm.onFormChanged(vm.form().copy(
+            vm.editor.onFormChanged(vm.form().copy(
                 amount = "40",
                 date = "2026-01-01",
                 name = "Taxi",
                 expenseKind = ExpenseKind.DEBT,
                 forOtherPersonId = "marc",
             ))
-            vm.onSaveClicked()
+            vm.editor.onSaveClicked()
             advanceUntilIdle()
 
             val movement = store.movements.listActive().single()
@@ -166,14 +166,14 @@ class MovementFormStateRoundTripTest {
             vm.onAddClicked()
             advanceUntilIdle()
 
-            vm.onFormChanged(vm.form().copy(
+            vm.editor.onFormChanged(vm.form().copy(
                 type = MovementType.INCOME,
                 amount = "100",
                 date = "2026-01-01",
                 accountId = "checking",
                 name = "Nòmina",
             ))
-            vm.onSaveClicked()
+            vm.editor.onSaveClicked()
             advanceUntilIdle()
 
             val movement = store.movements.listActive().single()
@@ -198,7 +198,7 @@ class MovementFormStateRoundTripTest {
             vm.onAddClicked()
             advanceUntilIdle()
 
-            vm.onFormChanged(vm.form().copy(
+            vm.editor.onFormChanged(vm.form().copy(
                 type = MovementType.TRANSFER,
                 amount = "50",
                 date = "2026-01-01",
@@ -206,7 +206,7 @@ class MovementFormStateRoundTripTest {
                 destinationAccountId = "savings",
                 name = "Estalvi",
             ))
-            vm.onSaveClicked()
+            vm.editor.onSaveClicked()
             advanceUntilIdle()
 
             val movement = store.movements.listActive().single()
@@ -231,16 +231,16 @@ class MovementFormStateRoundTripTest {
             val before = vm.form()
 
             assertEquals(false, before.showOptional)
-            vm.onOptionalToggled()
+            vm.editor.onOptionalToggled()
             assertEquals(true, vm.form().showOptional)
             assertEquals(before.copy(showOptional = true), vm.form())
 
-            vm.onOptionalToggled()
+            vm.editor.onOptionalToggled()
             assertEquals(false, vm.form().showOptional)
         }
     }
 
-    private fun MovementsViewModel.form(): MovementFormState = state.value.form!!
+    private fun MovementsViewModel.form(): MovementFormState = editor.form.value!!
 
     private fun viewModel(store: TestStore): MovementsViewModel =
         MovementsViewModel(

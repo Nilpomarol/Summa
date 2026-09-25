@@ -310,6 +310,7 @@ private fun LedgerShell(
     // Movements and recurring outlive any one page: their sheets can open above every page.
     val movementsViewModel = movementsViewModel(appContainer)
     val movementsState by movementsViewModel.state.collectAsState()
+    val movementForm by movementsViewModel.editor.form.collectAsState()
     val recurringViewModel = recurringViewModel(appContainer)
     val navController = rememberNavController()
     val currentDestination = navController.currentBackStackEntryAsState().value?.destination
@@ -584,7 +585,7 @@ private fun LedgerShell(
     }
     RecurringReminders(
         viewModel = recurringViewModel,
-        otherSheetOpen = movementsState.hasOpenDialog,
+        otherSheetOpen = movementsState.hasOpenDialog || movementForm != null,
         onDeleteCommitted = showDeleteUndo,
     )
 }

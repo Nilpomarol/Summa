@@ -67,16 +67,18 @@ private fun MovementFormSheet(
     viewModel: MovementsViewModel,
 ) {
     val state by viewModel.state.collectAsState()
-    // Keep the last form snapshot alive after a successful write. The ViewModel clears its form
+    val editor = viewModel.editor
+    val editorForm by editor.form.collectAsState()
+    // Keep the last form snapshot alive after a successful write. The editor clears its form
     // immediately; retaining the rendered content lets the sheet finish its hide animation first.
     var retainedForm by remember(sheet) { mutableStateOf<MovementFormState?>(null) }
-    LaunchedEffect(state.form) {
-        state.form?.let { retainedForm = it }
+    LaunchedEffect(editorForm) {
+        editorForm?.let { retainedForm = it }
     }
-    val form = state.form ?: retainedForm ?: return
+    val form = editorForm ?: retainedForm ?: return
     val closeMovementForm: () -> Unit = {
-        val saved = state.form == null
-        viewModel.onFormDismissed()
+        val saved = editorForm == null
+        editor.onFormDismissed()
         onSheetChange(sheet.afterClose(saved))
     }
     val requestMovementFormDismissal = rememberFormDismissGuard(
@@ -94,29 +96,29 @@ private fun MovementFormSheet(
         people = state.people,
         trips = state.trips,
         tags = state.tags,
-        onFormChange = viewModel::onFormChanged,
-        onTripSelected = viewModel::onTripSelected,
-        onTagSelected = viewModel::onTagSelected,
-        onSharedToggled = viewModel::onSharedToggled,
-        onSplitEditorChange = viewModel::onSplitEditorChanged,
-        onSettlementToggled = viewModel::onSettlementToggled,
-        onSettlementPersonSelected = viewModel::onSettlementPersonSelected,
-        onOtherPersonSelected = viewModel::onOtherPersonSelected,
-        onRecurringToggled = viewModel::onRecurringToggled,
-        onRecurringFrequencyChanged = viewModel::onRecurringFrequencyChanged,
-        onOptionalToggled = viewModel::onOptionalToggled,
-        onAdvancedToggled = viewModel::onAdvancedToggled,
-        onCreatePersonInSplit = viewModel::onCreatePersonInSplit,
+        onFormChange = editor::onFormChanged,
+        onTripSelected = editor::onTripSelected,
+        onTagSelected = editor::onTagSelected,
+        onSharedToggled = editor::onSharedToggled,
+        onSplitEditorChange = editor::onSplitEditorChanged,
+        onSettlementToggled = editor::onSettlementToggled,
+        onSettlementPersonSelected = editor::onSettlementPersonSelected,
+        onOtherPersonSelected = editor::onOtherPersonSelected,
+        onRecurringToggled = editor::onRecurringToggled,
+        onRecurringFrequencyChanged = editor::onRecurringFrequencyChanged,
+        onOptionalToggled = editor::onOptionalToggled,
+        onAdvancedToggled = editor::onAdvancedToggled,
+        onCreatePersonInSplit = editor::onCreatePersonInSplit,
         onDismiss = {
-            if (state.form == null) closeMovementForm() else requestMovementFormDismissal()
+            if (editorForm == null) closeMovementForm() else requestMovementFormDismissal()
         },
-        onSave = viewModel::onSaveClicked,
-        onOverride = viewModel::onDuplicateOverrideClicked,
-        onDataLossOverride = viewModel::onDataLossOverrideClicked,
-        onRecurrenceStopEnd = viewModel::onRecurrenceStopEndClicked,
-        onRecurrenceStopUnlink = viewModel::onRecurrenceStopUnlinkClicked,
-        onWarningDismissed = viewModel::onWarningDismissed,
-        dismissRequested = state.form == null,
+        onSave = editor::onSaveClicked,
+        onOverride = editor::onDuplicateOverrideClicked,
+        onDataLossOverride = editor::onDataLossOverrideClicked,
+        onRecurrenceStopEnd = editor::onRecurrenceStopEndClicked,
+        onRecurrenceStopUnlink = editor::onRecurrenceStopUnlinkClicked,
+        onWarningDismissed = editor::onWarningDismissed,
+        dismissRequested = editorForm == null,
     )
 }
 
