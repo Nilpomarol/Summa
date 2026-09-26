@@ -416,7 +416,7 @@ class MovementEditor(
         // stored split as-is). Only false here means the save would actually drop it.
         val finalKindCarriesSplit = isForOther || isShared || paidByPerson
 
-        val preservedPayerSplit = form.preservedPayerSplit.takeIf { paidByPerson }
+        val preservedPayerAmountCents = form.preservedPayerAmountCents.takeIf { paidByPerson }
 
         val error = required.validationError(form) ?: when {
             // A refund only ever refers to an expense.
@@ -424,9 +424,9 @@ class MovementEditor(
                 R.string.movement_validation_refunded_expense_type to MovementFormField.TYPE
             paidByPerson && (form.forOtherPersonId == null || form.forOtherPersonId !in activePersonIds) ->
                 R.string.settlement_validation_person_required to MovementFormField.PERSON
-            // The form cannot re-split a partial share, so it does not guess one for a new total.
-            preservedPayerSplit != null && amount != preservedPayerSplit.lines.sumOf { it.owedAmountCents } ->
-                R.string.movement_validation_partial_payer_amount to MovementFormField.AMOUNT
+            // The form cannot rebuild a stored split it keeps, so it does not guess one for a new total.
+            preservedPayerAmountCents != null && amount != preservedPayerAmountCents ->
+                R.string.movement_validation_preserved_payer_amount to MovementFormField.AMOUNT
             !paidByPerson && (form.accountId == null || form.accountId !in activeAccountIds) ->
                 R.string.movement_validation_account_required to MovementFormField.ACCOUNT
             form.type == MovementType.TRANSFER &&
@@ -535,8 +535,10 @@ class MovementEditor(
             notes = form.notes.nullIfBlank(),
             isOneTime = form.type == MovementType.EXPENSE && form.isOneTime,
             splitWrite = when {
+                // A stored split the form cannot rebuild is left exactly as it is.
+                paidByPerson && preservedPayerAmountCents != null -> MovementSplitWrite.KeepExisting
                 paidByPerson -> MovementSplitWrite.Replace(
-                    preservedPayerSplit ?: MovementSplitDraft(
+                    MovementSplitDraft(
                         entryMethod = SplitEntryMethod.EXACT,
                         lines = listOf(SplitLineDraft(SplitParticipantKind.USER, null, requireNotNull(amount))),
                     ),
@@ -822,9 +824,10 @@ data class MovementFormState(
     val isSaving: Boolean = false,
     /** An edited expense that active refunds refer to, which therefore must stay an expense. */
     val hasActiveRefunds: Boolean = false,
-    /** The stored split of an edited expense someone else paid when the owner owes only part of
-     * it; saved back unchanged instead of the whole-amount debt a new entry records. */
-    val preservedPayerSplit: MovementSplitDraft? = null,
+    /** The stored amount of an edited expense someone else paid whose split is not the owner owing
+     * all of it (a part, or no active line at all). Its split is saved back untouched instead of
+     * the whole-amount debt a new entry records, so the amount must stay as stored. */
+    val preservedPayerAmountCents: Long? = null,
 ) {
     /** True for a fresh "add" flow, as opposed to editing an existing movement. */
     val isNew: Boolean get() = movementId == null
@@ -879,10 +882,11 @@ internal fun MovementSummary.toFormState(
     template: TemplateSummary? = null,
 ): MovementFormState {
     // DEBT (type 4): an expense a person paid. No account moved and it never recurs. Its owed
-    // split is rewritten from the amount on save when the owner owes the whole amount; any other
-    // stored split (the owner owing only part) is kept as it is.
+    // split is rewritten from the amount on save only when the owner owes the whole amount; any
+    // other stored split is kept as it is. No active split lines is such a split too (the owner
+    // owes nothing), never proof that the owner owes the whole amount.
     if (paidByPerson) {
-        val owesWholeAmount = splitDraft == null || splitDraft.lines.singleOrNull()?.let { line ->
+        val owesWholeAmount = splitDraft?.lines?.singleOrNull()?.let { line ->
             line.participantKind == SplitParticipantKind.USER && line.owedAmountCents == amountCents
         } == true
         return MovementFormState(
@@ -899,7 +903,7 @@ internal fun MovementSummary.toFormState(
             isOneTime = isOneTime,
             expenseKind = ExpenseKind.DEBT,
             forOtherPersonId = payerId,
-            preservedPayerSplit = splitDraft.takeUnless { owesWholeAmount },
+            preservedPayerAmountCents = amountCents.takeUnless { owesWholeAmount },
             showOptional = tripId != null || tagId != null,
         )
     }

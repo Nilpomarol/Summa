@@ -1881,6 +1881,106 @@ class MovementsViewModelTest {
         }
     }
 
+    // The ordinary case: the owner owes the payer the whole amount. A rename leaves that debt as it
+    // is, and a new amount is still what the owner owes.
+    @Test
+    fun editingAWhollyOwedPersonPaidExpenseKeepsItsDebtInStepWithTheAmount() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.people.create(personDraft("alba"), createdAt = NOW)
+            store.movements.create(
+                personPaidExpense(id = "cinema", payerPersonId = "alba", amountCents = 1_500, date = "2026-01-01", name = "Cinema"),
+                createdAt = NOW,
+            )
+            val viewModel = viewModel(store)
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+
+            viewModel.onEditClicked(store.movements.getActive("cinema")!!)
+            advanceUntilIdle()
+            viewModel.editor.onFormChanged(viewModel.form().copy(name = "Cinema i crispetes"))
+            viewModel.editor.onSaveClicked()
+            advanceUntilIdle()
+
+            assertEquals("Cinema i crispetes", store.movements.getActive("cinema")!!.name)
+            assertEquals(-1_500L, store.people.getActive("alba")!!.balanceCents)
+
+            viewModel.onEditClicked(store.movements.getActive("cinema")!!)
+            advanceUntilIdle()
+            viewModel.editor.onFormChanged(viewModel.form().copy(amount = "20"))
+            viewModel.editor.onSaveClicked()
+            advanceUntilIdle()
+
+            assertNull(viewModel.editor.form.value)
+            assertEquals(2_000L, store.movements.getActive("cinema")!!.amountCents)
+            assertEquals(-2_000L, store.people.getActive("alba")!!.balanceCents)
+        }
+    }
+
+    // Regression: migration 20 keeps an expense someone else paid whose owner line had been
+    // archived (the owner owes nothing). The edit form read "no active split lines" as "owes the
+    // whole amount", so renaming it wrote a new owner line and created a debt.
+    @Test
+    fun renamingAPersonPaidExpenseWithNoActiveOwnerLineCreatesNoDebt() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.people.create(personDraft("cesc"), createdAt = NOW)
+            store.movements.create(
+                personPaidExpense(id = "coffee", payerPersonId = "cesc", amountCents = 300, date = "2026-02-14", name = "Coffee"),
+                createdAt = NOW,
+            )
+            // The migrated shape: the movement and its split are active, the owner line is archived.
+            store.driver.execute(
+                null,
+                "UPDATE split_lines SET archived_at = '2026-02-14T01:00:00Z' " +
+                    "WHERE split_id = (SELECT id FROM splits WHERE movement_id = 'coffee')",
+                0,
+            )
+            assertEquals(0L, store.people.getActive("cesc")!!.balanceCents)
+            val viewModel = viewModel(store)
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+
+            viewModel.onEditClicked(store.movements.getActive("coffee")!!)
+            advanceUntilIdle()
+            viewModel.editor.onFormChanged(viewModel.form().copy(name = "Cafè"))
+            viewModel.editor.onSaveClicked()
+            advanceUntilIdle()
+
+            assertNull(viewModel.editor.form.value)
+            val saved = store.movements.getActive("coffee")!!
+            assertEquals("Cafè", saved.name)
+            assertEquals(300L, saved.amountCents)
+            assertEquals("cesc", saved.payerId)
+            assertEquals(0L, store.people.getActive("cesc")!!.balanceCents)
+            assertNull("no active owner line may appear", store.splits.getForMovement("coffee"))
+            assertEquals(
+                listOf("1 1"),
+                store.driver.executeQuery(
+                    null,
+                    "SELECT COUNT(*), SUM(sl.archived_at IS NOT NULL) FROM split_lines sl " +
+                        "JOIN splits s ON s.id = sl.split_id WHERE s.movement_id = 'coffee' AND s.archived_at IS NULL",
+                    { cursor ->
+                        val rows = mutableListOf<String>()
+                        while (cursor.next().value) rows += "${cursor.getLong(0)} ${cursor.getLong(1)}"
+                        app.cash.sqldelight.db.QueryResult.Value(rows)
+                    },
+                    0,
+                ).value,
+            )
+
+            // Its amount cannot be changed here without inventing what the owner owes.
+            viewModel.onEditClicked(saved)
+            advanceUntilIdle()
+            viewModel.editor.onFormChanged(viewModel.form().copy(amount = "5"))
+            viewModel.editor.onSaveClicked()
+            advanceUntilIdle()
+
+            assertEquals(R.string.movement_validation_preserved_payer_amount, viewModel.form().errorRes)
+            assertEquals(MovementFormField.AMOUNT, viewModel.form().errorField)
+            assertEquals(300L, store.movements.getActive("coffee")!!.amountCents)
+            assertEquals(0L, store.people.getActive("cesc")!!.balanceCents)
+        }
+    }
+
     // Regression: editing an expense someone else paid, where the owner owes only part, rewrote
     // the owner's share as the whole amount, so a rename changed the debt.
     @Test
@@ -1932,7 +2032,7 @@ class MovementsViewModelTest {
             viewModel.editor.onSaveClicked()
             advanceUntilIdle()
 
-            assertEquals(R.string.movement_validation_partial_payer_amount, viewModel.form().errorRes)
+            assertEquals(R.string.movement_validation_preserved_payer_amount, viewModel.form().errorRes)
             assertEquals(MovementFormField.AMOUNT, viewModel.form().errorField)
             assertEquals(9_000L, store.movements.getActive("dinner")!!.amountCents)
             assertEquals(-3_000L, store.people.getActive("alba")!!.balanceCents)
@@ -2011,7 +2111,7 @@ class MovementsViewModelTest {
     }
 
     private class TestStore(
-        private val driver: JdbcSqliteDriver,
+        val driver: JdbcSqliteDriver,
         val accounts: AccountRepository,
         val analysis: AnalysisRepository,
         val categories: CategoryRepository,

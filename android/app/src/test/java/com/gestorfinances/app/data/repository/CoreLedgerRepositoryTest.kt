@@ -104,6 +104,46 @@ class CoreLedgerRepositoryTest {
         }
     }
 
+    // An expense someone else paid may be saved with the split it is stored with, but an expense
+    // the owner paid never becomes one without a split written for the payer.
+    @Test
+    fun onlyAnExpenseSomeoneElsePaidKeepsItsStoredSplitAsAPayerSplit() {
+        val database = RepositoryTestSupport.newDatabase()
+        val accounts = AccountRepository(database.accountsQueries)
+        val people = PersonRepository(database.peopleQueries)
+        val movements = MovementRepository(database.movementsQueries, database.splitsQueries)
+        accounts.create(accountDraft(id = "checking", startingBalanceCents = 0), createdAt = NOW)
+        people.create(
+            PersonDraft(id = "laura", name = "Laura", avatar = null, color = null, notes = null),
+            createdAt = NOW,
+        )
+        val paid = personPaidExpense(id = "paid", payerPersonId = "laura", amountCents = 1_000, date = "2026-03-01", name = "Sopar")
+        movements.create(paid, createdAt = NOW)
+        movements.update(paid.copy(name = "Sopar amb la Laura", splitWrite = MovementSplitWrite.KeepExisting), updatedAt = LATER)
+        assertEquals("Sopar amb la Laura", movements.getActive("paid")!!.name)
+        assertEquals(-1_000L, people.getActive("laura")!!.balanceCents)
+
+        val shared = movementDraft("shared", MovementType.EXPENSE, 2_000, "2026-03-02", "checking").copy(
+            splitWrite = MovementSplitWrite.Replace(
+                MovementSplitDraft(
+                    SplitEntryMethod.EXACT,
+                    listOf(
+                        SplitLineDraft(SplitParticipantKind.USER, null, 1_000),
+                        SplitLineDraft(SplitParticipantKind.PERSON, "laura", 1_000),
+                    ),
+                ),
+            ),
+        )
+        movements.create(shared, createdAt = NOW)
+        assertThrows(IllegalArgumentException::class.java) {
+            movements.update(
+                shared.copy(accountId = null, payerPersonId = "laura", splitWrite = MovementSplitWrite.KeepExisting),
+                updatedAt = LATER,
+            )
+        }
+        assertFalse(movements.getActive("shared")!!.paidByPerson)
+    }
+
     @Test
     fun sharedRefundUsesActualAdjustmentDistinctFromCashInflow() {
         freshStore().use { store ->

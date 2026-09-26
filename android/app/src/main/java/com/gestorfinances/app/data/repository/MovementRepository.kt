@@ -278,7 +278,13 @@ class MovementRepository(
     ) {
         val persistedDraft = prepareSharedFundingDraft(draft, existingMovement = true)
         requireDirectMovementType(persistedDraft.type)
-        validatePayer(persistedDraft)
+        // An expense someone else paid may keep the split it is stored with, whatever its lines
+        // say now, but a movement only becomes one with a split written for it.
+        val keepsStoredPayerSplit = persistedDraft.payerPersonId != null &&
+            persistedDraft.splitWrite == MovementSplitWrite.KeepExisting &&
+            getActive(persistedDraft.id)?.paidByPerson == true &&
+            splitQueries?.splitIdForMovement(persistedDraft.id)?.executeAsOneOrNull() != null
+        validatePayer(persistedDraft, keepsStoredPayerSplit)
         validateSplitWrite(persistedDraft)
         validateIncomeAllocation(persistedDraft)
         validateSharedFundingSplit(
@@ -689,7 +695,7 @@ private fun MovementDraft.expenseFundingDbValue(): String? =
  * The owner pays from an account; a person who paid leaves the owner's accounts untouched and is
  * owed the split's user line, so their expense always carries that split and never recurs.
  */
-private fun validatePayer(draft: MovementDraft) {
+private fun validatePayer(draft: MovementDraft, keepsStoredSplit: Boolean = false) {
     if (draft.payerPersonId == null) {
         require(!draft.accountId.isNullOrBlank()) { "The owner pays from an account." }
         return
@@ -698,7 +704,9 @@ private fun validatePayer(draft: MovementDraft) {
     require(draft.accountId == null) { "An expense a person paid moves none of the owner's accounts." }
     require(draft.expenseFunding == ExpenseFunding.OWNER) { "An expense a person paid is not financed by an account." }
     require(draft.templateId == null) { "An expense a person paid does not recur." }
-    require(draft.splitWrite is MovementSplitWrite.Replace) { "An expense a person paid is saved with the split saying what is owed." }
+    require(draft.splitWrite is MovementSplitWrite.Replace || keepsStoredSplit) {
+        "An expense a person paid is saved with the split saying what is owed."
+    }
 }
 
 private fun requireDirectMovementType(type: MovementType) {

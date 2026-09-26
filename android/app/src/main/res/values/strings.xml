@@ -436,7 +436,7 @@
     <string name="movement_split_summary_income">La teva part de l’ingrés: %1$s</string>
     <string name="movement_validation_income_owner">Tria de qui és aquest ingrés.</string>
     <string name="movement_validation_refunded_expense_type">Aquesta despesa té devolucions. Perquè deixi de ser una despesa, primer elimina-les.</string>
-    <string name="movement_validation_partial_payer_amount">Només deus una part d’aquesta despesa, i aquí no es pot tornar a repartir. Deixa l’import com estava.</string>
+    <string name="movement_validation_preserved_payer_amount">El que deus d’aquesta despesa no es pot tornar a repartir aquí. Deixa l’import com estava.</string>
     <string name="movement_debt_payer">Persona que ha pagat</string>
     <string name="movement_debt_amount_help">L\'import que li deus.</string>
     <string name="movement_field_trip">Viatge</string>
