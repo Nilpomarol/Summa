@@ -79,6 +79,10 @@ class RecurringViewModel(
     private val _state = MutableStateFlow(RecurringUiState())
     val state: StateFlow<RecurringUiState> = _state.asStateFlow()
 
+    /** Set synchronously while a confirmed occurrence is being written, so a repeated tap cannot
+     * record the same occurrence twice. */
+    private var confirmInFlight = false
+
     fun onScreenShown() {
         refresh()
     }
@@ -203,6 +207,7 @@ class RecurringViewModel(
     }
 
     fun onConfirmSaveClicked() {
+        if (confirmInFlight) return
         val prompt = _state.value.confirmPrompt ?: return
         val template = _state.value.templates.firstOrNull { it.id == prompt.templateId } ?: return
         val amountCents = parseEuroCents(prompt.amount, allowNegative = false)
@@ -271,6 +276,8 @@ class RecurringViewModel(
                 )
             }
         }
+        confirmInFlight = true
+        _state.value = _state.value.copy(confirmPrompt = prompt.copy(isSaving = true))
         viewModelScope.launch {
             val result = withContext(ioDispatcher) {
                 runCatching {
@@ -280,6 +287,7 @@ class RecurringViewModel(
                     }
                 }
             }
+            confirmInFlight = false
             result.fold(
                 onSuccess = {
                     _state.value = _state.value.copy(confirmPrompt = null)
@@ -801,6 +809,8 @@ data class ConfirmPromptState(
     /** Read-only: the template's carried-forward split, for a live share preview. Never edited
      * here -- see [toSplitWrite] for how it's rescaled to the confirmed amount at save time. */
     val splitConfig: TemplateSplitConfig? = null,
+    /** True while the occurrence is being written; the confirm action is disabled until it finishes. */
+    val isSaving: Boolean = false,
 )
 
 /** Identifies which field a template-form validation error belongs to (field-level validation). */
@@ -1024,7 +1034,9 @@ private fun TemplateSplitConfig?.toSplitWrite(
     amountCents: Long,
 ): MovementSplitWrite {
     val config = this ?: return MovementSplitWrite.KeepExisting
-    if (type != MovementType.EXPENSE) return MovementSplitWrite.KeepExisting
+    // An expense's split says who owes what; an income's says how it is allocated between the
+    // members of the shared account it arrives in.
+    if (type != MovementType.EXPENSE && type != MovementType.INCOME) return MovementSplitWrite.KeepExisting
     val entryMethod = SplitEntryMethod.entries.firstOrNull { it.dbValue == config.entryMethod }
         ?: return MovementSplitWrite.KeepExisting
     val shares = config.rescaledShares(amountCents) ?: return MovementSplitWrite.KeepExisting

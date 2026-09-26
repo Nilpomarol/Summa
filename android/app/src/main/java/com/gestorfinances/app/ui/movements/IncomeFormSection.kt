@@ -54,16 +54,19 @@ internal fun IncomeFormSection(
             isError = accountError,
             supportingText = if (accountError && form.errorRes != null) stringResource(form.errorRes) else null,
         )
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .padding(top = 22.dp),
-        ) {
-            FormToggleRow(
-                label = stringResource(R.string.movement_field_settlement),
-                checked = form.isSettlement,
-                onCheckedChange = onSettlementToggled,
-            )
+        // A settlement is recorded as a new movement, so an edited income is never turned into one.
+        if (form.isNew) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(top = 22.dp),
+            ) {
+                FormToggleRow(
+                    label = stringResource(R.string.movement_field_settlement),
+                    checked = form.isSettlement,
+                    onCheckedChange = onSettlementToggled,
+                )
+            }
         }
     }
     if (form.isSettlement) {

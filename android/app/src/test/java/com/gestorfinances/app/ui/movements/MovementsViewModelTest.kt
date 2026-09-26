@@ -24,6 +24,7 @@ import com.gestorfinances.app.data.repository.MovementSplitWrite
 import com.gestorfinances.app.data.repository.MovementType
 import com.gestorfinances.app.data.repository.PersonDraft
 import com.gestorfinances.app.data.repository.PersonRepository
+import com.gestorfinances.app.data.repository.RefundDraft
 import com.gestorfinances.app.data.repository.SplitEntryMethod
 import com.gestorfinances.app.data.repository.SplitLineDraft
 import com.gestorfinances.app.data.repository.SplitParticipantKind
@@ -1784,6 +1785,194 @@ class MovementsViewModelTest {
 
             assertEquals(false, noAccounts)
             assertEquals("checking", viewModel.form().accountId)
+        }
+    }
+
+    // Regression: a second Save tap before the first write finished created the movement twice.
+    @Test
+    fun repeatedSaveBeforeTheFirstFinishesRecordsOneMovement() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            val viewModel = viewModel(store)
+            viewModel.onAddClicked()
+            advanceUntilIdle()
+            viewModel.editor.onFormChanged(
+                viewModel.form().copy(amount = "12", date = "2026-01-01", name = "Cafè"),
+            )
+
+            viewModel.editor.onSaveClicked()
+            assertTrue(viewModel.form().isSaving)
+            viewModel.editor.onSaveClicked()
+            advanceUntilIdle()
+
+            assertEquals(1, store.movements.listActive().size)
+            assertEquals(-1_200L, store.accounts.getActive("checking")!!.currentBalanceCents)
+            assertNull(viewModel.editor.form.value)
+
+            // The guard is released once the write finishes: the next movement saves normally.
+            viewModel.onAddClicked()
+            advanceUntilIdle()
+            viewModel.editor.onFormChanged(
+                viewModel.form().copy(amount = "3", date = "2026-01-02", name = "Pa"),
+            )
+            viewModel.editor.onSaveClicked()
+            advanceUntilIdle()
+            assertEquals(2, store.movements.listActive().size)
+        }
+    }
+
+    // Regression: a second Save tap on the refund form recorded the refund twice.
+    @Test
+    fun repeatedRefundSaveRecordsOneRefund() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            store.movements.create(movementDraft(id = "exp", amountCents = 5_000, name = "Sabates"), createdAt = NOW)
+            val viewModel = viewModel(store)
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+            val expense = store.movements.getActive("exp")!!
+            viewModel.onDetailClicked(expense)
+            advanceUntilIdle()
+            viewModel.onAddRefundClicked(expense)
+            viewModel.onRefundFormChanged(viewModel.state.value.refundForm!!.copy(amount = "20", date = "2026-01-02"))
+
+            viewModel.onRefundSaveClicked()
+            viewModel.onRefundSaveClicked()
+            advanceUntilIdle()
+
+            assertEquals(1, store.movements.refundsForExpense("exp").size)
+        }
+    }
+
+    // Regression: the settlement toggle was offered while editing an income, and saving then
+    // created a new settlement while the original income stayed active beside it.
+    @Test
+    fun editingAnIncomeNeverRecordsASettlementBesideIt() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            store.people.create(personDraft("alba"), createdAt = NOW)
+            store.movements.create(
+                movementDraft(id = "inc", amountCents = 5_000, name = "Bizum").copy(type = MovementType.INCOME),
+                createdAt = NOW,
+            )
+            val viewModel = viewModel(store)
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+            viewModel.onEditClicked(store.movements.getActive("inc")!!)
+            advanceUntilIdle()
+
+            viewModel.editor.onSettlementToggled(true)
+            assertFalse(viewModel.form().isSettlement)
+
+            // Even a form that claims to be a settlement saves as an edit of the income.
+            viewModel.editor.onFormChanged(
+                viewModel.form().copy(isSettlement = true, settlementPersonId = "alba", name = "Bizum sopar"),
+            )
+            viewModel.editor.onSaveClicked()
+            advanceUntilIdle()
+
+            val active = store.movements.listActive().single()
+            assertEquals("inc", active.id)
+            assertEquals(MovementType.INCOME, active.type)
+            assertEquals("Bizum sopar", active.name)
+            assertEquals(0L, store.people.getActive("alba")!!.balanceCents)
+            assertEquals(5_000L, store.accounts.getActive("checking")!!.currentBalanceCents)
+            assertNull(viewModel.editor.form.value)
+        }
+    }
+
+    // Regression: editing an expense someone else paid, where the owner owes only part, rewrote
+    // the owner's share as the whole amount, so a rename changed the debt.
+    @Test
+    fun renamingAPartlyOwedPersonPaidExpenseKeepsTheOwnersShare() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.people.create(personDraft("alba"), createdAt = NOW)
+            store.people.create(personDraft("bernat"), createdAt = NOW)
+            store.movements.create(
+                personPaidExpense(id = "dinner", payerPersonId = "alba", amountCents = 9_000, date = "2026-01-01", name = "Sopar")
+                    .copy(
+                        splitWrite = MovementSplitWrite.Replace(
+                            MovementSplitDraft(
+                                SplitEntryMethod.EXACT,
+                                listOf(
+                                    SplitLineDraft(SplitParticipantKind.USER, null, 3_000),
+                                    SplitLineDraft(SplitParticipantKind.PERSON, "bernat", 6_000),
+                                ),
+                            ),
+                        ),
+                    ),
+                createdAt = NOW,
+            )
+            assertEquals(-3_000L, store.people.getActive("alba")!!.balanceCents)
+            val viewModel = viewModel(store)
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+
+            viewModel.onEditClicked(store.movements.getActive("dinner")!!)
+            advanceUntilIdle()
+            viewModel.editor.onFormChanged(viewModel.form().copy(name = "Sopar d'aniversari"))
+            viewModel.editor.onSaveClicked()
+            advanceUntilIdle()
+
+            assertNull(viewModel.editor.form.value)
+            val saved = store.movements.getActive("dinner")!!
+            assertEquals("Sopar d'aniversari", saved.name)
+            assertEquals(9_000L, saved.amountCents)
+            assertEquals(3_000L, saved.userShareCents)
+            val split = store.splits.getForMovement("dinner")!!
+            assertEquals(3_000L, split.lines.single { it.participantKind == SplitParticipantKind.USER }.owedAmountCents)
+            assertEquals(6_000L, split.lines.single { it.personId == "bernat" }.owedAmountCents)
+            assertEquals(-3_000L, store.people.getActive("alba")!!.balanceCents)
+            assertEquals(0L, store.people.getActive("bernat")!!.balanceCents)
+
+            // A new total cannot be re-split here, so it is refused rather than guessed.
+            viewModel.onEditClicked(saved)
+            advanceUntilIdle()
+            viewModel.editor.onFormChanged(viewModel.form().copy(amount = "100"))
+            viewModel.editor.onSaveClicked()
+            advanceUntilIdle()
+
+            assertEquals(R.string.movement_validation_partial_payer_amount, viewModel.form().errorRes)
+            assertEquals(MovementFormField.AMOUNT, viewModel.form().errorField)
+            assertEquals(9_000L, store.movements.getActive("dinner")!!.amountCents)
+            assertEquals(-3_000L, store.people.getActive("alba")!!.balanceCents)
+        }
+    }
+
+    // Regression: an expense with an active refund could be retyped from the form, leaving the
+    // refund attached to a movement that was no longer an expense.
+    @Test
+    fun anExpenseWithAnActiveRefundCannotBeRetypedFromTheForm() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            store.movements.create(movementDraft(id = "exp", amountCents = 5_000, name = "Sabates"), createdAt = NOW)
+            store.movements.createRefund(
+                RefundDraft("ref", "exp", 2_000, "checking", "2026-01-02", null, null, null, null),
+                createdAt = NOW,
+            )
+            val viewModel = viewModel(store)
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+            viewModel.onEditClicked(store.movements.getActive("exp")!!)
+            advanceUntilIdle()
+            assertTrue(viewModel.form().hasActiveRefunds)
+
+            viewModel.editor.onFormChanged(viewModel.form().copy(type = MovementType.INCOME))
+            viewModel.editor.onSaveClicked()
+            advanceUntilIdle()
+
+            assertEquals(R.string.movement_validation_refunded_expense_type, viewModel.form().errorRes)
+            assertEquals(MovementFormField.TYPE, viewModel.form().errorField)
+            assertEquals(MovementType.EXPENSE, store.movements.getActive("exp")!!.type)
+
+            // Ordinary edits of the same expense still save.
+            viewModel.editor.onFormChanged(viewModel.form().copy(type = MovementType.EXPENSE, name = "Botes"))
+            viewModel.editor.onSaveClicked()
+            advanceUntilIdle()
+
+            assertNull(viewModel.editor.form.value)
+            assertEquals("Botes", store.movements.getActive("exp")!!.name)
+            assertEquals(1, store.movements.refundsForExpense("exp").size)
         }
     }
 

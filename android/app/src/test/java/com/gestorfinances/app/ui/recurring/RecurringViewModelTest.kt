@@ -4,8 +4,11 @@ import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.db.GestorDatabase
 import com.gestorfinances.app.data.repository.AccountDraft
+import com.gestorfinances.app.data.repository.AccountMemberDraft
+import com.gestorfinances.app.data.repository.AccountOwnershipKind
 import com.gestorfinances.app.data.repository.AccountRepository
 import com.gestorfinances.app.data.repository.AccountType
+import com.gestorfinances.app.data.repository.AnalysisRepository
 import com.gestorfinances.app.data.repository.CategoryRepository
 import com.gestorfinances.app.data.repository.MovementDraft
 import com.gestorfinances.app.data.repository.MovementRepository
@@ -464,6 +467,84 @@ class RecurringViewModelTest {
             assertTrue("edited-amount occurrence must still be shared, not dropped to personal", movement.isShared)
             assertEquals(12_00L, movement.amountCents)
             assertEquals(600L, store.people.getActive("laura")!!.balanceCents)
+        }
+    }
+
+    // Regression: an income allocated between the members of a shared account must be confirmed
+    // with the same allocation its template holds, not as an income wholly the owner's.
+    @Test
+    fun confirmingAnAllocatedRecurringIncomeKeepsItsAllocation() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.people.create(
+                PersonDraft(id = "laura", name = "Laura", avatar = null, color = null, notes = null),
+                createdAt = NOW,
+            )
+            store.accounts.create(sharedAccountDraft("joint", "laura"), createdAt = NOW)
+            store.templates.create(
+                monthlyTemplateDraft("salary", nextDueDate = "2026-01-01").copy(
+                    type = MovementType.INCOME,
+                    accountId = "joint",
+                    amountCents = 10_000,
+                    splitConfig = TemplateSplitConfig(
+                        entryMethod = "exact",
+                        payer = "user",
+                        lines = listOf(
+                            TemplateSplitConfigLine(party = "user", owedAmountCents = 4_000),
+                            TemplateSplitConfigLine(party = "laura", owedAmountCents = 6_000),
+                        ),
+                    ),
+                ),
+                createdAt = NOW,
+            )
+            val viewModel = viewModel(store, today = LocalDate.parse("2026-01-15"))
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+
+            val prompt = viewModel.state.value.duePrompts.single()
+            viewModel.onConfirmClicked(prompt)
+            viewModel.onConfirmSaveClicked()
+            advanceUntilIdle()
+
+            val income = store.movements.listActive().single()
+            assertEquals(MovementType.INCOME, income.type)
+            assertEquals(10_000L, income.amountCents)
+            assertTrue("confirmed income must keep its allocation", income.isShared)
+            assertEquals(4_000L, income.userShareCents)
+            val split = store.splits.getForMovement(income.id)!!
+            assertEquals(
+                listOf(4_000L, 6_000L),
+                listOf(
+                    split.lines.single { it.participantKind == SplitParticipantKind.USER }.owedAmountCents,
+                    split.lines.single { it.personId == "laura" }.owedAmountCents,
+                ),
+            )
+            // v_actual_income counts only the owner's line, and an allocated income owes no one.
+            val totals = store.analysis.periodTotals(fromDate = "2026-01-01", toDate = "2026-01-02")
+            assertEquals(4_000L, totals.actualIncomeCents)
+            assertEquals(0L, store.people.getActive("laura")!!.balanceCents)
+        }
+    }
+
+    // Regression: a second tap on the confirm action before the first write finished recorded the
+    // occurrence twice and advanced the template twice.
+    @Test
+    fun confirmingTheSameDuePromptTwiceRecordsOneOccurrence() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            store.templates.create(monthlyTemplateDraft("rent", nextDueDate = "2026-01-01"), createdAt = NOW)
+            val viewModel = viewModel(store, today = LocalDate.parse("2026-01-15"))
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+
+            viewModel.onConfirmClicked(viewModel.state.value.duePrompts.single())
+            viewModel.onConfirmSaveClicked()
+            assertTrue(viewModel.state.value.confirmPrompt!!.isSaving)
+            viewModel.onConfirmSaveClicked()
+            advanceUntilIdle()
+
+            assertEquals(1, store.movements.listActive().size)
+            assertEquals("2026-02-01", store.templates.getActive("rent")!!.nextDueDate)
+            assertNull(viewModel.state.value.confirmPrompt)
         }
     }
 
@@ -1174,6 +1255,17 @@ class RecurringViewModelTest {
             status = TemplateStatus.ACTIVE,
         )
 
+    /** A shared account between the app owner and [personId]. */
+    private fun sharedAccountDraft(id: String, personId: String): AccountDraft =
+        accountDraft(id).copy(
+            isDefault = false,
+            ownershipKind = AccountOwnershipKind.SHARED,
+            members = listOf(
+                AccountMemberDraft(SplitParticipantKind.USER, null, 5_000L, 5_000L),
+                AccountMemberDraft(SplitParticipantKind.PERSON, personId, 5_000L, 5_000L),
+            ),
+        )
+
     private fun accountDraft(id: String): AccountDraft =
         AccountDraft(
             id = id,
@@ -1194,7 +1286,8 @@ class RecurringViewModelTest {
         val database = GestorDatabase(driver)
         return TestStore(
             driver = driver,
-            accounts = AccountRepository(database.accountsQueries),
+            accounts = AccountRepository(database.accountsQueries, database.sharedAccountsQueries),
+            analysis = AnalysisRepository(database.analysisQueries),
             categories = CategoryRepository(database.categoriesQueries),
             trips = TripRepository(database.tripsQueries),
             tags = TagRepository(database.tagsQueries),
@@ -1208,6 +1301,7 @@ class RecurringViewModelTest {
     private class TestStore(
         val driver: JdbcSqliteDriver,
         val accounts: AccountRepository,
+        val analysis: AnalysisRepository,
         val categories: CategoryRepository,
         val trips: TripRepository,
         val tags: TagRepository,

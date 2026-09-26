@@ -70,6 +70,10 @@ class MovementEditor(
     private val _form = MutableStateFlow<MovementFormState?>(null)
     val form: StateFlow<MovementFormState?> = _form.asStateFlow()
 
+    /** Set synchronously when a write is launched and cleared when it finishes, so a second tap
+     * before the first save completes cannot submit the same movement again. */
+    private var saveInFlight = false
+
     /** Shows [form]; the ledger opens it once it has the data a new or edited form starts from. */
     fun open(form: MovementFormState) {
         _form.value = form
@@ -158,6 +162,8 @@ class MovementEditor(
 
     fun onSettlementToggled(enabled: Boolean) {
         val form = _form.value ?: return
+        // Recording a settlement creates a new settlement row; an existing income is not converted.
+        if (!form.isNew) return
         onFormChanged(form.copy(isSettlement = enabled, settlementPersonId = if (enabled) form.settlementPersonId else null))
     }
 
@@ -253,9 +259,12 @@ class MovementEditor(
     fun onRecurrenceStopUnlinkClicked() = attemptSave(forceSave = false, acceptDataLoss = true, endTemplate = false)
 
     private fun attemptSave(forceSave: Boolean, acceptDataLoss: Boolean, endTemplate: Boolean = false) {
+        if (saveInFlight) return
         val form = _form.value ?: return
         when {
-            form.type == MovementType.INCOME && form.isSettlement -> saveSettlement(form)
+            // Only a new form records a settlement: saving an edit must update the edited movement,
+            // never add a second record beside it.
+            form.isNew && form.type == MovementType.INCOME && form.isSettlement -> saveSettlement(form)
             else -> saveDirectMovement(form, forceSave, acceptDataLoss, endTemplate)
         }
     }
@@ -315,15 +324,18 @@ class MovementEditor(
     }
 
     private fun launchSave(form: MovementFormState, write: () -> Unit) {
+        saveInFlight = true
+        _form.value = form.copy(isSaving = true)
         scope.launch {
             val result = withContext(ioDispatcher) { runCatching(write) }
+            saveInFlight = false
             result.fold(
                 onSuccess = {
                     _form.value = null
                     onSaved()
                 },
                 onFailure = {
-                    _form.value = form.copy(errorMessage = it.message ?: it.javaClass.simpleName)
+                    _form.value = form.copy(isSaving = false, errorMessage = it.message ?: it.javaClass.simpleName)
                 },
             )
         }
@@ -404,9 +416,17 @@ class MovementEditor(
         // stored split as-is). Only false here means the save would actually drop it.
         val finalKindCarriesSplit = isForOther || isShared || paidByPerson
 
+        val preservedPayerSplit = form.preservedPayerSplit.takeIf { paidByPerson }
+
         val error = required.validationError(form) ?: when {
+            // A refund only ever refers to an expense.
+            form.hasActiveRefunds && form.type != MovementType.EXPENSE ->
+                R.string.movement_validation_refunded_expense_type to MovementFormField.TYPE
             paidByPerson && (form.forOtherPersonId == null || form.forOtherPersonId !in activePersonIds) ->
                 R.string.settlement_validation_person_required to MovementFormField.PERSON
+            // The form cannot re-split a partial share, so it does not guess one for a new total.
+            preservedPayerSplit != null && amount != preservedPayerSplit.lines.sumOf { it.owedAmountCents } ->
+                R.string.movement_validation_partial_payer_amount to MovementFormField.AMOUNT
             !paidByPerson && (form.accountId == null || form.accountId !in activeAccountIds) ->
                 R.string.movement_validation_account_required to MovementFormField.ACCOUNT
             form.type == MovementType.TRANSFER &&
@@ -516,7 +536,7 @@ class MovementEditor(
             isOneTime = form.type == MovementType.EXPENSE && form.isOneTime,
             splitWrite = when {
                 paidByPerson -> MovementSplitWrite.Replace(
-                    MovementSplitDraft(
+                    preservedPayerSplit ?: MovementSplitDraft(
                         entryMethod = SplitEntryMethod.EXACT,
                         lines = listOf(SplitLineDraft(SplitParticipantKind.USER, null, requireNotNull(amount))),
                     ),
@@ -734,6 +754,7 @@ enum class ExpenseKind {
  * a single field (not a list): the validation chain in `saveDirectMovement` already stops at the first
  * failing condition. */
 enum class MovementFormField {
+    TYPE,
     AMOUNT,
     DATE,
     ACCOUNT,
@@ -797,7 +818,13 @@ data class MovementFormState(
     val templateStatus: TemplateStatus? = null,
     val showOptional: Boolean = false,
     val showAdvanced: Boolean = false,
-    /** Stable UI disclosure for the expense payer/beneficiary controls. */
+    /** True while this form's write is running; Save is disabled until it finishes. */
+    val isSaving: Boolean = false,
+    /** An edited expense that active refunds refer to, which therefore must stay an expense. */
+    val hasActiveRefunds: Boolean = false,
+    /** The stored split of an edited expense someone else paid when the owner owes only part of
+     * it; saved back unchanged instead of the whole-amount debt a new entry records. */
+    val preservedPayerSplit: MovementSplitDraft? = null,
 ) {
     /** True for a fresh "add" flow, as opposed to editing an existing movement. */
     val isNew: Boolean get() = movementId == null
@@ -851,9 +878,13 @@ internal fun MovementSummary.toFormState(
     splitDraft: MovementSplitDraft? = null,
     template: TemplateSummary? = null,
 ): MovementFormState {
-    // DEBT (type 4): an expense a person paid. No account moved and it never recurs; its owed
-    // split is rewritten from the amount on save, so the form carries no split of its own.
+    // DEBT (type 4): an expense a person paid. No account moved and it never recurs. Its owed
+    // split is rewritten from the amount on save when the owner owes the whole amount; any other
+    // stored split (the owner owing only part) is kept as it is.
     if (paidByPerson) {
+        val owesWholeAmount = splitDraft == null || splitDraft.lines.singleOrNull()?.let { line ->
+            line.participantKind == SplitParticipantKind.USER && line.owedAmountCents == amountCents
+        } == true
         return MovementFormState(
             movementId = id,
             type = MovementType.EXPENSE,
@@ -868,6 +899,7 @@ internal fun MovementSummary.toFormState(
             isOneTime = isOneTime,
             expenseKind = ExpenseKind.DEBT,
             forOtherPersonId = payerId,
+            preservedPayerSplit = splitDraft.takeUnless { owesWholeAmount },
             showOptional = tripId != null || tagId != null,
         )
     }

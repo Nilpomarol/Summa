@@ -6,6 +6,7 @@ import com.gestorfinances.app.domain.rules.SettlementScope
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -61,6 +62,45 @@ class CoreLedgerRepositoryTest {
                 15_000L,
                 store.analysis.periodTotals(fromDate = "2026-03-01", toDate = "2026-03-31").actualExpenseCents,
             )
+        }
+    }
+
+    // Regression: an expense with an active refund could be updated into another type, leaving the
+    // refund referring to a movement that is no longer an expense.
+    @Test
+    fun anExpenseWithAnActiveRefundKeepsItsTypeButAcceptsOtherEdits() {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft(id = "checking", startingBalanceCents = 0), createdAt = NOW)
+            val expense = movementDraft("exp", MovementType.EXPENSE, 20_000, "2026-03-01", "checking")
+            store.movements.create(expense, createdAt = NOW)
+            store.movements.createRefund(
+                RefundDraft(
+                    id = "ref",
+                    refundsExpenseId = "exp",
+                    amountCents = 5_000,
+                    accountId = "checking",
+                    date = "2026-03-02",
+                    name = null,
+                    payee = null,
+                    notes = null,
+                    actualRefundCents = null,
+                ),
+                createdAt = NOW,
+            )
+
+            assertThrows(IllegalArgumentException::class.java) {
+                store.movements.update(expense.copy(type = MovementType.INCOME), updatedAt = LATER)
+            }
+            assertEquals(MovementType.EXPENSE, store.movements.getActive("exp")!!.type)
+
+            store.movements.update(expense.copy(name = "Sabates"), updatedAt = LATER)
+            assertEquals("Sabates", store.movements.getActive("exp")!!.name)
+            assertEquals(1, store.movements.refundsForExpense("exp").size)
+
+            // Once the refund is gone, nothing depends on the expense staying one.
+            store.movements.archive("ref", archivedAt = LATER)
+            store.movements.update(expense.copy(type = MovementType.INCOME), updatedAt = LATER)
+            assertEquals(MovementType.INCOME, store.movements.getActive("exp")!!.type)
         }
     }
 

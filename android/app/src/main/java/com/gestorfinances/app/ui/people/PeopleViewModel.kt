@@ -39,6 +39,9 @@ class PeopleViewModel(
     private val _state = MutableStateFlow(PeopleUiState())
     val state: StateFlow<PeopleUiState> = _state.asStateFlow()
 
+    /** Set while a settlement is being written, so a repeated tap cannot record it twice. */
+    private var settlementSaveInFlight = false
+
     fun onScreenShown() {
         refreshPeople()
     }
@@ -84,6 +87,7 @@ class PeopleViewModel(
     }
 
     fun onSettlementSaveClicked() {
+        if (settlementSaveInFlight) return
         val form = _state.value.settlementForm ?: return
         val amount = parseEuroCents(form.amount, allowNegative = false)
         val date = parseDate(form.date)
@@ -119,10 +123,12 @@ class PeopleViewModel(
             notes = form.notes.trim().ifBlank { null },
         )
 
+        settlementSaveInFlight = true
         viewModelScope.launch {
             val result = withContext(ioDispatcher) {
                 runCatching { movementRepository.createSettlement(draft, createdAt = now) }
             }
+            settlementSaveInFlight = false
             result.fold(
                 onSuccess = {
                     _state.value = _state.value.copy(settlementForm = null)

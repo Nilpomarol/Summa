@@ -53,6 +53,9 @@ class AccountsViewModel(
     val state: StateFlow<AccountsUiState> = _state.asStateFlow()
     private var addFormRequested = false
 
+    /** Set while a contribution is being written, so a repeated tap cannot record it twice. */
+    private var contributionSaveInFlight = false
+
     /** Opens the new-account form once the next load finishes, so its defaults see real data. */
     fun onAddRequested() {
         addFormRequested = true
@@ -132,6 +135,7 @@ class AccountsViewModel(
     }
 
     fun onContributionSaveClicked() {
+        if (contributionSaveInFlight) return
         val form = _state.value.contributionForm ?: return
         val amount = parseEuroCents(form.amount, allowNegative = false)
         val error = when {
@@ -145,6 +149,7 @@ class AccountsViewModel(
             return
         }
         val now = Instant.now().toString()
+        contributionSaveInFlight = true
         viewModelScope.launch {
             val result = withContext(ioDispatcher) {
                 runCatching {
@@ -167,6 +172,7 @@ class AccountsViewModel(
                     }
                 }
             }
+            contributionSaveInFlight = false
             result.fold(
                 onSuccess = {
                     _state.value = _state.value.copy(contributionForm = null)

@@ -164,6 +164,13 @@ fun MovementFormScreen(
             onSelect = { onFormChange(form.copy(type = it)) },
             showLabel = false,
         )
+        if (form.errorField == MovementFormField.TYPE && form.errorRes != null) {
+            InlineBanner(
+                kind = BannerKind.Alert,
+                text = stringResource(form.errorRes),
+                modifier = Modifier.scrollToWhen(true),
+            )
+        }
 
         MovementAmountHeader(
             title = titleText,
@@ -370,6 +377,7 @@ private fun MovementSaveActions(
                 else -> onSave
             },
             modifier = Modifier.fillMaxWidth(),
+            enabled = !form.isSaving,
         )
         // Third choice for the recurring-stop warning (recurrence consistency): the old
         // "just detach" behavior remains alongside the default end-template action.

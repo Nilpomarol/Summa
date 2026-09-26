@@ -1174,6 +1174,7 @@ private fun ConfirmPromptDialog(
                     text = stringResource(R.string.recurring_action_add_payment),
                     onClick = onSave,
                     modifier = Modifier.weight(1f),
+                    enabled = !prompt.isSaving,
                 )
             }
         }

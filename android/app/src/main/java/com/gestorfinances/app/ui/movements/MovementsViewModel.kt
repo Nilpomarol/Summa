@@ -54,6 +54,9 @@ class MovementsViewModel(
     private val _state = MutableStateFlow(MovementsUiState())
     val state: StateFlow<MovementsUiState> = _state.asStateFlow()
 
+    /** Set while a refund is being written, so a repeated tap cannot record it twice. */
+    private var refundSaveInFlight = false
+
     /** The create/edit form. The ledger opens it and refreshes after it saves. */
     val editor = MovementEditor(
         scope = viewModelScope,
@@ -141,19 +144,21 @@ class MovementsViewModel(
             val result = withContext(ioDispatcher) {
                 runCatching {
                     val split = when {
-                        movement.isShared -> splitRepository?.getForMovement(movement.id)
+                        movement.isShared || movement.paidByPerson -> splitRepository?.getForMovement(movement.id)
                         else -> null
                     }
                     // Load the real template so the form can show the actual linked
                     // frequency/status instead of silently defaulting or ignoring it.
                     val linkedTemplate = movement.templateId?.let { templateRepository?.getActive(it) }
-                    split to linkedTemplate
+                    val hasActiveRefunds = movement.type == MovementType.EXPENSE &&
+                        movementRepository.refundsForExpense(movement.id).isNotEmpty()
+                    movement.toFormState(split, linkedTemplate).copy(hasActiveRefunds = hasActiveRefunds)
                 }
             }
             result.fold(
-                onSuccess = { (splitDraft, template) ->
+                onSuccess = { form ->
                     // Keep the detail data intact so dismissing the edit form can restore it.
-                    editor.open(movement.toFormState(splitDraft, template))
+                    editor.open(form)
                     onReady()
                 },
                 onFailure = {
@@ -279,6 +284,7 @@ class MovementsViewModel(
     }
 
     fun onRefundSaveClicked() {
+        if (refundSaveInFlight) return
         val form = _state.value.refundForm ?: return
         val amount = parseEuroCents(form.amount, allowNegative = false)
         val actual = if (form.expenseIsShared && form.actualAmount.isNotBlank()) {
@@ -316,10 +322,12 @@ class MovementsViewModel(
             notes = form.notes.nullIfBlank(),
             actualRefundCents = actual,
         )
+        refundSaveInFlight = true
         viewModelScope.launch {
             val result = withContext(ioDispatcher) {
                 runCatching { movementRepository.createRefund(draft, createdAt = now) }
             }
+            refundSaveInFlight = false
             result.fold(
                 onSuccess = {
                     _state.value = _state.value.copy(refundForm = null)

@@ -49,7 +49,7 @@ Shared-account balance, owner patrimonial value, economic split, and interperson
 
 ### Refunds
 
-A refund belongs to an expense and reduces that expense's actual cost. It inherits the relevant classification for analysis. Over-refunds are allowed after a warning.
+A refund belongs to an expense and reduces that expense's actual cost. It inherits the relevant classification for analysis. Over-refunds are allowed after a warning. While it has active refunds, an expense can be edited but not changed into another movement type.
 
 ### Recurring activity
 

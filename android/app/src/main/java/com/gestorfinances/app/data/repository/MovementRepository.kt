@@ -287,6 +287,11 @@ class MovementRepository(
             hasActiveSplit = persistedDraft.sharedSplitId != null,
         )
         queries.transaction {
+            // An active refund refers to an expense, so the expense it refers to stays one.
+            require(
+                persistedDraft.type == MovementType.EXPENSE ||
+                    queries.refundsForExpense(persistedDraft.id).executeAsList().isEmpty(),
+            ) { "An expense with active refunds cannot change type." }
             queries.updateMovement(
                 id = persistedDraft.id,
                 type = persistedDraft.type.dbValue,
