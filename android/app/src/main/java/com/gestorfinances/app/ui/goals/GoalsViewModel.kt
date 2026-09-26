@@ -1,7 +1,6 @@
 package com.gestorfinances.app.ui.goals
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountAllocation
@@ -40,12 +39,6 @@ class GoalsViewModel(
     val state: StateFlow<GoalsUiState> = _state.asStateFlow()
 
     fun onScreenShown() {
-        refresh()
-    }
-
-    /** Clears open sheets for a fresh visit from the Més menu. */
-    fun resetForMenuNavigation() {
-        _state.value = GoalsUiState()
         refresh()
     }
 
@@ -422,22 +415,6 @@ class GoalsViewModel(
                 },
                 onFailure = { _state.value = _state.value.copy(detail = _state.value.detail?.copy(isLoading = false, errorRes = R.string.failure_load_goals)) },
             )
-        }
-    }
-
-    class Factory(
-        private val goalRepository: GoalRepository,
-        private val accountRepository: AccountRepository,
-    ) : ViewModelProvider.Factory {
-        @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            if (modelClass.isAssignableFrom(GoalsViewModel::class.java)) {
-                return GoalsViewModel(
-                    goalRepository = goalRepository,
-                    accountRepository = accountRepository,
-                ) as T
-            }
-            throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }
     }
 }

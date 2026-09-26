@@ -364,6 +364,44 @@ class TripsViewModelTest {
         }
     }
 
+    // Regression: a movement added from the trip page through the movement sheet left the page
+    // showing the old totals. The page reopens its trip after each movement write; that reload
+    // keeps the figures on screen until the new ones arrive and keeps the one-time filter.
+    @Test
+    fun reopeningTheShownTripAfterAMovementWriteReloadsItInPlace() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            store.trips.create(tripDraft("mallorca"), createdAt = NOW)
+            store.movements.create(
+                movementDraft(id = "flight", tripId = "mallorca", amountCents = 20_000, isOneTime = true),
+                createdAt = NOW,
+            )
+            store.movements.create(
+                movementDraft(id = "dinner", tripId = "mallorca", amountCents = 3_000, isOneTime = false),
+                createdAt = NOW,
+            )
+            val viewModel = viewModel(store)
+            viewModel.onDetailOpened("mallorca")
+            advanceUntilIdle()
+            viewModel.onExcludeOneTimeToggled(true)
+            advanceUntilIdle()
+            assertEquals(3_000L, viewModel.state.value.detail!!.summary.actualCents)
+
+            store.movements.create(
+                movementDraft(id = "museum", tripId = "mallorca", amountCents = 1_500, isOneTime = false),
+                createdAt = NOW,
+            )
+            viewModel.onDetailOpened("mallorca")
+            assertEquals(false, viewModel.state.value.detail!!.isLoading)
+            advanceUntilIdle()
+
+            val detail = viewModel.state.value.detail!!
+            assertEquals(true, detail.excludeOneTime)
+            assertEquals(4_500L, detail.summary.actualCents)
+            assertEquals(setOf("flight", "dinner", "museum"), detail.movements.map { it.id }.toSet())
+        }
+    }
+
     @Test
     fun detailLoadsOnlyMovementsBelongingToTheOpenedTrip() = runTest(dispatcher) {
         freshStore().use { store ->

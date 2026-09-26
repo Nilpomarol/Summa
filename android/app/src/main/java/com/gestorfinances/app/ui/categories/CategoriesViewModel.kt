@@ -1,7 +1,6 @@
 package com.gestorfinances.app.ui.categories
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AnalysisRepository
@@ -43,11 +42,7 @@ class CategoriesViewModel(
 
     fun onScreenShown() {
         refreshCategories()
-    }
-
-    fun resetForMenuNavigation() {
-        _state.value = CategoriesUiState()
-        refreshCategories()
+        _state.value.flowDetail?.category?.let(::onFlowClicked)
     }
 
     fun onAddClicked() {
@@ -351,28 +346,6 @@ class CategoriesViewModel(
                 }
             }
         }.getOrDefault(emptyMap())
-    }
-
-    class Factory(
-        private val categoryRepository: CategoryRepository,
-        private val analysisRepository: AnalysisRepository,
-        private val movementRepository: MovementRepository,
-        private val budgetRepository: BudgetRepository,
-        private val templateRepository: TemplateRepository,
-    ) : ViewModelProvider.Factory {
-        @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            if (modelClass.isAssignableFrom(CategoriesViewModel::class.java)) {
-                return CategoriesViewModel(
-                    categoryRepository = categoryRepository,
-                    analysisRepository = analysisRepository,
-                    movementRepository = movementRepository,
-                    budgetRepository = budgetRepository,
-                    templateRepository = templateRepository,
-                ) as T
-            }
-            throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
-        }
     }
 }
 

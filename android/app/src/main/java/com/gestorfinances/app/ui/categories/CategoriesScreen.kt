@@ -1,5 +1,7 @@
 package com.gestorfinances.app.ui.categories
 
+import com.gestorfinances.app.di.AppContainer
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -102,9 +104,23 @@ import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.categoryColor
 import com.gestorfinances.app.ui.theme.themedIdentityColor
 
+/** This page visit's ViewModel, scoped to its navigation entry. */
+@Composable
+fun categoriesViewModel(appContainer: AppContainer): CategoriesViewModel = viewModel {
+    CategoriesViewModel(
+        categoryRepository = appContainer.categoryRepository,
+        analysisRepository = appContainer.analysisRepository,
+        movementRepository = appContainer.movementRepository,
+        budgetRepository = appContainer.budgetRepository,
+        templateRepository = appContainer.templateRepository,
+    )
+}
+
 @Composable
 fun CategoriesScreen(
     viewModel: CategoriesViewModel,
+    /** Changes after every movement write, so the page reloads while it stays visible. */
+    dataVersion: Long,
     onViewAnalysis: (categoryId: String, categoryName: String) -> Unit = { _, _ -> },
     onDefineBudget: (categoryId: String) -> Unit = {},
     onMovementDetail: (MovementSummary) -> Unit = {},
@@ -113,7 +129,7 @@ fun CategoriesScreen(
 ) {
     val state by viewModel.state.collectAsState()
 
-    LaunchedEffect(viewModel) {
+    LaunchedEffect(viewModel, dataVersion) {
         viewModel.onScreenShown()
     }
 

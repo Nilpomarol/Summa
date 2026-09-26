@@ -1,5 +1,7 @@
 package com.gestorfinances.app.ui.tags
 
+import com.gestorfinances.app.di.AppContainer
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -79,6 +81,16 @@ import com.gestorfinances.app.ui.common.rememberFormDismissGuard
 import com.gestorfinances.app.ui.common.InlineFailureBanner
 import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.categoryColor
+
+/** This page visit's ViewModel, scoped to its navigation entry. */
+@Composable
+fun tagsViewModel(appContainer: AppContainer): TagsViewModel = viewModel {
+    TagsViewModel(
+        tagRepository = appContainer.tagRepository,
+        tripRepository = appContainer.tripRepository,
+        categoryRepository = appContainer.categoryRepository,
+    )
+}
 
 @Composable
 fun TagsScreen(

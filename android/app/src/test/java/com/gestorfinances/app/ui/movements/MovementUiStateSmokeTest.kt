@@ -1,12 +1,15 @@
 package com.gestorfinances.app.ui.movements
 
 import com.gestorfinances.app.data.repository.CategoryNature
+import com.gestorfinances.app.data.repository.ExpenseFunding
 import com.gestorfinances.app.data.repository.MovementSummary
 import com.gestorfinances.app.data.repository.MovementType
 import com.gestorfinances.app.ui.common.MovementAmountRole
 import com.gestorfinances.app.ui.common.primaryAmountRole
 import com.gestorfinances.app.ui.common.secondaryAmountRole
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MovementUiStateSmokeTest {
@@ -59,11 +62,11 @@ class MovementUiStateSmokeTest {
         )
         val external = movement(
             id = "external",
-            type = MovementType.EXTERNAL_EXPENSE,
+            type = MovementType.EXPENSE,
             accountId = null,
             accountName = null,
             userShareCents = 0,
-        )
+        ).copy(financingKind = ExpenseFunding.PERSON)
         val personal = movement(
             id = "personal",
             type = MovementType.EXPENSE,
@@ -77,6 +80,27 @@ class MovementUiStateSmokeTest {
         assertEquals(MovementAmountRole.TOTAL, external.secondaryAmountRole())
         assertEquals(MovementAmountRole.MOVEMENT, personal.primaryAmountRole())
         assertEquals(null, personal.secondaryAmountRole())
+    }
+
+    @Test
+    fun onlyAnExpenseWithPersonFinancingIsPaidByPerson() {
+        val personPaidExpense = movement(
+            id = "external",
+            type = MovementType.EXPENSE,
+            accountId = null,
+            accountName = null,
+        ).copy(financingKind = ExpenseFunding.PERSON)
+        val personContribution = movement(
+            id = "contribution",
+            type = MovementType.CONTRIBUTION,
+            accountId = "joint",
+            accountName = "Conjunt",
+        ).copy(financingKind = ExpenseFunding.PERSON)
+
+        assertTrue(personPaidExpense.paidByPerson)
+        assertFalse(personContribution.paidByPerson)
+        assertEquals(MovementAmountRole.MOVEMENT, personContribution.primaryAmountRole())
+        assertEquals(null, personContribution.secondaryAmountRole())
     }
 
     @Test
@@ -285,7 +309,7 @@ class MovementUiStateSmokeTest {
     }
 
     @Test
-    fun expenseFilterIncludesExternalExpense() {
+    fun expenseFilterIncludesPersonPaidExpenseAndPaidByOthersNarrowsToIt() {
         val state = MovementsUiState(
             movements = listOf(
                 movement(
@@ -296,15 +320,19 @@ class MovementUiStateSmokeTest {
                 ),
                 movement(
                     id = "external",
-                    type = MovementType.EXTERNAL_EXPENSE,
-                    accountId = "",
-                    accountName = "",
-                ),
+                    type = MovementType.EXPENSE,
+                    accountId = null,
+                    accountName = null,
+                ).copy(financingKind = ExpenseFunding.PERSON),
             ),
             filters = MovementFilters(type = MovementType.EXPENSE),
         )
 
         assertEquals(listOf("expense", "external"), state.visibleMovements.map { it.id })
+        assertEquals(
+            listOf("external"),
+            state.copy(filters = MovementFilters(type = MovementType.EXPENSE, paidByPersonOnly = true)).visibleMovements.map { it.id },
+        )
     }
 
     private fun movement(

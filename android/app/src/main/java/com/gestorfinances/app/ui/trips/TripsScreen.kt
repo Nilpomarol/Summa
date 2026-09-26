@@ -1,5 +1,7 @@
 package com.gestorfinances.app.ui.trips
 
+import com.gestorfinances.app.di.AppContainer
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -126,16 +128,31 @@ import java.time.format.DateTimeParseException
 import java.time.temporal.ChronoUnit
 import kotlin.math.abs
 
+/** This page visit's ViewModel, scoped to its navigation entry. */
+@Composable
+fun tripsViewModel(appContainer: AppContainer): TripsViewModel = viewModel {
+    TripsViewModel(
+        tripRepository = appContainer.tripRepository,
+        tripAnalysisRepository = appContainer.tripAnalysisRepository,
+        movementRepository = appContainer.movementRepository,
+        accountRepository = appContainer.accountRepository,
+        budgetRepository = appContainer.budgetRepository,
+        tagRepository = appContainer.tagRepository,
+    )
+}
+
 @Composable
 fun TripsScreen(
     viewModel: TripsViewModel,
+    /** Changes after every movement write, so the page reloads while it stays visible. */
+    dataVersion: Long,
     onOpenDetail: (TripSummary) -> Unit,
     onDeleteCommitted: DeleteUndoHandler = {},
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsState()
 
-    LaunchedEffect(viewModel) {
+    LaunchedEffect(viewModel, dataVersion) {
         viewModel.onScreenShown()
     }
 
@@ -411,7 +428,7 @@ private fun TripRowMenu(
  * Content is four tabs mirroring Anàlisi's own `TabRow`: Resum (hero + budget +
  * cumulative chart) · Desglossament (category/tag percent-bar rows) · Dia a dia (display-only
  * per-day category rollup cards) · Moviments (the full day-grouped scoped ledger). Adding a
- * movement is a local action — it pre-fills this trip while the page is open (MainActivity).
+ * movement is a local action — it pre-fills this trip while the page is open.
  */
 @Composable
 fun TripDetailScreen(

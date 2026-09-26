@@ -2,6 +2,7 @@ package com.gestorfinances.app.data.db
 
 import app.cash.sqldelight.db.QueryResult
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
+import com.gestorfinances.app.data.repository.RepositoryTestSupport
 import com.gestorfinances.app.data.repository.TripAnalysisRepository
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -11,11 +12,134 @@ import org.junit.Test
 
 class MigrationTest {
 
+    // Regression: the v20 movement summary inferred a payer from a split whose owner line is 0 and
+    // one person's is the whole amount, so an expense the owner paid entirely for Laura showed as
+    // paid by her. v21 only replaces the view: rows and every canonical figure stay the same.
+    @Test
+    fun `v20 to v21 migration reads the payer only from payer_person_id`() {
+        val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+        driver.execute(null, "PRAGMA foreign_keys = ON", 0)
+        createV19(driver)
+        driver.execute(null, "BEGIN", 0)
+        GestorDatabase.Schema.migrate(driver, 19, 20)
+        driver.execute(null, "COMMIT", 0)
+        val at = "2026-01-01T00:00:00Z"
+        listOf(
+            "INSERT INTO people(id,name,created_at,updated_at) VALUES ('laura','Laura','$at','$at')",
+            "INSERT INTO accounts(id,name,starting_balance_cents,type,ownership_kind,created_at,updated_at) VALUES ('bank','Bank',100000,'bank','personal','$at','$at')",
+            // The owner paid 30 EUR entirely for Laura.
+            "INSERT INTO movements(id,type,amount_cents,date,account_id,name,expense_funding,created_at,updated_at) VALUES ('for-laura','expense',3000,'2026-02-01','bank','Gift','owner','$at','$at')",
+            "INSERT INTO splits(id,movement_id,entry_method,created_at,updated_at) VALUES ('for-laura-split','for-laura','exact','$at','$at')",
+            "INSERT INTO split_lines(id,split_id,participant_kind,person_id,owed_amount_cents,created_at,updated_at) VALUES ('fl-user','for-laura-split','user',NULL,0,'$at','$at'),('fl-laura','for-laura-split','person','laura',3000,'$at','$at')",
+            // Laura paid 15 EUR the owner owes her.
+            "INSERT INTO movements(id,type,amount_cents,date,account_id,name,payer_person_id,created_at,updated_at) VALUES ('laura-paid','expense',1500,'2026-02-02',NULL,'Cinema','laura','$at','$at')",
+            "INSERT INTO splits(id,movement_id,entry_method,created_at,updated_at) VALUES ('laura-paid-split','laura-paid','exact','$at','$at')",
+            "INSERT INTO split_lines(id,split_id,participant_kind,person_id,owed_amount_cents,created_at,updated_at) VALUES ('lp-user','laura-paid-split','user',NULL,1500,'$at','$at')",
+            "INSERT INTO movements(id,type,amount_cents,date,account_id,name,created_at,updated_at) VALUES ('pay','income',50000,'2026-02-03','bank','Salary','$at','$at')",
+        ).forEach { driver.execute(null, it, 0) }
+        val payerSql = "SELECT id, paid_by_person_name FROM v_movement_summary WHERE id IN ('for-laura','laura-paid') ORDER BY id"
+        assertEquals(listOf(listOf("for-laura", "Laura"), listOf("laura-paid", "Laura")), driver.selectRows(payerSql, 2))
+        val rowsSql = "SELECT (SELECT COUNT(*) FROM movements), (SELECT COUNT(*) FROM splits), (SELECT COUNT(*) FROM split_lines)"
+        val rowsBefore = driver.selectRows(rowsSql, 3)
+        val before = FINANCE_FIGURES.associateWith { (sql, columns) -> driver.selectRows(sql, columns) }
+
+        driver.execute(null, "BEGIN", 0)
+        GestorDatabase.Schema.migrate(driver, 20, 21)
+        driver.execute(null, "COMMIT", 0)
+
+        assertEquals("21", driver.selectString("SELECT value FROM meta WHERE key='schema_version'"))
+        assertEquals(listOf(listOf("for-laura", null), listOf("laura-paid", "Laura")), driver.selectRows(payerSql, 2))
+        assertEquals(rowsBefore, driver.selectRows(rowsSql, 3))
+        FINANCE_FIGURES.forEach { query -> assertEquals(query.first, before.getValue(query), driver.selectRows(query.first, query.second)) }
+        // Laura owes the 30 EUR gift and is owed the 15 EUR cinema.
+        assertEquals(1_500L, driver.selectLong("SELECT balance_cents FROM v_person_balance WHERE person_id='laura'"))
+    }
+
+    @Test
+    fun `v19 to v20 migration turns expenses other people paid into movements without changing any balance`() {
+        val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+        driver.execute(null, "PRAGMA foreign_keys = ON", 0)
+        createV19(driver)
+        val at = "2026-01-01T00:00:00Z"
+        listOf(
+            "INSERT INTO people(id,name,created_at,updated_at) VALUES ('alba','Alba','$at','$at'),('biel','Biel','$at','$at'),('cesc','Cesc','$at','$at')",
+            "INSERT INTO accounts(id,name,starting_balance_cents,type,ownership_kind,created_at,updated_at) VALUES ('bank','Bank',100000,'bank','personal','$at','$at'),('joint','Joint',50000,'bank','personal','$at','$at')",
+            "INSERT INTO account_members(id,account_id,participant_kind,person_id,ownership_basis_points,default_expense_basis_points,created_at,updated_at) VALUES ('jm-owner','joint','user',NULL,5000,5000,'$at','$at'),('jm-alba','joint','person','alba',5000,5000,'$at','$at')",
+            "UPDATE accounts SET ownership_kind='shared' WHERE id='joint'",
+            "INSERT INTO categories(id,name,kind,nature,display_order,created_at,updated_at) VALUES ('food','Food','expense','variable',0,'$at','$at'),('salary','Salary','income','fixed',1,'$at','$at')",
+            "INSERT INTO trips(id,name,type,start_date,created_at,updated_at) VALUES ('rome','Rome','trip','2026-02-01','$at','$at')",
+            "INSERT INTO tags(id,name,created_at,updated_at) VALUES ('dinner','Dinner','$at','$at')",
+            "INSERT INTO templates(id,type,amount_cents,account_id,frequency,next_due_date,created_at,updated_at) VALUES ('rent-t','expense',70000,'bank','monthly','2026-03-01','$at','$at')",
+            "INSERT INTO movements(id,type,amount_cents,date,account_id,name,category_id,template_id,expense_funding,created_at,updated_at) VALUES ('rent','expense',70000,'2026-02-01','bank','Rent','food','rent-t','owner','$at','$at'),('groceries','expense',6000,'2026-02-02','bank','Groceries','food',NULL,'owner','$at','$at'),('gift','expense',3000,'2026-02-03','bank','Gift for Biel',NULL,NULL,'owner','$at','$at')",
+            "INSERT INTO movements(id,type,amount_cents,date,account_id,category_id,created_at,updated_at) VALUES ('pay','income',250000,'2026-02-01','bank','salary','$at','$at')",
+            "INSERT INTO movements(id,type,amount_cents,date,account_id,refunds_expense_id,actual_refund_cents,created_at,updated_at) VALUES ('refund','refund',1000,'2026-02-05','bank','groceries',1000,'$at','$at')",
+            "INSERT INTO movements(id,type,amount_cents,date,account_id,person_id,settlement_direction,settlement_scope,created_at,updated_at) VALUES ('biel-pays','settlement',500,'2026-02-06','bank','biel','person_to_user','all','$at','$at'),('pay-cesc','settlement',700,'2026-02-07','bank','cesc','user_to_person','all','$at','$at')",
+            "INSERT INTO splits(id,movement_id,entry_method,created_at,updated_at) VALUES ('groceries-split','groceries','exact','$at','$at'),('gift-split','gift','exact','$at','$at')",
+            "INSERT INTO split_lines(id,split_id,participant_kind,person_id,owed_amount_cents,created_at,updated_at) VALUES ('g-user','groceries-split','user',NULL,2000,'$at','$at'),('g-alba','groceries-split','person','alba',2000,'$at','$at'),('g-biel','groceries-split','person','biel',2000,'$at','$at'),('gift-user','gift-split','user',NULL,0,'$at','$at'),('gift-biel','gift-split','person','biel',3000,'$at','$at')",
+            // A shared-account expense names its split, which is written after it in one transaction.
+            "BEGIN",
+            "INSERT INTO movements(id,type,amount_cents,date,account_id,name,expense_funding,shared_split_id,created_at,updated_at) VALUES ('joint-shop','expense',4000,'2026-02-08','joint','Joint shop','shared_account','joint-split','$at','$at')",
+            "INSERT INTO splits(id,movement_id,entry_method,created_at,updated_at) VALUES ('joint-split','joint-shop','percentage','$at','$at')",
+            "INSERT INTO split_lines(id,split_id,participant_kind,person_id,owed_amount_cents,owed_percent,created_at,updated_at) VALUES ('j-user','joint-split','user',NULL,2000,50.0,'$at','$at'),('j-alba','joint-split','person','alba',2000,50.0,'$at','$at')",
+            "COMMIT",
+            // Expenses other people paid: simple, the owner owing only part, archived, with an
+            // archived owner line, on a trip with a tag, and the archived side of a payer switch.
+            "INSERT INTO splits(id,movement_id,payer_person_id,entry_method,total_amount_cents,date,description,category_id,trip_id,tag_id,created_at,updated_at,archived_at) VALUES ('ext-simple',NULL,'alba','exact',1500,'2026-02-10','Cinema',NULL,NULL,NULL,'$at','2026-02-10T10:00:00Z',NULL),('ext-partial',NULL,'biel','exact',9000,'2026-02-11','Dinner',NULL,NULL,NULL,'$at','$at',NULL),('ext-archived',NULL,'alba','exact',700,'2026-02-12','Taxi',NULL,NULL,NULL,'$at','$at','2026-02-13T00:00:00Z'),('ext-line-archived',NULL,'cesc','exact',300,'2026-02-14','Coffee',NULL,NULL,NULL,'$at','$at',NULL),('ext-trip',NULL,'cesc','exact',4200,'2026-02-15','Trattoria','food','rome','dinner','$at','$at',NULL),('ext-switched',NULL,'biel','exact',2500,'2026-02-16','Tickets',NULL,NULL,NULL,'$at','$at','2026-02-17T00:00:00Z')",
+            "INSERT INTO split_lines(id,split_id,participant_kind,person_id,owed_amount_cents,created_at,updated_at,archived_at) VALUES ('es-user','ext-simple','user',NULL,1500,'$at','$at',NULL),('ep-user','ext-partial','user',NULL,3000,'$at','$at',NULL),('ep-cesc','ext-partial','person','cesc',6000,'$at','$at',NULL),('ea-user','ext-archived','user',NULL,700,'$at','$at','2026-02-13T00:00:00Z'),('el-user','ext-line-archived','user',NULL,300,'$at','$at','2026-02-14T01:00:00Z'),('et-user','ext-trip','user',NULL,4200,'$at','$at',NULL),('ew-user','ext-switched','user',NULL,2500,'$at','$at','2026-02-17T00:00:00Z')",
+            "INSERT INTO movements(id,type,amount_cents,date,account_id,name,expense_funding,created_at,updated_at) VALUES ('switched','expense',2500,'2026-02-16','bank','Tickets','owner','2026-02-17T00:00:00Z','2026-02-17T00:00:00Z')",
+        ).forEach { driver.execute(null, it, 0) }
+        val before = FINANCE_FIGURES.associateWith { (sql, columns) -> driver.selectRows(sql, columns) }
+
+        // Android runs a migration inside the open helper's transaction.
+        driver.execute(null, "BEGIN", 0)
+        GestorDatabase.Schema.migrate(driver, 19, 20)
+        driver.execute(null, "COMMIT", 0)
+
+        assertEquals("20", driver.selectString("SELECT value FROM meta WHERE key='schema_version'"))
+        assertEquals(0L, driver.selectLong("SELECT COUNT(*) FROM pragma_foreign_key_check"))
+        FINANCE_FIGURES.forEach { query -> assertEquals(query.first, before.getValue(query), driver.selectRows(query.first, query.second)) }
+        // The v19 figures, stated once so a wrong fixture cannot pass by agreeing with itself.
+        assertEquals(269_300L, driver.selectLong("SELECT current_balance_cents FROM v_account_balance WHERE account_id='bank'"))
+        assertEquals(46_000L, driver.selectLong("SELECT current_balance_cents FROM v_account_balance WHERE account_id='joint'"))
+        assertEquals(500L, driver.selectLong("SELECT balance_cents FROM v_person_balance WHERE person_id='alba'"))
+        assertEquals(1_500L, driver.selectLong("SELECT balance_cents FROM v_person_balance WHERE person_id='biel'"))
+        assertEquals(-3_500L, driver.selectLong("SELECT balance_cents FROM v_person_balance WHERE person_id='cesc'"))
+        assertEquals(84_200L, driver.selectLong("SELECT SUM(amount_cents) FROM v_actual_expense"))
+        assertEquals(4_200L, driver.selectLong("SELECT total_actual_cents FROM v_trip_actual_total WHERE trip_id='rome'"))
+        assertEquals(0L, driver.selectLong("SELECT COUNT(*) FROM v_account_flow WHERE movement_id LIKE 'ext-%'"))
+
+        // Each standalone split is now an expense with the split's id, payer, and metadata.
+        assertEquals(6L, driver.selectLong("SELECT COUNT(*) FROM movements WHERE payer_person_id IS NOT NULL AND account_id IS NULL AND type='expense'"))
+        assertEquals(
+            "2026-02-15|4200|Trattoria|food|rome|dinner|cesc|2026-01-01T00:00:00Z",
+            driver.selectString("SELECT date||'|'||amount_cents||'|'||name||'|'||category_id||'|'||trip_id||'|'||tag_id||'|'||payer_person_id||'|'||created_at FROM movements WHERE id='ext-trip'"),
+        )
+        assertEquals("2026-02-10T10:00:00Z", driver.selectString("SELECT updated_at FROM movements WHERE id='ext-simple'"))
+        assertEquals("2026-02-13T00:00:00Z", driver.selectString("SELECT archived_at FROM movements WHERE id='ext-archived'"))
+        assertEquals("ext-partial", driver.selectString("SELECT movement_id FROM splits WHERE id='ext-partial'"))
+        assertEquals(6_000L, driver.selectLong("SELECT owed_amount_cents FROM split_lines WHERE id='ep-cesc'"))
+        assertEquals(14L, driver.selectLong("SELECT COUNT(*) FROM split_lines"))
+        // The ledger reads it as an expense the person paid, with the owner's share.
+        assertEquals(
+            "expense|person|Biel|3000|0",
+            driver.selectString("SELECT type||'|'||financing_kind||'|'||paid_by_person_name||'|'||user_share_cents||'|'||is_shared FROM v_movement_summary WHERE id='ext-partial'"),
+        )
+        assertEquals(0L, driver.selectLong("SELECT COUNT(*) FROM v_movement_summary WHERE type='external_expense'"))
+
+        // Integrity rules survive the rebuild: the shared-account expense keeps its split and the
+        // trigger still guards it, and a person-paid expense cannot also name an account.
+        assertEquals("joint-split", driver.selectString("SELECT shared_split_id FROM movements WHERE id='joint-shop'"))
+        assertFails { driver.execute(null, "UPDATE splits SET archived_at='$at' WHERE id='joint-split'", 0) }
+        assertFails {
+            driver.execute(null, "INSERT INTO movements(id,type,amount_cents,date,account_id,payer_person_id,created_at,updated_at) VALUES ('bad','expense',100,'2026-03-01','bank','alba','$at','$at')", 0)
+        }
+    }
+
     @Test
     fun `v18 to v19 migration gives an allocated income the owner's share`() {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         driver.execute(null, "PRAGMA foreign_keys = ON", 0)
-        GestorDatabase.Schema.create(driver)
+        createV19(driver)
         // v18's movement summary gave only expenses a share, and nothing else changed.
         driver.execute(null, "DROP VIEW v_movement_summary", 0)
         driver.execute(null, "UPDATE meta SET value='18' WHERE key='schema_version'", 0)
@@ -41,7 +165,7 @@ class MigrationTest {
     fun `v17 to v18 migration lets a contribution row say which way its money moved`() {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         driver.execute(null, "PRAGMA foreign_keys = ON", 0)
-        GestorDatabase.Schema.create(driver)
+        createV19(driver)
         // v17's movement summary had no direction column, and nothing else changed.
         driver.execute(null, "DROP VIEW v_movement_summary", 0)
         driver.execute(null, "UPDATE meta SET value='17' WHERE key='schema_version'", 0)
@@ -66,7 +190,7 @@ class MigrationTest {
     fun `v16 to v17 migration lets money leave a shared account and stops income allocations becoming debt`() {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         driver.execute(null, "PRAGMA foreign_keys = ON", 0)
-        GestorDatabase.Schema.create(driver)
+        createV19(driver)
         // v16 views: contributions only ever entered, income was whole, and debt read split lines
         // from any movement. v_account_flow is recreated under its own name, so its dependents
         // stay valid when the column it would otherwise name is dropped.
@@ -195,7 +319,7 @@ class MigrationTest {
     fun `v14 to v15 migration adds shared accounts without changing existing balances`() {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         driver.execute(null, "PRAGMA foreign_keys = ON", 0)
-        GestorDatabase.Schema.create(driver)
+        createV19(driver)
         driver.execute(null, "DROP VIEW v_account_allocation", 0)
         driver.execute(null, "DROP VIEW v_goal_progress", 0)
         driver.execute(null, "DROP VIEW v_account_value", 0)
@@ -1053,7 +1177,7 @@ class MigrationTest {
         // device whose last applied migration was v2->v3.
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         driver.execute(null, "PRAGMA foreign_keys = ON", 0)
-        GestorDatabase.Schema.create(driver)
+        createV19(driver)
         val database = GestorDatabase(driver)
 
         driver.execute(null, "DROP VIEW v_actual_expense", 0)
@@ -1224,6 +1348,98 @@ class MigrationTest {
         // their own tag (not "Sense etiqueta").
         val tags = repository.actualByTag("trip-1").associate { it.tagId to it.actualCents }
         assertEquals(mapOf("restaurants" to 1_000L, "transport" to 1_200L), tags)
+    }
+
+    // The frozen fixture must load the same whichever line endings the checkout gave it.
+    @Test
+    fun `the frozen v19 schema loads the same with LF and CRLF line endings`() {
+        val lf = v19SchemaText().replace("\r\n", "\n")
+        val crlf = lf.replace("\n", "\r\n")
+        val statementCount = v19Statements(lf).size
+        assertTrue("the fixture splits into its statements", statementCount > 50)
+        assertEquals(statementCount, v19Statements(crlf).size)
+
+        fun objectsLoadedFrom(schema: String): List<List<String?>> {
+            val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+            createV19(driver, schema)
+            return driver.selectRows("SELECT type, name FROM sqlite_master ORDER BY type, name", 2)
+        }
+        assertEquals(objectsLoadedFrom(lf), objectsLoadedFrom(crlf))
+    }
+
+    // Migration tests run against the frozen v19 schema and today's migrations; a fresh install
+    // runs against the SQLDelight schema plus the triggers DatabaseDriverFactory adds. Both must end
+    // with the same tables, columns, indexes, views, and triggers, so neither path is tested
+    // against a weaker schema than the other.
+    @Test
+    fun `a fresh install has the same schema as a database upgraded from v19`() {
+        val fresh = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+        fresh.execute(null, "PRAGMA foreign_keys = ON", 0)
+        RepositoryTestSupport.createFreshInstallSchema(fresh)
+        val upgraded = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+        upgraded.execute(null, "PRAGMA foreign_keys = ON", 0)
+        createV19(upgraded)
+        upgraded.execute(null, "BEGIN", 0)
+        GestorDatabase.Schema.migrate(upgraded, 19, GestorDatabase.Schema.version)
+        upgraded.execute(null, "COMMIT", 0)
+
+        val freshSchema = fresh.schemaShape()
+        assertTrue("fresh installs carry the integrity triggers", freshSchema.count { it.startsWith("trigger ") } >= 10)
+        assertEquals(upgraded.schemaShape(), freshSchema)
+    }
+
+    /**
+     * Builds the v19 fresh-install database from a frozen copy of its schema, so migration steps up
+     * to v19 run against the tables they were written for rather than today's.
+     */
+    private fun createV19(driver: JdbcSqliteDriver, schema: String = v19SchemaText()) {
+        v19Statements(schema).forEach { driver.execute(null, it, 0) }
+    }
+
+    private fun v19SchemaText(): String = requireNotNull(javaClass.getResource("/v19_schema.sql")).readText()
+
+    /** The fixture's statements; its `-- @statement` separators are found whatever the line endings. */
+    private fun v19Statements(schema: String): List<String> =
+        schema.replace("\r\n", "\n").split("\n-- @statement\n")
+
+    /**
+     * What a schema is made of, one line per object: each table's columns, and each index, view, and
+     * trigger with its definition, whitespace-normalized so formatting alone never differs.
+     */
+    private fun JdbcSqliteDriver.schemaShape(): List<String> {
+        val objects = selectRows(
+            "SELECT type, name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name",
+            3,
+        )
+        return objects.map { (type, name, sql) ->
+            when (type) {
+                "table" -> "table $name " + selectRows(
+                    "SELECT name, type, \"notnull\", pk FROM pragma_table_info('$name') ORDER BY cid",
+                    4,
+                ).joinToString()
+                else -> "$type $name ${sql.orEmpty().replace(Regex("\\s+"), " ").trim()}"
+            }
+        }
+    }
+
+    private fun JdbcSqliteDriver.selectRows(sql: String, columns: Int): List<List<String?>> =
+        executeQuery(null, sql, { cursor ->
+            val rows = mutableListOf<List<String?>>()
+            while (cursor.next().value) rows += (0 until columns).map { cursor.getString(it) }
+            QueryResult.Value(rows)
+        }, 0).value
+
+    private companion object {
+        /** Canonical finance figures a representation change must leave identical. */
+        val FINANCE_FIGURES = listOf(
+            "SELECT account_id, current_balance_cents FROM v_account_balance ORDER BY 1" to 2,
+            "SELECT account_id, owner_value_cents FROM v_account_value ORDER BY 1" to 2,
+            "SELECT account_id, movement_id, delta_cents FROM v_account_flow ORDER BY 1, 2" to 3,
+            "SELECT source_id, date, category_id, trip_id, tag_id, amount_cents, is_one_time FROM v_actual_expense ORDER BY 1" to 7,
+            "SELECT source_id, amount_cents FROM v_actual_income ORDER BY 1" to 2,
+            "SELECT person_id, balance_cents FROM v_person_balance ORDER BY 1" to 2,
+            "SELECT trip_id, total_actual_cents FROM v_trip_actual_total ORDER BY 1" to 2,
+        )
     }
 
     private fun JdbcSqliteDriver.selectString(sql: String): String? =

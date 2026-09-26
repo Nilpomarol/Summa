@@ -72,7 +72,7 @@ fun MovementFormScreen(
     onDismiss: () -> Unit,
     onSave: () -> Unit,
     onOverride: () -> Unit,
-    onDataLossOverride: () -> Unit,
+    onSplitRemovalAccepted: () -> Unit,
     onRecurrenceStopEnd: () -> Unit,
     onRecurrenceStopUnlink: () -> Unit,
     onWarningDismissed: () -> Unit,
@@ -134,13 +134,6 @@ fun MovementFormScreen(
                 MovementType.TRANSFER -> movementTypeIcon(form.type) to finance.transfer
                 MovementType.SETTLEMENT -> movementTypeIcon(form.type) to finance.settlement
                 MovementType.REFUND -> movementTypeIcon(form.type) to finance.refund
-                MovementType.EXTERNAL_EXPENSE -> {
-                    if (selectedCategory != null) {
-                        categoryIcon(selectedCategory.icon) to finance.debt
-                    } else {
-                        movementTypeIcon(form.type) to finance.debt
-                    }
-                }
                 MovementType.CONTRIBUTION -> movementTypeIcon(form.type) to finance.transfer
             }
         }
@@ -171,6 +164,13 @@ fun MovementFormScreen(
             onSelect = { onFormChange(form.copy(type = it)) },
             showLabel = false,
         )
+        if (form.errorField == MovementFormField.TYPE && form.errorRes != null) {
+            InlineBanner(
+                kind = BannerKind.Alert,
+                text = stringResource(form.errorRes),
+                modifier = Modifier.scrollToWhen(true),
+            )
+        }
 
         MovementAmountHeader(
             title = titleText,
@@ -317,7 +317,7 @@ fun MovementFormScreen(
             form = form,
             onSave = onSave,
             onOverride = onOverride,
-            onDataLossOverride = onDataLossOverride,
+            onSplitRemovalAccepted = onSplitRemovalAccepted,
             onRecurrenceStopEnd = onRecurrenceStopEnd,
             onRecurrenceStopUnlink = onRecurrenceStopUnlink,
             onWarningDismissed = onWarningDismissed,
@@ -338,7 +338,7 @@ private fun MovementSaveActions(
     form: MovementFormState,
     onSave: () -> Unit,
     onOverride: () -> Unit,
-    onDataLossOverride: () -> Unit,
+    onSplitRemovalAccepted: () -> Unit,
     onRecurrenceStopEnd: () -> Unit,
     onRecurrenceStopUnlink: () -> Unit,
     onWarningDismissed: () -> Unit,
@@ -348,7 +348,6 @@ private fun MovementSaveActions(
     val isRecurrenceStop = form.pendingDataLossWarning == DataLossWarning.RECURRING_STOP
     val warningText = when (form.pendingDataLossWarning) {
         DataLossWarning.SPLIT_REMOVED -> stringResource(R.string.movement_warning_split_removed)
-        DataLossWarning.PAYER_SWITCH -> stringResource(R.string.movement_warning_payer_switch_drops_fields)
         DataLossWarning.RECURRING_STOP -> stringResource(R.string.movement_recurring_stop_title)
         null -> stringResource(R.string.movement_duplicate_warning)
     }
@@ -373,11 +372,12 @@ private fun MovementSaveActions(
             },
             onClick = when {
                 isRecurrenceStop -> onRecurrenceStopEnd
-                form.pendingDataLossWarning != null -> onDataLossOverride
+                form.pendingDataLossWarning != null -> onSplitRemovalAccepted
                 form.duplicateWarning -> onOverride
                 else -> onSave
             },
             modifier = Modifier.fillMaxWidth(),
+            enabled = !form.isSaving,
         )
         // Third choice for the recurring-stop warning (recurrence consistency): the old
         // "just detach" behavior remains alongside the default end-template action.

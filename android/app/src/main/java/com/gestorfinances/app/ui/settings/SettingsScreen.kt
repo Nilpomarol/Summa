@@ -2,6 +2,8 @@
 
 package com.gestorfinances.app.ui.settings
 
+import com.gestorfinances.app.di.AppContainer
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -71,6 +73,23 @@ import com.gestorfinances.app.ui.theme.ThemeMode
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+
+/**
+ * The app-wide settings ViewModel. A restore closes the database and removes every page, so the
+ * shell collects its effects and it must outlive the Settings page.
+ */
+@Composable
+fun settingsViewModel(appContainer: AppContainer): SettingsViewModel = viewModel {
+    SettingsViewModel(
+        preferences = appContainer.notificationPreferences,
+        backupFolderRepository = appContainer.backupFolderStore,
+        backupOperations = appContainer.backupSnapshotService,
+        autoBackupSettings = appContainer.autoBackupPreferences,
+        autoBackupScheduler = appContainer.autoBackupScheduler,
+        themePreferences = appContainer.themePreferences,
+        notificationRefresher = appContainer.notificationCoordinator,
+    )
+}
 
 @Composable
 fun SettingsScreen(

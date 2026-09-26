@@ -1,5 +1,7 @@
 package com.gestorfinances.app.ui.movements
 
+import com.gestorfinances.app.di.AppContainer
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -108,6 +110,26 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneOffset
+
+/**
+ * The app-wide movements ViewModel: the ledger page and the movement sheets that any page can open
+ * share it, so it lives as long as the Activity rather than one page visit.
+ */
+@Composable
+fun movementsViewModel(appContainer: AppContainer): MovementsViewModel = viewModel {
+    MovementsViewModel(
+        movementRepository = appContainer.movementRepository,
+        accountRepository = appContainer.accountRepository,
+        categoryRepository = appContainer.categoryRepository,
+        personRepository = appContainer.personRepository,
+        tripRepository = appContainer.tripRepository,
+        tagRepository = appContainer.tagRepository,
+        splitRepository = appContainer.splitRepository,
+        notificationRefresher = appContainer.notificationCoordinator,
+        templateRepository = appContainer.templateRepository,
+        financialDataRevision = appContainer.financialDataRevision,
+    )
+}
 
 @Composable
 fun MovementsScreen(
@@ -316,10 +338,10 @@ private fun MovementFilterPills(
 ) {
     val colors = FinanceTheme.colors
     val filters = state.filters
-    val selected = filters.type
-    val onSelected: (MovementType?) -> Unit = { onFiltersChange(filters.copy(type = it)) }
+    val selected = filters.type.takeUnless { filters.paidByPersonOnly }
+    val onSelected: (MovementType?) -> Unit = { onFiltersChange(filters.copy(type = it, paidByPersonOnly = false)) }
     var moreTypesExpanded by remember { mutableStateOf(false) }
-    val rareTypeSelected = selected in rareMovementTypes
+    val rareTypeSelected = selected in rareMovementTypes || filters.paidByPersonOnly
     val activeFilterCount = filters.activeFilterCount
     Row(
         modifier = modifier
@@ -348,7 +370,11 @@ private fun MovementFilterPills(
                     activeFilterCount,
                 ),
                 // Keeps the query and the type pill; the count only ever covers the sheet filters.
-                onClick = { onFiltersChange(MovementFilters(query = filters.query, type = selected)) },
+                onClick = {
+                    onFiltersChange(
+                        MovementFilters(query = filters.query, type = filters.type, paidByPersonOnly = filters.paidByPersonOnly),
+                    )
+                },
                 selectedColor = MaterialTheme.colorScheme.primary,
                 contentPadding = TYPE_PILL_PADDING,
                 trailingIcon = Icons.Outlined.Close,
@@ -356,7 +382,7 @@ private fun MovementFilterPills(
             )
         }
         FinanceFilterChip(
-            selected = selected == null,
+            selected = selected == null && !filters.paidByPersonOnly,
             label = stringResource(R.string.movement_filter_all_types),
             onClick = {
                 moreTypesExpanded = false
@@ -400,6 +426,14 @@ private fun MovementFilterPills(
                         },
                     )
                 }
+                AppDropdownMenuItem(
+                    text = { Text(stringResource(R.string.movement_type_external)) },
+                    selected = filters.paidByPersonOnly,
+                    onClick = {
+                        onFiltersChange(filters.copy(type = MovementType.EXPENSE, paidByPersonOnly = true))
+                        moreTypesExpanded = false
+                    },
+                )
             }
         }
     }
@@ -839,7 +873,6 @@ private fun MovementType.filterLabel(): String =
         MovementType.TRANSFER -> stringResource(R.string.movement_filter_transfers)
         MovementType.SETTLEMENT -> stringResource(R.string.movement_type_settlement)
         MovementType.REFUND -> stringResource(R.string.movement_type_refund)
-        MovementType.EXTERNAL_EXPENSE -> stringResource(R.string.movement_type_external)
         MovementType.CONTRIBUTION -> stringResource(R.string.movement_type_contribution)
     }
 
@@ -855,7 +888,6 @@ private val phaseOneTypes = listOf(
 private val rareMovementTypes = listOf(
     MovementType.SETTLEMENT,
     MovementType.REFUND,
-    MovementType.EXTERNAL_EXPENSE,
     MovementType.CONTRIBUTION,
 )
 

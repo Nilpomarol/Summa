@@ -11,7 +11,6 @@ enum class MovementType(val dbValue: String) {
     TRANSFER("transfer"),
     SETTLEMENT("settlement"),
     REFUND("refund"),
-    EXTERNAL_EXPENSE("external_expense"),
     CONTRIBUTION("contribution"),
     ;
 
@@ -65,14 +64,21 @@ data class MovementSummary(
     val financingKind: ExpenseFunding? = null,
     /** Set only when [type] is CONTRIBUTION: whether money entered or left the shared account. */
     val contributionDirection: ContributionDirection? = null,
-)
+) {
+    /**
+     * An expense a person paid ([payerId]): no account moved, and [userShareCents] is what the owner owes them.
+     * A contribution a person made also carries PERSON financing, but it is not one of these.
+     */
+    val paidByPerson: Boolean get() = type == MovementType.EXPENSE && financingKind == ExpenseFunding.PERSON
+}
 
 data class MovementDraft(
     val id: String,
     val type: MovementType,
     val amountCents: Long,
     val date: String,
-    val accountId: String,
+    /** The owner's account; null only when [payerPersonId] paid the expense. */
+    val accountId: String?,
     val destinationAccountId: String?,
     val categoryId: String?,
     val tripId: String? = null,
@@ -85,6 +91,8 @@ data class MovementDraft(
     val templateId: String? = null,
     val expenseFunding: ExpenseFunding = ExpenseFunding.OWNER,
     val sharedSplitId: String? = null,
+    /** The person who paid an expense; its split's user line is then what the owner owes them. */
+    val payerPersonId: String? = null,
 )
 
 enum class ExpenseFunding(val dbValue: String) {
@@ -234,6 +242,7 @@ class MovementRepository(
     ) {
         val persistedDraft = prepareSharedFundingDraft(draft, existingMovement = false)
         requireDirectMovementType(persistedDraft.type)
+        validatePayer(persistedDraft)
         validateSplitWrite(persistedDraft)
         validateIncomeAllocation(persistedDraft)
         validateSharedFundingSplit(persistedDraft, existingMovement = false, hasActiveSplit = false)
@@ -253,8 +262,9 @@ class MovementRepository(
                 trip_id = persistedDraft.tripId,
                 tag_id = persistedDraft.tagId,
                 template_id = persistedDraft.templateId,
-                expense_funding = persistedDraft.expenseFunding.dbValue.takeIf { persistedDraft.type == MovementType.EXPENSE },
+                expense_funding = persistedDraft.expenseFundingDbValue(),
                 shared_split_id = persistedDraft.sharedSplitId,
+                payer_person_id = persistedDraft.payerPersonId,
                 created_at = createdAt,
                 updated_at = createdAt,
             )
@@ -268,6 +278,13 @@ class MovementRepository(
     ) {
         val persistedDraft = prepareSharedFundingDraft(draft, existingMovement = true)
         requireDirectMovementType(persistedDraft.type)
+        // An expense someone else paid may keep the split it is stored with, whatever its lines
+        // say now, but a movement only becomes one with a split written for it.
+        val keepsStoredPayerSplit = persistedDraft.payerPersonId != null &&
+            persistedDraft.splitWrite == MovementSplitWrite.KeepExisting &&
+            getActive(persistedDraft.id)?.paidByPerson == true &&
+            splitQueries?.splitIdForMovement(persistedDraft.id)?.executeAsOneOrNull() != null
+        validatePayer(persistedDraft, keepsStoredPayerSplit)
         validateSplitWrite(persistedDraft)
         validateIncomeAllocation(persistedDraft)
         validateSharedFundingSplit(
@@ -276,6 +293,11 @@ class MovementRepository(
             hasActiveSplit = persistedDraft.sharedSplitId != null,
         )
         queries.transaction {
+            // An active refund refers to an expense, so the expense it refers to stays one.
+            require(
+                persistedDraft.type == MovementType.EXPENSE ||
+                    queries.refundsForExpense(persistedDraft.id).executeAsList().isEmpty(),
+            ) { "An expense with active refunds cannot change type." }
             queries.updateMovement(
                 id = persistedDraft.id,
                 type = persistedDraft.type.dbValue,
@@ -291,8 +313,9 @@ class MovementRepository(
                 trip_id = persistedDraft.tripId,
                 tag_id = persistedDraft.tagId,
                 template_id = persistedDraft.templateId,
-                expense_funding = persistedDraft.expenseFunding.dbValue.takeIf { persistedDraft.type == MovementType.EXPENSE },
+                expense_funding = persistedDraft.expenseFundingDbValue(),
                 shared_split_id = persistedDraft.sharedSplitId,
+                payer_person_id = persistedDraft.payerPersonId,
                 updated_at = updatedAt,
             )
             applySplitWrite(persistedDraft.id, persistedDraft.splitWrite, persistedDraft.sharedSplitId, timestamp = updatedAt)
@@ -456,7 +479,8 @@ class MovementRepository(
     /** An income is allocated between members only in a shared account; in a personal one it is the owner's. */
     private fun validateIncomeAllocation(draft: MovementDraft) {
         if (draft.type != MovementType.INCOME || draft.splitWrite !is MovementSplitWrite.Replace) return
-        require(queries.accountOwnershipKind(draft.accountId).executeAsOneOrNull() == AccountOwnershipKind.SHARED.dbValue) {
+        val accountId = requireNotNull(draft.accountId) { "An income needs the account it arrived in." }
+        require(queries.accountOwnershipKind(accountId).executeAsOneOrNull() == AccountOwnershipKind.SHARED.dbValue) {
             "Only an income into a shared account can be allocated between members."
         }
     }
@@ -663,6 +687,28 @@ private fun mapRefundSummary(
         notes = notes,
     )
 
+/** A person-paid expense moves no account and records no financing of the owner's. */
+private fun MovementDraft.expenseFundingDbValue(): String? =
+    expenseFunding.dbValue.takeIf { type == MovementType.EXPENSE && payerPersonId == null }
+
+/**
+ * The owner pays from an account; a person who paid leaves the owner's accounts untouched and is
+ * owed the split's user line, so their expense always carries that split and never recurs.
+ */
+private fun validatePayer(draft: MovementDraft, keepsStoredSplit: Boolean = false) {
+    if (draft.payerPersonId == null) {
+        require(!draft.accountId.isNullOrBlank()) { "The owner pays from an account." }
+        return
+    }
+    require(draft.type == MovementType.EXPENSE) { "Only an expense can be paid by a person." }
+    require(draft.accountId == null) { "An expense a person paid moves none of the owner's accounts." }
+    require(draft.expenseFunding == ExpenseFunding.OWNER) { "An expense a person paid is not financed by an account." }
+    require(draft.templateId == null) { "An expense a person paid does not recur." }
+    require(draft.splitWrite is MovementSplitWrite.Replace || keepsStoredSplit) {
+        "An expense a person paid is saved with the split saying what is owed."
+    }
+}
+
 private fun requireDirectMovementType(type: MovementType) {
     require(type == MovementType.EXPENSE || type == MovementType.INCOME || type == MovementType.TRANSFER) {
         "create/update support expense, income, and transfer; settlements use createSettlement."
@@ -683,7 +729,8 @@ private fun validateSplitWrite(draft: MovementDraft) {
     require(split.lines.any { it.participantKind == SplitParticipantKind.USER }) {
         "Movement-backed splits must include the user line."
     }
-    require(split.lines.any { it.participantKind == SplitParticipantKind.PERSON }) {
+    // The owner's line alone says what the owner owes a person who paid.
+    require(draft.payerPersonId != null || split.lines.any { it.participantKind == SplitParticipantKind.PERSON }) {
         "Movement-backed splits must include at least one person line."
     }
     split.lines.forEach { line ->

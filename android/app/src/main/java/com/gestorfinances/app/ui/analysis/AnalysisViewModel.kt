@@ -1,7 +1,6 @@
 package com.gestorfinances.app.ui.analysis
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.gestorfinances.app.data.repository.AccountRepository
 import com.gestorfinances.app.data.repository.AccountSummary
@@ -45,30 +44,17 @@ class AnalysisViewModel(
     private var loadedSignature: String? = null
     private var filterOptionsLoaded = false
 
-    fun onScreenShown() {
-        loadFilterOptions()
-        refresh()
-    }
+    /** The movement data revision the page was last shown for; part of the loaded signature, so
+     * a movement write reloads the analysis even when filters and period are unchanged. */
+    private var dataVersion = 0L
 
-    /** Resets the root Analysis destination while contextual links may retain their filters. */
-    fun resetForMenuNavigation() {
-        loadedSignature = null
-        _state.value = _state.value.copy(
-            scope = AnalysisScope.MONTH,
-            natureFilter = AnalysisNatureFilter.ALL,
-            oneTimeMode = AnalysisOneTimeMode.INCLUDE,
-            month = initialMonth,
-            year = initialToday.year,
-            groupTripsAsBlocks = true,
-            filterAccountId = null,
-            filterAccountName = null,
-            filterCategoryId = null,
-            filterCategoryName = null,
-            currentRange = null,
-            resum = null,
-            comparison = null,
-            errorMessage = null,
-        )
+    fun onScreenShown(dataVersion: Long = this.dataVersion) {
+        if (dataVersion != this.dataVersion) {
+            this.dataVersion = dataVersion
+            // A write can add an activity month, account, or category to choose from.
+            filterOptionsLoaded = false
+        }
+        loadFilterOptions()
         refresh()
     }
 
@@ -98,7 +84,7 @@ class AnalysisViewModel(
     fun refresh() {
         val snapshot = _state.value
         val range = resolveAnalysisRange(snapshot.scope, snapshot.month, snapshot.year)
-        val signature = signatureOf(snapshot, range)
+        val signature = signatureOf(snapshot, range, dataVersion)
         val signatureChanged = signature != loadedSignature
         val needsLoad = signatureChanged || snapshot.resum == null ||
             (snapshot.scope != AnalysisScope.ALL_TIME && snapshot.comparison == null)
@@ -304,24 +290,6 @@ class AnalysisViewModel(
             previousChartBuckets = previousChartBuckets,
         )
     }
-
-    class Factory(
-        private val analysisRepository: AnalysisRepository,
-        private val accountRepository: AccountRepository,
-        private val categoryRepository: CategoryRepository,
-    ) : ViewModelProvider.Factory {
-        @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            if (modelClass.isAssignableFrom(AnalysisViewModel::class.java)) {
-                return AnalysisViewModel(
-                    analysisRepository = analysisRepository,
-                    accountRepository = accountRepository,
-                    categoryRepository = categoryRepository,
-                ) as T
-            }
-            throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
-        }
-    }
 }
 
 enum class AnalysisScope { MONTH, YEAR, ALL_TIME }
@@ -387,8 +355,9 @@ private fun <T : Comparable<T>> List<T>.shiftFrom(value: T, delta: Long): T? {
     return sorted.getOrNull(index + delta.toInt())
 }
 
-private fun signatureOf(s: AnalysisUiState, range: AnalysisPeriodRange): String =
+private fun signatureOf(s: AnalysisUiState, range: AnalysisPeriodRange, dataVersion: Long): String =
     listOf(
+        dataVersion,
         s.scope,
         range.fromDate,
         range.toDateExclusive,

@@ -1,5 +1,7 @@
 package com.gestorfinances.app.ui.goals
 
+import com.gestorfinances.app.di.AppContainer
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -71,15 +73,28 @@ import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.categoryColor
 import java.time.LocalDate
 
+/** This page visit's ViewModel; [accountId] narrows it to one account's goals. */
+@Composable
+fun goalsViewModel(appContainer: AppContainer, accountId: String? = null): GoalsViewModel = viewModel {
+    GoalsViewModel(
+        goalRepository = appContainer.goalRepository,
+        accountRepository = appContainer.accountRepository,
+    ).apply {
+        accountId?.let(::showForAccount)
+    }
+}
+
 @Composable
 fun GoalsScreen(
     viewModel: GoalsViewModel,
+    /** Changes after every movement write, so the page reloads while it stays visible. */
+    dataVersion: Long,
     onDeleteCommitted: DeleteUndoHandler = {},
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsState()
 
-    LaunchedEffect(viewModel) {
+    LaunchedEffect(viewModel, dataVersion) {
         viewModel.onScreenShown()
     }
 

@@ -6,6 +6,7 @@ import com.gestorfinances.app.domain.rules.SettlementScope
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -62,6 +63,85 @@ class CoreLedgerRepositoryTest {
                 store.analysis.periodTotals(fromDate = "2026-03-01", toDate = "2026-03-31").actualExpenseCents,
             )
         }
+    }
+
+    // Regression: an expense with an active refund could be updated into another type, leaving the
+    // refund referring to a movement that is no longer an expense.
+    @Test
+    fun anExpenseWithAnActiveRefundKeepsItsTypeButAcceptsOtherEdits() {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft(id = "checking", startingBalanceCents = 0), createdAt = NOW)
+            val expense = movementDraft("exp", MovementType.EXPENSE, 20_000, "2026-03-01", "checking")
+            store.movements.create(expense, createdAt = NOW)
+            store.movements.createRefund(
+                RefundDraft(
+                    id = "ref",
+                    refundsExpenseId = "exp",
+                    amountCents = 5_000,
+                    accountId = "checking",
+                    date = "2026-03-02",
+                    name = null,
+                    payee = null,
+                    notes = null,
+                    actualRefundCents = null,
+                ),
+                createdAt = NOW,
+            )
+
+            assertThrows(IllegalArgumentException::class.java) {
+                store.movements.update(expense.copy(type = MovementType.INCOME), updatedAt = LATER)
+            }
+            assertEquals(MovementType.EXPENSE, store.movements.getActive("exp")!!.type)
+
+            store.movements.update(expense.copy(name = "Sabates"), updatedAt = LATER)
+            assertEquals("Sabates", store.movements.getActive("exp")!!.name)
+            assertEquals(1, store.movements.refundsForExpense("exp").size)
+
+            // Once the refund is gone, nothing depends on the expense staying one.
+            store.movements.archive("ref", archivedAt = LATER)
+            store.movements.update(expense.copy(type = MovementType.INCOME), updatedAt = LATER)
+            assertEquals(MovementType.INCOME, store.movements.getActive("exp")!!.type)
+        }
+    }
+
+    // An expense someone else paid may be saved with the split it is stored with, but an expense
+    // the owner paid never becomes one without a split written for the payer.
+    @Test
+    fun onlyAnExpenseSomeoneElsePaidKeepsItsStoredSplitAsAPayerSplit() {
+        val database = RepositoryTestSupport.newDatabase()
+        val accounts = AccountRepository(database.accountsQueries)
+        val people = PersonRepository(database.peopleQueries)
+        val movements = MovementRepository(database.movementsQueries, database.splitsQueries)
+        accounts.create(accountDraft(id = "checking", startingBalanceCents = 0), createdAt = NOW)
+        people.create(
+            PersonDraft(id = "laura", name = "Laura", avatar = null, color = null, notes = null),
+            createdAt = NOW,
+        )
+        val paid = personPaidExpense(id = "paid", payerPersonId = "laura", amountCents = 1_000, date = "2026-03-01", name = "Sopar")
+        movements.create(paid, createdAt = NOW)
+        movements.update(paid.copy(name = "Sopar amb la Laura", splitWrite = MovementSplitWrite.KeepExisting), updatedAt = LATER)
+        assertEquals("Sopar amb la Laura", movements.getActive("paid")!!.name)
+        assertEquals(-1_000L, people.getActive("laura")!!.balanceCents)
+
+        val shared = movementDraft("shared", MovementType.EXPENSE, 2_000, "2026-03-02", "checking").copy(
+            splitWrite = MovementSplitWrite.Replace(
+                MovementSplitDraft(
+                    SplitEntryMethod.EXACT,
+                    listOf(
+                        SplitLineDraft(SplitParticipantKind.USER, null, 1_000),
+                        SplitLineDraft(SplitParticipantKind.PERSON, "laura", 1_000),
+                    ),
+                ),
+            ),
+        )
+        movements.create(shared, createdAt = NOW)
+        assertThrows(IllegalArgumentException::class.java) {
+            movements.update(
+                shared.copy(accountId = null, payerPersonId = "laura", splitWrite = MovementSplitWrite.KeepExisting),
+                updatedAt = LATER,
+            )
+        }
+        assertFalse(movements.getActive("shared")!!.paidByPerson)
     }
 
     @Test

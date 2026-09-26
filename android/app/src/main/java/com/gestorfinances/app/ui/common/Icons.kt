@@ -51,7 +51,6 @@ import androidx.compose.material.icons.outlined.Payments
 import androidx.compose.material.icons.outlined.Pets
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.Receipt
-import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material.icons.outlined.Savings
 import androidx.compose.material.icons.outlined.School
@@ -213,6 +212,5 @@ fun movementTypeIcon(type: MovementType): ImageVector =
         MovementType.TRANSFER -> Icons.Outlined.SwapHoriz
         MovementType.SETTLEMENT -> Icons.Outlined.Handshake
         MovementType.REFUND -> Icons.AutoMirrored.Outlined.AssignmentReturn
-        MovementType.EXTERNAL_EXPENSE -> Icons.Outlined.Person
         MovementType.CONTRIBUTION -> Icons.Outlined.Savings
     }

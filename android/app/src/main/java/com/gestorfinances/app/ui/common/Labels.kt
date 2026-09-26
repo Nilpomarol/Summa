@@ -15,7 +15,6 @@ internal fun MovementType.label(): String =
         MovementType.TRANSFER -> stringResource(R.string.movement_type_transfer)
         MovementType.SETTLEMENT -> stringResource(R.string.movement_type_settlement)
         MovementType.REFUND -> stringResource(R.string.movement_type_refund)
-        MovementType.EXTERNAL_EXPENSE -> stringResource(R.string.movement_type_external)
         MovementType.CONTRIBUTION -> stringResource(R.string.movement_type_contribution)
     }
 

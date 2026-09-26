@@ -1,7 +1,6 @@
 package com.gestorfinances.app.ui.onboarding
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountDraft
@@ -116,19 +115,6 @@ class OnboardingViewModel(
                     )
                 },
             )
-        }
-    }
-
-    class Factory(
-        private val accountRepository: AccountRepository,
-        private val categoryRepository: CategoryRepository,
-    ) : ViewModelProvider.Factory {
-        @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            if (modelClass.isAssignableFrom(OnboardingViewModel::class.java)) {
-                return OnboardingViewModel(accountRepository, categoryRepository) as T
-            }
-            throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }
     }
 }

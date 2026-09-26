@@ -12,6 +12,7 @@ android/.idea/
 android/gradle/gradle-daemon-jvm.properties
 android/app/src/main/sqldelight/com/gestorfinances/app/data/db/SharedSchema.sq
 android/app/src/main/sqldelight/com/gestorfinances/app/data/db/Analysis.sq
+android/app/src/main/sqldelight/com/gestorfinances/app/data/db/*.sqm
 android/app/src/main/assets/shared_account_integrity.sql
 .aider*
 .preview_tmp/

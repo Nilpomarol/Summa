@@ -1,7 +1,6 @@
 package com.gestorfinances.app.ui.tags
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.CategoryRecord
@@ -35,12 +34,6 @@ class TagsViewModel(
         if (_state.value.contextTripId != contextTripId) {
             _state.value = TagsUiState(contextTripId = contextTripId)
         }
-        refresh()
-    }
-
-    /** A direct Més-menu visit never inherits a prior search or unfinished tag form. */
-    fun resetForMenuNavigation() {
-        _state.value = TagsUiState()
         refresh()
     }
 
@@ -194,24 +187,6 @@ class TagsViewModel(
                     )
                 },
             )
-        }
-    }
-
-    class Factory(
-        private val tagRepository: TagRepository,
-        private val tripRepository: TripRepository,
-        private val categoryRepository: CategoryRepository,
-    ) : ViewModelProvider.Factory {
-        @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            if (modelClass.isAssignableFrom(TagsViewModel::class.java)) {
-                return TagsViewModel(
-                    tagRepository = tagRepository,
-                    tripRepository = tripRepository,
-                    categoryRepository = categoryRepository,
-                ) as T
-            }
-            throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }
     }
 }

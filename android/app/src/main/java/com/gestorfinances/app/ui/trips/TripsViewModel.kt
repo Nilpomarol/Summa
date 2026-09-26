@@ -1,7 +1,6 @@
 package com.gestorfinances.app.ui.trips
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountRepository
@@ -53,11 +52,6 @@ class TripsViewModel(
         refresh()
     }
 
-    fun resetForMenuNavigation() {
-        _state.value = TripsUiState()
-        refresh()
-    }
-
     fun onStatusFilterChanged(status: TripStatus?) {
         _state.value = _state.value.copy(statusFilter = status)
     }
@@ -79,8 +73,15 @@ class TripsViewModel(
         loadDetail(trip = trip, excludeOneTime = false)
     }
 
-    /** Opens trip detail from just a [tripId] (e.g. a Dashboard quick-link), without a [TripSummary] on hand. */
+    /**
+     * Opens trip detail from just a [tripId] (e.g. a Dashboard quick-link), without a [TripSummary]
+     * on hand. Reopening the trip already shown (after a movement write) reloads it in place.
+     */
     fun onDetailOpened(tripId: String) {
+        _state.value.detail?.takeIf { it.trip.id == tripId }?.let { open ->
+            loadDetail(trip = open.trip, excludeOneTime = open.excludeOneTime)
+            return
+        }
         _state.value.trips.firstOrNull { it.id == tripId }?.let {
             onDetailClicked(it)
             return
@@ -110,9 +111,15 @@ class TripsViewModel(
     }
 
     private fun loadDetail(trip: TripSummary, excludeOneTime: Boolean) {
-        _state.value = _state.value.copy(
-            detail = TripDetailState(trip = trip, excludeOneTime = excludeOneTime, isLoading = true),
-        )
+        val shown = _state.value.detail
+        // Reloading what is already shown keeps it on screen until the new figures arrive.
+        val reloadsShownDetail = shown != null && !shown.isLoading && shown.errorMessage == null &&
+            shown.trip.id == trip.id && shown.excludeOneTime == excludeOneTime
+        if (!reloadsShownDetail) {
+            _state.value = _state.value.copy(
+                detail = TripDetailState(trip = trip, excludeOneTime = excludeOneTime, isLoading = true),
+            )
+        }
         viewModelScope.launch {
             val result = withContext(ioDispatcher) {
                 runCatching {
@@ -332,30 +339,6 @@ class TripsViewModel(
                     )
                 },
             )
-        }
-    }
-
-    class Factory(
-        private val tripRepository: TripRepository,
-        private val tripAnalysisRepository: TripAnalysisRepository,
-        private val movementRepository: MovementRepository,
-        private val accountRepository: AccountRepository,
-        private val budgetRepository: BudgetRepository,
-        private val tagRepository: TagRepository,
-    ) : ViewModelProvider.Factory {
-        @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            if (modelClass.isAssignableFrom(TripsViewModel::class.java)) {
-                return TripsViewModel(
-                    tripRepository = tripRepository,
-                    tripAnalysisRepository = tripAnalysisRepository,
-                    movementRepository = movementRepository,
-                    accountRepository = accountRepository,
-                    budgetRepository = budgetRepository,
-                    tagRepository = tagRepository,
-                ) as T
-            }
-            throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }
     }
 }

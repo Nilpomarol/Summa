@@ -1,5 +1,7 @@
 package com.gestorfinances.app.ui.recurring
 
+import com.gestorfinances.app.di.AppContainer
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -73,6 +75,7 @@ import com.gestorfinances.app.data.repository.PersonSummary
 import com.gestorfinances.app.data.repository.TemplateSplitConfig
 import com.gestorfinances.app.data.repository.TemplateStatus
 import com.gestorfinances.app.data.repository.TemplateSummary
+import com.gestorfinances.app.data.repository.userShareCents
 import com.gestorfinances.app.data.repository.TagSummary
 import com.gestorfinances.app.data.repository.TripSummary
 import com.gestorfinances.app.domain.rules.CustomRecurrenceUnit
@@ -118,6 +121,26 @@ import com.gestorfinances.app.ui.movements.SelectOption
 import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.amountColor
 import java.time.LocalDate
+
+/**
+ * The app-wide recurring ViewModel: the due-reminders sheet can appear over any page, so it lives
+ * as long as the Activity rather than one page visit.
+ */
+@Composable
+fun recurringViewModel(appContainer: AppContainer): RecurringViewModel = viewModel {
+    RecurringViewModel(
+        templateRepository = appContainer.templateRepository,
+        accountRepository = appContainer.accountRepository,
+        categoryRepository = appContainer.categoryRepository,
+        tripRepository = appContainer.tripRepository,
+        tagRepository = appContainer.tagRepository,
+        movementRepository = appContainer.movementRepository,
+        splitRepository = appContainer.splitRepository,
+        personRepository = appContainer.personRepository,
+        notificationRefresher = appContainer.notificationCoordinator,
+        financialDataRevision = appContainer.financialDataRevision,
+    )
+}
 
 @Composable
 fun RecurringScreen(
@@ -165,6 +188,12 @@ fun RecurringScreen(
             onBack = requestFormDismissal,
             onSave = viewModel::onSaveClicked,
             modifier = modifier,
+            incomeOwnership = IncomeOwnershipActions(
+                onOwnerSelected = viewModel::onIncomeOwnerSelected,
+                onMemberSelected = viewModel::onIncomeMemberSelected,
+                onSplitEditorChange = viewModel::onIncomeSplitEditorChanged,
+                onCreatePerson = viewModel::onCreatePersonInIncomeSplit,
+            ),
         )
     } else {
         RecurringContent(
@@ -195,17 +224,51 @@ fun RecurringScreen(
     }
 }
 
+/**
+ * App-wide recurring UI, rendered once above every page: surfaces due items proactively (once per
+ * app start) instead of requiring a visit to Més > Recurring, plus the dialogs those items open.
+ * [otherSheetOpen] keeps the due sheet from stacking on an unrelated movement sheet.
+ */
+@Composable
+fun RecurringReminders(
+    viewModel: RecurringViewModel,
+    otherSheetOpen: Boolean,
+    onDeleteCommitted: DeleteUndoHandler,
+) {
+    val state by viewModel.state.collectAsState()
+    // `remember` (not `rememberSaveable`) is deliberate: a real process restart is exactly what
+    // "once per app cold start" means, so losing this on process death re-shows the sheet.
+    var dueRemindersShown by remember { mutableStateOf(false) }
+
+    LaunchedEffect(viewModel) {
+        viewModel.onScreenShown()
+    }
+
+    RecurringOverlays(viewModel = viewModel, onDeleteCommitted = onDeleteCommitted)
+
+    // `hasOpenDialog` makes the sheet step aside while one of its own actions (confirm, end) has a
+    // sub-dialog open, then reappear once that closes.
+    if (!dueRemindersShown && !state.hasOpenDialog && !otherSheetOpen && state.duePrompts.isNotEmpty()) {
+        DueRemindersSheet(
+            duePrompts = state.duePrompts,
+            onConfirm = viewModel::onConfirmClicked,
+            onSkip = viewModel::onSkipClicked,
+            onSkipAll = viewModel::onSkipAllClicked,
+            onEnd = viewModel::onEndClicked,
+            onDismiss = { dueRemindersShown = true },
+        )
+    }
+}
+
 /** The remaining modals/dialogs driven by [RecurringViewModel]'s state that can be triggered
  * independent of which screen is currently showing (due-prompt confirm, detection review, end/
- * delete confirmations) -- [viewModel] is an app-level singleton (instantiated once in
- * `MainActivity`), so these need to render regardless of navigation, not just when the user is
- * on [RecurringScreen] itself. Rendered once, unconditionally, from `MainActivity` -- NOT called
- * from [RecurringScreen] itself, to avoid rendering every dialog twice when the user is actually
- * on that screen. The template create/edit form is the one piece of this ViewModel's state that's
+ * delete confirmations). Rendered once from [RecurringReminders] -- NOT called from
+ * [RecurringScreen] itself, to avoid rendering every dialog twice when the user is actually on
+ * that screen. The template create/edit form is the one piece of this ViewModel's state that's
  * only ever opened from [RecurringScreen] itself, so it renders as a local full-page swap there
  * instead (see [RecurringScreen]), not here. */
 @Composable
-internal fun RecurringOverlays(
+private fun RecurringOverlays(
     viewModel: RecurringViewModel,
     onDeleteCommitted: DeleteUndoHandler = {},
 ) {
@@ -984,7 +1047,7 @@ private fun DuePromptCard(
     }
 }
 
-/** Auto-triggered on app cold start (from `MainActivity`, not from [RecurringScreen] itself) when
+/** Auto-triggered on app cold start (from [RecurringReminders], not from [RecurringScreen] itself) when
  * any template is due; the prompt appears once per cold
  * start, persists until acted on" rationale. Reuses [DuePromptCard] verbatim; every action here
  * (confirm/skip/skip-all/end) opens the same existing dialogs [RecurringOverlays] renders. */
@@ -1119,6 +1182,7 @@ private fun ConfirmPromptDialog(
                     text = stringResource(R.string.recurring_action_add_payment),
                     onClick = onSave,
                     modifier = Modifier.weight(1f),
+                    enabled = !prompt.isSaving,
                 )
             }
         }
@@ -1742,7 +1806,7 @@ private fun TemplateSummary.cadenceLabel(): String =
 
 private fun TemplateSummary.signedAmountCents(): Long {
     val amount = amountCents ?: 0L
-    return if (type == MovementType.EXPENSE || type == MovementType.EXTERNAL_EXPENSE) -amount else amount
+    return if (type == MovementType.EXPENSE) -amount else amount
 }
 
 /** The user's own share, signed the same way as [signedAmountCents] — null when there's no split
@@ -1750,6 +1814,6 @@ private fun TemplateSummary.signedAmountCents(): Long {
 private fun TemplateSummary.signedUserShareCents(): Long? {
     val amount = amountCents ?: return null
     val share = splitConfig?.userShareCents(amount) ?: return null
-    return if (type == MovementType.EXPENSE || type == MovementType.EXTERNAL_EXPENSE) -share else share
+    return if (type == MovementType.EXPENSE) -share else share
 }
 

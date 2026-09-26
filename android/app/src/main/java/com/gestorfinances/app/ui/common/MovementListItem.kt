@@ -19,6 +19,7 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowRightAlt
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.Handshake
 import androidx.compose.material.icons.outlined.NewReleases
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Repeat
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -42,7 +43,7 @@ import com.gestorfinances.app.data.repository.MovementSummary
 import com.gestorfinances.app.data.repository.MovementType
 import com.gestorfinances.app.data.repository.SettlementDirection
 import com.gestorfinances.app.ui.theme.FinanceTheme
-import com.gestorfinances.app.ui.theme.amountColor
+import com.gestorfinances.app.ui.theme.movementAmountColor
 import com.gestorfinances.app.ui.theme.categoryColor as categoryColorFromTheme
 import com.gestorfinances.app.ui.theme.dataMarkColor
 import kotlin.math.abs
@@ -76,7 +77,7 @@ internal enum class MovementAmountRole {
  * balance, and captions the user's share beneath a shared expense.
  */
 internal fun MovementSummary.primaryAmountRole(inAccount: Boolean = false): MovementAmountRole =
-    if (!inAccount && ((isShared && (type == MovementType.EXPENSE || type == MovementType.INCOME)) || type == MovementType.EXTERNAL_EXPENSE)) {
+    if (!inAccount && ((isShared && (type == MovementType.EXPENSE || type == MovementType.INCOME)) || paidByPerson)) {
         MovementAmountRole.YOUR_SHARE
     } else {
         MovementAmountRole.MOVEMENT
@@ -129,7 +130,7 @@ fun MovementListItem(
     position: MovementRowPosition = MovementRowPosition.ONLY,
 ) {
     val visual = movement.chipVisual()
-    val typeColor = FinanceTheme.colors.amountColor(movement.type)
+    val typeColor = FinanceTheme.colors.movementAmountColor(movement)
     val detail = movement.detailLine()
     val amountAccessibilityDescription = movement.primaryAmountContentDescription()
     val totalAccessibilityDescription = stringResource(
@@ -249,7 +250,7 @@ fun MovementListItem(
                 } else {
                     val isShared = movement.isShared && movement.type == MovementType.EXPENSE
                     val isSharedIncome = movement.isShared && movement.type == MovementType.INCOME
-                    val isExternal = movement.type == MovementType.EXTERNAL_EXPENSE
+                    val isExternal = movement.paidByPerson
 
                     if (isShared || isSharedIncome || isExternal) {
                         // My share leads. An expense's share is money leaving, so it carries the
@@ -351,6 +352,15 @@ private fun AccountDeltaAmount(movement: MovementSummary, deltaCents: Long, colo
  */
 @Composable
 private fun MovementSource(movement: MovementSummary): Boolean {
+    if (movement.paidByPerson) {
+        IdentityLabel(
+            text = movement.paidByPersonName.orEmpty(),
+            tint = null,
+            fallbackTint = FinanceTheme.colors.debt,
+            icon = Icons.Outlined.Handshake,
+        )
+        return true
+    }
     when (movement.type) {
         MovementType.TRANSFER -> {
             MovementRoute(
@@ -394,30 +404,7 @@ private fun MovementSource(movement: MovementSummary): Boolean {
             }
             return true
         }
-        MovementType.EXTERNAL_EXPENSE -> {
-            IdentityLabel(
-                text = movement.paidByPersonName.orEmpty(),
-                tint = null,
-                fallbackTint = FinanceTheme.colors.debt,
-                icon = Icons.Outlined.Handshake,
-            )
-            return true
-        }
         else -> {
-            // A shared expense the user did not pay for is the same situation as an external one:
-            // a person's money, so it wears a person's mark.
-            val payer = movement.paidByPersonName?.takeIf {
-                it.isNotEmpty() && movement.isShared && movement.userShareCents == 0L
-            }
-            if (payer != null) {
-                IdentityLabel(
-                    text = payer,
-                    tint = null,
-                    fallbackTint = FinanceTheme.colors.shared,
-                    icon = Icons.Outlined.Group,
-                )
-                return true
-            }
             val account = movement.accountName?.takeIf { it.isNotEmpty() } ?: return false
             IdentityLabel(text = account, tint = movement.accountColor)
             return true
@@ -523,10 +510,10 @@ private fun MetaSeparator() {
 @Composable
 private fun MovementSummary.primaryAmountContentDescription(): String {
     if (primaryAmountRole() == MovementAmountRole.YOUR_SHARE) {
-        val shareCents = if (type == MovementType.EXTERNAL_EXPENSE) amountCents else userShareCents
+        val shareCents = if (paidByPerson) amountCents else userShareCents
         val shareText = formatEuroCents(shareCents)
         val direction = when {
-            type == MovementType.EXTERNAL_EXPENSE ->
+            paidByPerson ->
                 stringResource(R.string.movement_amount_accessibility_owes, shareText)
             // An income is shared, not owed: say whose larger income the part comes from.
             type == MovementType.INCOME ->
@@ -558,7 +545,6 @@ private fun MovementSummary.primaryAmountContentDescription(): String {
         }
         MovementType.REFUND ->
             stringResource(R.string.movement_amount_accessibility_refund, amountText)
-        MovementType.EXTERNAL_EXPENSE -> error("External expense is a shared amount")
         MovementType.CONTRIBUTION ->
             stringResource(R.string.movement_amount_accessibility_transfer, amountText)
     }
@@ -581,10 +567,10 @@ private fun BadgeIcon(
 
 @Composable
 internal fun MovementSummary.movementTitle(): String =
-    name ?: payee ?: categoryName ?: if (contributionDirection == ContributionDirection.OUT) {
-        stringResource(R.string.movement_type_withdrawal)
-    } else {
-        type.label()
+    name ?: payee ?: categoryName ?: when {
+        contributionDirection == ContributionDirection.OUT -> stringResource(R.string.movement_type_withdrawal)
+        paidByPerson -> stringResource(R.string.movement_type_external)
+        else -> type.label()
     }
 
 /**
@@ -619,7 +605,7 @@ private fun MovementSummary.settlementContext(): String? {
 
 internal fun MovementSummary.signedAmountCents(): Long =
     when (type) {
-        MovementType.EXPENSE, MovementType.EXTERNAL_EXPENSE -> -amountCents
+        MovementType.EXPENSE -> -amountCents
         MovementType.SETTLEMENT ->
             if (settlementDirection == SettlementDirection.USER_TO_PERSON) -amountCents else amountCents
         else -> amountCents
@@ -628,6 +614,9 @@ internal fun MovementSummary.signedAmountCents(): Long =
 @Composable
 internal fun MovementSummary.chipVisual(): Pair<ImageVector, androidx.compose.ui.graphics.Color> {
     val finance = FinanceTheme.colors
+    // Someone else's money is said by the person's mark and the amount's colour; the tile keeps
+    // naming the category, exactly as it does for an expense you paid.
+    if (paidByPerson && categoryId == null) return Icons.Outlined.Person to finance.debt
     return when (type) {
         MovementType.EXPENSE, MovementType.INCOME ->
             if (categoryId != null) {
@@ -640,14 +629,6 @@ internal fun MovementSummary.chipVisual(): Pair<ImageVector, androidx.compose.ui
         MovementType.TRANSFER -> movementTypeIcon(type) to finance.transfer
         MovementType.SETTLEMENT -> movementTypeIcon(type) to finance.settlement
         MovementType.REFUND -> movementTypeIcon(type) to finance.refund
-        MovementType.EXTERNAL_EXPENSE ->
-            if (categoryId != null) {
-                // Someone else's money is said by the person's mark and the amount's colour; the
-                // tile keeps naming the category, exactly as it does for an expense you paid.
-                categoryIcon(this.categoryIcon) to categoryColorFromTheme(this.categoryColor)
-            } else {
-                movementTypeIcon(type) to finance.debt
-            }
         MovementType.CONTRIBUTION -> movementTypeIcon(type) to finance.transfer
     }
 }

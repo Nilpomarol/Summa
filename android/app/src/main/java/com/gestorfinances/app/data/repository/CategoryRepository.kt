@@ -47,7 +47,7 @@ val CategoryRecord.supportsIncome: Boolean
 
 fun CategoryRecord.supports(type: MovementType): Boolean =
     when (type) {
-        MovementType.EXPENSE, MovementType.EXTERNAL_EXPENSE -> supportsExpense
+        MovementType.EXPENSE -> supportsExpense
         MovementType.INCOME -> supportsIncome
         MovementType.TRANSFER, MovementType.SETTLEMENT, MovementType.REFUND, MovementType.CONTRIBUTION -> false
     }

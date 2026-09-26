@@ -6,70 +6,32 @@ plugins {
     alias(libs.plugins.sqldelight)
 }
 
-val generatedSharedSql = layout.projectDirectory.file(
-    "src/main/sqldelight/com/gestorfinances/app/data/db/SharedSchema.sq",
-)
-val generatedAnalysisSql = layout.projectDirectory.file(
-    "src/main/sqldelight/com/gestorfinances/app/data/db/Analysis.sq",
-)
-val generatedMigration1 = layout.projectDirectory.file(
-    "src/main/sqldelight/com/gestorfinances/app/data/db/1.sqm",
-)
-val generatedMigration2 = layout.projectDirectory.file(
-    "src/main/sqldelight/com/gestorfinances/app/data/db/2.sqm",
-)
-val generatedMigration3 = layout.projectDirectory.file(
-    "src/main/sqldelight/com/gestorfinances/app/data/db/3.sqm",
-)
-val generatedMigration4 = layout.projectDirectory.file(
-    "src/main/sqldelight/com/gestorfinances/app/data/db/4.sqm",
-)
-val generatedMigration5 = layout.projectDirectory.file(
-    "src/main/sqldelight/com/gestorfinances/app/data/db/5.sqm",
-)
-val generatedMigration6 = layout.projectDirectory.file(
-    "src/main/sqldelight/com/gestorfinances/app/data/db/6.sqm",
-)
-val generatedMigration7 = layout.projectDirectory.file(
-    "src/main/sqldelight/com/gestorfinances/app/data/db/7.sqm",
-)
-val generatedMigration8 = layout.projectDirectory.file(
-    "src/main/sqldelight/com/gestorfinances/app/data/db/8.sqm",
-)
-val generatedMigration9 = layout.projectDirectory.file(
-    "src/main/sqldelight/com/gestorfinances/app/data/db/9.sqm",
-)
-val generatedMigration10 = layout.projectDirectory.file(
-    "src/main/sqldelight/com/gestorfinances/app/data/db/10.sqm",
-)
-val generatedMigration11 = layout.projectDirectory.file(
-    "src/main/sqldelight/com/gestorfinances/app/data/db/11.sqm",
-)
-val generatedMigration12 = layout.projectDirectory.file(
-    "src/main/sqldelight/com/gestorfinances/app/data/db/12.sqm",
-)
-val generatedMigration13 = layout.projectDirectory.file(
-    "src/main/sqldelight/com/gestorfinances/app/data/db/13.sqm",
-)
-val generatedMigration14 = layout.projectDirectory.file(
-    "src/main/sqldelight/com/gestorfinances/app/data/db/14.sqm",
-)
-val generatedMigration15 = layout.projectDirectory.file(
-    "src/main/sqldelight/com/gestorfinances/app/data/db/15.sqm",
-)
-val generatedMigration16 = layout.projectDirectory.file(
-    "src/main/sqldelight/com/gestorfinances/app/data/db/16.sqm",
-)
-val generatedMigration17 = layout.projectDirectory.file(
-    "src/main/sqldelight/com/gestorfinances/app/data/db/17.sqm",
-)
-val generatedMigration18 = layout.projectDirectory.file(
-    "src/main/sqldelight/com/gestorfinances/app/data/db/18.sqm",
-)
+// Shared SQL under ../shared is the single source of truth; syncSharedSqlForSqlDelight copies it
+// into the (gitignored) SQLDelight/asset inputs below before any SQLDelight or asset task runs.
+val sharedRoot = rootProject.layout.projectDirectory.dir("../shared")
+val sqlDelightDir = layout.projectDirectory.dir("src/main/sqldelight/com/gestorfinances/app/data/db")
+val generatedSharedSql = sqlDelightDir.file("SharedSchema.sq")
+val generatedAnalysisSql = sqlDelightDir.file("Analysis.sq")
 val generatedSharedAccountIntegrityAsset = layout.projectDirectory.file(
     "src/main/assets/shared_account_integrity.sql",
 )
 
+fun sharedSqlFiles(dir: String): List<File> =
+    sharedRoot.dir(dir).asFile.listFiles { file -> file.extension == "sql" }!!.sortedBy { it.name }
+
+fun migrationNumber(file: File): Int = file.name.substringBefore('_').toInt()
+
+// Shared migration NNN_*.sql upgrades the database to version NNN. SQLDelight names a migration
+// after the version it upgrades from, so it becomes (NNN - 1).sqm. The 001 baseline is not an
+// upgrade: fresh installs are created from schema.sql instead.
+val sharedMigrations = sharedSqlFiles("migrations")
+val latestSchemaVersion = migrationNumber(sharedMigrations.last())
+val sqlDelightMigrations = sharedMigrations
+    .filter { migrationNumber(it) > 1 }
+    .map { it to sqlDelightDir.file("${migrationNumber(it) - 1}.sqm") }
+
+// Fresh-install views in dependency order: each view is created after the views it reads, so this
+// cannot be the sorted directory listing.
 val sharedViewFiles = listOf(
     "v_movement_shared.sql",
     "v_movement_summary.sql",
@@ -83,97 +45,36 @@ val sharedViewFiles = listOf(
     "v_goal_allocation.sql",
     "v_goal_progress.sql",
     "v_account_allocation.sql",
-)
-val sharedAnalysisQueryFiles = listOf(
-    "goal_account_allocations.sql" to "goalAccountAllocations",
-    "analysis_activity_months.sql" to "activityMonths",
-    "analysis_actual_breakdown.sql" to "analysisActualBreakdown",
-    "analysis_actual_by_category.sql" to "analysisActualByCategory",
-    "analysis_account_flow_over_time.sql" to "analysisAccountFlowOverTime",
-    "analysis_income_vs_expense.sql" to "analysisIncomeVsExpense",
-    "analysis_period_totals.sql" to "analysisPeriodTotals",
-)
+).map { sharedRoot.file("queries/$it").asFile }
+
+// Every other shared query is a parameterized query, exposed as its camelCased file name.
+val sharedAnalysisQueries = sharedSqlFiles("queries").filterNot { it.name.startsWith("v_") }
+
+fun queryName(file: File): String = file.nameWithoutExtension
+    .split('_')
+    .mapIndexed { index, part -> if (index == 0) part else part.replaceFirstChar(Char::uppercase) }
+    .joinToString("")
 
 val syncSharedSqlForSqlDelight by tasks.registering {
-    val sharedRoot = rootProject.layout.projectDirectory.dir("../shared")
-    val sharedSchema = sharedRoot.file("schema/schema.sql")
-    val sharedBaselineMigration = sharedRoot.file("migrations/001_initial.sql")
-    val sharedMigration002 = sharedRoot.file("migrations/002_add_splits_tag_id.sql")
-    val sharedMigration003 = sharedRoot.file("migrations/003_add_tag_category_and_type.sql")
-    val sharedMigration004 = sharedRoot.file("migrations/004_add_v_trip_actual_total_view.sql")
-    val sharedMigration005 = sharedRoot.file("migrations/005_fix_v_movement_summary_external_amount.sql")
-    val sharedMigration006 = sharedRoot.file("migrations/006_add_yearly_budget_period.sql")
-    val sharedMigration007 = sharedRoot.file("migrations/007_simplify_budget_rules.sql")
-    val sharedMigration008 = sharedRoot.file("migrations/008_add_budget_inclusion_rules.sql")
-    val sharedMigration009 = sharedRoot.file("migrations/009_derive_refund_attribution.sql")
-    val sharedMigration010 = sharedRoot.file("migrations/010_remove_auto_categorization.sql")
-    val sharedMigration011 = sharedRoot.file("migrations/011_add_recurring_settlements.sql")
-    val sharedMigration012 = sharedRoot.file("migrations/012_add_savings_goals.sql")
-    val sharedMigration013 = sharedRoot.file("migrations/013_add_identity_colors_to_movement_summary.sql")
-    val sharedMigration014 = sharedRoot.file("migrations/014_add_destination_account_color.sql")
-    val sharedMigration015 = sharedRoot.file("migrations/015_add_shared_accounts.sql")
-    val sharedMigration016 = sharedRoot.file("migrations/016_enforce_shared_account_integrity.sql")
-    val sharedMigration017 = sharedRoot.file("migrations/017_add_shared_account_money_out.sql")
-    val sharedMigration018 = sharedRoot.file("migrations/018_add_contribution_direction_to_movement_summary.sql")
-    val sharedMigration019 = sharedRoot.file("migrations/019_add_income_share_to_movement_summary.sql")
-    val sharedViews = sharedViewFiles.map { sharedRoot.file("queries/$it") }
-    val sharedAnalysisQueries = sharedAnalysisQueryFiles.map { sharedRoot.file("queries/${it.first}") }
+    val sharedSchema = sharedRoot.file("schema/schema.sql").asFile
+    val sharedAccountIntegrityMigration = sharedRoot.file(
+        "migrations/016_enforce_shared_account_integrity.sql",
+    ).asFile
 
-    inputs.file(sharedBaselineMigration)
     inputs.file(sharedSchema)
-    inputs.file(sharedMigration002)
-    inputs.file(sharedMigration003)
-    inputs.file(sharedMigration004)
-    inputs.file(sharedMigration005)
-    inputs.file(sharedMigration006)
-    inputs.file(sharedMigration007)
-    inputs.file(sharedMigration008)
-    inputs.file(sharedMigration009)
-    inputs.file(sharedMigration010)
-    inputs.file(sharedMigration011)
-    inputs.file(sharedMigration012)
-    inputs.file(sharedMigration013)
-    inputs.file(sharedMigration014)
-    inputs.file(sharedMigration015)
-    inputs.file(sharedMigration016)
-    inputs.file(sharedMigration017)
-    inputs.file(sharedMigration018)
-    inputs.file(sharedMigration019)
-    inputs.files(sharedViews)
-    inputs.files(sharedAnalysisQueries)
-    outputs.file(generatedSharedSql)
-    outputs.file(generatedAnalysisSql)
-    outputs.file(generatedMigration1)
-    outputs.file(generatedMigration2)
-    outputs.file(generatedMigration3)
-    outputs.file(generatedMigration4)
-    outputs.file(generatedMigration5)
-    outputs.file(generatedMigration6)
-    outputs.file(generatedMigration7)
-    outputs.file(generatedMigration8)
-    outputs.file(generatedMigration9)
-    outputs.file(generatedMigration10)
-    outputs.file(generatedMigration11)
-    outputs.file(generatedMigration12)
-    outputs.file(generatedMigration13)
-    outputs.file(generatedMigration14)
-    outputs.file(generatedMigration15)
-    outputs.file(generatedMigration16)
-    outputs.file(generatedMigration17)
-    outputs.file(generatedMigration18)
-    outputs.file(generatedSharedAccountIntegrityAsset)
+    inputs.files(sharedMigrations, sharedViewFiles, sharedAnalysisQueries)
+    outputs.files(generatedSharedSql, generatedAnalysisSql, generatedSharedAccountIntegrityAsset)
+    outputs.files(sqlDelightMigrations.map { it.second })
 
     doLast {
-        val sharedOutputFile = generatedSharedSql.asFile
-        sharedOutputFile.parentFile.mkdirs()
-        sharedOutputFile.writeText(
+        generatedSharedSql.asFile.writeText(
             buildString {
                 appendLine("-- Generated from ../../shared/schema/schema.sql and shared view queries.")
                 appendLine("-- Do not edit directly; edit the shared SQL files instead.")
                 appendLine("-- Connection PRAGMAs are applied by DatabaseDriverFactory.")
                 appendLine()
                 append(
-                    sharedSchema.asFile
+                    sharedSchema
                         .readLines()
                         .filterNot { it.trimStart().startsWith("PRAGMA ") }
                         .joinToString(separator = "\n"),
@@ -181,12 +82,12 @@ val syncSharedSqlForSqlDelight by tasks.registering {
                 appendLine()
                 appendLine()
                 appendLine("INSERT INTO meta (key, value) VALUES")
-                appendLine("    ('schema_version', '19'),")
+                appendLine("    ('schema_version', '$latestSchemaVersion'),")
                 appendLine("    ('snapshot_version', '0');")
-                sharedViews.forEach { queryFile ->
+                sharedViewFiles.forEach { queryFile ->
                     appendLine()
-                    appendLine("-- ${queryFile.asFile.name}")
-                    append(queryFile.asFile.readText())
+                    appendLine("-- ${queryFile.name}")
+                    append(queryFile.readText())
                     if (!endsWith("\n")) appendLine()
                 }
             },
@@ -196,163 +97,30 @@ val syncSharedSqlForSqlDelight by tasks.registering {
                 appendLine("-- Generated from ../../shared/queries/ parameterized queries.")
                 appendLine("-- Do not edit directly; edit the shared SQL files instead.")
                 appendLine()
-                sharedAnalysisQueryFiles.forEach { (fileName, queryName) ->
-                    val queryFile = sharedRoot.file("queries/$fileName").asFile
-                    appendLine("$queryName:")
+                sharedAnalysisQueries.forEach { queryFile ->
+                    appendLine("${queryName(queryFile)}:")
                     append(queryFile.readText())
                     if (!endsWith("\n")) appendLine()
                     appendLine()
                 }
             },
         )
-        generatedMigration1.asFile.writeText(
-            buildString {
-                appendLine("-- Generated from ../../shared/migrations/002_add_splits_tag_id.sql.")
-                appendLine("-- Do not edit directly; edit the shared SQL file instead.")
-                appendLine()
-                append(sharedMigration002.asFile.readText())
-            },
-        )
-        generatedMigration2.asFile.writeText(
-            buildString {
-                appendLine("-- Generated from ../../shared/migrations/003_add_tag_category_and_type.sql.")
-                appendLine("-- Do not edit directly; edit the shared SQL file instead.")
-                appendLine()
-                append(sharedMigration003.asFile.readText())
-            },
-        )
-        generatedMigration3.asFile.writeText(
-            buildString {
-                appendLine("-- Generated from ../../shared/migrations/004_add_v_trip_actual_total_view.sql.")
-                appendLine("-- Do not edit directly; edit the shared SQL file instead.")
-                appendLine()
-                append(sharedMigration004.asFile.readText())
-            },
-        )
-        generatedMigration4.asFile.writeText(
-            buildString {
-                appendLine("-- Generated from ../../shared/migrations/005_fix_v_movement_summary_external_amount.sql.")
-                appendLine("-- Do not edit directly; edit the shared SQL file instead.")
-                appendLine()
-                append(sharedMigration005.asFile.readText())
-            },
-        )
-        generatedMigration5.asFile.writeText(
-            buildString {
-                appendLine("-- Generated from ../../shared/migrations/006_add_yearly_budget_period.sql.")
-                appendLine("-- Do not edit directly; edit the shared SQL file instead.")
-                appendLine()
-                append(sharedMigration006.asFile.readText())
-            },
-        )
-        generatedMigration6.asFile.writeText(
-            buildString {
-                appendLine("-- Generated from ../../shared/migrations/007_simplify_budget_rules.sql.")
-                appendLine("-- Do not edit directly; edit the shared SQL file instead.")
-                appendLine()
-                append(sharedMigration007.asFile.readText())
-            },
-        )
-        generatedMigration7.asFile.writeText(
-            buildString {
-                appendLine("-- Generated from ../../shared/migrations/008_add_budget_inclusion_rules.sql.")
-                appendLine("-- Do not edit directly; edit the shared SQL file instead.")
-                appendLine()
-                append(sharedMigration008.asFile.readText())
-            },
-        )
-        generatedMigration8.asFile.writeText(
-            buildString {
-                appendLine("-- Generated from ../../shared/migrations/009_derive_refund_attribution.sql.")
-                appendLine("-- Do not edit directly; edit the shared SQL file instead.")
-                appendLine()
-                append(sharedMigration009.asFile.readText())
-            },
-        )
-        generatedMigration9.asFile.writeText(
-            buildString {
-                appendLine("-- Generated from ../../shared/migrations/010_remove_auto_categorization.sql.")
-                appendLine("-- Do not edit directly; edit the shared SQL file instead.")
-                appendLine()
-                append(sharedMigration010.asFile.readText())
-            },
-        )
-        generatedMigration10.asFile.writeText(
-            buildString {
-                appendLine("-- Generated from ../../shared/migrations/011_add_recurring_settlements.sql.")
-                appendLine("-- Do not edit directly; edit the shared SQL file instead.")
-                appendLine()
-                append(sharedMigration011.asFile.readText())
-            },
-        )
-        generatedMigration11.asFile.writeText(
-            buildString {
-                appendLine("-- Generated from ../../shared/migrations/012_add_savings_goals.sql.")
-                appendLine("-- Do not edit directly; edit the shared SQL file instead.")
-                appendLine()
-                append(sharedMigration012.asFile.readText())
-            },
-        )
-        generatedMigration12.asFile.writeText(
-            buildString {
-                appendLine("-- Generated from ../../shared/migrations/013_add_identity_colors_to_movement_summary.sql.")
-                appendLine("-- Do not edit directly; edit the shared SQL file instead.")
-                appendLine()
-                append(sharedMigration013.asFile.readText())
-            },
-        )
-        generatedMigration13.asFile.writeText(
-            buildString {
-                appendLine("-- Generated from ../../shared/migrations/014_add_destination_account_color.sql.")
-                appendLine("-- Do not edit directly; edit the shared SQL file instead.")
-                appendLine()
-                append(sharedMigration014.asFile.readText())
-            },
-        )
-        generatedMigration14.asFile.writeText(
-            buildString {
-                appendLine("-- Generated from ../../shared/migrations/015_add_shared_accounts.sql.")
-                appendLine("-- Do not edit directly; edit the shared SQL file instead.")
-                appendLine()
-                append(sharedMigration015.asFile.readText())
-            },
-        )
-        generatedMigration15.asFile.writeText(
-            buildString {
-                appendLine("-- Generated from ../../shared/migrations/016_enforce_shared_account_integrity.sql.")
-                appendLine("-- Do not edit directly; edit the shared SQL file instead.")
-                appendLine()
-                append(sharedMigration016.asFile.readText())
-            },
-        )
-        generatedMigration16.asFile.writeText(
-            buildString {
-                appendLine("-- Generated from ../../shared/migrations/017_add_shared_account_money_out.sql.")
-                appendLine("-- Do not edit directly; edit the shared SQL file instead.")
-                appendLine()
-                append(sharedMigration017.asFile.readText())
-            },
-        )
-        generatedMigration17.asFile.writeText(
-            buildString {
-                appendLine("-- Generated from ../../shared/migrations/018_add_contribution_direction_to_movement_summary.sql.")
-                appendLine("-- Do not edit directly; edit the shared SQL file instead.")
-                appendLine()
-                append(sharedMigration018.asFile.readText())
-            },
-        )
-        generatedMigration18.asFile.writeText(
-            buildString {
-                appendLine("-- Generated from ../../shared/migrations/019_add_income_share_to_movement_summary.sql.")
-                appendLine("-- Do not edit directly; edit the shared SQL file instead.")
-                appendLine()
-                append(sharedMigration019.asFile.readText())
-            },
-        )
+        sqlDelightMigrations.forEach { (sharedMigration, sqm) ->
+            sqm.asFile.writeText(
+                buildString {
+                    appendLine("-- Generated from ../../shared/migrations/${sharedMigration.name}.")
+                    appendLine("-- Do not edit directly; edit the shared SQL file instead.")
+                    appendLine()
+                    append(sharedMigration.readText())
+                },
+            )
+        }
+        // Fresh installs need only the triggers migration 016 installs; DatabaseDriverFactory
+        // applies them on create.
         generatedSharedAccountIntegrityAsset.asFile.apply {
             parentFile.mkdirs()
             writeText(
-                sharedMigration016.asFile.readText()
+                sharedAccountIntegrityMigration.readText()
                     .substringAfter("DROP TABLE shared_account_integrity_guard;")
                     .substringBefore("UPDATE meta SET value = '16' WHERE key = 'schema_version';")
                     .trim(),
@@ -371,6 +139,7 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
@@ -437,6 +206,7 @@ tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
 
 dependencies {
     implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.navigation.compose)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons.extended)
@@ -453,6 +223,9 @@ dependencies {
     testImplementation(libs.kotlinx.serialization.json)
     testImplementation(libs.sqldelight.sqlite.driver)
     testImplementation(libs.sqlite.jdbc)
+
+    androidTestImplementation(libs.junit)
+    androidTestImplementation(libs.androidx.test.runner)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
 }

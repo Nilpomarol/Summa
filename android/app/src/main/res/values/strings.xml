@@ -330,6 +330,7 @@
     <string name="settlement_scope_help">«Només recurrents» aplica el pagament exclusivament al deute generat per plantilles recurrents.</string>
     <string name="template_field_person">Persona</string>
     <string name="template_validation_person_required">Tria una persona.</string>
+    <string name="template_validation_allocation_kept">Aquesta plantilla reparteix l’import entre les persones del seu compte. Per canviar-ne el compte o el tipus, torna a triar de qui és l’ingrés o crea una plantilla nova.</string>
 
     <!-- Movements -->
     <string name="movement_list_title">Moviments</string>
@@ -435,6 +436,8 @@
     <string name="movement_income_counted">Compta als teus ingressos: %1$s</string>
     <string name="movement_split_summary_income">La teva part de l’ingrés: %1$s</string>
     <string name="movement_validation_income_owner">Tria de qui és aquest ingrés.</string>
+    <string name="movement_validation_refunded_expense_type">Aquesta despesa té devolucions. Perquè deixi de ser una despesa, primer elimina-les.</string>
+    <string name="movement_validation_preserved_payer_amount">El que deus d’aquesta despesa no es pot tornar a repartir aquí. Deixa l’import com estava.</string>
     <string name="movement_debt_payer">Persona que ha pagat</string>
     <string name="movement_debt_amount_help">L\'import que li deus.</string>
     <string name="movement_field_trip">Viatge</string>
@@ -489,7 +492,6 @@
     <string name="movement_duplicate_warning">Possible duplicat: ja hi ha un moviment semblant.</string>
     <string name="movement_duplicate_override">Desa igualment</string>
     <string name="movement_warning_split_removed">En desar s\'eliminarà el repartiment d\'aquest moviment.</string>
-    <string name="movement_warning_payer_switch_drops_fields">En desar s\'eliminarà aquest moviment i se\'n crearà un de nou; es perdran el proveïdor, les notes i la recurrència vinculada.</string>
     <string name="movement_validation_amount_required">Introdueix un import.</string>
     <string name="movement_validation_amount_positive">L\'import ha de ser superior a zero.</string>
     <string name="movement_validation_date_required">Tria una data.</string>
@@ -845,9 +847,6 @@
     <string name="notification_budget_body">%1$s: %2$s de %3$s.</string>
     <string name="notification_low_balance_title">Saldo baix</string>
     <string name="notification_low_balance_body">%1$s: saldo %2$s, llindar %3$s.</string>
-
-    <!-- Sync / read-only -->
-    <string name="sync_read_only_banner">Només lectura. %1$s té el control d\'edició.</string>
 
     <!-- Backups -->
     <string name="settings_backup_title">Còpies de seguretat</string>

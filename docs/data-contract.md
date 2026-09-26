@@ -2,142 +2,98 @@
 
 ## Authority
 
-`shared/` is the cross-platform finance contract:
+The SQL files are the field-level authority:
 
-- `shared/schema/schema.sql` — current fresh-install schema;
-- `shared/migrations/` — ordered upgrades and `meta.schema_version` changes;
-- `shared/queries/` — canonical views and parameterized analysis queries;
-- `shared/golden/` — executable procedural money rules;
-- `shared/schemas/` — JSON payload schemas;
-- `shared/design/tokens/design-tokens.json` — platform-neutral visual tokens.
+- `shared/schema/schema.sql` — fresh-install schema;
+- `shared/migrations/` — ordered forward migrations;
+- `shared/queries/` — canonical finance views/queries;
+- `shared/golden/` — focused procedural finance cases.
 
-Android consumes the SQL through SQLDelight. Windows uses Microsoft.Data.Sqlite and Dapper. Platform code may map results but must not replace the finance derivations with its own queries.
+The current schema version is `21`.
 
-## Schema snapshot
+Android consumes the contract through SQLDelight. The .NET project is currently a validation harness for the same contract.
 
-The current schema version is `16`. Principal tables are:
+## Core integrity
 
-| Area | Tables |
-|---|---|
-| Reference data | `accounts`, `account_members`, `categories`, `people`, `trips`, `tags` |
-| Ledger | `movements`, `splits`, `split_lines` |
-| Automation | `templates` |
-| Planning/import | `budgets`, `goals`, `goal_allocations`, `account_contributions`, `import_batches` |
-| System | `meta` |
+- Money is integer euro cents; ledger amounts are positive and type/related fields determine meaning.
+- Movement `date` is a local calendar date; `*_at` fields are UTC instants.
+- Transfers use different source/destination accounts.
+- Split lines are absolute non-negative amounts and reconcile with their split total. Every split belongs to a movement.
+- An expense has one movement identity whoever paid it. `payer_person_id` is NULL when the owner paid from `account_id`. An expense another person paid names that person, has no account, never recurs, and carries a split whose owner line is what the owner owes the payer. Who paid is read only from `payer_person_id`, never from a split's shape: an owner line of 0 can also mean the owner paid entirely for someone else.
+- Normal absence uses `archived_at IS NULL`; finance data is normally soft-deleted.
+- Database constraints are the final structural-integrity boundary; app validation should provide clearer Catalan feedback before they are hit.
 
-The SQL files are the field-level authority. Documentation explains the contract but does not duplicate every column.
+## Canonical finance truth
 
-## Ledger integrity
+These meanings are derived and must not be persisted or independently recomputed in app code:
 
-- `amount_cents > 0`; type determines direction.
-- Expense/income account fields, transfer destination, settlement person/direction/scope, and refund source must satisfy the schema `CHECK` constraints.
-- A settlement records the scope of debt it may consume (`all` or `recurring`); a template of type `settlement` carries a person, direction, and scope, and no category, trip, tag, or split.
-- A transfer references different source and destination accounts.
-- Split lines are absolute non-negative amounts and reconcile with their split total; zero is valid for a 100/0 share.
-- A split line represents either the user or one person, never both.
-- Active rows are selected with `archived_at IS NULL` where absence is intended.
-- Movement dates and UTC timestamps retain separate types and meanings.
+- account flow and physical balance;
+- account value / owner patrimonial share;
+- actual income and expense;
+- person debt/balance;
+- trip actual expense;
+- savings-goal progress and account allocation.
 
-Application validation should mirror important database constraints to provide useful Catalan feedback, but the database remains the final integrity boundary.
-
-## Canonical derived views
-
-| View | Meaning |
-|---|---|
-| `v_account_flow` | Signed per-account effect of ledger activity |
-| `v_account_balance` | Opening balance plus derived active flow |
-| `v_account_value` | Physical balance, owner ownership percentage, and owner patrimonial value |
-| `v_actual_expense` | User-owned expense net of shared portions and refunds |
-| `v_actual_income` | User-owned income net of any allocation to other members |
-| `v_person_balance` | Derived debt direction and amount per person |
-| `v_movement_shared` | Shared-movement helper data |
-| `v_movement_summary` | Unified movement/external-split list and detail projection. Carries the account's, the destination account's and the trip's own colour alongside their names; the external-split branch has no accounts, so both account colours are `NULL` there. A contribution row also carries its `contribution_direction`; every other row leaves it `NULL`. `user_share_cents` is the owner's split line for a shared expense or an allocated income, and `-1` for anything else |
-| `v_trip_actual_total` | Derived actual expense per trip |
-| `v_goal_allocation` | Signed sum of a goal's active planning allocations |
-| `v_goal_progress` | Saved and remaining cents per goal, by funding mode |
-| `v_account_allocation` | Account value split into allocated and unallocated |
-
-Balances, debt, actual values, and flow must come from these views or shared queries built on them. Do not persist their results as truth or recalculate them ad hoc in Kotlin or C#.
-
-## Savings goals
-
-- A goal carries a positive target in cents, an optional local target date, optional visual identity, and `active` / `paused` / `completed` state.
-- `funding_mode` decides where progress comes from. `dedicated_account` requires an account and follows that account's canonical value. `allocations` sums the goal's active `goal_allocations`, which is what lets several goals share one account.
-- An allocation is a dated, signed, non-zero reservation against one account. Positive reserves, negative releases. Allocations are never ledger rows: they produce no movement, account flow, actual income or expense, debt, or net-worth change.
-- `v_account_allocation` reports each account's balance split into `allocated_cents` and `unallocated_cents`. Only non-archived allocation-mode goals reserve value, so archiving a goal releases its reservation and restoring it takes it back. Pausing or completing a goal keeps the money set aside.
-- Over-allocating is a dismissible warning, not an error: an account value can legitimately drop after the plan was made, and `unallocated_cents` may go negative. Releasing more than a goal holds is refused, because negative progress is meaningless.
-- An account dedicated to a goal does not also host allocations. Repository mutations validate exclusivity transactionally, including restore and funding-mode changes.
-- `goal_account_allocations.sql` is the canonical reservation total per goal/account. Each account total must remain nonnegative through create, edit, delete, and restore; invalid mutations roll back. Changing funding mode requires zero outstanding reservations.
-- Monthly pace counts calendar months inclusively, rounding cents up. A target date before today has zero funding periods and is overdue unless already reached; a target today still has one period.
+`v_movement_summary` is a read projection for the current ledger UI, not a reason to force every future platform or presentation concern into one universal model.
 
 ## Shared accounts
 
-- A personal account is wholly owner-controlled. A shared account has one app-owner member and one or more active existing people, with ownership and default expense percentages stored as integer basis points. Each percentage set totals 10,000. SQLite validates the complete set when an account becomes shared; member changes are staged while it is personal and then validated atomically.
-- `v_account_balance` remains the physical balance. `v_account_value` rounds the owner percentage of that balance to the nearest cent, symmetrically for negative values; net worth and dedicated-goal value consume this patrimonial amount.
-- Split lines describe economic consumption. `movements.expense_funding` independently records whether the app owner or the shared account financed an expense. A shared-account-financed expense changes the full physical balance and the user's split changes actual expense, but it creates no person-to-owner debt. Such an expense names the split it is consumed through in `movements.shared_split_id`, written before the split itself inside the same transaction on a deferred foreign key, and it keeps that identifier for life.
-- `account_contributions` records an active member moving money into or out of an active shared account; `direction` says which way. `source_account_id` names the app owner's own account on the other side, the source of an inward row and the destination of an outward one, and creates the paired opposite flow; a person's row names no account in either direction, because the contract does not track their accounts. Neither direction is actual income, actual expense, a settlement, or debt, and neither changes ownership percentages: ownership stays a stated proportion rather than a per-member capital account, so a member taking out more than their share moves every member's value proportionally until the percentages are edited.
-- An income into a shared account may carry an allocation split of the same shape as an expense split. `v_actual_income` counts the app owner's line alone; an income without a split is wholly the app owner's. The money sits in the pot and the ownership percentage governs it, so a shared-account income creates no debt in either direction. Debt therefore reads split lines from expense movements only, and the writing repository refuses an allocation on a personal account's income.
-- Ordinary transfers remain between accounts of the same ownership: personal to personal, or shared to shared, where each account's owner value follows its own percentage. Crossing between personal and shared ownership uses a contribution or a withdrawal, so the ownership meaning stays explicit; the contract does not infer member capital balances or historical ownership from these flows.
-- Ownership is one-way once used: an account that financed a shared expense or carries member money in or out stays shared, archived rows included, because both keep naming a shared account and can be restored. Membership staging makes every account update pass transiently through `personal`, so this rule is enforced by the writing repository against the caller’s intended ownership rather than by a trigger on the transition.
+- `v_account_balance` is the physical account balance.
+- `v_account_value` is the app owner's patrimonial share.
+- Expense/income splits describe economic allocation independently from account ownership.
+- Shared-account contributions/withdrawals move member money into/out of the account without becoming income, expense, settlement, or debt.
+- Crossing between personal and shared ownership uses those explicit contribution/withdrawal semantics; same-ownership account movement may remain a transfer.
+- Shared-account ownership percentages are stated proportions, not inferred per-member capital accounts.
 
-## Golden procedural rules
+## Savings goals
 
-Rules that are awkward or inappropriate to encode as SQL are implemented natively on both platforms and locked by JSON vectors:
+- Goals reserve existing money and do not create ledger flow.
+- `dedicated_account` progress follows that account's canonical value.
+- `allocations` progress comes from dated planning allocations.
+- Over-allocation is a warning; impossible negative reservation states remain invalid.
 
-- `split_rounding.json` — deterministic cent allocation;
-- `template_split_rescale.json` — recurring split rescaling;
-- `recurring_advance.json` — recurrence advancement;
-- `duplicate_detection.json` — duplicate-warning candidates;
-- `refund_actual.json` — expense net of refunds;
-- `debt_balance.json` — person balance derivation;
-- `debt_consumption.json` — chronological settlement-versus-debt consumption;
-- `account_flow.json` — account flow cases;
-- `goal_progress.json` — savings-goal progress and required monthly pace.
+## Golden rules
 
-Change a golden vector first when intentionally changing one of these rules. Then update both implementations. Never weaken an expected result merely to make a test pass.
+Keep golden vectors only for rules where exact behaviour matters across implementations, such as:
 
-## Atomic change protocol
+- split rounding;
+- recurring advancement/rescaling;
+- duplicate detection;
+- refund actuals;
+- debt balance/consumption;
+- account-flow edge cases;
+- goal progress.
 
-A schema or shared finance-rule change is one change set:
+When intentionally changing one of these rules, update the focused expected case together with the implementation. Do not weaken tests merely to make code pass.
 
-1. Update the relevant golden vector first when behaviour changes.
-2. Update `schema.sql` when the fresh schema changes.
-3. Add a migration and bump `meta.schema_version`; never rewrite an already-shipped migration.
-4. Update every affected canonical view/query, including copies embedded in migrations.
-5. Regenerate or update Android SQLDelight bindings/migration sources.
-6. Update Android and Windows mappings or procedural implementations.
-7. Update this document only when the durable contract changes.
-8. Run both platform test harnesses.
+## Changing the contract
+
+For a genuine schema/canonical-finance change:
+
+1. Update `schema.sql` for fresh installs.
+2. Add a forward migration and bump `meta.schema_version`; do not rewrite shipped migrations.
+3. Update only the affected canonical SQL and focused golden cases.
+4. Update Android bindings. The Android build generates its SQLDelight inputs from `shared/`: migrations and non-view queries (exposed under their camelCased file name) are discovered automatically; a new `v_*.sql` view must be added to the dependency-ordered `sharedViewFiles` list in `android/app/build.gradle.kts`.
+5. Update mappings/tests in affected implementations or validation harnesses.
+6. Update this document only if a durable meaning changed.
+
+Do not turn ordinary Android UI/repository work into a shared-contract change.
 
 ## Verification
 
-From `android/`:
+Android, when affected:
 
 ```powershell
 .\gradlew.bat :app:testDebugUnitTest
 .\gradlew.bat :app:assembleDebug
 ```
 
-From the repository root:
+.NET shared-contract harness, when the shared contract is affected:
 
 ```powershell
 dotnet test .\windows\GestorFinances.Tests\GestorFinances.Tests.csproj
 ```
 
-Any red golden test blocks delivery of a money-rule or shared-contract change.
+## Planned investment semantics
 
-
-## Approved pre-Windows contract changes
-
-Schema version `19` is the implemented authority. Savings goals and shared accounts have shipped and are described above with the rest of the contract. The remaining change is an approved target whose meanings and invariants are fixed by [pre-windows-plan.md](pre-windows-plan.md).
-
-### Investment valuations
-
-- Keep contributions and withdrawals as ledger transfers.
-- Add dated absolute account valuations with source metadata; manual entry is the first version.
-- Preserve separate canonical meanings for ledger cash-flow balance, current account value, net contributed capital, and unrealized gain/loss.
-- Normal accounts derive current value from opening balance plus flow. Investment accounts derive current value from their latest valuation.
-- Net worth uses current account value; market variation is not income or expense.
-- Holdings, trades, units, live prices, dividends, corporate actions, and multiple currencies remain out of scope.
-
-Each slice requires fresh DDL, a forward migration, canonical queries/views, Android bindings and UI, golden vectors where money behaviour changes, and passing Android plus .NET contract tests before its gate closes.
+Investment valuation is future product work. When implemented, market value must stay separate from ledger cash flow and actual income/expense. Details belong in [backlog.md](backlog.md), not in the current schema contract until the feature is implemented.

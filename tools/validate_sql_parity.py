@@ -70,11 +70,6 @@ def extract_strings(label: str, text: str, pattern: str) -> list[str]:
     return re.findall(r'"([^"]+)"', match.group(1))
 
 
-def extract_pair_file_names(label: str, text: str, pattern: str) -> list[str]:
-    strings = extract_strings(label, text, pattern)
-    return strings[0::2]
-
-
 def validate_shared_inventory() -> None:
     schema = ROOT / "shared" / "schema" / "schema.sql"
     migration = ROOT / "shared" / "migrations" / "001_initial.sql"
@@ -101,25 +96,9 @@ def validate_android_wiring() -> None:
             "Android sharedViewFiles mismatch: "
             f"expected {VIEW_FILES + MIGRATION_VIEW_FILES}, got {android_views}"
         )
-    android_analysis_queries = extract_pair_file_names(
-        "android/app/build.gradle.kts",
-        build_gradle,
-        r"val\s+sharedAnalysisQueryFiles\s*=\s*listOf\((.*?)\)",
-    )
-    if android_analysis_queries != ANALYSIS_QUERY_FILES:
-        fail(
-            "Android sharedAnalysisQueryFiles mismatch: "
-            f"expected {ANALYSIS_QUERY_FILES}, got {android_analysis_queries}"
-        )
-    for file_name in migration_files():
-        if f'sharedRoot.file("migrations/{file_name}")' not in build_gradle:
-            fail(f"Android SQLDelight wiring must read shared/migrations/{file_name}")
-    if f"('schema_version', '{latest_schema_version()}')" not in build_gradle:
-        fail(f"Android fresh install must seed schema_version {latest_schema_version()}")
-    if 'sharedRoot.file("queries/$it")' not in build_gradle:
-        fail("Android SQLDelight wiring must read shared/queries entries")
-    if 'sharedRoot.file("queries/${it.first}")' not in build_gradle:
-        fail("Android SQLDelight wiring must read shared analysis query entries")
+    # Migrations, analysis queries, and the seeded schema_version are discovered from shared/ by
+    # the Gradle task itself; latest_schema_version() checks the migration they are derived from.
+    latest_schema_version()
 
 
 def validate_windows_wiring() -> None:

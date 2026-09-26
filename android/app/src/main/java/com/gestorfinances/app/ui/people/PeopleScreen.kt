@@ -1,5 +1,7 @@
 package com.gestorfinances.app.ui.people
 
+import com.gestorfinances.app.di.AppContainer
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -101,9 +103,22 @@ import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.categoryColor
 import com.gestorfinances.app.ui.theme.categoryTint
 
+/** This page visit's ViewModel, scoped to its navigation entry. */
+@Composable
+fun peopleViewModel(appContainer: AppContainer): PeopleViewModel = viewModel {
+    PeopleViewModel(
+        personRepository = appContainer.personRepository,
+        movementRepository = appContainer.movementRepository,
+        accountRepository = appContainer.accountRepository,
+        notificationRefresher = appContainer.notificationCoordinator,
+    )
+}
+
 @Composable
 fun PeopleScreen(
     viewModel: PeopleViewModel,
+    /** Changes after every movement write, so the page reloads while it stays visible. */
+    dataVersion: Long,
     onOpenDebtSource: (String) -> Unit,
     onAddDebtForPerson: (PersonSummary) -> Unit,
     onMessageCopied: (String) -> Unit,
@@ -112,7 +127,7 @@ fun PeopleScreen(
 ) {
     val state by viewModel.state.collectAsState()
 
-    LaunchedEffect(viewModel) {
+    LaunchedEffect(viewModel, dataVersion) {
         viewModel.onScreenShown()
     }
 
@@ -146,7 +161,7 @@ fun PeopleScreen(
                 onBack = viewModel::onPersonDetailDismissed,
                 onRetry = { viewModel.onPersonDetailClicked(detail.person) },
                 onOpenDebtSource = onOpenDebtSource,
-                onExternalSplit = {
+                onAddPaidByPerson = {
                     viewModel.onPersonDetailDismissed()
                     onAddDebtForPerson(detail.person)
                 },
@@ -168,7 +183,7 @@ fun PeopleScreen(
                 onAdd = viewModel::onAddClicked,
                 onEdit = viewModel::onEditClicked,
                 onArchive = viewModel::onArchiveClicked,
-                onExternalSplit = onAddDebtForPerson,
+                onAddPaidByPerson = onAddDebtForPerson,
                 onOpenDetail = viewModel::onPersonDetailClicked,
                 onRetry = viewModel::onScreenShown,
             )
@@ -231,7 +246,7 @@ private fun PeopleContent(
     onAdd: () -> Unit,
     onEdit: (PersonSummary) -> Unit,
     onArchive: (PersonSummary) -> Unit,
-    onExternalSplit: (PersonSummary) -> Unit,
+    onAddPaidByPerson: (PersonSummary) -> Unit,
     onOpenDetail: (PersonSummary) -> Unit,
     onRetry: () -> Unit,
 ) {
@@ -290,7 +305,7 @@ private fun PeopleContent(
                     person = person,
                     onEdit = { onEdit(person) },
                     onArchive = { onArchive(person) },
-                    onExternalSplit = { onExternalSplit(person) },
+                    onAddPaidByPerson = { onAddPaidByPerson(person) },
                     onOpenDetail = { onOpenDetail(person) },
                 )
             }
@@ -460,7 +475,7 @@ private fun PersonRow(
     person: PersonSummary,
     onEdit: () -> Unit,
     onArchive: () -> Unit,
-    onExternalSplit: () -> Unit,
+    onAddPaidByPerson: () -> Unit,
     onOpenDetail: () -> Unit,
 ) {
     FinanceCard(
@@ -502,7 +517,7 @@ private fun PersonRow(
                     )
                 }
                 PersonRowMenu(
-                    onExternalSplit = onExternalSplit,
+                    onAddPaidByPerson = onAddPaidByPerson,
                     onEdit = onEdit,
                     onArchive = onArchive,
                 )
@@ -521,7 +536,7 @@ private fun PersonDetailScreen(
     onBack: () -> Unit,
     onRetry: () -> Unit,
     onOpenDebtSource: (String) -> Unit,
-    onExternalSplit: () -> Unit,
+    onAddPaidByPerson: () -> Unit,
     onSettleUp: () -> Unit,
     onEdit: () -> Unit,
     onCopyMessageClicked: () -> Unit,
@@ -604,7 +619,7 @@ private fun PersonDetailScreen(
                     SecondaryActionButton(
                         icon = Icons.Outlined.Handshake,
                         label = stringResource(R.string.person_action_external_split),
-                        onClick = onExternalSplit,
+                        onClick = onAddPaidByPerson,
                         modifier = Modifier.weight(1f),
                     )
                     SecondaryActionButton(
@@ -797,7 +812,7 @@ private fun personFallbackColor(id: String): Color {
 
 @Composable
 private fun PersonRowMenu(
-    onExternalSplit: () -> Unit,
+    onAddPaidByPerson: () -> Unit,
     onEdit: () -> Unit,
     onArchive: () -> Unit,
 ) {
@@ -813,7 +828,7 @@ private fun PersonRowMenu(
         AppDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             AppDropdownMenuItem(
                 text = { Text(stringResource(R.string.person_action_external_split)) },
-                onClick = { expanded = false; onExternalSplit() },
+                onClick = { expanded = false; onAddPaidByPerson() },
             )
             AppDropdownMenuItem(
                 text = { Text(stringResource(R.string.common_edit)) },

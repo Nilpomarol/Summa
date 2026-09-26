@@ -1,5 +1,10 @@
 package com.gestorfinances.app.ui.budgets
 
+import com.gestorfinances.app.data.repository.MovementSummary
+import com.gestorfinances.app.ui.categories.CategoryFlowSheet
+import com.gestorfinances.app.ui.categories.categoriesViewModel
+import com.gestorfinances.app.di.AppContainer
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
@@ -84,18 +89,86 @@ import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.categoryColor
 import java.time.YearMonth
 
+/** This page visit's ViewModel; [addForCategoryId] opens it on that category's new budget. */
+@Composable
+fun budgetsViewModel(appContainer: AppContainer, addForCategoryId: String? = null): BudgetsViewModel = viewModel {
+    BudgetsViewModel(
+        budgetRepository = appContainer.budgetRepository,
+        categoryRepository = appContainer.categoryRepository,
+        tripRepository = appContainer.tripRepository,
+        templateRepository = appContainer.templateRepository,
+        analysisRepository = appContainer.analysisRepository,
+        notificationRefresher = appContainer.notificationCoordinator,
+    ).apply {
+        addForCategoryId?.let(::onAddClicked)
+    }
+}
+
+/**
+ * The Més Budgets page. Its category rows open that category's flow sheet here, so the page also
+ * keeps a categories ViewModel for the sheet.
+ */
+@Composable
+fun BudgetsPage(
+    appContainer: AppContainer,
+    /** Changes after every movement write, so the page reloads while it stays visible. */
+    dataVersion: Long,
+    addForCategoryId: String?,
+    onBack: () -> Unit,
+    onViewCategoryAnalysis: (categoryId: String, categoryName: String) -> Unit,
+    onMovementDetail: (MovementSummary) -> Unit,
+    onDeleteCommitted: DeleteUndoHandler,
+    modifier: Modifier = Modifier,
+) {
+    val viewModel = budgetsViewModel(appContainer, addForCategoryId)
+    val categoriesViewModel = categoriesViewModel(appContainer)
+    val categoriesState by categoriesViewModel.state.collectAsState()
+
+    // The category flow sheet opened from a budget lists that category's movements.
+    LaunchedEffect(categoriesViewModel, dataVersion) {
+        categoriesViewModel.onScreenShown()
+    }
+
+    BudgetsScreen(
+        viewModel = viewModel,
+        onBack = onBack,
+        dataVersion = dataVersion,
+        onOpenCategoryMovements = categoriesViewModel::onFlowClicked,
+        onDeleteCommitted = onDeleteCommitted,
+        modifier = modifier,
+    )
+    categoriesState.flowDetail?.let { detail ->
+        CategoryFlowSheet(
+            detail = detail,
+            onDismiss = categoriesViewModel::onFlowDismissed,
+            onRetry = { categoriesViewModel.onFlowClicked(detail.category) },
+            onViewAnalysis = {
+                categoriesViewModel.onFlowDismissed()
+                onViewCategoryAnalysis(detail.category.id, detail.category.name)
+            },
+            onDefineBudget = {
+                categoriesViewModel.onFlowDismissed()
+                viewModel.onAddClicked(detail.category.id)
+            },
+            onMovementDetail = onMovementDetail,
+        )
+    }
+}
+
 @Composable
 fun BudgetsScreen(
     viewModel: BudgetsViewModel,
     onBack: () -> Unit,
     onOpenCategoryMovements: (CategoryRecord) -> Unit = {},
     contextTripId: String? = null,
+    /** Changes after every committed financial write, so the page reloads while it stays visible. */
+    dataVersion: Long = 0L,
     onDeleteCommitted: DeleteUndoHandler = {},
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsState()
 
-    LaunchedEffect(viewModel, contextTripId) {
+    LaunchedEffect(viewModel, contextTripId, dataVersion) {
         viewModel.onScreenShown(contextTripId)
     }
 

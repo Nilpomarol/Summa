@@ -92,14 +92,13 @@ class TripAnalysisRepositoryTest {
             store.trips.create(tripDraft("mallorca"), createdAt = NOW)
             store.tags.create(TagDraft("transport", "Transport", null, null, "mallorca"), createdAt = NOW)
 
-            store.splits.createExternalPaidByPerson(
-                ExternalSplitDraft(
+            store.movements.create(
+                personPaidExpense(
                     id = "split-taxi",
                     payerPersonId = "anna",
-                    totalAmountCents = 1_200,
-                    userShareCents = 1_200,
+                    amountCents = 1_200,
                     date = "2026-08-01",
-                    description = "Taxi aeroport",
+                    name = "Taxi aeroport",
                     categoryId = null,
                     tripId = "mallorca",
                     tagId = "transport",

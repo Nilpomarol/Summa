@@ -1,55 +1,32 @@
 package com.gestorfinances.app.ui.movements
 
-import com.gestorfinances.app.data.repository.ContributionDraft
-import com.gestorfinances.app.data.repository.ContributionDirection
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.gestorfinances.app.R
+import com.gestorfinances.app.data.FinancialDataRevision
 import com.gestorfinances.app.data.repository.AccountRepository
 import com.gestorfinances.app.data.repository.AccountSummary
-import com.gestorfinances.app.data.repository.AccountOwnershipKind
-import com.gestorfinances.app.data.repository.ExpenseFunding
 import com.gestorfinances.app.data.repository.CategoryNature
 import com.gestorfinances.app.data.repository.CategoryRecord
 import com.gestorfinances.app.data.repository.CategoryRepository
-import com.gestorfinances.app.data.repository.ExternalSplitDraft
-import com.gestorfinances.app.data.repository.MovementDraft
 import com.gestorfinances.app.data.repository.MovementRepository
 import com.gestorfinances.app.data.repository.MovementSummary
-import com.gestorfinances.app.data.repository.MovementSplitWrite
 import com.gestorfinances.app.data.repository.MovementSplitDraft
-import com.gestorfinances.app.data.repository.SplitEntryMethod
-import com.gestorfinances.app.data.repository.SplitLineDraft
 import com.gestorfinances.app.data.repository.MovementType
-import com.gestorfinances.app.data.repository.PersonDraft
 import com.gestorfinances.app.data.repository.PersonRepository
 import com.gestorfinances.app.data.repository.RefundDraft
 import com.gestorfinances.app.data.repository.RefundSummary
 import com.gestorfinances.app.data.repository.PersonSummary
-import com.gestorfinances.app.data.repository.SettlementDirection
-import com.gestorfinances.app.data.repository.SettlementDraft
 import com.gestorfinances.app.data.repository.SplitRepository
-import com.gestorfinances.app.data.repository.SplitParticipantKind
 import com.gestorfinances.app.data.repository.TagRepository
 import com.gestorfinances.app.data.repository.TagSummary
-import com.gestorfinances.app.data.repository.TemplateDraft
 import com.gestorfinances.app.data.repository.TemplateRepository
 import com.gestorfinances.app.data.repository.TemplateStatus
-import com.gestorfinances.app.data.repository.TemplateSummary
-import com.gestorfinances.app.data.repository.toTemplateSplitConfig
 import com.gestorfinances.app.data.repository.TripRepository
 import com.gestorfinances.app.data.repository.TripSummary
-import com.gestorfinances.app.data.repository.supports
-import com.gestorfinances.app.domain.rules.DuplicateDetector
-import com.gestorfinances.app.domain.rules.DuplicateMovement
-import com.gestorfinances.app.domain.rules.RecurrenceFrequency
-import com.gestorfinances.app.domain.rules.RecurrenceRule
 import com.gestorfinances.app.domain.rules.RecurringAdvancer
-import com.gestorfinances.app.domain.rules.SettlementScope
 import com.gestorfinances.app.domain.rules.toRecurrenceRule
 import com.gestorfinances.app.notifications.NotificationRefresher
-import com.gestorfinances.app.ui.common.formatEuroInput
 import com.gestorfinances.app.ui.common.parseEuroCents
 import java.time.Instant
 import java.time.LocalDate
@@ -61,6 +38,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.withContext
 
 class MovementsViewModel(
@@ -74,9 +52,41 @@ class MovementsViewModel(
     private val notificationRefresher: NotificationRefresher = NotificationRefresher.NoOp,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val templateRepository: TemplateRepository? = null,
+    private val financialDataRevision: FinancialDataRevision = FinancialDataRevision(),
 ) : ViewModel() {
     private val _state = MutableStateFlow(MovementsUiState())
     val state: StateFlow<MovementsUiState> = _state.asStateFlow()
+
+    /** Set while a refund is being written, so a repeated tap cannot record it twice. */
+    private var refundSaveInFlight = false
+
+    /** The create/edit form. The ledger opens it and refreshes after it saves. */
+    val editor = MovementEditor(
+        scope = viewModelScope,
+        ioDispatcher = ioDispatcher,
+        movementRepository = movementRepository,
+        accountRepository = accountRepository,
+        personRepository = personRepository,
+        splitRepository = splitRepository,
+        templateRepository = templateRepository,
+        references = { _state.value },
+        onSaved = {
+            financialDataRevision.markChanged()
+            refreshNotifications()
+        },
+        onPeopleChanged = { people ->
+            _state.value = _state.value.copy(people = people)
+            // The person exists now, whether or not this movement is ever saved.
+            financialDataRevision.markChanged()
+        },
+    )
+
+    init {
+        // Any committed financial write, this view model's own or another overlay's, reloads the ledger.
+        viewModelScope.launch {
+            financialDataRevision.value.drop(1).collect { refresh() }
+        }
+    }
 
     fun onScreenShown() {
         refresh()
@@ -89,7 +99,6 @@ class MovementsViewModel(
     fun resetForMenuNavigation() {
         _state.value = _state.value.copy(
             filters = MovementFilters(),
-            form = null,
             detailMovement = null,
             detailRefunds = emptyList(),
             detailSplit = null,
@@ -97,6 +106,7 @@ class MovementsViewModel(
             archiveCandidate = null,
             errorMessage = null,
         )
+        editor.onFormDismissed()
         refresh()
     }
 
@@ -104,16 +114,17 @@ class MovementsViewModel(
         onAddClicked(tripId = null)
     }
 
-    fun onAddClicked(tripId: String?, debtPayerPersonId: String? = null, accountId: String? = null) {
+    /** [onNoAccounts] runs instead of opening a form when there is no account to record it in. */
+    fun onAddClicked(
+        tripId: String?,
+        debtPayerPersonId: String? = null,
+        accountId: String? = null,
+        onNoAccounts: () -> Unit = {},
+    ) {
         viewModelScope.launch {
             val result = loadMovementData()
             result.fold(
                 onSuccess = {
-                    val form = if (it.accounts.isEmpty() && debtPayerPersonId == null) {
-                        null
-                    } else {
-                        newMovementForm(it, tripId, debtPayerPersonId, accountId)
-                    }
                     _state.value = _state.value.copy(
                         movements = it.movements,
                         accounts = it.accounts,
@@ -123,8 +134,13 @@ class MovementsViewModel(
                         tags = it.tags,
                         isLoading = false,
                         errorMessage = null,
-                        form = form,
                     )
+                    if (it.accounts.isEmpty() && debtPayerPersonId == null) {
+                        onNoAccounts()
+                        editor.onFormDismissed()
+                    } else {
+                        editor.open(newMovementForm(it.accounts, it.trips, tripId, debtPayerPersonId, accountId))
+                    }
                 },
                 onFailure = {
                     _state.value = _state.value.copy(
@@ -142,20 +158,21 @@ class MovementsViewModel(
             val result = withContext(ioDispatcher) {
                 runCatching {
                     val split = when {
-                        movement.isShared -> splitRepository?.getForMovement(movement.id)
-                        movement.type == MovementType.EXTERNAL_EXPENSE -> splitRepository?.getForMovementById(movement.id)
+                        movement.isShared || movement.paidByPerson -> splitRepository?.getForMovement(movement.id)
                         else -> null
                     }
                     // Load the real template so the form can show the actual linked
                     // frequency/status instead of silently defaulting or ignoring it.
                     val linkedTemplate = movement.templateId?.let { templateRepository?.getActive(it) }
-                    split to linkedTemplate
+                    val hasActiveRefunds = movement.type == MovementType.EXPENSE &&
+                        movementRepository.refundsForExpense(movement.id).isNotEmpty()
+                    movement.toFormState(split, linkedTemplate).copy(hasActiveRefunds = hasActiveRefunds)
                 }
             }
             result.fold(
-                onSuccess = { (splitDraft, template) ->
+                onSuccess = { form ->
                     // Keep the detail data intact so dismissing the edit form can restore it.
-                    _state.value = _state.value.copy(form = movement.toFormState(splitDraft, template))
+                    editor.open(form)
                     onReady()
                 },
                 onFailure = {
@@ -210,7 +227,7 @@ class MovementsViewModel(
         if (movement.type == MovementType.EXPENSE) {
             loadDetailRefunds(movement.id)
         }
-        if (movement.isShared || movement.type == MovementType.EXTERNAL_EXPENSE) {
+        if (movement.isShared || movement.paidByPerson) {
             loadDetailSplit(movement)
         }
     }
@@ -244,11 +261,7 @@ class MovementsViewModel(
         viewModelScope.launch {
             val split = withContext(ioDispatcher) {
                 runCatching {
-                    if (movement.type == MovementType.EXTERNAL_EXPENSE) {
-                        splitRepository?.getForMovementById(movement.id)
-                    } else {
-                        splitRepository?.getForMovement(movement.id)
-                    }
+                    splitRepository?.getForMovement(movement.id)
                 }.getOrNull()
             }
             if (_state.value.detailMovement?.id == movement.id) {
@@ -285,6 +298,7 @@ class MovementsViewModel(
     }
 
     fun onRefundSaveClicked() {
+        if (refundSaveInFlight) return
         val form = _state.value.refundForm ?: return
         val amount = parseEuroCents(form.amount, allowNegative = false)
         val actual = if (form.expenseIsShared && form.actualAmount.isNotBlank()) {
@@ -322,14 +336,16 @@ class MovementsViewModel(
             notes = form.notes.nullIfBlank(),
             actualRefundCents = actual,
         )
+        refundSaveInFlight = true
         viewModelScope.launch {
             val result = withContext(ioDispatcher) {
                 runCatching { movementRepository.createRefund(draft, createdAt = now) }
             }
+            refundSaveInFlight = false
             result.fold(
                 onSuccess = {
                     _state.value = _state.value.copy(refundForm = null)
-                    refresh(dataChanged = true)
+                    financialDataRevision.markChanged()
                     refreshNotifications()
                 },
                 onFailure = {
@@ -349,8 +365,8 @@ class MovementsViewModel(
         _state.value = _state.value.copy(
             filters = filters.withDateValidation(),
             detailMovement = null,
-            form = null,
         )
+        editor.onFormDismissed()
         refresh()
     }
 
@@ -373,10 +389,7 @@ class MovementsViewModel(
             val result = withContext(ioDispatcher) {
                 runCatching {
                     movementRepository.runInTransaction {
-                        if (movement.type == MovementType.EXTERNAL_EXPENSE) {
-                            requireNotNull(splitRepository) { "split repository unavailable" }
-                                .archiveExternalSplit(movement.id, archivedAt = now)
-                        } else if (movement.type == MovementType.CONTRIBUTION) {
+                        if (movement.type == MovementType.CONTRIBUTION) {
                             accountRepository.archiveContribution(movement.id, archivedAt = now)
                         } else {
                             movementRepository.archive(movement.id, archivedAt = now)
@@ -404,7 +417,7 @@ class MovementsViewModel(
             result.fold(
                 onSuccess = { operation ->
                     _state.value = _state.value.copy(archiveCandidate = null, detailMovement = null)
-                    refresh(dataChanged = true)
+                    financialDataRevision.markChanged()
                     refreshNotifications()
                     onSuccess { undoDelete(operation) }
                 },
@@ -418,200 +431,6 @@ class MovementsViewModel(
         }
     }
 
-    fun onFormChanged(form: MovementFormState) {
-        val previous = _state.value.form
-        val account = form.accountId?.let { id -> _state.value.accounts.firstOrNull { it.id == id } }
-        val withAccountDefaults = if (
-            form.type == MovementType.EXPENSE &&
-            account?.ownershipKind == AccountOwnershipKind.SHARED &&
-            (previous?.accountId != form.accountId || form.expenseKind != ExpenseKind.SHARED)
-        ) {
-            form.copy(
-                expenseKind = ExpenseKind.SHARED,
-                splitEditor = account.defaultExpenseSplitEditor(),
-                showOptional = true,
-                removeExistingSplit = false,
-            )
-        } else if (
-            form.type == MovementType.INCOME &&
-            account?.ownershipKind == AccountOwnershipKind.SHARED &&
-            (previous?.type != MovementType.INCOME || previous?.accountId != form.accountId)
-        ) {
-            // Arriving at an income on a shared account asks whose it is afresh, rather than
-            // inheriting the expense form's split or another account's answer.
-            form.copy(
-                expenseKind = null,
-                splitEditor = account.defaultExpenseSplitEditor(),
-                forOtherPersonId = null,
-                removeExistingSplit = false,
-            )
-        } else form
-        _state.value = _state.value.copy(form = normalizeForm(withAccountDefaults))
-    }
-
-    fun onTripSelected(tripId: String?) {
-        val form = _state.value.form ?: return
-        val trip = tripId?.let { selectedId -> _state.value.trips.firstOrNull { it.id == selectedId } }
-        val tag = form.tagId?.let { tagId -> _state.value.tags.firstOrNull { it.id == tagId } }
-        val accountId = if (form.isNew && trip?.defaultAccountId != null) {
-            trip.defaultAccountId
-        } else {
-            form.accountId
-        }
-        val tagId = if (tag != null && tag.supportsTrip(trip)) form.tagId else null
-        onFormChanged(form.copy(tripId = tripId, tagId = tagId, accountId = accountId))
-    }
-
-    fun onTagSelected(tagId: String?) {
-        val form = _state.value.form ?: return
-        onFormChanged(form.copy(tagId = tagId))
-    }
-
-    /** Whether an account id names a shared account in the currently loaded list. */
-    private fun isSharedAccount(accountId: String?): Boolean =
-        accountId != null &&
-            _state.value.accounts.firstOrNull { it.id == accountId }?.ownershipKind ==
-            AccountOwnershipKind.SHARED
-
-    fun onSharedToggled(enabled: Boolean) {
-        val form = _state.value.form ?: return
-        val nextForm = if (enabled) {
-            form.copy(
-                expenseKind = ExpenseKind.SHARED,
-                splitEditor = form.splitEditor ?: SplitEditorState(),
-                removeExistingSplit = false,
-            )
-        } else {
-            // splitEditor is retained (not nulled) so an off/on round trip within the same
-            // session doesn't lose manually-entered split state; it's hidden while the kind is
-            // PERSONAL and stripped at draft-build time in saveDirectMovement if the save actually goes
-            // through with sharing off.
-            form.copy(
-                expenseKind = ExpenseKind.PERSONAL,
-                removeExistingSplit = form.existingSplit,
-            )
-        }
-        onFormChanged(nextForm)
-    }
-
-    fun onSplitEditorChanged(splitEditor: SplitEditorState) {
-        val form = _state.value.form ?: return
-        onFormChanged(form.copy(splitEditor = splitEditor, removeExistingSplit = false))
-    }
-
-    fun onSettlementToggled(enabled: Boolean) {
-        val form = _state.value.form ?: return
-        onFormChanged(form.copy(isSettlement = enabled, settlementPersonId = if (enabled) form.settlementPersonId else null))
-    }
-
-    fun onSettlementPersonSelected(personId: String?) {
-        val form = _state.value.form ?: return
-        onFormChanged(form.copy(settlementPersonId = personId))
-    }
-
-    fun onOtherPersonSelected(personId: String?) {
-        val form = _state.value.form ?: return
-        onFormChanged(form.copy(forOtherPersonId = personId))
-    }
-
-    fun onRecurringToggled(enabled: Boolean) {
-        val form = _state.value.form ?: return
-        onFormChanged(form.copy(isRecurring = enabled, showOptional = true))
-    }
-
-    fun onRecurringFrequencyChanged(frequency: RecurrenceFrequency) {
-        val form = _state.value.form ?: return
-        onFormChanged(form.copy(recurringFrequency = frequency))
-    }
-
-    fun onOptionalToggled() {
-        val form = _state.value.form ?: return
-        _state.value = _state.value.copy(form = form.copy(showOptional = !form.showOptional))
-    }
-
-    fun onAdvancedToggled() {
-        val form = _state.value.form ?: return
-        _state.value = _state.value.copy(
-            form = form.copy(showOptional = true, showAdvanced = !form.showAdvanced),
-        )
-    }
-
-    fun onCreatePersonInSplit(name: String) {
-        val trimmedName = name.trim()
-        if (trimmedName.isEmpty()) return
-        viewModelScope.launch {
-            val now = Instant.now().toString()
-            val personId = UUID.randomUUID().toString()
-            val result = withContext(ioDispatcher) {
-                runCatching {
-                    personRepository.create(
-                        PersonDraft(id = personId, name = trimmedName, avatar = null, color = null, notes = null),
-                        createdAt = now,
-                    )
-                    personRepository.listActive()
-                }
-            }
-            result.fold(
-                onSuccess = { newPeople ->
-                    val form = _state.value.form ?: return@fold
-                    val updatedSplit = form.splitEditor?.withPersonToggled(personId)
-                    _state.value = _state.value.copy(
-                        people = newPeople,
-                        form = form.copy(splitEditor = updatedSplit ?: form.splitEditor),
-                    )
-                },
-                onFailure = {
-                    _state.value = _state.value.copy(
-                        form = _state.value.form?.copy(errorMessage = it.message ?: it.javaClass.simpleName),
-                    )
-                },
-            )
-        }
-    }
-
-    fun onFormDismissed() {
-        _state.value = _state.value.copy(form = null)
-    }
-
-    /** "Revisa" -- dismisses the duplicate/data-loss warning without saving, restoring the normal
-     * Save button (field-level validation). */
-    fun onWarningDismissed() {
-        val form = _state.value.form ?: return
-        _state.value = _state.value.copy(
-            form = form.copy(duplicateWarning = false, pendingDataLossWarning = null),
-        )
-    }
-
-    fun onSaveClicked() = attemptSave(forceSave = false, acceptDataLoss = false)
-
-    /** Save anyway after the duplicate warning was shown (never block — warn). By the time this
-     * warning is showing, the data-loss gate below has already run clean for the current form (it
-     * runs first), so it's safe to accept both at once here. */
-    fun onDuplicateOverrideClicked() = attemptSave(forceSave = true, acceptDataLoss = true)
-
-    /** Save anyway after the pending data-loss warning was shown (data-loss protection — never
-     * block, warn). This gate runs before the duplicate check, so accepting it re-runs the save
-     * from the top with `forceSave = false` — a duplicate that only becomes apparent on this
-     * re-run still gets its own warning rather than being silently bypassed. */
-    fun onDataLossOverrideClicked() = attemptSave(forceSave = false, acceptDataLoss = true)
-
-    /** "Finalitza la plantilla" choice on the [DataLossWarning.RECURRING_STOP] banner (recurrence consistency): the template is marked [TemplateStatus.ENDED] atomically with this save. */
-    fun onRecurrenceStopEndClicked() = attemptSave(forceSave = false, acceptDataLoss = true, endTemplate = true)
-
-    /** "Només desvincula aquest moviment" choice on the same banner: the old behavior -- this
-     * movement is detached (`templateId = null` on save, already computed from `form.isRecurring`
-     * being false) while the template itself keeps running untouched. */
-    fun onRecurrenceStopUnlinkClicked() = attemptSave(forceSave = false, acceptDataLoss = true, endTemplate = false)
-
-    private fun attemptSave(forceSave: Boolean, acceptDataLoss: Boolean, endTemplate: Boolean = false) {
-        val form = _state.value.form ?: return
-        when {
-            form.type == MovementType.INCOME && form.isSettlement -> saveSettlement(form)
-            form.type == MovementType.EXPENSE && form.expenseKind == ExpenseKind.DEBT ->
-                saveExternalDebt(form, acceptDataLoss)
-            else -> saveDirectMovement(form, forceSave, acceptDataLoss, endTemplate)
-        }
-    }
 
     private fun undoDelete(operation: MovementDeleteOperation) {
         val restoredAt = Instant.now().toString()
@@ -619,10 +438,7 @@ class MovementsViewModel(
             val result = withContext(ioDispatcher) {
                 runCatching {
                     movementRepository.runInTransaction {
-                        if (operation.movementType == MovementType.EXTERNAL_EXPENSE) {
-                            requireNotNull(splitRepository) { "split repository unavailable" }
-                                .restoreExternalSplit(operation.movementId, operation.deletedAt, restoredAt)
-                        } else if (operation.movementType == MovementType.CONTRIBUTION) {
+                        if (operation.movementType == MovementType.CONTRIBUTION) {
                             accountRepository.restoreContribution(operation.movementId, operation.deletedAt, restoredAt)
                         } else {
                             movementRepository.restore(operation.movementId, operation.deletedAt, restoredAt)
@@ -645,7 +461,7 @@ class MovementsViewModel(
             }
             result.fold(
                 onSuccess = {
-                    refresh(dataChanged = true)
+                    financialDataRevision.markChanged()
                     refreshNotifications()
                 },
                 onFailure = { _state.value = _state.value.copy(errorMessage = it.message ?: it.javaClass.simpleName) },
@@ -653,475 +469,11 @@ class MovementsViewModel(
         }
     }
 
-    private data class RequiredFields(
-        val amountCents: Long?,
-        val date: LocalDate?,
-    )
 
-    private fun parseRequiredFields(form: MovementFormState) = RequiredFields(
-        amountCents = parseEuroCents(form.amount, allowNegative = false),
-        date = parseDate(form.date),
-    )
-
-    private fun RequiredFields.validationError(
-        form: MovementFormState,
-    ): Pair<Int, MovementFormField>? = when {
-        amountCents == null -> R.string.movement_validation_amount_required to MovementFormField.AMOUNT
-        amountCents <= 0L -> R.string.movement_validation_amount_positive to MovementFormField.AMOUNT
-        form.date.isBlank() -> R.string.movement_validation_date_required to MovementFormField.DATE
-        date == null -> R.string.movement_validation_date_invalid to MovementFormField.DATE
-        else -> null
-    }
-
-    private fun showValidationError(
-        form: MovementFormState,
-        error: Pair<Int, MovementFormField>,
-    ) {
-        _state.value = _state.value.copy(
-            form = form.copy(
-                errorRes = error.first,
-                errorField = error.second,
-                showOptional = form.showOptional || error.second == MovementFormField.TAG,
-            ),
-        )
-    }
-
-    /**
-     * A new transfer between one of the owner's personal accounts and a shared account moves the
-     * owner's own money into or out of the shared account: a contribution or a withdrawal, never a
-     * transfer. Contributions do not recur, so the form offers no recurrence for one.
-     */
-    private fun saveTransferAsContribution(form: MovementFormState, amountCents: Long, date: String) {
-        val intoShared = isSharedAccount(form.destinationAccountId)
-        val draft = ContributionDraft(
-            id = UUID.randomUUID().toString(),
-            sharedAccountId = requireNotNull(if (intoShared) form.destinationAccountId else form.accountId),
-            direction = if (intoShared) ContributionDirection.IN else ContributionDirection.OUT,
-            contributorKind = SplitParticipantKind.USER,
-            personId = null,
-            sourceAccountId = if (intoShared) form.accountId else form.destinationAccountId,
-            amountCents = amountCents,
-            date = date,
-            name = form.name.nullIfBlank(),
-            notes = form.notes.nullIfBlank(),
-        )
-        val now = Instant.now().toString()
-        launchSave(form) { accountRepository.createContribution(draft, createdAt = now) }
-    }
-
-    private fun launchSave(form: MovementFormState, write: () -> Unit) {
-        viewModelScope.launch {
-            val result = withContext(ioDispatcher) { runCatching(write) }
-            result.fold(
-                onSuccess = {
-                    _state.value = _state.value.copy(form = null)
-                    refresh(dataChanged = true)
-                    refreshNotifications()
-                },
-                onFailure = {
-                    _state.value = _state.value.copy(
-                        form = form.copy(errorMessage = it.message ?: it.javaClass.simpleName),
-                    )
-                },
-            )
-        }
-    }
-
-    private fun saveSettlement(form: MovementFormState) {
-        val required = parseRequiredFields(form)
-        val activeAccountIds = _state.value.accounts.map { it.id }.toSet()
-        val activePersonIds = _state.value.people.map { it.id }.toSet()
-        val error = required.validationError(form) ?: when {
-            form.accountId == null || form.accountId !in activeAccountIds ->
-                R.string.movement_validation_account_required to MovementFormField.ACCOUNT
-            form.settlementPersonId == null || form.settlementPersonId !in activePersonIds ->
-                R.string.settlement_validation_person_required to MovementFormField.PERSON
-            else -> null
-        }
-        if (error != null) {
-            showValidationError(form, error)
-            return
-        }
-
-        val now = Instant.now().toString()
-        val draft = SettlementDraft(
-            id = UUID.randomUUID().toString(),
-            personId = requireNotNull(form.settlementPersonId),
-            direction = SettlementDirection.PERSON_TO_USER,
-            // The movement form's debt entry is the quick "settle up" path and stays general;
-            // the person detail sheet is where a scope is chosen deliberately.
-            scope = SettlementScope.ALL,
-            amountCents = requireNotNull(required.amountCents),
-            accountId = requireNotNull(form.accountId),
-            date = requireNotNull(required.date).toString(),
-            notes = form.notes.nullIfBlank(),
-        )
-        launchSave(form) {
-            movementRepository.createSettlement(draft, createdAt = now)
-        }
-    }
-
-    private fun saveExternalDebt(form: MovementFormState, acceptDataLoss: Boolean) {
-        val required = parseRequiredFields(form)
-        val activePersonIds = _state.value.people.map { it.id }.toSet()
-        val error = required.validationError(form) ?: when {
-            form.forOtherPersonId == null || form.forOtherPersonId !in activePersonIds ->
-                R.string.settlement_validation_person_required to MovementFormField.PERSON
-            else -> null
-        }
-        if (error != null) {
-            showValidationError(form, error)
-            return
-        }
-
-        // Switching from a direct movement to an external split drops fields that external splits
-        // cannot store. Warn before crossing that boundary (never block).
-        if (!acceptDataLoss && form.movementId != null) {
-            _state.value = _state.value.copy(
-                form = form.copy(
-                    pendingDataLossWarning = DataLossWarning.PAYER_SWITCH,
-                    errorRes = null,
-                    errorField = null,
-                    errorMessage = null,
-                ),
-            )
-            return
-        }
-
-        val now = Instant.now().toString()
-        val draft = ExternalSplitDraft(
-            id = UUID.randomUUID().toString(),
-            payerPersonId = requireNotNull(form.forOtherPersonId),
-            totalAmountCents = requireNotNull(required.amountCents),
-            userShareCents = requireNotNull(required.amountCents),
-            date = requireNotNull(required.date).toString(),
-            description = form.name.nullIfBlank(),
-            categoryId = form.categoryId,
-            tripId = form.tripId,
-            tagId = form.tagId,
-        )
-        val repo = splitRepository
-        if (repo == null) {
-            _state.value = _state.value.copy(
-                form = form.copy(errorMessage = "Internal error: split repository unavailable"),
-            )
-            return
-        }
-
-        launchSave(form) {
-            movementRepository.runInTransaction {
-                when {
-                    form.externalSplitId != null -> repo.replaceExternalSplit(form.externalSplitId, draft, now)
-                    form.movementId != null -> {
-                        movementRepository.archive(form.movementId, archivedAt = now)
-                        repo.createExternalPaidByPerson(draft, createdAt = now)
-                    }
-                    else -> repo.createExternalPaidByPerson(draft, createdAt = now)
-                }
-            }
-        }
-    }
-
-    private fun saveDirectMovement(
-        form: MovementFormState,
-        forceSave: Boolean,
-        acceptDataLoss: Boolean,
-        endTemplate: Boolean,
-    ) {
-        val required = parseRequiredFields(form)
-        val amount = required.amountCents
-        val date = required.date
-        val activeAccountIds = _state.value.accounts.map { it.id }.toSet()
-        val activePersonIds = _state.value.people.map { it.id }.toSet()
-        val category = form.categoryId?.let { categoryId ->
-            _state.value.categories.firstOrNull { it.id == categoryId }
-        }
-        val tag = form.tagId?.let { tagId ->
-            _state.value.tags.firstOrNull { it.id == tagId }
-        }
-        val trip = form.tripId?.let { tripId ->
-            _state.value.trips.firstOrNull { it.id == tripId }
-        }
-        // Only EXPENSE+SHARED/FOR_OTHER can carry a split. `form.splitEditor`/`expenseKind` may
-        // still hold a prior kind's selection (retained, not nulled, per data-loss protection),
-        // so validation and the draft below must gate on the *effective* (final) kind rather than
-        // the raw field, or a stale split from a since-abandoned kind would wrongly block/write.
-        // An income carries the same allocation choice when it lands in a shared account.
-        val incomeOnSharedAccount = form.type == MovementType.INCOME && isSharedAccount(form.accountId)
-        val carriesAllocation = form.type == MovementType.EXPENSE || incomeOnSharedAccount
-        val crossesOwnership = form.type == MovementType.TRANSFER &&
-            isSharedAccount(form.accountId) != isSharedAccount(form.destinationAccountId)
-        val isForOther = carriesAllocation && form.expenseKind == ExpenseKind.FOR_OTHER
-        val isShared = carriesAllocation && form.expenseKind == ExpenseKind.SHARED
-        val effectiveSplitEditor = form.splitEditor.takeIf { isShared }
-        val splitDraft = effectiveSplitEditor?.toMovementSplitDraft(amount)
-        // Whether the *kind* can carry a split at all -- true for SHARED even when splitEditor is
-        // currently null (that null means "unchanged," not "none": KeepExisting below leaves the
-        // stored split as-is). Only false here means the save would actually drop it.
-        val finalKindCarriesSplit = isForOther || isShared
-
-        val error = required.validationError(form) ?: when {
-            form.accountId == null || form.accountId !in activeAccountIds ->
-                R.string.movement_validation_account_required to MovementFormField.ACCOUNT
-            form.type == MovementType.TRANSFER &&
-                (form.destinationAccountId == null || form.destinationAccountId !in activeAccountIds) ->
-                R.string.movement_validation_destination_required to MovementFormField.DESTINATION_ACCOUNT
-            form.type == MovementType.TRANSFER && form.accountId == form.destinationAccountId ->
-                R.string.movement_validation_transfer_same_account to MovementFormField.DESTINATION_ACCOUNT
-            // A new transfer crossing ownership is saved as a contribution or withdrawal below, but a
-            // saved transfer is not rewritten into one. Blame the shared side, the field to change.
-            crossesOwnership && !form.isNew ->
-                R.string.movement_validation_shared_transfer to if (isSharedAccount(form.accountId)) {
-                    MovementFormField.ACCOUNT
-                } else {
-                    MovementFormField.DESTINATION_ACCOUNT
-                }
-            category != null && !category.supports(form.type) ->
-                R.string.movement_validation_category_invalid to MovementFormField.CATEGORY
-            form.tagId != null && (form.tripId == null || tag == null || !tag.supportsTrip(trip)) ->
-                R.string.tag_validation_trip_required to MovementFormField.TAG
-            // Landing in a shared account never decides whose income it is.
-            incomeOnSharedAccount && form.expenseKind == null ->
-                R.string.movement_validation_income_owner to MovementFormField.INCOME_OWNER
-            isForOther && (form.forOtherPersonId == null || form.forOtherPersonId !in activePersonIds) ->
-                R.string.settlement_validation_person_required to MovementFormField.PERSON
-            effectiveSplitEditor != null && splitDraft == null ->
-                (effectiveSplitEditor.calculation(amount).errorRes ?: R.string.split_validation_reconcile) to
-                    MovementFormField.SPLIT
-            else -> null
-        }
-
-        if (error != null) {
-            showValidationError(form, error)
-            return
-        }
-
-        if (crossesOwnership) {
-            saveTransferAsContribution(form, requireNotNull(amount), requireNotNull(date).toString())
-            return
-        }
-
-        // Data-loss gate (data-loss protection): an existing stored split that the final kind
-        // can't carry (explicit un-share, or a type/kind switch away from SHARED/FOR_OTHER) would
-        // otherwise be silently dropped by the `MovementSplitWrite.Remove` branch below. Warn once,
-        // save only after the user accepts (never block).
-        // Known limitation: `pendingDataLossWarning` holds a single value, so if a
-        // save would *both* drop a split and stop a linked recurrence in the same edit, only this
-        // warning surfaces first; accepting it (`acceptDataLoss = true`) also skips the
-        // `isRecurrenceStop` gate below on the same re-run and defaults to "unlink" (the template
-        // is left ACTIVE, never ended) without asking. Not data loss and not a hard block, just an
-        // unannounced default in this rare compound case -- a known limitation.
-        val willRemoveExistingSplit = !form.isNew && form.existingSplit && !finalKindCarriesSplit
-        if (!acceptDataLoss && willRemoveExistingSplit) {
-            _state.value = _state.value.copy(
-                form = form.copy(
-                    pendingDataLossWarning = DataLossWarning.SPLIT_REMOVED,
-                    errorRes = null,
-                    errorMessage = null,
-                ),
-            )
-            return
-        }
-
-        // Recurring toggle-off (recurrence consistency): turning recurrence off on a movement
-        // that's still linked to a template is ambiguous -- does the whole series stop, or does
-        // only this occurrence detach? Warn once (never block) and let the two accept paths above
-        // decide: [onRecurrenceStopEndClicked] also ends the template below; [onRecurrenceStopUnlinkClicked]
-        // just proceeds (the draft's `templateId` is already null below since `form.isRecurring` is false).
-        val isRecurrenceStop = !form.isRecurring && form.templateId != null
-        if (!acceptDataLoss && isRecurrenceStop) {
-            _state.value = _state.value.copy(
-                form = form.copy(
-                    pendingDataLossWarning = DataLossWarning.RECURRING_STOP,
-                    errorRes = null,
-                    errorField = null,
-                    errorMessage = null,
-                ),
-            )
-            return
-        }
-
-        if (!forceSave && isDuplicate(form, requireNotNull(amount), requireNotNull(date))) {
-            _state.value = _state.value.copy(
-                form = form.copy(duplicateWarning = true, errorRes = null, errorMessage = null),
-            )
-            return
-        }
-
-        val now = Instant.now().toString()
-        // A new recurring movement seeds a template and links to it, so the saved movement reads as
-        // recurring (🔁) and future occurrences are scheduled.
-        // We also allow toggling recurrence ON for an existing movement that wasn't recurring.
-        val isNewRecurrence = form.isRecurring && form.templateId == null
-        val recurringTemplateId = if (isNewRecurrence && templateRepository != null) {
-            UUID.randomUUID().toString()
-        } else {
-            form.templateId.takeIf { form.isRecurring }
-        }
-
-        val draft = MovementDraft(
-            id = form.movementId ?: UUID.randomUUID().toString(),
-            type = form.type,
-            amountCents = requireNotNull(amount),
-            date = requireNotNull(date).toString(),
-            accountId = requireNotNull(form.accountId),
-            destinationAccountId = form.destinationAccountId.takeIf { form.type == MovementType.TRANSFER },
-            categoryId = form.categoryId.takeIf { form.type != MovementType.TRANSFER },
-            tripId = form.tripId,
-            tagId = form.tagId,
-            name = form.name.nullIfBlank(),
-            payee = form.payee.nullIfBlank(),
-            notes = form.notes.nullIfBlank(),
-            isOneTime = form.type == MovementType.EXPENSE && form.isOneTime,
-            splitWrite = when {
-                isForOther && form.forOtherPersonId != null ->
-                    MovementSplitWrite.Replace(
-                        MovementSplitDraft(
-                            entryMethod = SplitEntryMethod.EXACT,
-                            lines = listOf(
-                                SplitLineDraft(SplitParticipantKind.USER, null, 0L),
-                                SplitLineDraft(SplitParticipantKind.PERSON, form.forOtherPersonId, requireNotNull(amount)),
-                            ),
-                        ),
-                    )
-                effectiveSplitEditor != null -> MovementSplitWrite.Replace(requireNotNull(splitDraft).let { d ->
-                    // Preserve percentages if the method is PERCENTAGE
-                    if (d.entryMethod == SplitEntryMethod.PERCENTAGE) {
-                        d.copy(lines = d.lines.map { line ->
-                            val participantId = line.personId ?: USER_PARTICIPANT_ID
-                            val rawPercent = effectiveSplitEditor.percentages[participantId].orEmpty()
-                            line.copy(owedPercent = parsePercentBasisPoints(rawPercent)?.toDouble()?.div(100.0))
-                        })
-                    } else d
-                })
-                willRemoveExistingSplit -> MovementSplitWrite.Remove
-                else -> MovementSplitWrite.KeepExisting
-            },
-            templateId = recurringTemplateId,
-            expenseFunding = if (form.type == MovementType.EXPENSE && isSharedAccount(form.accountId)) {
-                ExpenseFunding.SHARED_ACCOUNT
-            } else {
-                ExpenseFunding.OWNER
-            },
-        )
-
-        launchSave(form) {
-            movementRepository.runInTransaction {
-                // Template first so the movement's template_id FK resolves, both writes atomic.
-                if (isNewRecurrence && recurringTemplateId != null) {
-                    // draft.splitWrite is KeepExisting when the user toggled "make recurring" on
-                    // an already-shared movement without touching the split editor. Read the
-                    // movement's current split so the new template still carries it forward.
-                    val splitForTemplate = resolveSplitForTemplateCarryForward(form, draft.splitWrite)
-                    createQuickTemplate(
-                        recurringTemplateId,
-                        form,
-                        requireNotNull(amount),
-                        requireNotNull(date),
-                        now,
-                        splitForTemplate,
-                    )
-                }
-                // "Finalitza la plantilla" ends the template atomically with this movement save.
-                if (endTemplate && form.templateId != null) {
-                    requireNotNull(templateRepository) { "template repository unavailable" }
-                        .setStatus(form.templateId, TemplateStatus.ENDED, updatedAt = now)
-                }
-                when {
-                    form.externalSplitId != null -> {
-                        // Switching back from an external split archives the old entity first so
-                        // the replacement movement is not double-counted.
-                        requireNotNull(splitRepository) { "split repository unavailable" }
-                            .archiveExternalSplit(form.externalSplitId, archivedAt = now)
-                        movementRepository.create(draft, createdAt = now)
-                    }
-                    form.movementId == null -> movementRepository.create(draft, createdAt = now)
-                    else -> movementRepository.update(draft, updatedAt = now)
-                }
-            }
-        }
-    }
-
-    /**
-     * [splitWrite] carries no split data when it's [MovementSplitWrite.KeepExisting] — that value
-     * only means "don't touch the movement's split," which is fine for the movement's own write
-     * but leaves [createQuickTemplate] with nothing to persist into a brand-new template. When
-     * that happens for an edit of an already-shared movement, read the split that's actually
-     * there so the template being created alongside it still carries it forward.
-     */
-    private fun resolveSplitForTemplateCarryForward(
-        form: MovementFormState,
-        splitWrite: MovementSplitWrite,
-    ): MovementSplitWrite {
-        if (splitWrite !is MovementSplitWrite.KeepExisting) return splitWrite
-        val movementId = form.movementId ?: return splitWrite
-        val existing = splitRepository?.getForMovement(movementId) ?: return splitWrite
-        return MovementSplitWrite.Replace(existing)
-    }
-
-    private fun createQuickTemplate(
-        templateId: String,
-        form: MovementFormState,
-        amountCents: Long,
-        date: LocalDate,
-        createdAt: String,
-        splitWrite: MovementSplitWrite,
-    ) {
-        val repo = templateRepository ?: return
-        val dayOfMonth: Long? = when (form.recurringFrequency) {
-            RecurrenceFrequency.MONTHLY, RecurrenceFrequency.YEARLY -> date.dayOfMonth.toLong()
-            else -> null
-        }
-        val nextDue = if (form.recurringFrequency == RecurrenceFrequency.CUSTOM) {
-            // The quick form does not expose a custom interval yet. Preserve its defensive
-            // fallback until that frequency can supply a complete custom rule.
-            date.plusMonths(1)
-        } else {
-            RecurringAdvancer.nextOccurrence(
-                RecurrenceRule(
-                    frequency = form.recurringFrequency,
-                    dayOfMonth = dayOfMonth?.toInt(),
-                ),
-                date,
-            )
-        }
-        val draft = TemplateDraft(
-            id = templateId,
-            type = form.type,
-            amountCents = amountCents,
-            accountId = requireNotNull(form.accountId),
-            destAccountId = form.destinationAccountId.takeIf { form.type == MovementType.TRANSFER },
-            categoryId = form.categoryId.takeIf { form.type != MovementType.TRANSFER },
-            tripId = form.tripId.takeIf { form.type != MovementType.TRANSFER },
-            tagId = form.tagId.takeIf { form.type != MovementType.TRANSFER },
-            name = form.name.nullIfBlank(),
-            payee = form.payee.nullIfBlank(),
-            notes = form.notes.nullIfBlank(),
-            splitConfig = splitWrite.toTemplateSplitConfig(),
-            frequency = form.recurringFrequency,
-            intervalCount = null,
-            customUnit = null,
-            dayOfMonth = dayOfMonth,
-            weekday = null,
-            nextDueDate = nextDue.toString(),
-            amountIsVariable = false,
-            amountFlexCents = null,
-            dateFlexDays = null,
-            leadNotificationDays = null,
-            status = TemplateStatus.ACTIVE,
-        )
-        repo.create(draft, createdAt = createdAt)
-    }
-
-    private fun refresh(dataChanged: Boolean = false) {
+    private fun refresh() {
         viewModelScope.launch {
             _state.value = _state.value.copy(isLoading = true, errorMessage = null)
             val result = loadMovementData()
-            val dataVersion = if (dataChanged) {
-                _state.value.dataVersion + 1L
-            } else {
-                _state.value.dataVersion
-            }
             _state.value = result.fold(
                 onSuccess = {
                     _state.value.copy(
@@ -1132,14 +484,12 @@ class MovementsViewModel(
                         trips = it.trips,
                         tags = it.tags,
                         isLoading = false,
-                        dataVersion = dataVersion,
                     )
                 },
                 onFailure = {
                     _state.value.copy(
                         isLoading = false,
                         errorMessage = it.message ?: it.javaClass.simpleName,
-                        dataVersion = dataVersion,
                     )
                 },
             )
@@ -1168,104 +518,6 @@ class MovementsViewModel(
         }
     }
 
-    /**
-     * Runs on every form edit. Used to be a per-type "wipe whatever the new type/kind doesn't
-     * render" pass -- that silently destroyed entered data on a type/kind switch (data-loss protection): a
-     * shared expense flipped to TRANSFER and back lost its split, a payer switch lost the other
-     * person, etc. By design, the form now retains every entered value (`splitEditor`,
-     * `forOtherPersonId`, `settlementPersonId`, `payee`, `notes`, `isOneTime`, `accountId`, …) for
-     * the life of the form regardless of type/kind -- the UI already renders only the
-     * type/kind-relevant section, so retained-but-hidden state is invisible to the user.
-     * Incompatible values are stripped only at draft-build time in [saveDirectMovement]; a stored split
-     * that the final kind can't carry goes through [MovementFormState.pendingDataLossWarning]
-     * instead of being silently dropped here. The only normalization left is read-only:
-     * category/tag compatibility against the current type and clearing
-     * transient error/warning flags so a fresh edit re-evaluates them from scratch.
-     */
-    private fun normalizeForm(form: MovementFormState): MovementFormState {
-        val effectiveType = if (form.type == MovementType.EXPENSE && form.expenseKind == ExpenseKind.DEBT) {
-            MovementType.EXTERNAL_EXPENSE
-        } else {
-            form.type
-        }
-        val category = form.categoryId?.let { catId ->
-            _state.value.categories.firstOrNull { it.id == catId }
-        }
-        val tag = form.tagId?.let { tId ->
-            _state.value.tags.firstOrNull { it.id == tId }
-        }
-        val trip = form.tripId?.let { tripId ->
-            _state.value.trips.firstOrNull { it.id == tripId }
-        }
-
-        val finalCategoryId = if (category != null && !category.supports(effectiveType)) null else form.categoryId
-        val finalTagId = if (form.tripId == null || tag == null || !tag.supportsTrip(trip)) null else form.tagId
-
-        return form.copy(
-            categoryId = finalCategoryId,
-            tagId = finalTagId,
-            errorRes = null,
-            errorField = null,
-            errorMessage = null,
-            duplicateWarning = false,
-            pendingDataLossWarning = null,
-        )
-    }
-
-    // Warn (never block) when an active movement matches account + amount + date(±1) + name.
-    private fun isDuplicate(
-        form: MovementFormState,
-        amountCents: Long,
-        date: LocalDate,
-    ): Boolean {
-        val accountId = form.accountId ?: return false
-        val candidateName = form.name.trim().ifEmpty { form.payee.trim() }
-        if (candidateName.isEmpty()) return false
-        val candidate = DuplicateMovement(accountId, amountCents, date, candidateName)
-        return _state.value.movements.any { existing ->
-            if (existing.id == form.movementId || existing.id == form.externalSplitId) return@any false
-            val existingDate = parseDate(existing.date) ?: return@any false
-            DuplicateDetector.isDuplicate(
-                existing = DuplicateMovement(
-                    accountId = existing.accountId.orEmpty(),
-                    amountCents = existing.amountCents,
-                    date = existingDate,
-                    name = existing.name ?: existing.payee ?: "",
-                ),
-                candidate = candidate,
-            )
-        }
-    }
-
-    class Factory(
-        private val movementRepository: MovementRepository,
-        private val accountRepository: AccountRepository,
-        private val categoryRepository: CategoryRepository,
-        private val personRepository: PersonRepository,
-        private val tripRepository: TripRepository,
-        private val tagRepository: TagRepository,
-        private val splitRepository: SplitRepository? = null,
-        private val notificationRefresher: NotificationRefresher = NotificationRefresher.NoOp,
-        private val templateRepository: TemplateRepository? = null,
-    ) : ViewModelProvider.Factory {
-        @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            if (modelClass.isAssignableFrom(MovementsViewModel::class.java)) {
-                return MovementsViewModel(
-                    movementRepository = movementRepository,
-                    accountRepository = accountRepository,
-                    categoryRepository = categoryRepository,
-                    personRepository = personRepository,
-                    tripRepository = tripRepository,
-                    tagRepository = tagRepository,
-                    splitRepository = splitRepository,
-                    notificationRefresher = notificationRefresher,
-                    templateRepository = templateRepository,
-                ) as T
-            }
-            throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
-        }
-    }
 }
 
 data class MovementsUiState(
@@ -1278,23 +530,20 @@ data class MovementsUiState(
     val filters: MovementFilters = MovementFilters(),
     val isLoading: Boolean = true,
     val errorMessage: String? = null,
-    val form: MovementFormState? = null,
     val detailMovement: MovementSummary? = null,
     val detailRefunds: List<RefundSummary> = emptyList(),
     val detailSplit: MovementSplitDraft? = null,
     val refundForm: RefundFormState? = null,
     val archiveCandidate: ArchiveCandidate? = null,
-    val dataVersion: Long = 0L,
 ) {
     val visibleMovements: List<MovementSummary>
         get() = movements.filter { filters.matches(it) }
 
-    /** True while any of this ViewModel's own pages/dialogs (`AppOverlay.MovementForm`/
-     * `MovementDetail`, or the local archive/refund state nested inside the latter) is open --
-     * used to keep other app-level auto-triggered overlays (e.g. the due-reminders sheet) from
-     * appearing on top of one of these. */
+    /** True while the movement detail, or the archive/refund state nested inside it, is open --
+     * used with [MovementEditor.form] to keep other app-level auto-triggered overlays (e.g. the
+     * due-reminders sheet) from appearing on top of one of these. */
     val hasOpenDialog: Boolean get() =
-        form != null || detailMovement != null || refundForm != null || archiveCandidate != null
+        detailMovement != null || refundForm != null || archiveCandidate != null
 }
 
 data class ArchiveCandidate(
@@ -1318,6 +567,8 @@ private data class MovementDeleteOperation(
 data class MovementFilters(
     val query: String = "",
     val type: MovementType? = null,
+    /** The ledger's "paid by someone else" type choice: only expenses a person paid. */
+    val paidByPersonOnly: Boolean = false,
     val accountId: String? = null,
     val categoryId: String? = null,
     val tripId: String? = null,
@@ -1358,100 +609,6 @@ enum class MovementOneTimeMode {
     ONLY,
 }
 
-enum class ExpenseKind {
-    PERSONAL,   // type 1: Jo paid, just me
-    SHARED,     // type 2: Jo paid, split with others
-    FOR_OTHER,  // type 3: Jo paid, the other person owes the full amount
-    DEBT,       // type 4: Una altra persona paid, I owe them
-}
-
-/** Identifies which field a movement-form validation error belongs to (field-level validation) --
- * paired with [MovementFormState.errorRes] so the form can highlight the offending control and
- * scroll it into view instead of only showing a message the user may have scrolled past. Kept as
- * a single field (not a list): the validation chain in `saveDirectMovement` already stops at the first
- * failing condition. */
-enum class MovementFormField {
-    AMOUNT,
-    DATE,
-    ACCOUNT,
-    DESTINATION_ACCOUNT,
-    CATEGORY,
-    TAG,
-    PERSON,
-    SPLIT,
-    INCOME_OWNER,
-}
-
-/** The two destructive-save shapes [MovementsViewModel.saveDirectMovement] warns about before writing
- * (data-loss protection) -- never a hard block, always a dismissible "save anyway." */
-enum class DataLossWarning {
-    /** An existing stored split will be removed because the final kind can't carry one. */
-    SPLIT_REMOVED,
-    /** An existing direct movement/external split will be archived and recreated on the other
-     * side of the movement/external-split boundary (the C8 payer-switch path), dropping payee,
-     * notes, and any recurrence link -- `splits` rows carry none of those fields. */
-    PAYER_SWITCH,
-    /** Recurrence was toggled off on a movement still linked to a template (recurrence consistency): ambiguous whether the whole series should stop or just this occurrence
-     * should detach -- offers both choices instead of silently doing either. */
-    RECURRING_STOP,
-}
-
-data class MovementFormState(
-    /** Set when editing an existing direct movement ([com.gestorfinances.app.data.repository.MovementType]
-     * other than EXTERNAL_EXPENSE) -- `movements.id`. Mutually exclusive with [externalSplitId]:
-     * an in-progress edit's backing entity is always one or the other, never both. Tracking them
-     * separately (rather than a single ambiguous id) lets [MovementsViewModel] detect when the
-     * user switches "Qui ha pagat?" to/from "Un altre" mid-edit and archive-and-recreate instead
-     * of silently writing to the wrong table. */
-    val movementId: String? = null,
-    /** Set when editing an existing DEBT ("Un altre ha pagat") expense -- `splits.id`, per
-     * `v_movement_summary`'s external-expense branch. See [movementId]. */
-    val externalSplitId: String? = null,
-    val type: MovementType = MovementType.EXPENSE,
-    val amount: String = "",
-    val date: String = "",
-    val accountId: String? = null,
-    val destinationAccountId: String? = null,
-    val categoryId: String? = null,
-    val tripId: String? = null,
-    val tagId: String? = null,
-    val name: String = "",
-    val payee: String = "",
-    val notes: String = "",
-    val isOneTime: Boolean = false,
-    val existingSplit: Boolean = false,
-    /** UI toggle-state only (drives the sharing-switch's checked state) — save-path removal is
-     * computed independently in `saveDirectMovement` via `finalKindCarriesSplit`. */
-    val removeExistingSplit: Boolean = false,
-    val splitEditor: SplitEditorState? = null,
-    val duplicateWarning: Boolean = false,
-    /** Set by [MovementsViewModel]'s pre-save gate (data-loss protection) when the save-in-
-     * progress would remove a stored split or cross the movement/external-split boundary --
-     * mirrors [duplicateWarning]'s dismissible "save anyway" mechanism, never a hard block. */
-    val pendingDataLossWarning: DataLossWarning? = null,
-    val errorRes: Int? = null,
-    /** Which control [errorRes] refers to (field-level validation) -- null for a save-time
-     * failure that isn't attributable to a single field. */
-    val errorField: MovementFormField? = null,
-    val errorMessage: String? = null,
-    val isSettlement: Boolean = false,
-    val settlementPersonId: String? = null,
-    val expenseKind: ExpenseKind? = null,
-    val forOtherPersonId: String? = null,
-    val isRecurring: Boolean = false,
-    val recurringFrequency: RecurrenceFrequency = RecurrenceFrequency.MONTHLY,
-    val templateId: String? = null,
-    /** The linked template's status when [templateId] is set -- loaded
-     * on edit so the form can reflect the template's real state; null for a new/unlinked movement. */
-    val templateStatus: TemplateStatus? = null,
-    val showOptional: Boolean = false,
-    val showAdvanced: Boolean = false,
-    /** Stable UI disclosure for the expense payer/beneficiary controls. */
-) {
-    /** True for a fresh "add" flow with no backing entity yet, as opposed to editing an existing
-     * movement or external split. */
-    val isNew: Boolean get() = movementId == null && externalSplitId == null
-}
 
 /** Identifies which field a refund-form validation error belongs to (field-level validation). */
 enum class RefundFormField {
@@ -1485,48 +642,6 @@ private data class LoadedMovementData(
     val tags: List<TagSummary>,
 )
 
-private fun defaultAccountId(accounts: List<AccountSummary>): String? =
-    accounts.firstOrNull { it.isDefault }?.id ?: accounts.firstOrNull()?.id
-
-private fun newMovementForm(
-    data: LoadedMovementData,
-    tripId: String?,
-    debtPayerPersonId: String? = null,
-    presetAccountId: String? = null,
-): MovementFormState {
-    val trip = tripId?.let { selectedId -> data.trips.firstOrNull { it.id == selectedId } }
-    val accountId = presetAccountId?.takeIf { id -> data.accounts.any { it.id == id } }
-        ?: trip?.defaultAccountId
-        ?: defaultAccountId(data.accounts)
-    val account = data.accounts.firstOrNull { it.id == accountId }
-    val sharedAccount = debtPayerPersonId == null && account?.ownershipKind == AccountOwnershipKind.SHARED
-    return MovementFormState(
-        accountId = accountId,
-        tripId = trip?.id,
-        date = LocalDate.now().toString(),
-        expenseKind = when {
-            debtPayerPersonId != null -> ExpenseKind.DEBT
-            sharedAccount -> ExpenseKind.SHARED
-            else -> null
-        },
-        splitEditor = if (sharedAccount) account?.defaultExpenseSplitEditor() else null,
-        forOtherPersonId = debtPayerPersonId,
-        showOptional = trip?.id != null || sharedAccount,
-    )
-}
-
-private fun AccountSummary.defaultExpenseSplitEditor(): SplitEditorState =
-    SplitEditorState(
-        method = SplitEntryMethod.PERCENTAGE,
-        selectedPersonIds = members.mapNotNull { it.personId },
-        percentages = members.associate { member ->
-            val participantId = member.personId ?: USER_PARTICIPANT_ID
-            participantId to "%d,%02d".format(
-                member.defaultExpenseBasisPoints / 100,
-                member.defaultExpenseBasisPoints % 100,
-            )
-        },
-    )
 
 private fun MovementFilters.withDateValidation(): MovementFilters {
     val from = parseDateOrNull(dateFrom)
@@ -1542,12 +657,9 @@ private fun MovementFilters.withDateValidation(): MovementFilters {
 
 private fun MovementFilters.matches(movement: MovementSummary): Boolean {
     if (type != null) {
-        val matchesType = when (type) {
-            MovementType.EXPENSE -> movement.type == MovementType.EXPENSE || movement.type == MovementType.EXTERNAL_EXPENSE
-            else -> movement.type == type
-        }
-        if (!matchesType) return false
+        if (movement.type != type) return false
     }
+    if (paidByPersonOnly && !movement.paidByPerson) return false
     if (sourceMode == MovementSourceMode.ACTUAL && movement.type !in actualMovementTypes) return false
     if (accountId != null && movement.accountId != accountId && movement.destinationAccountId != accountId) {
         return false
@@ -1584,121 +696,8 @@ private fun MovementFilters.matches(movement: MovementSummary): Boolean {
     return true
 }
 
-private fun MovementSummary.toFormState(
-    splitDraft: MovementSplitDraft? = null,
-    template: TemplateSummary? = null,
-): MovementFormState {
-    // DEBT (type 4): stored as EXTERNAL_EXPENSE — map back to EXPENSE + expenseKind=DEBT.
-    // DEBT carries no recurrence support (external splits have no template link).
-    if (type == MovementType.EXTERNAL_EXPENSE) {
-        return MovementFormState(
-            externalSplitId = id,
-            type = MovementType.EXPENSE,
-            amount = formatEuroInput(amountCents),
-            date = date,
-            categoryId = categoryId,
-            tripId = tripId,
-            tagId = tagId,
-            name = name.orEmpty(),
-            expenseKind = ExpenseKind.DEBT,
-            forOtherPersonId = payerId,
-            showOptional = tripId != null || tagId != null,
-        )
-    }
 
-    val userLine = splitDraft?.lines?.firstOrNull { it.participantKind == SplitParticipantKind.USER }
-    val personLines = splitDraft?.lines?.filter { it.participantKind == SplitParticipantKind.PERSON } ?: emptyList()
-
-    // FOR_OTHER (type 3): user owes 0, exactly one person owes the full amount.
-    if (userLine != null && userLine.owedAmountCents == 0L &&
-        personLines.size == 1 && personLines.first().owedAmountCents == amountCents
-    ) {
-        val showAdvanced = isOneTime || isRecurring || !payee.isNullOrEmpty() || !notes.isNullOrEmpty()
-        return MovementFormState(
-            movementId = id,
-            type = type,
-            amount = formatEuroInput(amountCents),
-            date = date,
-            accountId = accountId,
-            categoryId = categoryId,
-            tripId = tripId,
-            tagId = tagId,
-            name = name.orEmpty(),
-            payee = payee.orEmpty(),
-            notes = notes.orEmpty(),
-            isOneTime = isOneTime,
-            existingSplit = true,
-            expenseKind = ExpenseKind.FOR_OTHER,
-            forOtherPersonId = personLines.first().personId,
-            isRecurring = isRecurring,
-            templateId = templateId,
-            recurringFrequency = template?.frequency ?: RecurrenceFrequency.MONTHLY,
-            templateStatus = template?.status,
-            showOptional = tripId != null || tagId != null || showAdvanced,
-            showAdvanced = showAdvanced,
-        )
-    }
-
-    // SHARED (type 2): split exists; PERSONAL (type 1): no split.
-    val splitEditor = splitDraft?.let { draft ->
-        SplitEditorState(
-            method = draft.entryMethod,
-            selectedPersonIds = personLines.mapNotNull { it.personId },
-            payerParticipantId = USER_PARTICIPANT_ID,
-            exactAmounts = if (draft.entryMethod == SplitEntryMethod.EXACT) {
-                draft.lines.associate { line ->
-                    (line.personId ?: USER_PARTICIPANT_ID) to formatEuroInput(line.owedAmountCents)
-                }
-            } else {
-                emptyMap()
-            },
-            percentages = if (draft.entryMethod == SplitEntryMethod.PERCENTAGE) {
-                draft.lines.associate { line ->
-                    val participantId = line.personId ?: USER_PARTICIPANT_ID
-                    val percentStr = line.owedPercent?.let { "%.2f".format(it).replace(".", ",") }
-                        ?: if (amountCents > 0) "%.2f".format(line.owedAmountCents.toDouble() * 100.0 / amountCents).replace(".", ",") else ""
-                    participantId to percentStr
-                }
-            } else {
-                emptyMap()
-            },
-        )
-    }
-
-    val expenseKind = when {
-        type != MovementType.EXPENSE && type != MovementType.INCOME -> null
-        splitEditor != null -> ExpenseKind.SHARED
-        else -> ExpenseKind.PERSONAL
-    }
-    val showAdvanced = isOneTime || isRecurring || isShared || !payee.isNullOrEmpty() || !notes.isNullOrEmpty()
-
-    return MovementFormState(
-        movementId = id,
-        type = type,
-        amount = formatEuroInput(amountCents),
-        date = date,
-        accountId = accountId,
-        destinationAccountId = destinationAccountId,
-        categoryId = categoryId,
-        tripId = tripId,
-        tagId = tagId,
-        name = name.orEmpty(),
-        payee = payee.orEmpty(),
-        notes = notes.orEmpty(),
-        isOneTime = isOneTime,
-        existingSplit = isShared,
-        splitEditor = splitEditor,
-        isRecurring = isRecurring,
-        templateId = templateId,
-        recurringFrequency = template?.frequency ?: RecurrenceFrequency.MONTHLY,
-        templateStatus = template?.status,
-        expenseKind = expenseKind,
-        showOptional = tripId != null || tagId != null || showAdvanced,
-        showAdvanced = showAdvanced,
-    )
-}
-
-private fun parseDate(raw: String): LocalDate? =
+internal fun parseDate(raw: String): LocalDate? =
     try {
         LocalDate.parse(raw.trim())
     } catch (_: DateTimeParseException) {
@@ -1708,12 +707,11 @@ private fun parseDate(raw: String): LocalDate? =
 private fun parseDateOrNull(raw: String): LocalDate? =
     raw.trim().takeIf { it.isNotEmpty() }?.let(::parseDate)
 
-private fun String.nullIfBlank(): String? =
+internal fun String.nullIfBlank(): String? =
     trim().takeIf { it.isNotEmpty() }
 
 private val actualMovementTypes = setOf(
     MovementType.EXPENSE,
     MovementType.INCOME,
     MovementType.REFUND,
-    MovementType.EXTERNAL_EXPENSE,
 )

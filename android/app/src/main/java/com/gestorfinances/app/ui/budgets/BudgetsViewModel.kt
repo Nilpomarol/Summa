@@ -1,7 +1,6 @@
 package com.gestorfinances.app.ui.budgets
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.BudgetDraft
@@ -48,14 +47,11 @@ class BudgetsViewModel(
     val state: StateFlow<BudgetsUiState> = _state.asStateFlow()
 
     fun onScreenShown(contextTripId: String? = null) {
+        // A trip's budget form opens once, when the page is first shown for that trip; a reload
+        // after a financial write leaves the form as the user left it.
+        val opensContextForm = contextTripId != null && contextTripId != _state.value.contextTripId
         _state.value = _state.value.copy(contextTripId = contextTripId)
-        refresh(openContextForm = contextTripId != null)
-    }
-
-    /** Clears the period and expanded/form state for a fresh visit from the Més menu. */
-    fun resetForMenuNavigation() {
-        _state.value = BudgetsUiState(selectedMonth = YearMonth.from(today()))
-        refresh()
+        refresh(openContextForm = opensContextForm)
     }
 
     fun onMonthSelected(month: YearMonth) {
@@ -297,30 +293,6 @@ class BudgetsViewModel(
             withContext(ioDispatcher) {
                 runCatching { notificationRefresher.refreshNotifications() }
             }
-        }
-    }
-
-    class Factory(
-        private val budgetRepository: BudgetRepository,
-        private val categoryRepository: CategoryRepository,
-        private val tripRepository: TripRepository,
-        private val templateRepository: TemplateRepository? = null,
-        private val analysisRepository: AnalysisRepository? = null,
-        private val notificationRefresher: NotificationRefresher = NotificationRefresher.NoOp,
-    ) : ViewModelProvider.Factory {
-        @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            if (modelClass.isAssignableFrom(BudgetsViewModel::class.java)) {
-                return BudgetsViewModel(
-                    budgetRepository = budgetRepository,
-                    categoryRepository = categoryRepository,
-                    tripRepository = tripRepository,
-                    templateRepository = templateRepository,
-                    analysisRepository = analysisRepository,
-                    notificationRefresher = notificationRefresher,
-                ) as T
-            }
-            throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }
     }
 }

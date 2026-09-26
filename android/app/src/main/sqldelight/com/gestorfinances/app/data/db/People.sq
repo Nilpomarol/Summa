@@ -66,7 +66,7 @@ FROM (
         ON categories.id = movements.category_id
     WHERE split_lines.person_id = :person_id
       AND split_lines.participant_kind = 'person'
-      AND splits.payer_person_id IS NULL
+      AND movements.payer_person_id IS NULL
       AND COALESCE(movements.expense_funding, 'owner') = 'owner'
       AND movements.archived_at IS NULL
       AND splits.archived_at IS NULL
@@ -75,23 +75,25 @@ FROM (
     UNION ALL
 
     SELECT
-        splits.id AS source_id,
+        movements.id AS source_id,
         'person_paid' AS source_type,
-        splits.date AS source_date,
-        NULLIF(splits.description, '') AS title,
-        splits.category_id AS category_id,
+        movements.date AS source_date,
+        COALESCE(NULLIF(movements.name, ''), NULLIF(movements.payee, ''), NULLIF(movements.notes, '')) AS title,
+        movements.category_id AS category_id,
         categories.name AS category_name,
         -split_lines.owed_amount_cents AS effect_cents,
         0 AS is_recurring,
         CAST(NULL AS TEXT) AS settlement_scope
-    FROM splits
+    FROM movements
+    JOIN splits
+        ON splits.movement_id = movements.id
     JOIN split_lines
         ON split_lines.split_id = splits.id
     LEFT JOIN categories
-        ON categories.id = splits.category_id
-    WHERE splits.payer_person_id = :person_id
-      AND splits.movement_id IS NULL
+        ON categories.id = movements.category_id
+    WHERE movements.payer_person_id = :person_id
       AND split_lines.participant_kind = 'user'
+      AND movements.archived_at IS NULL
       AND splits.archived_at IS NULL
       AND split_lines.archived_at IS NULL
 

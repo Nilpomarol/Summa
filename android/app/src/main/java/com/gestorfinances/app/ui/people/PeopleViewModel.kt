@@ -1,7 +1,6 @@
 package com.gestorfinances.app.ui.people
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.gestorfinances.app.R
 import com.gestorfinances.app.data.repository.AccountRepository
@@ -40,13 +39,12 @@ class PeopleViewModel(
     private val _state = MutableStateFlow(PeopleUiState())
     val state: StateFlow<PeopleUiState> = _state.asStateFlow()
 
+    /** Set while a settlement is being written, so a repeated tap cannot record it twice. */
+    private var settlementSaveInFlight = false
+
     fun onScreenShown() {
         refreshPeople()
-    }
-
-    fun resetForMenuNavigation() {
-        _state.value = PeopleUiState()
-        refreshPeople()
+        _state.value.detail?.person?.let(::onPersonDetailClicked)
     }
 
     fun onAddClicked() {
@@ -90,6 +88,7 @@ class PeopleViewModel(
     }
 
     fun onSettlementSaveClicked() {
+        if (settlementSaveInFlight) return
         val form = _state.value.settlementForm ?: return
         val amount = parseEuroCents(form.amount, allowNegative = false)
         val date = parseDate(form.date)
@@ -125,10 +124,12 @@ class PeopleViewModel(
             notes = form.notes.trim().ifBlank { null },
         )
 
+        settlementSaveInFlight = true
         viewModelScope.launch {
             val result = withContext(ioDispatcher) {
                 runCatching { movementRepository.createSettlement(draft, createdAt = now) }
             }
+            settlementSaveInFlight = false
             result.fold(
                 onSuccess = {
                     _state.value = _state.value.copy(settlementForm = null)
@@ -337,26 +338,6 @@ class PeopleViewModel(
             withContext(ioDispatcher) {
                 runCatching { notificationRefresher.refreshNotifications() }
             }
-        }
-    }
-
-    class Factory(
-        private val personRepository: PersonRepository,
-        private val movementRepository: MovementRepository,
-        private val accountRepository: AccountRepository,
-        private val notificationRefresher: NotificationRefresher = NotificationRefresher.NoOp,
-    ) : ViewModelProvider.Factory {
-        @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            if (modelClass.isAssignableFrom(PeopleViewModel::class.java)) {
-                return PeopleViewModel(
-                    personRepository = personRepository,
-                    movementRepository = movementRepository,
-                    accountRepository = accountRepository,
-                    notificationRefresher = notificationRefresher,
-                ) as T
-            }
-            throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }
     }
 }

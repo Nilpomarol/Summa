@@ -4,6 +4,7 @@ import com.gestorfinances.app.data.db.TemplatesQueries
 import com.gestorfinances.app.domain.rules.CustomRecurrenceUnit
 import com.gestorfinances.app.domain.rules.RecurrenceFrequency
 import com.gestorfinances.app.domain.rules.SettlementScope
+import com.gestorfinances.app.domain.rules.SplitCalculator
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -114,11 +115,21 @@ class TemplateRepository(
     fun getActive(id: String): TemplateSummary? =
         queries.templateById(id, ::mapTemplateSummary).executeAsOneOrNull()
 
+    /** An income is allocated between members only in a shared account; in a personal one it is
+     * the owner's, as [MovementRepository] requires of each occurrence. */
+    private fun validateIncomeAllocation(draft: TemplateDraft) {
+        if (draft.type != MovementType.INCOME || draft.splitConfig == null) return
+        require(queries.accountOwnershipKind(draft.accountId).executeAsOneOrNull() == AccountOwnershipKind.SHARED.dbValue) {
+            "Only an income into a shared account can be allocated between members."
+        }
+    }
+
     fun create(
         draft: TemplateDraft,
         createdAt: String,
     ) {
         validate(draft)
+        validateIncomeAllocation(draft)
         queries.insertTemplate(
             id = draft.id,
             type = draft.type.dbValue,
@@ -156,6 +167,7 @@ class TemplateRepository(
         updatedAt: String,
     ) {
         validate(draft)
+        validateIncomeAllocation(draft)
         queries.updateTemplate(
             id = draft.id,
             type = draft.type.dbValue,
@@ -246,8 +258,8 @@ private fun decodeSplitConfig(raw: String?): TemplateSplitConfig? =
  * Converts a resolved split write into the template's carried-forward split shape. A template can
  * only be created from [ExpenseKind.PERSONAL]/[ExpenseKind.SHARED]/[ExpenseKind.FOR_OTHER] (DEBT
  * has no template support), so the user is always the payer. Returns null when the movement itself
- * has no split (plain personal expense/income/transfer) — `RecurringViewModel.toSplitWrite` already
- * treats a null `split_config` as "no split to carry forward."
+ * has no split (plain personal expense/income/transfer) — [occurrenceSplit] then has nothing to
+ * carry forward.
  */
 internal fun MovementSplitWrite.toTemplateSplitConfig(): TemplateSplitConfig? {
     val draft = (this as? MovementSplitWrite.Replace)?.draft ?: return null
@@ -262,6 +274,52 @@ internal fun MovementSplitWrite.toTemplateSplitConfig(): TemplateSplitConfig? {
         },
         )
     }
+
+/**
+ * The one rule for what a template's stored split means for an occurrence of [amountCents]: each
+ * line's owed amount is a weight rescaled to the occurrence total by [SplitCalculator.rescale]
+ * (`shared/golden/template_split_rescale.json`), so it is unchanged when the lines already add up
+ * to that total. The confirm preview, the confirmed movement's split, and every recurring figure
+ * (Recurring totals, the budget forecast) take their shares from here. Null when the config is
+ * malformed (unknown payer or entry method); an occurrence then carries no split at all.
+ */
+fun TemplateSplitConfig.occurrenceSplit(amountCents: Long): MovementSplitDraft? {
+    val method = SplitEntryMethod.entries.firstOrNull { it.dbValue == entryMethod } ?: return null
+    val payerIndex = lines.indexOfFirst { it.party == payer }
+    if (payerIndex < 0) return null
+    val rescaled = SplitCalculator.rescale(
+        weightsCents = lines.map { it.owedAmountCents },
+        totalCents = amountCents,
+        payerIndex = payerIndex,
+    )
+    if (!rescaled.valid) return null
+    return MovementSplitDraft(
+        entryMethod = method,
+        lines = lines.zip(rescaled.sharesCents).map { (line, share) ->
+            if (line.party == "user") {
+                SplitLineDraft(SplitParticipantKind.USER, personId = null, owedAmountCents = share)
+            } else {
+                SplitLineDraft(SplitParticipantKind.PERSON, personId = line.party, owedAmountCents = share)
+            }
+        },
+    )
+}
+
+/** The owner's line of [occurrenceSplit]; null when the config is malformed or has no owner line. */
+fun TemplateSplitConfig.userShareCents(amountCents: Long): Long? =
+    occurrenceSplit(amountCents)?.lines?.firstOrNull { it.participantKind == SplitParticipantKind.USER }?.owedAmountCents
+
+/** A template's split as its occurrences carry it: only an expense or an income has one. */
+val TemplateSummary.occurrenceSplitConfig: TemplateSplitConfig?
+    get() = splitConfig.takeIf { type == MovementType.EXPENSE || type == MovementType.INCOME }
+
+/**
+ * What an occurrence of [amountCents] counts as the owner's own actual expense or income: the
+ * owner's share when the occurrence carries a split, the whole amount otherwise. Account flow is
+ * a different figure and always moves the whole amount.
+ */
+fun TemplateSummary.userOccurrenceAmountCents(amountCents: Long): Long =
+    occurrenceSplitConfig?.userShareCents(amountCents) ?: amountCents
 
 /** Mirrors the templates CHECK constraints so app code fails fast with a clear message. */
 private fun validate(draft: TemplateDraft) {

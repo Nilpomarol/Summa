@@ -1,9 +1,9 @@
 package com.gestorfinances.app.ui.recurring
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.gestorfinances.app.R
+import com.gestorfinances.app.data.FinancialDataRevision
 import com.gestorfinances.app.data.repository.AccountRepository
 import com.gestorfinances.app.data.repository.AccountOwnershipKind
 import com.gestorfinances.app.data.repository.ExpenseFunding
@@ -14,14 +14,15 @@ import com.gestorfinances.app.data.repository.MovementDraft
 import com.gestorfinances.app.data.repository.MovementRepository
 import com.gestorfinances.app.data.repository.MovementSplitDraft
 import com.gestorfinances.app.data.repository.MovementSplitWrite
+import com.gestorfinances.app.data.repository.PersonDraft
+import com.gestorfinances.app.data.repository.SplitEntryMethod
+import com.gestorfinances.app.data.repository.SplitLineDraft
 import com.gestorfinances.app.data.repository.MovementSummary
 import com.gestorfinances.app.data.repository.MovementType
 import com.gestorfinances.app.data.repository.PersonRepository
 import com.gestorfinances.app.data.repository.PersonSummary
 import com.gestorfinances.app.data.repository.SettlementDirection
 import com.gestorfinances.app.data.repository.SettlementDraft
-import com.gestorfinances.app.data.repository.SplitEntryMethod
-import com.gestorfinances.app.data.repository.SplitLineDraft
 import com.gestorfinances.app.data.repository.SplitParticipantKind
 import com.gestorfinances.app.data.repository.SplitRepository
 import com.gestorfinances.app.data.repository.TemplateDraft
@@ -31,6 +32,9 @@ import com.gestorfinances.app.data.repository.TemplateStatus
 import com.gestorfinances.app.data.repository.TemplateSummary
 import com.gestorfinances.app.data.repository.TagRepository
 import com.gestorfinances.app.data.repository.TagSummary
+import com.gestorfinances.app.data.repository.occurrenceSplit
+import com.gestorfinances.app.data.repository.occurrenceSplitConfig
+import com.gestorfinances.app.data.repository.userOccurrenceAmountCents
 import com.gestorfinances.app.data.repository.TripRepository
 import com.gestorfinances.app.data.repository.TripSummary
 import com.gestorfinances.app.data.repository.supportsExpense
@@ -45,11 +49,14 @@ import com.gestorfinances.app.domain.rules.RecurringAdvancer
 import com.gestorfinances.app.domain.rules.RecurringCandidateMovement
 import com.gestorfinances.app.domain.rules.RecurringPatternDetector
 import com.gestorfinances.app.domain.rules.SettlementScope
-import com.gestorfinances.app.domain.rules.SplitCalculator
 import com.gestorfinances.app.domain.rules.toRecurrenceRule
 import com.gestorfinances.app.notifications.NotificationRefresher
 import com.gestorfinances.app.ui.common.formatEuroInput
 import com.gestorfinances.app.ui.common.parseEuroCents
+import com.gestorfinances.app.ui.movements.ExpenseKind
+import com.gestorfinances.app.ui.movements.SplitEditorState
+import com.gestorfinances.app.ui.movements.defaultExpenseSplitEditor
+import com.gestorfinances.app.ui.movements.toSplitEditorState
 import com.gestorfinances.app.ui.movements.supportsTrip
 import java.time.Instant
 import java.time.LocalDate
@@ -61,6 +68,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -76,12 +84,25 @@ class RecurringViewModel(
     private val notificationRefresher: NotificationRefresher = NotificationRefresher.NoOp,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val today: () -> LocalDate = { LocalDate.now() },
+    private val financialDataRevision: FinancialDataRevision = FinancialDataRevision(),
 ) : ViewModel() {
     private val _state = MutableStateFlow(RecurringUiState())
     val state: StateFlow<RecurringUiState> = _state.asStateFlow()
 
+    init {
+        // Any committed financial write, this view model's own or another overlay's, reloads it.
+        viewModelScope.launch {
+            financialDataRevision.value.drop(1).collect { onScreenShown() }
+        }
+    }
+
+    /** Set synchronously while a confirmed occurrence is being written, so a repeated tap cannot
+     * record the same occurrence twice. */
+    private var confirmInFlight = false
+
     fun onScreenShown() {
         refresh()
+        _state.value.historyDetail?.template?.let(::onHistoryClicked)
     }
 
     fun resetForMenuNavigation() {
@@ -139,6 +160,10 @@ class RecurringViewModel(
     }
 
     fun onFormChanged(form: TemplateFormState) {
+        val previous = _state.value.form
+        // Arriving at another account or type asks whose income it is afresh, like the movement
+        // form: one account's answer never carries to another.
+        val ownershipKept = previous == null || (previous.accountId == form.accountId && previous.type == form.type)
         val trip = form.tripId?.let { id -> _state.value.trips.firstOrNull { it.id == id } }
         val tag = form.tagId?.let { id -> _state.value.tags.firstOrNull { it.id == id } }
         val supportsCategory = form.type == MovementType.EXPENSE || form.type == MovementType.INCOME
@@ -149,11 +174,74 @@ class RecurringViewModel(
                 categoryId = form.categoryId.takeIf { supportsCategory },
                 tripId = form.tripId.takeIf { !isTransfer },
                 tagId = form.tagId.takeIf { !isTransfer && tag?.supportsTrip(trip) == true },
+                incomeOwner = form.incomeOwner.takeIf { ownershipKept },
+                incomeSplitEditor = form.incomeSplitEditor.takeIf { ownershipKept },
+                incomeMemberId = form.incomeMemberId.takeIf { ownershipKept },
+                incomeOwnerChosen = form.incomeOwnerChosen && ownershipKept,
                 errorRes = null,
                 errorField = null,
                 errorMessage = null,
             ),
         )
+    }
+
+    /** The answer to whose an income into the form's shared account is. Shared starts from the
+     * account's default member shares, as it does in the movement form. */
+    fun onIncomeOwnerSelected(owner: ExpenseKind) {
+        val form = _state.value.form ?: return
+        val account = _state.value.accounts.firstOrNull { it.id == form.accountId } ?: return
+        onFormChanged(
+            form.copy(
+                incomeOwner = owner,
+                incomeOwnerChosen = true,
+                incomeSplitEditor = form.incomeSplitEditor
+                    ?: account.defaultExpenseSplitEditor().takeIf { owner == ExpenseKind.SHARED },
+            ),
+        )
+    }
+
+    fun onIncomeSplitEditorChanged(editor: SplitEditorState) {
+        val form = _state.value.form ?: return
+        onFormChanged(form.copy(incomeSplitEditor = editor, incomeOwnerChosen = true))
+    }
+
+    fun onIncomeMemberSelected(personId: String?) {
+        val form = _state.value.form ?: return
+        onFormChanged(form.copy(incomeMemberId = personId, incomeOwnerChosen = true))
+    }
+
+    /** Adds a new person to the shared income's allocation, as the movement form's split editor does. */
+    fun onCreatePersonInIncomeSplit(name: String) {
+        val trimmedName = name.trim()
+        if (trimmedName.isEmpty()) return
+        val personId = UUID.randomUUID().toString()
+        val now = Instant.now().toString()
+        viewModelScope.launch {
+            val result = withContext(ioDispatcher) {
+                runCatching {
+                    personRepository.create(
+                        PersonDraft(id = personId, name = trimmedName, avatar = null, color = null, notes = null),
+                        createdAt = now,
+                    )
+                    personRepository.listActive()
+                }
+            }
+            result.fold(
+                onSuccess = { people ->
+                    // The person exists now, whether or not this template is ever saved.
+                    financialDataRevision.markChanged()
+                    val form = _state.value.form
+                    _state.value = _state.value.copy(
+                        people = people,
+                        form = form?.copy(
+                            incomeSplitEditor = form.incomeSplitEditor?.withPersonToggled(personId),
+                            incomeOwnerChosen = true,
+                        ),
+                    )
+                },
+                onFailure = ::showError,
+            )
+        }
     }
 
     fun onFormDismissed() {
@@ -188,7 +276,7 @@ class RecurringViewModel(
                 amount = template.amountCents?.let(::formatEuroInput).orEmpty(),
                 date = prompt.dueDate,
                 settlementPersonName = template.personName,
-                splitConfig = template.splitConfig,
+                splitConfig = template.occurrenceSplitConfig,
             ),
         )
     }
@@ -204,6 +292,7 @@ class RecurringViewModel(
     }
 
     fun onConfirmSaveClicked() {
+        if (confirmInFlight) return
         val prompt = _state.value.confirmPrompt ?: return
         val template = _state.value.templates.firstOrNull { it.id == prompt.templateId } ?: return
         val amountCents = parseEuroCents(prompt.amount, allowNegative = false)
@@ -261,7 +350,9 @@ class RecurringViewModel(
                         payee = template.payee,
                         notes = template.notes,
                         isOneTime = false,
-                        splitWrite = template.splitConfig.toSplitWrite(template.type, amount),
+                        splitWrite = template.occurrenceSplitConfig?.occurrenceSplit(amount)
+                            ?.let(MovementSplitWrite::Replace)
+                            ?: MovementSplitWrite.KeepExisting,
                         templateId = template.id,
                         expenseFunding = if (
                             template.type == MovementType.EXPENSE &&
@@ -272,6 +363,8 @@ class RecurringViewModel(
                 )
             }
         }
+        confirmInFlight = true
+        _state.value = _state.value.copy(confirmPrompt = prompt.copy(isSaving = true))
         viewModelScope.launch {
             val result = withContext(ioDispatcher) {
                 runCatching {
@@ -281,10 +374,11 @@ class RecurringViewModel(
                     }
                 }
             }
+            confirmInFlight = false
             result.fold(
                 onSuccess = {
                     _state.value = _state.value.copy(confirmPrompt = null)
-                    refresh()
+                    financialDataRevision.markChanged()
                     refreshNotifications()
                 },
                 onFailure = {
@@ -315,7 +409,7 @@ class RecurringViewModel(
             }
             result.fold(
                 onSuccess = {
-                    refresh()
+                    financialDataRevision.markChanged()
                     refreshNotifications()
                 },
                 onFailure = ::showError,
@@ -356,7 +450,7 @@ class RecurringViewModel(
             }
             result.fold(
                 onSuccess = { operation ->
-                    refresh()
+                    financialDataRevision.markChanged()
                     refreshNotifications()
                     onSuccess { undoDelete(operation) }
                 },
@@ -383,6 +477,15 @@ class RecurringViewModel(
         val leadNotificationDays = form.leadDays.trim()
             .takeIf { it.isNotBlank() }
             ?.toLongOrNull()
+        // An edit carries the stored split forward untouched (a full-row update would otherwise
+        // wipe it) unless the user answers anew whose an income into a shared account is. A stored
+        // split names the people of its own account and type, so it never moves to another one.
+        val edited = form.id?.let { id -> _state.value.templates.firstOrNull { it.id == id } }
+        val existingSplitConfig = edited?.splitConfig
+        val incomeOnSharedAccount = form.type == MovementType.INCOME &&
+            account?.ownershipKind == AccountOwnershipKind.SHARED
+        val allocationRedefined = incomeOnSharedAccount && form.incomeOwnerChosen
+        val chosenIncomeDraft = form.chosenIncomeSplitDraft(amountCents)
 
         val (errorRes, errorField) = when {
             !form.amountIsVariable && form.amount.isBlank() ->
@@ -392,6 +495,18 @@ class RecurringViewModel(
             !form.amountIsVariable && amountCents != null && amountCents <= 0L ->
                 R.string.movement_validation_amount_positive to TemplateFormField.AMOUNT
             account == null -> R.string.movement_validation_account_required to TemplateFormField.ACCOUNT
+            existingSplitConfig != null && !allocationRedefined &&
+                (form.type != edited?.type || form.accountId != edited?.accountId) ->
+                R.string.template_validation_allocation_kept to TemplateFormField.ACCOUNT
+            // Landing in a shared account never decides whose income it is.
+            incomeOnSharedAccount && form.incomeOwner == null ->
+                R.string.movement_validation_income_owner to TemplateFormField.INCOME_OWNER
+            allocationRedefined && form.incomeOwner == ExpenseKind.FOR_OTHER &&
+                account?.members.orEmpty().none { it.personId != null && it.personId == form.incomeMemberId } ->
+                R.string.settlement_validation_person_required to TemplateFormField.PERSON
+            allocationRedefined && form.incomeOwner == ExpenseKind.SHARED && chosenIncomeDraft == null ->
+                (form.incomeSplitEditor?.calculation(amountCents ?: VARIABLE_AMOUNT_WEIGHT_CENTS)?.errorRes
+                    ?: R.string.split_validation_reconcile) to TemplateFormField.SPLIT
             isTransfer && form.destinationAccountId == null ->
                 R.string.movement_validation_account_required to TemplateFormField.DESTINATION_ACCOUNT
             isTransfer && form.destinationAccountId == form.accountId ->
@@ -426,12 +541,16 @@ class RecurringViewModel(
             return
         }
 
-        // The manual edit form has no split_config field of its own (splits are configured via the
-        // pattern-detection flow or seeded directly), so on edit it must carry the existing
-        // template's splitConfig forward unchanged — otherwise TemplateRepository.update's
-        // full-row overwrite would silently wipe it (see toTemplateDraft(existing) below, same fix
-        // already applied to the detection-confirm path).
-        val existingSplitConfig = form.id?.let { id -> _state.value.templates.firstOrNull { it.id == id }?.splitConfig }
+        val splitConfig = when {
+            // Mine stores no split; Shared and another member store the allocation they describe.
+            allocationRedefined -> chosenIncomeDraft?.let { MovementSplitWrite.Replace(it).toTemplateSplitConfig() }
+            existingSplitConfig != null -> existingSplitConfig
+            // An expense on a shared account always has a split; without a stored one it gets the
+            // account's default shares, the same split the movement form gives it.
+            else -> requireNotNull(account)
+                .takeIf { form.type == MovementType.EXPENSE && it.ownershipKind == AccountOwnershipKind.SHARED }
+                ?.defaultExpenseSplitConfig(amountCents)
+        }
 
         val carriesLedgerDetail = !isTransfer && !isSettlement
         val draft = TemplateDraft(
@@ -449,7 +568,7 @@ class RecurringViewModel(
             name = form.name.trim().ifBlank { null },
             payee = form.payee.trim().ifBlank { null },
             notes = form.notes.trim().ifBlank { null },
-            splitConfig = if (isSettlement) null else existingSplitConfig,
+            splitConfig = splitConfig,
             frequency = form.frequency,
             intervalCount = if (form.frequency == RecurrenceFrequency.CUSTOM) intervalCount else null,
             customUnit = if (form.frequency == RecurrenceFrequency.CUSTOM) form.customUnit else null,
@@ -477,7 +596,7 @@ class RecurringViewModel(
             result.fold(
                 onSuccess = {
                     _state.value = _state.value.copy(form = null)
-                    refresh()
+                    financialDataRevision.markChanged()
                     refreshNotifications()
                 },
                 onFailure = {
@@ -497,7 +616,7 @@ class RecurringViewModel(
             }
             result.fold(
                 onSuccess = {
-                    refresh()
+                    financialDataRevision.markChanged()
                     refreshNotifications()
                 },
                 onFailure = ::showError,
@@ -631,7 +750,7 @@ class RecurringViewModel(
                     runCatching { applyDetectionItem(item.candidate, now) }.exceptionOrNull()?.let { item to it }
                 }
             }
-            refresh()
+            if (failures.size < accepted.size) financialDataRevision.markChanged()
             refreshNotifications()
             _state.value = _state.value.copy(
                 detectionReview = if (failures.isEmpty()) {
@@ -702,7 +821,7 @@ class RecurringViewModel(
             }
             result.fold(
                 onSuccess = {
-                    refresh()
+                    financialDataRevision.markChanged()
                     refreshNotifications()
                 },
                 onFailure = ::showError,
@@ -715,36 +834,6 @@ class RecurringViewModel(
             withContext(ioDispatcher) {
                 runCatching { notificationRefresher.refreshNotifications() }
             }
-        }
-    }
-
-    class Factory(
-        private val templateRepository: TemplateRepository,
-        private val accountRepository: AccountRepository,
-        private val categoryRepository: CategoryRepository,
-        private val tripRepository: TripRepository,
-        private val tagRepository: TagRepository,
-        private val movementRepository: MovementRepository,
-        private val splitRepository: SplitRepository,
-        private val personRepository: PersonRepository,
-        private val notificationRefresher: NotificationRefresher = NotificationRefresher.NoOp,
-    ) : ViewModelProvider.Factory {
-        @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            if (modelClass.isAssignableFrom(RecurringViewModel::class.java)) {
-                return RecurringViewModel(
-                    templateRepository = templateRepository,
-                    accountRepository = accountRepository,
-                    categoryRepository = categoryRepository,
-                    tripRepository = tripRepository,
-                    tagRepository = tagRepository,
-                    movementRepository = movementRepository,
-                    splitRepository = splitRepository,
-                    personRepository = personRepository,
-                    notificationRefresher = notificationRefresher,
-                ) as T
-            }
-            throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }
     }
 }
@@ -830,14 +919,18 @@ data class ConfirmPromptState(
     val errorField: ConfirmPromptField? = null,
     val errorMessage: String? = null,
     /** Read-only: the template's carried-forward split, for a live share preview. Never edited
-     * here -- see [toSplitWrite] for how it's rescaled to the confirmed amount at save time. */
+     * here -- [occurrenceSplit] rescales it to the confirmed amount, for the preview and the save alike. */
     val splitConfig: TemplateSplitConfig? = null,
+    /** True while the occurrence is being written; the confirm action is disabled until it finishes. */
+    val isSaving: Boolean = false,
 )
 
 /** Identifies which field a template-form validation error belongs to (field-level validation). */
 enum class TemplateFormField {
     AMOUNT,
     ACCOUNT,
+    INCOME_OWNER,
+    SPLIT,
     DESTINATION_ACCOUNT,
     PERSON,
     SCHEDULE,
@@ -873,6 +966,14 @@ data class TemplateFormState(
     val dateFlex: String = "",
     val leadDays: String = "",
     val status: TemplateStatus = TemplateStatus.ACTIVE,
+    /** Whose an income into a shared account is: [ExpenseKind.PERSONAL] (the owner's),
+     * [ExpenseKind.SHARED], or [ExpenseKind.FOR_OTHER] (another member's); null until answered. */
+    val incomeOwner: ExpenseKind? = null,
+    val incomeSplitEditor: SplitEditorState? = null,
+    val incomeMemberId: String? = null,
+    /** True once the question was answered in this form, so the stored split is rebuilt from the
+     * answer; otherwise an edit keeps the stored split exactly. */
+    val incomeOwnerChosen: Boolean = false,
     val showOptional: Boolean = false,
     val showAdvanced: Boolean = false,
     val errorRes: Int? = null,
@@ -1023,8 +1124,56 @@ private fun List<TemplateSummary>.monthlyCalendar(
 private fun MovementSummary.userRecurringAmountCents(): Long =
     if (isShared) userShareCents else amountCents
 
+/**
+ * The account's default expense split as a template stores it, the same lines the movement form
+ * writes for that default. A variable amount keeps the shares as weights over 100 €, which
+ * [com.gestorfinances.app.data.repository.occurrenceSplit] rescales to each occurrence.
+ */
+private fun AccountSummary.defaultExpenseSplitConfig(amountCents: Long?): TemplateSplitConfig? =
+    defaultExpenseSplitEditor().toMovementSplitDraft(amountCents ?: VARIABLE_AMOUNT_WEIGHT_CENTS)
+        ?.let { MovementSplitWrite.Replace(it).toTemplateSplitConfig() }
+
+/** A variable amount's allocation is entered and stored as shares of 100 EUR, weights that
+ * [com.gestorfinances.app.data.repository.occurrenceSplit] rescales to each occurrence. */
+internal const val VARIABLE_AMOUNT_WEIGHT_CENTS = 10_000L
+
+/**
+ * The split the answer to whose an income is describes, built as the movement form builds it:
+ * Shared from the split editor, another member as owner 0 and that member the whole amount.
+ * Null for Mine, and for an answer not yet complete.
+ */
+private fun TemplateFormState.chosenIncomeSplitDraft(amountCents: Long?): MovementSplitDraft? {
+    val totalCents = amountCents ?: VARIABLE_AMOUNT_WEIGHT_CENTS
+    return when (incomeOwner) {
+        ExpenseKind.SHARED -> incomeSplitEditor?.toMovementSplitDraft(totalCents)
+        ExpenseKind.FOR_OTHER -> incomeMemberId?.let { memberId ->
+            MovementSplitDraft(
+                entryMethod = SplitEntryMethod.EXACT,
+                lines = listOf(
+                    SplitLineDraft(SplitParticipantKind.USER, null, 0L),
+                    SplitLineDraft(SplitParticipantKind.PERSON, memberId, totalCents),
+                ),
+            )
+        }
+        else -> null
+    }
+}
+
+/**
+ * Whose a template's income is, as the ownership question shows it: no stored split is the owner's;
+ * an owner line of nothing with one other line is that member's; anything else is shared.
+ */
+private fun TemplateSummary.incomeOwnershipForm(): Triple<ExpenseKind, SplitEditorState?, String?> {
+    val config = splitConfig ?: return Triple(ExpenseKind.PERSONAL, null, null)
+    val others = config.lines.filter { it.party != "user" }
+    val ownerWeight = config.lines.filter { it.party == "user" }.sumOf { it.owedAmountCents }
+    if (ownerWeight == 0L && others.size == 1) return Triple(ExpenseKind.FOR_OTHER, null, others.single().party)
+    val totalCents = amountCents ?: config.lines.sumOf { it.owedAmountCents }
+    return Triple(ExpenseKind.SHARED, config.occurrenceSplit(totalCents)?.toSplitEditorState(totalCents), null)
+}
+
 private fun TemplateSummary.userRecurringAmountCents(): Long? =
-    amountCents?.let { amount -> splitConfig?.userShareCents(amount) ?: amount }
+    amountCents?.let(::userOccurrenceAmountCents)
 
 /** Day a scheduled template lands on, for day-ordered listing. */
 fun TemplateSummary.effectiveDayOfMonth(): Int =
@@ -1042,59 +1191,6 @@ private fun TemplateSummary.advancedToToday(today: LocalDate): String {
     return RecurringAdvancer.advance(toRecurrenceRule(), cursor = cursor, today = today).newCursor.toString()
 }
 
-/**
- * Carry the template's split forward, rescaling its line weights to [amountCents] when the
- * confirmed occurrence amount differs from the config's own stored sum (variable-amount
- * templates, an amount edited since the split was set, or a NEW-detected candidate whose split
- * came from a single source movement while its amount is a group median) — see
- * [SplitCalculator.rescale] / `shared/golden/template_split_rescale.json`. Falls back to
- * [MovementSplitWrite.KeepExisting] (no split applied) only when the config itself is malformed.
- */
-private fun TemplateSplitConfig?.toSplitWrite(
-    type: MovementType,
-    amountCents: Long,
-): MovementSplitWrite {
-    val config = this ?: return MovementSplitWrite.KeepExisting
-    if (type != MovementType.EXPENSE) return MovementSplitWrite.KeepExisting
-    val entryMethod = SplitEntryMethod.entries.firstOrNull { it.dbValue == config.entryMethod }
-        ?: return MovementSplitWrite.KeepExisting
-    val shares = config.rescaledShares(amountCents) ?: return MovementSplitWrite.KeepExisting
-    val lines = config.lines.zip(shares).map { (line, share) ->
-        if (line.party == "user") {
-            SplitLineDraft(SplitParticipantKind.USER, personId = null, owedAmountCents = share)
-        } else {
-            SplitLineDraft(SplitParticipantKind.PERSON, personId = line.party, owedAmountCents = share)
-        }
-    }
-    return MovementSplitWrite.Replace(MovementSplitDraft(entryMethod = entryMethod, lines = lines))
-}
-
-/** Each line's [TemplateSplitConfigLine.owedAmountCents] rescaled to [amountCents], in the same
- * order as [TemplateSplitConfig.lines] — see [SplitCalculator.rescale]. Null iff the config's
- * `payer` doesn't match any line (malformed config). Shared by [toSplitWrite] (the actual write)
- * and [previewShares] (the confirm-sheet preview), so what the user sees is exactly what gets
- * saved. */
-private fun TemplateSplitConfig.rescaledShares(amountCents: Long): List<Long>? {
-    val payerIndex = lines.indexOfFirst { it.party == payer }
-    if (payerIndex < 0) return null
-    val rescaled = SplitCalculator.rescale(
-        weightsCents = lines.map { it.owedAmountCents },
-        totalCents = amountCents,
-        payerIndex = payerIndex,
-    )
-    return rescaled.sharesCents.takeIf { rescaled.valid }
-}
-
-/** The user's own share of [amountCents] under this split — the figure a template row/due-prompt
- * card should show as the primary amount (with [amountCents] itself as the secondary "total"),
- * matching how [com.gestorfinances.app.ui.common.MovementListItem] displays a shared movement.
- * Null iff the config is malformed (falls back to showing the plain total). */
-fun TemplateSplitConfig.userShareCents(amountCents: Long): Long? {
-    val shares = rescaledShares(amountCents) ?: return null
-    val userIndex = lines.indexOfFirst { it.party == "user" }
-    return userIndex.takeIf { it >= 0 }?.let { shares[it] }
-}
-
 /** A single row of the confirm-sheet split preview: either the user's own share, or a named
  * person's. [personName] is null for an unresolvable person id (e.g. an archived person) so the
  * UI can fall back to a generic label rather than showing a raw id. */
@@ -1104,18 +1200,17 @@ data class SplitPreviewLine(
     val amountCents: Long,
 )
 
-/** Live preview of how [amountCents] would be split if confirmed now, using the same rescale rule
- * [toSplitWrite] applies at save time. Empty when there's nothing to preview (no split, or a
- * malformed config that will fall back to [MovementSplitWrite.KeepExisting]). */
+/** Live preview of how [amountCents] would be split if confirmed now: the lines of
+ * [occurrenceSplit], the very split the confirmed movement is saved with. Empty when there's
+ * nothing to preview (no split, or a malformed config the occurrence won't carry). */
 fun TemplateSplitConfig?.previewShares(amountCents: Long, people: List<PersonSummary>): List<SplitPreviewLine> {
-    val config = this ?: return emptyList()
-    val shares = config.rescaledShares(amountCents) ?: return emptyList()
-    return config.lines.zip(shares).map { (line, share) ->
-        if (line.party == "user") {
-            SplitPreviewLine(isUser = true, personName = null, amountCents = share)
-        } else {
-            SplitPreviewLine(isUser = false, personName = people.firstOrNull { it.id == line.party }?.name, amountCents = share)
-        }
+    val split = this?.occurrenceSplit(amountCents) ?: return emptyList()
+    return split.lines.map { line ->
+        SplitPreviewLine(
+            isUser = line.participantKind == SplitParticipantKind.USER,
+            personName = line.personId?.let { id -> people.firstOrNull { it.id == id }?.name },
+            amountCents = line.owedAmountCents,
+        )
     }
 }
 
@@ -1125,8 +1220,13 @@ fun RecurrenceFrequency.usesDayOfMonth(): Boolean =
 fun RecurrenceFrequency.usesWeekday(): Boolean =
     this == RecurrenceFrequency.WEEKLY || this == RecurrenceFrequency.FORTNIGHTLY
 
-private fun TemplateSummary.toFormState(): TemplateFormState =
-    TemplateFormState(
+private fun TemplateSummary.toFormState(): TemplateFormState {
+    val (incomeOwner, incomeSplitEditor, incomeMemberId) = if (type == MovementType.INCOME) {
+        incomeOwnershipForm()
+    } else {
+        Triple(null, null, null)
+    }
+    return TemplateFormState(
         id = id,
         type = type,
         amount = amountCents?.let(::formatEuroInput).orEmpty(),
@@ -1152,10 +1252,14 @@ private fun TemplateSummary.toFormState(): TemplateFormState =
         dateFlex = dateFlexDays?.toString().orEmpty(),
         leadDays = leadNotificationDays?.toString().orEmpty(),
         status = status,
+        incomeOwner = incomeOwner,
+        incomeSplitEditor = incomeSplitEditor,
+        incomeMemberId = incomeMemberId,
         showOptional = tripId != null || tagId != null || !payee.isNullOrBlank() || !notes.isNullOrBlank(),
         showAdvanced = amountFlexCents != null || dateFlexDays != null || leadNotificationDays != null ||
             status != TemplateStatus.ACTIVE,
     )
+}
 
 /** Pattern-detection candidates are scoped to EXPENSE/INCOME (product rule) — a recurring
  * transfer's identity also depends on its destination account, which this detector doesn't track. */

@@ -38,25 +38,4 @@ JOIN movements e
     ON e.id = m.refunds_expense_id
 WHERE m.type = 'refund'
   AND m.archived_at IS NULL
-  AND e.archived_at IS NULL
-
-UNION ALL
-
-SELECT
-    s.id AS source_id,
-    s.date,
-    s.category_id,
-    s.trip_id,
-    s.tag_id,
-    COALESCE((
-        SELECT sl.owed_amount_cents
-        FROM split_lines sl
-        WHERE sl.split_id = s.id
-          AND sl.participant_kind = 'user'
-          AND sl.archived_at IS NULL
-    ), 0) AS amount_cents,
-    0 AS is_one_time
-FROM splits s
-WHERE s.payer_person_id IS NOT NULL
-  AND s.movement_id IS NULL
-  AND s.archived_at IS NULL;
+  AND e.archived_at IS NULL;

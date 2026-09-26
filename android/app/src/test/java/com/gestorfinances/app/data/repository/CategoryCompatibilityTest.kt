@@ -13,7 +13,6 @@ class CategoryCompatibilityTest {
         )
         val expected = mapOf(
             MovementType.EXPENSE to listOf(true, false, true),
-            MovementType.EXTERNAL_EXPENSE to listOf(true, false, true),
             MovementType.INCOME to listOf(false, true, true),
             MovementType.TRANSFER to listOf(false, false, false),
             MovementType.SETTLEMENT to listOf(false, false, false),

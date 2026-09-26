@@ -20,31 +20,22 @@ import com.gestorfinances.app.data.repository.TagRepository
 import com.gestorfinances.app.data.repository.TemplateRepository
 import com.gestorfinances.app.data.repository.TripAnalysisRepository
 import com.gestorfinances.app.data.repository.TripRepository
-import com.gestorfinances.app.data.sync.DeviceAccessState
+import com.gestorfinances.app.data.FinancialDataRevision
 import com.gestorfinances.app.notifications.FinanceNotificationCoordinator
 import com.gestorfinances.app.notifications.NotificationPreferences
 import com.gestorfinances.app.ui.theme.ThemePreferences
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 
 class AppContainer(context: Context) {
     private val appContext = context.applicationContext
-
-    // No-op until the real sync/token protocol is implemented (docs/architecture.md);
-    // always reports this device as the writer.
-    private val _deviceAccessState = MutableStateFlow<DeviceAccessState>(DeviceAccessState.Writer)
-    val deviceAccessState: StateFlow<DeviceAccessState> = _deviceAccessState.asStateFlow()
 
     private val driverLazy = lazy {
         DatabaseDriverFactory(appContext).create()
     }
     private val driver by driverLazy
 
-    private val databaseLazy = lazy {
+    private val database: GestorDatabase by lazy {
         GestorDatabase(driver)
     }
-    private val database: GestorDatabase by databaseLazy
 
     val accountRepository: AccountRepository by lazy {
         AccountRepository(database.accountsQueries, database.sharedAccountsQueries)
@@ -69,6 +60,9 @@ class AppContainer(context: Context) {
     val metaRepository: MetaRepository by lazy {
         MetaRepository(database.metaQueries)
     }
+
+    /** Advanced after each committed write from an Activity-wide overlay; see [FinancialDataRevision]. */
+    val financialDataRevision = FinancialDataRevision()
 
     val movementRepository: MovementRepository by lazy {
         MovementRepository(database.movementsQueries, database.splitsQueries)

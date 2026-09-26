@@ -76,8 +76,8 @@ class AnalysisRepository(
     private val queries: AnalysisQueries,
 ) {
     fun activityMonths(): List<YearMonth> =
-        queries.activityMonths().executeAsList().mapNotNull { row ->
-            row.month?.let { runCatching { YearMonth.parse(it) }.getOrNull() }
+        queries.analysisActivityMonths().executeAsList().mapNotNull { month ->
+            runCatching { YearMonth.parse(month) }.getOrNull()
         }
 
     fun periodTotals(

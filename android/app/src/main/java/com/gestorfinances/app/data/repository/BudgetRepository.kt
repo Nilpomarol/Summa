@@ -380,7 +380,9 @@ private fun pendingRecurringForBudget(
                 RecurringAdvancer.advance(template.toRecurrenceRule(), cursor, monthEnd).dueDates
                     .count { dueDate -> !dueDate.isBefore(today) }
             }.getOrDefault(0)
-            template.userActualAmountCents() * count
+            // A budget counts actual expense: the owner's share of each occurrence, split exactly
+            // as confirming that occurrence would split it.
+            template.userOccurrenceAmountCents(requireNotNull(template.amountCents)) * count
         }
 
 private fun String?.matchesBudgetCategory(
@@ -388,9 +390,6 @@ private fun String?.matchesBudgetCategory(
     categoryParentById: Map<String, String?>,
 ): Boolean =
     this != null && (this == budgetCategoryId || categoryParentById[this] == budgetCategoryId)
-
-private fun TemplateSummary.userActualAmountCents(): Long =
-    splitConfig?.lines?.firstOrNull { it.party == "user" }?.owedAmountCents ?: requireNotNull(amountCents)
 
 private const val BUDGET_HISTORY_MONTHS = 3
 private const val TRIP_BUDGET_RANGE_START = "0001-01-01"

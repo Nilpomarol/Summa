@@ -1,5 +1,8 @@
 package com.gestorfinances.app.ui.accounts
 
+import com.gestorfinances.app.di.AppContainer
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.gestorfinances.app.ui.navigation.Route
 import com.gestorfinances.app.ui.common.CreatePersonDialog
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -107,9 +110,27 @@ import com.gestorfinances.app.ui.theme.FinanceTheme
 import com.gestorfinances.app.ui.theme.categoryColor
 import com.gestorfinances.app.ui.theme.themedIdentityColor
 
+/** This page visit's ViewModel; [route] says whether the page opens straight into a form. */
+@Composable
+fun accountsViewModel(appContainer: AppContainer, route: Route.Accounts): AccountsViewModel = viewModel {
+    AccountsViewModel(
+        accountRepository = appContainer.accountRepository,
+        goalRepository = appContainer.goalRepository,
+        movementRepository = appContainer.movementRepository,
+        templateRepository = appContainer.templateRepository,
+        notificationRefresher = appContainer.notificationCoordinator,
+        personRepository = appContainer.personRepository,
+    ).apply {
+        if (route.openAddForm) onAddRequested()
+        route.editContributionId?.let(::editContribution)
+    }
+}
+
 @Composable
 fun AccountsScreen(
     viewModel: AccountsViewModel,
+    /** Changes after every movement write, so the page reloads while it stays visible. */
+    dataVersion: Long,
     onViewAnalysis: (accountId: String, accountName: String) -> Unit = { _, _ -> },
     onMovementDetail: (MovementSummary) -> Unit = {},
     onAddExpense: (accountId: String) -> Unit = {},
@@ -119,7 +140,7 @@ fun AccountsScreen(
 ) {
     val state by viewModel.state.collectAsState()
 
-    LaunchedEffect(viewModel) {
+    LaunchedEffect(viewModel, dataVersion) {
         viewModel.onScreenShown()
     }
 
