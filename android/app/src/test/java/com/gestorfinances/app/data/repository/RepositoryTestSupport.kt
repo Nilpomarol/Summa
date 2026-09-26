@@ -1,7 +1,10 @@
 package com.gestorfinances.app.data.repository
 
+import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
+import com.gestorfinances.app.data.db.DatabaseDriverFactory
 import com.gestorfinances.app.data.db.GestorDatabase
+import java.io.File
 
 /**
  * Shared foundation for repository-level integration tests.
@@ -37,8 +40,22 @@ object RepositoryTestSupport {
     fun newDatabase(): GestorDatabase {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         driver.execute(null, "PRAGMA foreign_keys = ON", 0)
-        GestorDatabase.Schema.create(driver)
+        createFreshInstallSchema(driver)
         return GestorDatabase(driver)
+    }
+
+    /**
+     * Creates the schema the way [DatabaseDriverFactory] creates a fresh install: the SQLDelight
+     * schema, then the shared-account integrity triggers from the same generated asset, split by
+     * the same function.
+     */
+    fun createFreshInstallSchema(driver: SqlDriver) {
+        GestorDatabase.Schema.create(driver)
+        // Unit tests run from the module directory; the build writes this asset before compiling.
+        val asset = File("src/main/assets/shared_account_integrity.sql")
+        check(asset.isFile) { "Missing generated asset ${asset.absolutePath}; build the app module first." }
+        DatabaseDriverFactory.sharedAccountIntegrityStatements(asset.readText())
+            .forEach { driver.execute(null, it, 0) }
     }
 }
 

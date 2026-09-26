@@ -16,11 +16,7 @@ class DatabaseDriverFactory(
                 override fun onCreate(db: SupportSQLiteDatabase) {
                     super.onCreate(db)
                     context.assets.open(SHARED_ACCOUNT_INTEGRITY_ASSET).bufferedReader().use { reader ->
-                        reader.readText()
-                            .splitToSequence("\nEND;")
-                            .map { it.trim() }
-                            .filter { it.isNotEmpty() }
-                            .forEach { db.execSQL("$it\nEND;") }
+                        sharedAccountIntegrityStatements(reader.readText()).forEach(db::execSQL)
                     }
                 }
 
@@ -38,5 +34,15 @@ class DatabaseDriverFactory(
 
         fun databaseFile(context: Context) =
             context.applicationContext.getDatabasePath(DATABASE_NAME)
+
+        /** The trigger statements of the shared-account integrity asset a fresh install runs,
+         * whichever line endings the file was checked out with. */
+        internal fun sharedAccountIntegrityStatements(sql: String): List<String> =
+            sql.replace("\r\n", "\n")
+                .splitToSequence("\nEND;")
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+                .map { "$it\nEND;" }
+                .toList()
     }
 }

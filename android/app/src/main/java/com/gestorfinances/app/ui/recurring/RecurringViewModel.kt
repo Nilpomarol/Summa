@@ -11,7 +11,6 @@ import com.gestorfinances.app.data.repository.CategoryRecord
 import com.gestorfinances.app.data.repository.CategoryRepository
 import com.gestorfinances.app.data.repository.MovementDraft
 import com.gestorfinances.app.data.repository.MovementRepository
-import com.gestorfinances.app.data.repository.MovementSplitDraft
 import com.gestorfinances.app.data.repository.MovementSplitWrite
 import com.gestorfinances.app.data.repository.MovementSummary
 import com.gestorfinances.app.data.repository.MovementType
@@ -19,8 +18,6 @@ import com.gestorfinances.app.data.repository.PersonRepository
 import com.gestorfinances.app.data.repository.PersonSummary
 import com.gestorfinances.app.data.repository.SettlementDirection
 import com.gestorfinances.app.data.repository.SettlementDraft
-import com.gestorfinances.app.data.repository.SplitEntryMethod
-import com.gestorfinances.app.data.repository.SplitLineDraft
 import com.gestorfinances.app.data.repository.SplitParticipantKind
 import com.gestorfinances.app.data.repository.SplitRepository
 import com.gestorfinances.app.data.repository.TemplateDraft
@@ -30,6 +27,9 @@ import com.gestorfinances.app.data.repository.TemplateStatus
 import com.gestorfinances.app.data.repository.TemplateSummary
 import com.gestorfinances.app.data.repository.TagRepository
 import com.gestorfinances.app.data.repository.TagSummary
+import com.gestorfinances.app.data.repository.occurrenceSplit
+import com.gestorfinances.app.data.repository.occurrenceSplitConfig
+import com.gestorfinances.app.data.repository.userOccurrenceAmountCents
 import com.gestorfinances.app.data.repository.TripRepository
 import com.gestorfinances.app.data.repository.TripSummary
 import com.gestorfinances.app.data.repository.supportsExpense
@@ -44,11 +44,11 @@ import com.gestorfinances.app.domain.rules.RecurringAdvancer
 import com.gestorfinances.app.domain.rules.RecurringCandidateMovement
 import com.gestorfinances.app.domain.rules.RecurringPatternDetector
 import com.gestorfinances.app.domain.rules.SettlementScope
-import com.gestorfinances.app.domain.rules.SplitCalculator
 import com.gestorfinances.app.domain.rules.toRecurrenceRule
 import com.gestorfinances.app.notifications.NotificationRefresher
 import com.gestorfinances.app.ui.common.formatEuroInput
 import com.gestorfinances.app.ui.common.parseEuroCents
+import com.gestorfinances.app.ui.movements.defaultExpenseSplitEditor
 import com.gestorfinances.app.ui.movements.supportsTrip
 import java.time.Instant
 import java.time.LocalDate
@@ -192,7 +192,7 @@ class RecurringViewModel(
                 amount = template.amountCents?.let(::formatEuroInput).orEmpty(),
                 date = prompt.dueDate,
                 settlementPersonName = template.personName,
-                splitConfig = template.splitConfig,
+                splitConfig = template.occurrenceSplitConfig,
             ),
         )
     }
@@ -266,7 +266,9 @@ class RecurringViewModel(
                         payee = template.payee,
                         notes = template.notes,
                         isOneTime = false,
-                        splitWrite = template.splitConfig.toSplitWrite(template.type, amount),
+                        splitWrite = template.occurrenceSplitConfig?.occurrenceSplit(amount)
+                            ?.let(MovementSplitWrite::Replace)
+                            ?: MovementSplitWrite.KeepExisting,
                         templateId = template.id,
                         expenseFunding = if (
                             template.type == MovementType.EXPENSE &&
@@ -391,6 +393,14 @@ class RecurringViewModel(
         val leadNotificationDays = form.leadDays.trim()
             .takeIf { it.isNotBlank() }
             ?.toLongOrNull()
+        // This form has no split editor: an edit carries the stored split forward untouched (a
+        // full-row update would otherwise wipe it), and the split keeps its meaning only while the
+        // template keeps its type and the same kind of account.
+        val edited = form.id?.let { id -> _state.value.templates.firstOrNull { it.id == id } }
+        val existingSplitConfig = edited?.splitConfig
+        val editedAccountKind = edited?.let { template ->
+            _state.value.accounts.firstOrNull { it.id == template.accountId }?.ownershipKind
+        }
 
         val (errorRes, errorField) = when {
             !form.amountIsVariable && form.amount.isBlank() ->
@@ -400,6 +410,9 @@ class RecurringViewModel(
             !form.amountIsVariable && amountCents != null && amountCents <= 0L ->
                 R.string.movement_validation_amount_positive to TemplateFormField.AMOUNT
             account == null -> R.string.movement_validation_account_required to TemplateFormField.ACCOUNT
+            existingSplitConfig != null &&
+                (form.type != edited?.type || account?.ownershipKind != editedAccountKind) ->
+                R.string.template_validation_allocation_kept to TemplateFormField.ACCOUNT
             isTransfer && form.destinationAccountId == null ->
                 R.string.movement_validation_account_required to TemplateFormField.DESTINATION_ACCOUNT
             isTransfer && form.destinationAccountId == form.accountId ->
@@ -434,12 +447,11 @@ class RecurringViewModel(
             return
         }
 
-        // The manual edit form has no split_config field of its own (splits are configured via the
-        // pattern-detection flow or seeded directly), so on edit it must carry the existing
-        // template's splitConfig forward unchanged — otherwise TemplateRepository.update's
-        // full-row overwrite would silently wipe it (see toTemplateDraft(existing) below, same fix
-        // already applied to the detection-confirm path).
-        val existingSplitConfig = form.id?.let { id -> _state.value.templates.firstOrNull { it.id == id }?.splitConfig }
+        // An expense on a shared account always has a split; without a stored one it gets the
+        // account's default shares, the same split the movement form gives it.
+        val splitConfig = existingSplitConfig ?: requireNotNull(account)
+            .takeIf { form.type == MovementType.EXPENSE && it.ownershipKind == AccountOwnershipKind.SHARED }
+            ?.defaultExpenseSplitConfig(amountCents)
 
         val carriesLedgerDetail = !isTransfer && !isSettlement
         val draft = TemplateDraft(
@@ -457,7 +469,7 @@ class RecurringViewModel(
             name = form.name.trim().ifBlank { null },
             payee = form.payee.trim().ifBlank { null },
             notes = form.notes.trim().ifBlank { null },
-            splitConfig = if (isSettlement) null else existingSplitConfig,
+            splitConfig = splitConfig,
             frequency = form.frequency,
             intervalCount = if (form.frequency == RecurrenceFrequency.CUSTOM) intervalCount else null,
             customUnit = if (form.frequency == RecurrenceFrequency.CUSTOM) form.customUnit else null,
@@ -808,7 +820,7 @@ data class ConfirmPromptState(
     val errorField: ConfirmPromptField? = null,
     val errorMessage: String? = null,
     /** Read-only: the template's carried-forward split, for a live share preview. Never edited
-     * here -- see [toSplitWrite] for how it's rescaled to the confirmed amount at save time. */
+     * here -- [occurrenceSplit] rescales it to the confirmed amount, for the preview and the save alike. */
     val splitConfig: TemplateSplitConfig? = null,
     /** True while the occurrence is being written; the confirm action is disabled until it finishes. */
     val isSaving: Boolean = false,
@@ -1003,8 +1015,17 @@ private fun List<TemplateSummary>.monthlyCalendar(
 private fun MovementSummary.userRecurringAmountCents(): Long =
     if (isShared) userShareCents else amountCents
 
+/**
+ * The account's default expense split as a template stores it, the same lines the movement form
+ * writes for that default. A variable amount keeps the shares as weights over 100 €, which
+ * [com.gestorfinances.app.data.repository.occurrenceSplit] rescales to each occurrence.
+ */
+private fun AccountSummary.defaultExpenseSplitConfig(amountCents: Long?): TemplateSplitConfig? =
+    defaultExpenseSplitEditor().toMovementSplitDraft(amountCents ?: 10_000L)
+        ?.let { MovementSplitWrite.Replace(it).toTemplateSplitConfig() }
+
 private fun TemplateSummary.userRecurringAmountCents(): Long? =
-    amountCents?.let { amount -> splitConfig?.userShareCents(amount) ?: amount }
+    amountCents?.let(::userOccurrenceAmountCents)
 
 /** Day a scheduled template lands on, for day-ordered listing. */
 fun TemplateSummary.effectiveDayOfMonth(): Int =
@@ -1022,61 +1043,6 @@ private fun TemplateSummary.advancedToToday(today: LocalDate): String {
     return RecurringAdvancer.advance(toRecurrenceRule(), cursor = cursor, today = today).newCursor.toString()
 }
 
-/**
- * Carry the template's split forward, rescaling its line weights to [amountCents] when the
- * confirmed occurrence amount differs from the config's own stored sum (variable-amount
- * templates, an amount edited since the split was set, or a NEW-detected candidate whose split
- * came from a single source movement while its amount is a group median) — see
- * [SplitCalculator.rescale] / `shared/golden/template_split_rescale.json`. Falls back to
- * [MovementSplitWrite.KeepExisting] (no split applied) only when the config itself is malformed.
- */
-private fun TemplateSplitConfig?.toSplitWrite(
-    type: MovementType,
-    amountCents: Long,
-): MovementSplitWrite {
-    val config = this ?: return MovementSplitWrite.KeepExisting
-    // An expense's split says who owes what; an income's says how it is allocated between the
-    // members of the shared account it arrives in.
-    if (type != MovementType.EXPENSE && type != MovementType.INCOME) return MovementSplitWrite.KeepExisting
-    val entryMethod = SplitEntryMethod.entries.firstOrNull { it.dbValue == config.entryMethod }
-        ?: return MovementSplitWrite.KeepExisting
-    val shares = config.rescaledShares(amountCents) ?: return MovementSplitWrite.KeepExisting
-    val lines = config.lines.zip(shares).map { (line, share) ->
-        if (line.party == "user") {
-            SplitLineDraft(SplitParticipantKind.USER, personId = null, owedAmountCents = share)
-        } else {
-            SplitLineDraft(SplitParticipantKind.PERSON, personId = line.party, owedAmountCents = share)
-        }
-    }
-    return MovementSplitWrite.Replace(MovementSplitDraft(entryMethod = entryMethod, lines = lines))
-}
-
-/** Each line's [TemplateSplitConfigLine.owedAmountCents] rescaled to [amountCents], in the same
- * order as [TemplateSplitConfig.lines] — see [SplitCalculator.rescale]. Null iff the config's
- * `payer` doesn't match any line (malformed config). Shared by [toSplitWrite] (the actual write)
- * and [previewShares] (the confirm-sheet preview), so what the user sees is exactly what gets
- * saved. */
-private fun TemplateSplitConfig.rescaledShares(amountCents: Long): List<Long>? {
-    val payerIndex = lines.indexOfFirst { it.party == payer }
-    if (payerIndex < 0) return null
-    val rescaled = SplitCalculator.rescale(
-        weightsCents = lines.map { it.owedAmountCents },
-        totalCents = amountCents,
-        payerIndex = payerIndex,
-    )
-    return rescaled.sharesCents.takeIf { rescaled.valid }
-}
-
-/** The user's own share of [amountCents] under this split — the figure a template row/due-prompt
- * card should show as the primary amount (with [amountCents] itself as the secondary "total"),
- * matching how [com.gestorfinances.app.ui.common.MovementListItem] displays a shared movement.
- * Null iff the config is malformed (falls back to showing the plain total). */
-fun TemplateSplitConfig.userShareCents(amountCents: Long): Long? {
-    val shares = rescaledShares(amountCents) ?: return null
-    val userIndex = lines.indexOfFirst { it.party == "user" }
-    return userIndex.takeIf { it >= 0 }?.let { shares[it] }
-}
-
 /** A single row of the confirm-sheet split preview: either the user's own share, or a named
  * person's. [personName] is null for an unresolvable person id (e.g. an archived person) so the
  * UI can fall back to a generic label rather than showing a raw id. */
@@ -1086,18 +1052,17 @@ data class SplitPreviewLine(
     val amountCents: Long,
 )
 
-/** Live preview of how [amountCents] would be split if confirmed now, using the same rescale rule
- * [toSplitWrite] applies at save time. Empty when there's nothing to preview (no split, or a
- * malformed config that will fall back to [MovementSplitWrite.KeepExisting]). */
+/** Live preview of how [amountCents] would be split if confirmed now: the lines of
+ * [occurrenceSplit], the very split the confirmed movement is saved with. Empty when there's
+ * nothing to preview (no split, or a malformed config the occurrence won't carry). */
 fun TemplateSplitConfig?.previewShares(amountCents: Long, people: List<PersonSummary>): List<SplitPreviewLine> {
-    val config = this ?: return emptyList()
-    val shares = config.rescaledShares(amountCents) ?: return emptyList()
-    return config.lines.zip(shares).map { (line, share) ->
-        if (line.party == "user") {
-            SplitPreviewLine(isUser = true, personName = null, amountCents = share)
-        } else {
-            SplitPreviewLine(isUser = false, personName = people.firstOrNull { it.id == line.party }?.name, amountCents = share)
-        }
+    val split = this?.occurrenceSplit(amountCents) ?: return emptyList()
+    return split.lines.map { line ->
+        SplitPreviewLine(
+            isUser = line.participantKind == SplitParticipantKind.USER,
+            personName = line.personId?.let { id -> people.firstOrNull { it.id == id }?.name },
+            amountCents = line.owedAmountCents,
+        )
     }
 }
 

@@ -2,6 +2,7 @@ package com.gestorfinances.app.data.db
 
 import app.cash.sqldelight.db.QueryResult
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
+import com.gestorfinances.app.data.repository.RepositoryTestSupport
 import com.gestorfinances.app.data.repository.TripAnalysisRepository
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -1306,13 +1307,76 @@ class MigrationTest {
         assertEquals(mapOf("restaurants" to 1_000L, "transport" to 1_200L), tags)
     }
 
+    // The frozen fixture must load the same whichever line endings the checkout gave it.
+    @Test
+    fun `the frozen v19 schema loads the same with LF and CRLF line endings`() {
+        val lf = v19SchemaText().replace("\r\n", "\n")
+        val crlf = lf.replace("\n", "\r\n")
+        val statementCount = v19Statements(lf).size
+        assertTrue("the fixture splits into its statements", statementCount > 50)
+        assertEquals(statementCount, v19Statements(crlf).size)
+
+        fun objectsLoadedFrom(schema: String): List<List<String?>> {
+            val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+            createV19(driver, schema)
+            return driver.selectRows("SELECT type, name FROM sqlite_master ORDER BY type, name", 2)
+        }
+        assertEquals(objectsLoadedFrom(lf), objectsLoadedFrom(crlf))
+    }
+
+    // Migration tests run against the frozen v19 schema and today's migrations; a fresh install
+    // runs against the SQLDelight schema plus the triggers DatabaseDriverFactory adds. Both must end
+    // with the same tables, columns, indexes, views, and triggers, so neither path is tested
+    // against a weaker schema than the other.
+    @Test
+    fun `a fresh install has the same schema as a database upgraded from v19`() {
+        val fresh = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+        fresh.execute(null, "PRAGMA foreign_keys = ON", 0)
+        RepositoryTestSupport.createFreshInstallSchema(fresh)
+        val upgraded = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+        upgraded.execute(null, "PRAGMA foreign_keys = ON", 0)
+        createV19(upgraded)
+        upgraded.execute(null, "BEGIN", 0)
+        GestorDatabase.Schema.migrate(upgraded, 19, GestorDatabase.Schema.version)
+        upgraded.execute(null, "COMMIT", 0)
+
+        val freshSchema = fresh.schemaShape()
+        assertTrue("fresh installs carry the integrity triggers", freshSchema.count { it.startsWith("trigger ") } >= 10)
+        assertEquals(upgraded.schemaShape(), freshSchema)
+    }
+
     /**
      * Builds the v19 fresh-install database from a frozen copy of its schema, so migration steps up
      * to v19 run against the tables they were written for rather than today's.
      */
-    private fun createV19(driver: JdbcSqliteDriver) {
-        val schema = requireNotNull(javaClass.getResource("/v19_schema.sql")).readText()
-        schema.split("\n-- @statement\n").forEach { driver.execute(null, it, 0) }
+    private fun createV19(driver: JdbcSqliteDriver, schema: String = v19SchemaText()) {
+        v19Statements(schema).forEach { driver.execute(null, it, 0) }
+    }
+
+    private fun v19SchemaText(): String = requireNotNull(javaClass.getResource("/v19_schema.sql")).readText()
+
+    /** The fixture's statements; its `-- @statement` separators are found whatever the line endings. */
+    private fun v19Statements(schema: String): List<String> =
+        schema.replace("\r\n", "\n").split("\n-- @statement\n")
+
+    /**
+     * What a schema is made of, one line per object: each table's columns, and each index, view, and
+     * trigger with its definition, whitespace-normalized so formatting alone never differs.
+     */
+    private fun JdbcSqliteDriver.schemaShape(): List<String> {
+        val objects = selectRows(
+            "SELECT type, name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name",
+            3,
+        )
+        return objects.map { (type, name, sql) ->
+            when (type) {
+                "table" -> "table $name " + selectRows(
+                    "SELECT name, type, \"notnull\", pk FROM pragma_table_info('$name') ORDER BY cid",
+                    4,
+                ).joinToString()
+                else -> "$type $name ${sql.orEmpty().replace(Regex("\\s+"), " ").trim()}"
+            }
+        }
     }
 
     private fun JdbcSqliteDriver.selectRows(sql: String, columns: Int): List<List<String?>> =

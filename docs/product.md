@@ -53,7 +53,7 @@ A refund belongs to an expense and reduces that expense's actual cost. It inheri
 
 ### Recurring activity
 
-Templates describe future occurrences; confirmed occurrences become real movements. Editing one confirmed movement does not silently rewrite the template. Series changes are explicit.
+Templates describe future occurrences; confirmed occurrences become real movements. Editing one confirmed movement does not silently rewrite the template. Series changes are explicit. A template's stored split is its allocation: every occurrence — its confirmation preview, the confirmed movement, and forecasts — splits its own amount by rescaling that allocation proportionally.
 
 ### Budgets
 

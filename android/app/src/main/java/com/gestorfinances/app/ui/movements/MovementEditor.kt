@@ -883,7 +883,8 @@ internal fun newMovementForm(
     )
 }
 
-private fun AccountSummary.defaultExpenseSplitEditor(): SplitEditorState =
+/** The split an expense on this shared account starts with: its members' default shares. */
+internal fun AccountSummary.defaultExpenseSplitEditor(): SplitEditorState =
     SplitEditorState(
         method = SplitEntryMethod.PERCENTAGE,
         selectedPersonIds = members.mapNotNull { it.personId },
