@@ -8,6 +8,8 @@ import com.gestorfinances.app.ui.common.MovementAmountRole
 import com.gestorfinances.app.ui.common.primaryAmountRole
 import com.gestorfinances.app.ui.common.secondaryAmountRole
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MovementUiStateSmokeTest {
@@ -78,6 +80,27 @@ class MovementUiStateSmokeTest {
         assertEquals(MovementAmountRole.TOTAL, external.secondaryAmountRole())
         assertEquals(MovementAmountRole.MOVEMENT, personal.primaryAmountRole())
         assertEquals(null, personal.secondaryAmountRole())
+    }
+
+    @Test
+    fun onlyAnExpenseWithPersonFinancingIsPaidByPerson() {
+        val personPaidExpense = movement(
+            id = "external",
+            type = MovementType.EXPENSE,
+            accountId = null,
+            accountName = null,
+        ).copy(financingKind = ExpenseFunding.PERSON)
+        val personContribution = movement(
+            id = "contribution",
+            type = MovementType.CONTRIBUTION,
+            accountId = "joint",
+            accountName = "Conjunt",
+        ).copy(financingKind = ExpenseFunding.PERSON)
+
+        assertTrue(personPaidExpense.paidByPerson)
+        assertFalse(personContribution.paidByPerson)
+        assertEquals(MovementAmountRole.MOVEMENT, personContribution.primaryAmountRole())
+        assertEquals(null, personContribution.secondaryAmountRole())
     }
 
     @Test

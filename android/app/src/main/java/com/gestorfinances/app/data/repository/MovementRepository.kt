@@ -65,8 +65,11 @@ data class MovementSummary(
     /** Set only when [type] is CONTRIBUTION: whether money entered or left the shared account. */
     val contributionDirection: ContributionDirection? = null,
 ) {
-    /** An expense a person paid ([payerId]): no account moved, and [userShareCents] is what the owner owes them. */
-    val paidByPerson: Boolean get() = financingKind == ExpenseFunding.PERSON
+    /**
+     * An expense a person paid ([payerId]): no account moved, and [userShareCents] is what the owner owes them.
+     * A contribution a person made also carries PERSON financing, but it is not one of these.
+     */
+    val paidByPerson: Boolean get() = type == MovementType.EXPENSE && financingKind == ExpenseFunding.PERSON
 }
 
 data class MovementDraft(
