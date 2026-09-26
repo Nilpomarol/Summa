@@ -117,6 +117,8 @@ fun peopleViewModel(appContainer: AppContainer): PeopleViewModel = viewModel {
 @Composable
 fun PeopleScreen(
     viewModel: PeopleViewModel,
+    /** Changes after every movement write, so the page reloads while it stays visible. */
+    dataVersion: Long,
     onOpenDebtSource: (String) -> Unit,
     onAddDebtForPerson: (PersonSummary) -> Unit,
     onMessageCopied: (String) -> Unit,
@@ -125,7 +127,7 @@ fun PeopleScreen(
 ) {
     val state by viewModel.state.collectAsState()
 
-    LaunchedEffect(viewModel) {
+    LaunchedEffect(viewModel, dataVersion) {
         viewModel.onScreenShown()
     }
 

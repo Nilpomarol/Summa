@@ -72,7 +72,7 @@ fun MovementFormScreen(
     onDismiss: () -> Unit,
     onSave: () -> Unit,
     onOverride: () -> Unit,
-    onDataLossOverride: () -> Unit,
+    onSplitRemovalAccepted: () -> Unit,
     onRecurrenceStopEnd: () -> Unit,
     onRecurrenceStopUnlink: () -> Unit,
     onWarningDismissed: () -> Unit,
@@ -317,7 +317,7 @@ fun MovementFormScreen(
             form = form,
             onSave = onSave,
             onOverride = onOverride,
-            onDataLossOverride = onDataLossOverride,
+            onSplitRemovalAccepted = onSplitRemovalAccepted,
             onRecurrenceStopEnd = onRecurrenceStopEnd,
             onRecurrenceStopUnlink = onRecurrenceStopUnlink,
             onWarningDismissed = onWarningDismissed,
@@ -338,7 +338,7 @@ private fun MovementSaveActions(
     form: MovementFormState,
     onSave: () -> Unit,
     onOverride: () -> Unit,
-    onDataLossOverride: () -> Unit,
+    onSplitRemovalAccepted: () -> Unit,
     onRecurrenceStopEnd: () -> Unit,
     onRecurrenceStopUnlink: () -> Unit,
     onWarningDismissed: () -> Unit,
@@ -372,7 +372,7 @@ private fun MovementSaveActions(
             },
             onClick = when {
                 isRecurrenceStop -> onRecurrenceStopEnd
-                form.pendingDataLossWarning != null -> onDataLossOverride
+                form.pendingDataLossWarning != null -> onSplitRemovalAccepted
                 form.duplicateWarning -> onOverride
                 else -> onSave
             },

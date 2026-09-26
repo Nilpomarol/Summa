@@ -230,42 +230,47 @@ class MovementEditor(
         _form.value = null
     }
 
-    /** "Revisa" -- dismisses the duplicate/data-loss warning without saving, restoring the normal
-     * Save button (field-level validation). */
+    /** "Revisa" -- dismisses the pending warning without saving, restoring the normal Save button
+     * (field-level validation). It ends the save attempt, so its answers are dropped too. */
     fun onWarningDismissed() {
         val form = _form.value ?: return
-        _form.value = form.copy(duplicateWarning = false, pendingDataLossWarning = null)
+        _form.value = form.copy(duplicateWarning = false, pendingDataLossWarning = null, saveDecisions = SaveDecisions())
     }
 
-    fun onSaveClicked() = attemptSave(forceSave = false, acceptDataLoss = false)
+    /** Starts a save attempt with nothing answered yet. */
+    fun onSaveClicked() = attemptSave(SaveDecisions())
 
-    /** Save anyway after the duplicate warning was shown (never block — warn). By the time this
-     * warning is showing, the data-loss gate below has already run clean for the current form (it
-     * runs first), so it's safe to accept both at once here. */
-    fun onDuplicateOverrideClicked() = attemptSave(forceSave = true, acceptDataLoss = true)
+    /** Save anyway after the duplicate warning (never block — warn). */
+    fun onDuplicateOverrideClicked() = continueSave { it.copy(duplicateAccepted = true) }
 
-    /** Save anyway after the pending data-loss warning was shown (data-loss protection — never
-     * block, warn). This gate runs before the duplicate check, so accepting it re-runs the save
-     * from the top with `forceSave = false` — a duplicate that only becomes apparent on this
-     * re-run still gets its own warning rather than being silently bypassed. */
-    fun onDataLossOverrideClicked() = attemptSave(forceSave = false, acceptDataLoss = true)
+    /** Accepts the [DataLossWarning.SPLIT_REMOVED] warning (data-loss protection — never block, warn). */
+    fun onSplitRemovalAcceptedClicked() = continueSave { it.copy(splitRemovalAccepted = true) }
 
     /** "Finalitza la plantilla" choice on the [DataLossWarning.RECURRING_STOP] banner (recurrence consistency): the template is marked [TemplateStatus.ENDED] atomically with this save. */
-    fun onRecurrenceStopEndClicked() = attemptSave(forceSave = false, acceptDataLoss = true, endTemplate = true)
+    fun onRecurrenceStopEndClicked() = continueSave { it.copy(recurrenceStop = RecurrenceStopChoice.END_SERIES) }
 
     /** "Només desvincula aquest moviment" choice on the same banner: the old behavior -- this
      * movement is detached (`templateId = null` on save, already computed from `form.isRecurring`
      * being false) while the template itself keeps running untouched. */
-    fun onRecurrenceStopUnlinkClicked() = attemptSave(forceSave = false, acceptDataLoss = true, endTemplate = false)
+    fun onRecurrenceStopUnlinkClicked() = continueSave { it.copy(recurrenceStop = RecurrenceStopChoice.DETACH) }
 
-    private fun attemptSave(forceSave: Boolean, acceptDataLoss: Boolean, endTemplate: Boolean = false) {
-        if (saveInFlight) return
+    /** Records one answer to the warning being shown and carries on with the same save attempt,
+     * so the next unanswered question (if any) is asked and no answered one comes back. */
+    private fun continueSave(answer: (SaveDecisions) -> SaveDecisions) {
         val form = _form.value ?: return
+        attemptSave(answer(form.saveDecisions))
+    }
+
+    private fun attemptSave(decisions: SaveDecisions) {
+        if (saveInFlight) return
+        // Only the warning this attempt raises next is shown.
+        val form = _form.value?.copy(saveDecisions = decisions, duplicateWarning = false, pendingDataLossWarning = null)
+            ?: return
         when {
             // Only a new form records a settlement: saving an edit must update the edited movement,
             // never add a second record beside it.
             form.isNew && form.type == MovementType.INCOME && form.isSettlement -> saveSettlement(form)
-            else -> saveDirectMovement(form, forceSave, acceptDataLoss, endTemplate)
+            else -> saveDirectMovement(form)
         }
     }
 
@@ -377,10 +382,8 @@ class MovementEditor(
 
     private fun saveDirectMovement(
         form: MovementFormState,
-        forceSave: Boolean,
-        acceptDataLoss: Boolean,
-        endTemplate: Boolean,
     ) {
+        val decisions = form.saveDecisions
         val required = parseRequiredFields(form)
         val amount = required.amountCents
         val date = required.date
@@ -470,15 +473,10 @@ class MovementEditor(
         // Data-loss gate (data-loss protection): an existing stored split that the final kind
         // can't carry (explicit un-share, or a type/kind switch away from SHARED/FOR_OTHER) would
         // otherwise be silently dropped by the `MovementSplitWrite.Remove` branch below. Warn once,
-        // save only after the user accepts (never block).
-        // Known limitation: `pendingDataLossWarning` holds a single value, so if a
-        // save would *both* drop a split and stop a linked recurrence in the same edit, only this
-        // warning surfaces first; accepting it (`acceptDataLoss = true`) also skips the
-        // `isRecurrenceStop` gate below on the same re-run and defaults to "unlink" (the template
-        // is left ACTIVE, never ended) without asking. Not data loss and not a hard block, just an
-        // unannounced default in this rare compound case -- a known limitation.
+        // save only after the user accepts (never block). Each gate below asks its own question and
+        // is passed only by its own answer in [SaveDecisions].
         val willRemoveExistingSplit = !form.isNew && form.existingSplit && !finalKindCarriesSplit
-        if (!acceptDataLoss && willRemoveExistingSplit) {
+        if (!decisions.splitRemovalAccepted && willRemoveExistingSplit) {
             _form.value = form.copy(
                     pendingDataLossWarning = DataLossWarning.SPLIT_REMOVED,
                     errorRes = null,
@@ -489,12 +487,12 @@ class MovementEditor(
 
         // Recurring toggle-off (recurrence consistency): turning recurrence off on a movement
         // that's still linked to a template is ambiguous -- does the whole series stop, or does
-        // only this occurrence detach? Warn once (never block) and let the two accept paths above
-        // decide: [onRecurrenceStopEndClicked] also ends the template below; [onRecurrenceStopUnlinkClicked]
+        // only this occurrence detach? Warn once (never block) and let the answer decide:
+        // [RecurrenceStopChoice.END_SERIES] also ends the template below; [RecurrenceStopChoice.DETACH]
         // just proceeds (the draft's `templateId` is already null below since `isRecurring` is false).
         // An expense someone else paid cannot stay linked, so it stops the recurrence the same way.
         val isRecurrenceStop = !isRecurring && form.templateId != null
-        if (!acceptDataLoss && isRecurrenceStop) {
+        if (decisions.recurrenceStop == null && isRecurrenceStop) {
             _form.value = form.copy(
                     pendingDataLossWarning = DataLossWarning.RECURRING_STOP,
                     errorRes = null,
@@ -504,7 +502,7 @@ class MovementEditor(
             return
         }
 
-        if (!forceSave && !paidByPerson && isDuplicate(form, requireNotNull(amount), requireNotNull(date))) {
+        if (!decisions.duplicateAccepted && !paidByPerson && isDuplicate(form, requireNotNull(amount), requireNotNull(date))) {
             _form.value = form.copy(duplicateWarning = true, errorRes = null, errorMessage = null)
             return
         }
@@ -594,7 +592,7 @@ class MovementEditor(
                     )
                 }
                 // "Finalitza la plantilla" ends the template atomically with this movement save.
-                if (endTemplate && form.templateId != null) {
+                if (decisions.recurrenceStop == RecurrenceStopChoice.END_SERIES && form.templateId != null) {
                     requireNotNull(templateRepository) { "template repository unavailable" }
                         .setStatus(form.templateId, TemplateStatus.ENDED, updatedAt = now)
                 }
@@ -690,7 +688,7 @@ class MovementEditor(
      * that the final kind can't carry goes through [MovementFormState.pendingDataLossWarning]
      * instead of being silently dropped here. The only normalization left is read-only:
      * category/tag compatibility against the current type and clearing
-     * transient error/warning flags so a fresh edit re-evaluates them from scratch.
+     * transient error/warning flags and save answers so a fresh edit re-evaluates them from scratch.
      */
     private fun normalizeForm(form: MovementFormState): MovementFormState {
         val category = form.categoryId?.let { catId ->
@@ -714,6 +712,7 @@ class MovementEditor(
             errorMessage = null,
             duplicateWarning = false,
             pendingDataLossWarning = null,
+            saveDecisions = SaveDecisions(),
         )
     }
 
@@ -778,6 +777,25 @@ enum class DataLossWarning {
     RECURRING_STOP,
 }
 
+/**
+ * The answers the user has given to save warnings during the current save attempt: one answer
+ * per question, so answering one never answers another. Save starts an attempt with none; an
+ * edit to the form or "Revisa" ends it.
+ */
+data class SaveDecisions(
+    val splitRemovalAccepted: Boolean = false,
+    /** What happens to the series when recurrence is turned off; null until the user chooses. */
+    val recurrenceStop: RecurrenceStopChoice? = null,
+    val duplicateAccepted: Boolean = false,
+)
+
+enum class RecurrenceStopChoice {
+    /** "Finalitza la plantilla": the template ends together with this save. */
+    END_SERIES,
+    /** "Només desvincula aquest moviment": the template keeps running. */
+    DETACH,
+}
+
 data class MovementFormState(
     /** The movement being edited, whoever paid it; null while adding one. */
     val movementId: String? = null,
@@ -803,6 +821,7 @@ data class MovementFormState(
      * progress would remove a stored split or stop a linked recurrence -- mirrors
      * [duplicateWarning]'s dismissible "save anyway" mechanism, never a hard block. */
     val pendingDataLossWarning: DataLossWarning? = null,
+    val saveDecisions: SaveDecisions = SaveDecisions(),
     val errorRes: Int? = null,
     /** Which control [errorRes] refers to (field-level validation) -- null for a save-time
      * failure that isn't attributable to a single field. */

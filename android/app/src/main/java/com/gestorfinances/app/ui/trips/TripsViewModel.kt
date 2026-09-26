@@ -73,8 +73,15 @@ class TripsViewModel(
         loadDetail(trip = trip, excludeOneTime = false)
     }
 
-    /** Opens trip detail from just a [tripId] (e.g. a Dashboard quick-link), without a [TripSummary] on hand. */
+    /**
+     * Opens trip detail from just a [tripId] (e.g. a Dashboard quick-link), without a [TripSummary]
+     * on hand. Reopening the trip already shown (after a movement write) reloads it in place.
+     */
     fun onDetailOpened(tripId: String) {
+        _state.value.detail?.takeIf { it.trip.id == tripId }?.let { open ->
+            loadDetail(trip = open.trip, excludeOneTime = open.excludeOneTime)
+            return
+        }
         _state.value.trips.firstOrNull { it.id == tripId }?.let {
             onDetailClicked(it)
             return
@@ -104,9 +111,15 @@ class TripsViewModel(
     }
 
     private fun loadDetail(trip: TripSummary, excludeOneTime: Boolean) {
-        _state.value = _state.value.copy(
-            detail = TripDetailState(trip = trip, excludeOneTime = excludeOneTime, isLoading = true),
-        )
+        val shown = _state.value.detail
+        // Reloading what is already shown keeps it on screen until the new figures arrive.
+        val reloadsShownDetail = shown != null && !shown.isLoading && shown.errorMessage == null &&
+            shown.trip.id == trip.id && shown.excludeOneTime == excludeOneTime
+        if (!reloadsShownDetail) {
+            _state.value = _state.value.copy(
+                detail = TripDetailState(trip = trip, excludeOneTime = excludeOneTime, isLoading = true),
+            )
+        }
         viewModelScope.launch {
             val result = withContext(ioDispatcher) {
                 runCatching {

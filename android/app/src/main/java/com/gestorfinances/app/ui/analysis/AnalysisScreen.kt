@@ -49,7 +49,7 @@ internal fun AnalysisScreen(
     val state by viewModel.state.collectAsState()
 
     LaunchedEffect(viewModel, dataVersion) {
-        viewModel.onScreenShown()
+        viewModel.onScreenShown(dataVersion)
     }
 
     AnalysisContent(

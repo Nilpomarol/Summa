@@ -42,6 +42,7 @@ class CategoriesViewModel(
 
     fun onScreenShown() {
         refreshCategories()
+        _state.value.flowDetail?.category?.let(::onFlowClicked)
     }
 
     fun onAddClicked() {

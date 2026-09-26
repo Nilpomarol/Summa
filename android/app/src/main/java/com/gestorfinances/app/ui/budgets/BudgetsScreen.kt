@@ -111,6 +111,8 @@ fun budgetsViewModel(appContainer: AppContainer, addForCategoryId: String? = nul
 @Composable
 fun BudgetsPage(
     appContainer: AppContainer,
+    /** Changes after every movement write, so the page reloads while it stays visible. */
+    dataVersion: Long,
     addForCategoryId: String?,
     onBack: () -> Unit,
     onViewCategoryAnalysis: (categoryId: String, categoryName: String) -> Unit,
@@ -122,9 +124,15 @@ fun BudgetsPage(
     val categoriesViewModel = categoriesViewModel(appContainer)
     val categoriesState by categoriesViewModel.state.collectAsState()
 
+    // The category flow sheet opened from a budget lists that category's movements.
+    LaunchedEffect(categoriesViewModel, dataVersion) {
+        categoriesViewModel.onScreenShown()
+    }
+
     BudgetsScreen(
         viewModel = viewModel,
         onBack = onBack,
+        dataVersion = dataVersion,
         onOpenCategoryMovements = categoriesViewModel::onFlowClicked,
         onDeleteCommitted = onDeleteCommitted,
         modifier = modifier,
@@ -153,12 +161,15 @@ fun BudgetsScreen(
     onBack: () -> Unit,
     onOpenCategoryMovements: (CategoryRecord) -> Unit = {},
     contextTripId: String? = null,
+    /** Changes after every movement write; only the Budgets page, which can open the movement
+     * sheet over itself, passes it. */
+    dataVersion: Long = 0L,
     onDeleteCommitted: DeleteUndoHandler = {},
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsState()
 
-    LaunchedEffect(viewModel, contextTripId) {
+    LaunchedEffect(viewModel, contextTripId, dataVersion) {
         viewModel.onScreenShown(contextTripId)
     }
 

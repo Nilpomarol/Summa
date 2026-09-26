@@ -114,7 +114,7 @@ private fun MovementFormSheet(
         },
         onSave = editor::onSaveClicked,
         onOverride = editor::onDuplicateOverrideClicked,
-        onDataLossOverride = editor::onDataLossOverrideClicked,
+        onSplitRemovalAccepted = editor::onSplitRemovalAcceptedClicked,
         onRecurrenceStopEnd = editor::onRecurrenceStopEndClicked,
         onRecurrenceStopUnlink = editor::onRecurrenceStopUnlinkClicked,
         onWarningDismissed = editor::onWarningDismissed,
@@ -126,6 +126,7 @@ private fun MovementFormSheet(
 private fun MovementFormState.withoutTransientUi(): MovementFormState = copy(
     duplicateWarning = false,
     pendingDataLossWarning = null,
+    saveDecisions = SaveDecisions(),
     errorRes = null,
     errorField = null,
     errorMessage = null,

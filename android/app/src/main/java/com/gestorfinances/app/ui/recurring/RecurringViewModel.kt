@@ -85,6 +85,7 @@ class RecurringViewModel(
 
     fun onScreenShown() {
         refresh()
+        _state.value.historyDetail?.template?.let(::onHistoryClicked)
     }
 
     fun resetForMenuNavigation() {

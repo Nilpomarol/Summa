@@ -119,6 +119,8 @@ fun categoriesViewModel(appContainer: AppContainer): CategoriesViewModel = viewM
 @Composable
 fun CategoriesScreen(
     viewModel: CategoriesViewModel,
+    /** Changes after every movement write, so the page reloads while it stays visible. */
+    dataVersion: Long,
     onViewAnalysis: (categoryId: String, categoryName: String) -> Unit = { _, _ -> },
     onDefineBudget: (categoryId: String) -> Unit = {},
     onMovementDetail: (MovementSummary) -> Unit = {},
@@ -127,7 +129,7 @@ fun CategoriesScreen(
 ) {
     val state by viewModel.state.collectAsState()
 
-    LaunchedEffect(viewModel) {
+    LaunchedEffect(viewModel, dataVersion) {
         viewModel.onScreenShown()
     }
 

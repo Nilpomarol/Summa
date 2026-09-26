@@ -87,12 +87,14 @@ fun goalsViewModel(appContainer: AppContainer, accountId: String? = null): Goals
 @Composable
 fun GoalsScreen(
     viewModel: GoalsViewModel,
+    /** Changes after every movement write, so the page reloads while it stays visible. */
+    dataVersion: Long,
     onDeleteCommitted: DeleteUndoHandler = {},
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsState()
 
-    LaunchedEffect(viewModel) {
+    LaunchedEffect(viewModel, dataVersion) {
         viewModel.onScreenShown()
     }
 

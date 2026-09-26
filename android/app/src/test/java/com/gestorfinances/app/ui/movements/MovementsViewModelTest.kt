@@ -851,7 +851,7 @@ class MovementsViewModelTest {
             assertEquals(DataLossWarning.SPLIT_REMOVED, viewModel.form().pendingDataLossWarning)
             assertTrue(store.movements.getActive("exp")!!.isShared)
 
-            viewModel.editor.onDataLossOverrideClicked()
+            viewModel.editor.onSplitRemovalAcceptedClicked()
             advanceUntilIdle()
 
             assertNull(viewModel.editor.form.value)
@@ -1129,6 +1129,193 @@ class MovementsViewModelTest {
                 store.movements.getActive(created.id)!!.templateId,
             )
         }
+    }
+
+    // Regression: after the recurrence-stop warning was answered, a duplicate warning appeared but
+    // the recurrence warning stayed pending, so the visible action asked about recurrence again
+    // and the save could never complete. Each warning must show once, and each answer must stick.
+    @Test
+    fun aDuplicateFoundAfterStoppingRecurrenceIsAskedOnceAndTheRecurrenceChoiceIsKept() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            val viewModel = viewModel(store)
+            val recurring = saveRecurringGym(viewModel, store)
+            val templateId = requireNotNull(recurring.templateId)
+            // An unlinked movement that the edited one will match once it is no longer recurring.
+            store.movements.create(movementDraft(id = "dup", amountCents = 2_000, name = "Gimnàs"), createdAt = NOW)
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+
+            viewModel.onEditClicked(recurring)
+            advanceUntilIdle()
+            viewModel.editor.onFormChanged(viewModel.form().copy(isRecurring = false, date = "2026-01-01"))
+            viewModel.editor.onSaveClicked()
+            advanceUntilIdle()
+            assertEquals(DataLossWarning.RECURRING_STOP, viewModel.form().pendingDataLossWarning)
+            assertFalse(viewModel.form().duplicateWarning)
+
+            viewModel.editor.onRecurrenceStopEndClicked()
+            advanceUntilIdle()
+
+            // Only the duplicate is left to answer.
+            assertTrue(viewModel.form().duplicateWarning)
+            assertNull(viewModel.form().pendingDataLossWarning)
+            assertEquals(TemplateStatus.ACTIVE, store.templates.getActive(templateId)!!.status)
+
+            viewModel.editor.onDuplicateOverrideClicked()
+            advanceUntilIdle()
+
+            assertNull(viewModel.editor.form.value)
+            assertEquals(2, store.movements.listActive().size)
+            assertNull(store.movements.getActive(recurring.id)!!.templateId)
+            assertEquals(
+                "the end-series answer given before the duplicate warning still applies",
+                TemplateStatus.ENDED,
+                store.templates.getActive(templateId)!!.status,
+            )
+        }
+    }
+
+    // Regression: accepting the split-removal warning also skipped the recurrence question and
+    // silently detached the movement while its template kept running. The two are separate
+    // questions and each needs its own answer.
+    @Test
+    fun removingASplitAndStoppingRecurrenceAsksBothQuestionsAndEndsTheSeriesWhenChosen() = runTest(dispatcher) {
+        freshStore().use { store ->
+            val viewModel = viewModel(store)
+            val recurring = saveSharedRecurringDinner(viewModel, store)
+            val templateId = requireNotNull(recurring.templateId)
+
+            unshareAndStopRecurrence(viewModel, recurring)
+            assertEquals(DataLossWarning.SPLIT_REMOVED, viewModel.form().pendingDataLossWarning)
+
+            viewModel.editor.onSplitRemovalAcceptedClicked()
+            advanceUntilIdle()
+
+            // Accepting the split removal did not answer what happens to the series.
+            assertEquals(DataLossWarning.RECURRING_STOP, viewModel.form().pendingDataLossWarning)
+            assertTrue("nothing is written before both answers", store.movements.getActive(recurring.id)!!.isShared)
+            assertEquals(templateId, store.movements.getActive(recurring.id)!!.templateId)
+
+            viewModel.editor.onRecurrenceStopEndClicked()
+            advanceUntilIdle()
+
+            assertNull(viewModel.editor.form.value)
+            val saved = store.movements.getActive(recurring.id)!!
+            assertFalse(saved.isShared)
+            assertNull(saved.templateId)
+            assertEquals(TemplateStatus.ENDED, store.templates.getActive(templateId)!!.status)
+            assertEquals(0L, store.people.getActive("laura")!!.balanceCents)
+        }
+    }
+
+    @Test
+    fun removingASplitAndStoppingRecurrenceCanDetachOnlyThisOccurrence() = runTest(dispatcher) {
+        freshStore().use { store ->
+            val viewModel = viewModel(store)
+            val recurring = saveSharedRecurringDinner(viewModel, store)
+            val templateId = requireNotNull(recurring.templateId)
+
+            unshareAndStopRecurrence(viewModel, recurring)
+            viewModel.editor.onSplitRemovalAcceptedClicked()
+            advanceUntilIdle()
+            assertEquals(DataLossWarning.RECURRING_STOP, viewModel.form().pendingDataLossWarning)
+
+            viewModel.editor.onRecurrenceStopUnlinkClicked()
+            advanceUntilIdle()
+
+            assertNull(viewModel.editor.form.value)
+            val saved = store.movements.getActive(recurring.id)!!
+            assertFalse(saved.isShared)
+            assertNull(saved.templateId)
+            assertEquals(TemplateStatus.ACTIVE, store.templates.getActive(templateId)!!.status)
+        }
+    }
+
+    // An answer belongs to the save attempt it was given in: editing the form afterwards asks again.
+    @Test
+    fun editingTheFormAfterAnsweringAWarningAsksItAgain() = runTest(dispatcher) {
+        freshStore().use { store ->
+            val viewModel = viewModel(store)
+            val recurring = saveSharedRecurringDinner(viewModel, store)
+
+            unshareAndStopRecurrence(viewModel, recurring)
+            viewModel.editor.onSplitRemovalAcceptedClicked()
+            advanceUntilIdle()
+            assertEquals(DataLossWarning.RECURRING_STOP, viewModel.form().pendingDataLossWarning)
+
+            viewModel.editor.onFormChanged(viewModel.form().copy(name = "Sopar del mes"))
+            assertNull(viewModel.form().pendingDataLossWarning)
+            viewModel.editor.onSaveClicked()
+            advanceUntilIdle()
+
+            assertEquals(DataLossWarning.SPLIT_REMOVED, viewModel.form().pendingDataLossWarning)
+            assertTrue(store.movements.getActive(recurring.id)!!.isShared)
+        }
+    }
+
+    /** Saves a weekly recurring "Gimnàs" of 20 EUR on 2026-01-05 through the form. */
+    private fun kotlinx.coroutines.test.TestScope.saveRecurringGym(
+        viewModel: MovementsViewModel,
+        store: TestStore,
+    ): com.gestorfinances.app.data.repository.MovementSummary {
+        viewModel.onAddClicked()
+        advanceUntilIdle()
+        viewModel.editor.onFormChanged(
+            viewModel.form().copy(
+                amount = "20",
+                date = "2026-01-05",
+                accountId = "checking",
+                name = "Gimnàs",
+                isRecurring = true,
+                recurringFrequency = RecurrenceFrequency.WEEKLY,
+            ),
+        )
+        viewModel.editor.onSaveClicked()
+        advanceUntilIdle()
+        return store.movements.listActive().single()
+    }
+
+    /** Saves a monthly recurring "Sopar" of 10 EUR shared equally with laura through the form. */
+    private fun kotlinx.coroutines.test.TestScope.saveSharedRecurringDinner(
+        viewModel: MovementsViewModel,
+        store: TestStore,
+    ): com.gestorfinances.app.data.repository.MovementSummary {
+        store.accounts.create(accountDraft("checking"), createdAt = NOW)
+        store.people.create(personDraft("laura"), createdAt = NOW)
+        viewModel.onAddClicked()
+        advanceUntilIdle()
+        viewModel.editor.onFormChanged(
+            viewModel.form().copy(
+                amount = "10",
+                date = "2026-01-01",
+                accountId = "checking",
+                name = "Sopar",
+                expenseKind = ExpenseKind.SHARED,
+                splitEditor = SplitEditorState().withPersonToggled("laura"),
+                isRecurring = true,
+                recurringFrequency = RecurrenceFrequency.MONTHLY,
+            ),
+        )
+        viewModel.editor.onSaveClicked()
+        advanceUntilIdle()
+        val saved = store.movements.listActive().single()
+        assertTrue(saved.isShared)
+        assertEquals(500L, store.people.getActive("laura")!!.balanceCents)
+        return saved
+    }
+
+    /** Opens [movement], turns its sharing and its recurrence off, and presses Save. */
+    private fun kotlinx.coroutines.test.TestScope.unshareAndStopRecurrence(
+        viewModel: MovementsViewModel,
+        movement: com.gestorfinances.app.data.repository.MovementSummary,
+    ) {
+        viewModel.onEditClicked(movement)
+        advanceUntilIdle()
+        viewModel.editor.onFormChanged(viewModel.form().copy(isRecurring = false))
+        viewModel.editor.onSharedToggled(false)
+        viewModel.editor.onSaveClicked()
+        advanceUntilIdle()
     }
 
     // Regression: createQuickTemplate hardcoded notes = null, so a quick-created recurring

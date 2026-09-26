@@ -44,7 +44,16 @@ class AnalysisViewModel(
     private var loadedSignature: String? = null
     private var filterOptionsLoaded = false
 
-    fun onScreenShown() {
+    /** The movement data revision the page was last shown for; part of the loaded signature, so
+     * a movement write reloads the analysis even when filters and period are unchanged. */
+    private var dataVersion = 0L
+
+    fun onScreenShown(dataVersion: Long = this.dataVersion) {
+        if (dataVersion != this.dataVersion) {
+            this.dataVersion = dataVersion
+            // A write can add an activity month, account, or category to choose from.
+            filterOptionsLoaded = false
+        }
         loadFilterOptions()
         refresh()
     }
@@ -75,7 +84,7 @@ class AnalysisViewModel(
     fun refresh() {
         val snapshot = _state.value
         val range = resolveAnalysisRange(snapshot.scope, snapshot.month, snapshot.year)
-        val signature = signatureOf(snapshot, range)
+        val signature = signatureOf(snapshot, range, dataVersion)
         val signatureChanged = signature != loadedSignature
         val needsLoad = signatureChanged || snapshot.resum == null ||
             (snapshot.scope != AnalysisScope.ALL_TIME && snapshot.comparison == null)
@@ -346,8 +355,9 @@ private fun <T : Comparable<T>> List<T>.shiftFrom(value: T, delta: Long): T? {
     return sorted.getOrNull(index + delta.toInt())
 }
 
-private fun signatureOf(s: AnalysisUiState, range: AnalysisPeriodRange): String =
+private fun signatureOf(s: AnalysisUiState, range: AnalysisPeriodRange, dataVersion: Long): String =
     listOf(
+        dataVersion,
         s.scope,
         range.fromDate,
         range.toDateExclusive,

@@ -44,6 +44,7 @@ class PeopleViewModel(
 
     fun onScreenShown() {
         refreshPeople()
+        _state.value.detail?.person?.let(::onPersonDetailClicked)
     }
 
     fun onAddClicked() {

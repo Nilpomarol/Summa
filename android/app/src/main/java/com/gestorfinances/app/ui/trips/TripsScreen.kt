@@ -144,13 +144,15 @@ fun tripsViewModel(appContainer: AppContainer): TripsViewModel = viewModel {
 @Composable
 fun TripsScreen(
     viewModel: TripsViewModel,
+    /** Changes after every movement write, so the page reloads while it stays visible. */
+    dataVersion: Long,
     onOpenDetail: (TripSummary) -> Unit,
     onDeleteCommitted: DeleteUndoHandler = {},
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsState()
 
-    LaunchedEffect(viewModel) {
+    LaunchedEffect(viewModel, dataVersion) {
         viewModel.onScreenShown()
     }
 

@@ -126,6 +126,37 @@ class PeopleViewModelTest {
         }
     }
 
+    // Regression: an expense added for a person from their page through the movement sheet left
+    // the page showing the old debt. The page is shown again after each movement write, and that
+    // reloads the open person as well as the list.
+    @Test
+    fun showingThePageAgainReloadsTheOpenPersonDetail() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.people.create(
+                PersonDraft(id = "laura", name = "Laura", avatar = null, color = null, notes = null),
+                createdAt = NOW,
+            )
+            val viewModel = viewModel(store)
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+            viewModel.onPersonDetailClicked(viewModel.state.value.people.single())
+            advanceUntilIdle()
+            assertEquals(0L, viewModel.state.value.detail!!.person.balanceCents)
+
+            store.movements.create(
+                personPaidExpense(id = "taxi", payerPersonId = "laura", amountCents = 600, date = "2026-01-01", name = "Taxi"),
+                createdAt = NOW,
+            )
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+
+            assertEquals(-600L, viewModel.state.value.people.single().balanceCents)
+            val detail = viewModel.state.value.detail!!
+            assertEquals(-600L, detail.person.balanceCents)
+            assertEquals(listOf("taxi"), detail.history.map { it.movement.id })
+        }
+    }
+
     @Test
     fun personDetailHistoryResolvesExternalSplitAsSyntheticExternalExpense() = runTest(dispatcher) {
         freshStore().use { store ->

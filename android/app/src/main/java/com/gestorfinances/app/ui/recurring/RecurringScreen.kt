@@ -143,12 +143,14 @@ fun recurringViewModel(appContainer: AppContainer): RecurringViewModel = viewMod
 @Composable
 fun RecurringScreen(
     viewModel: RecurringViewModel,
+    /** Changes after every movement write, so the page reloads while it stays visible. */
+    dataVersion: Long,
     onMovementDetail: (MovementSummary) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsState()
 
-    LaunchedEffect(viewModel) {
+    LaunchedEffect(viewModel, dataVersion) {
         viewModel.onScreenShown()
     }
 

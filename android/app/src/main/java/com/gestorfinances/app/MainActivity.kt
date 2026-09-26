@@ -444,6 +444,7 @@ private fun LedgerShell(
             composable<Route.Categories> {
                 CategoriesScreen(
                     viewModel = categoriesViewModel(appContainer),
+                    dataVersion = movementsState.dataVersion,
                     onViewAnalysis = { categoryId, categoryName ->
                         navController.navigate(Route.Analysis(categoryId = categoryId, categoryName = categoryName))
                     },
@@ -458,6 +459,7 @@ private fun LedgerShell(
             composable<Route.People> {
                 PeopleScreen(
                     viewModel = peopleViewModel(appContainer),
+                    dataVersion = movementsState.dataVersion,
                     onOpenDebtSource = { sourceId ->
                         movementsViewModel.onDetailSourceClicked(sourceId)
                         navController.openSection(TopLevelSection.MOVEMENTS)
@@ -476,6 +478,7 @@ private fun LedgerShell(
             composable<Route.Trips> {
                 TripsScreen(
                     viewModel = tripsViewModel(appContainer),
+                    dataVersion = movementsState.dataVersion,
                     onOpenDetail = { trip -> navController.navigate(Route.TripDetail(trip.id)) },
                     onDeleteCommitted = showDeleteUndo,
                     modifier = pageModifier,
@@ -484,7 +487,8 @@ private fun LedgerShell(
             composable<Route.TripDetail> { entry ->
                 val tripId = entry.toRoute<Route.TripDetail>().tripId
                 val viewModel = tripsViewModel(appContainer)
-                LaunchedEffect(viewModel, tripId) {
+                // Movements added or edited from this page change the totals it shows.
+                LaunchedEffect(viewModel, tripId, movementsState.dataVersion) {
                     viewModel.onDetailOpened(tripId)
                 }
                 TripDetailScreen(
@@ -509,6 +513,7 @@ private fun LedgerShell(
             composable<Route.Budgets> { entry ->
                 BudgetsPage(
                     appContainer = appContainer,
+                    dataVersion = movementsState.dataVersion,
                     addForCategoryId = entry.toRoute<Route.Budgets>().addForCategoryId,
                     onBack = { navController.popBackStack() },
                     onViewCategoryAnalysis = { categoryId, categoryName ->
@@ -522,6 +527,7 @@ private fun LedgerShell(
             composable<Route.Goals> { entry ->
                 GoalsScreen(
                     viewModel = goalsViewModel(appContainer, entry.toRoute<Route.Goals>().accountId),
+                    dataVersion = movementsState.dataVersion,
                     onDeleteCommitted = showDeleteUndo,
                     modifier = pageModifier,
                 )
@@ -538,6 +544,7 @@ private fun LedgerShell(
             composable<Route.Recurring> {
                 RecurringScreen(
                     viewModel = recurringViewModel,
+                    dataVersion = movementsState.dataVersion,
                     onMovementDetail = ::openMovementDetail,
                     modifier = pageModifier,
                 )
