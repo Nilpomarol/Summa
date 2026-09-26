@@ -5,6 +5,7 @@ import com.gestorfinances.app.data.repository.ContributionDirection
 import com.gestorfinances.app.data.repository.ExpenseFunding
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import com.gestorfinances.app.R
+import com.gestorfinances.app.data.FinancialDataRevision
 import com.gestorfinances.app.data.db.GestorDatabase
 import com.gestorfinances.app.data.repository.AccountDraft
 import com.gestorfinances.app.data.repository.AccountMemberDraft
@@ -1557,7 +1558,9 @@ class MovementsViewModelTest {
             )
 
             assertTrue(movement.isShared)
-            assertEquals("laura", movement.paidByPersonName)
+            // The owner paid it all for Laura: she owes it, but she is not who paid.
+            assertNull(movement.paidByPersonName)
+            assertFalse(movement.paidByPerson)
             assertEquals(1_000L, store.people.getActive("laura")!!.balanceCents)
             assertEquals(0L, totals.actualExpenseCents)
             assertEquals(-1_000L, totals.accountFlowCents)
@@ -2263,9 +2266,39 @@ class MovementsViewModelTest {
         }
     }
 
+    // Regression: a person created inside the split editor is saved at once, but nothing told
+    // mounted pages, so People stayed stale when the movement was then cancelled.
+    @Test
+    fun aPersonCreatedInlineAdvancesTheSharedRevisionEvenIfTheMovementIsCancelled() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            val revision = FinancialDataRevision()
+            val viewModel = viewModel(store, revision)
+            viewModel.onAddClicked()
+            advanceUntilIdle()
+            viewModel.editor.onSharedToggled(true)
+
+            viewModel.editor.onCreatePersonInSplit("Marta")
+            advanceUntilIdle()
+            assertEquals(1L, revision.value.value)
+            viewModel.editor.onFormDismissed()
+
+            val people = com.gestorfinances.app.ui.people.PeopleViewModel(
+                personRepository = store.people,
+                movementRepository = store.movements,
+                accountRepository = store.accounts,
+                ioDispatcher = dispatcher,
+            )
+            people.onScreenShown()
+            advanceUntilIdle()
+            assertEquals(listOf("Marta"), people.state.value.people.map { it.name })
+            assertEquals(1L, revision.value.value)
+        }
+    }
+
     private fun MovementsViewModel.form(): MovementFormState = editor.form.value!!
 
-    private fun viewModel(store: TestStore): MovementsViewModel =
+    private fun viewModel(store: TestStore, revision: FinancialDataRevision = FinancialDataRevision()): MovementsViewModel =
         MovementsViewModel(
             movementRepository = store.movements,
             accountRepository = store.accounts,
@@ -2276,6 +2309,7 @@ class MovementsViewModelTest {
             splitRepository = store.splits,
             ioDispatcher = dispatcher,
             templateRepository = store.templates,
+            financialDataRevision = revision,
         )
 
     private fun freshStore(): TestStore {

@@ -405,20 +405,6 @@ private fun MovementSource(movement: MovementSummary): Boolean {
             return true
         }
         else -> {
-            // A shared expense the user did not pay for is the same situation as an external one:
-            // a person's money, so it wears a person's mark.
-            val payer = movement.paidByPersonName?.takeIf {
-                it.isNotEmpty() && movement.isShared && movement.userShareCents == 0L
-            }
-            if (payer != null) {
-                IdentityLabel(
-                    text = payer,
-                    tint = null,
-                    fallbackTint = FinanceTheme.colors.shared,
-                    icon = Icons.Outlined.Group,
-                )
-                return true
-            }
             val account = movement.accountName?.takeIf { it.isNotEmpty() } ?: return false
             IdentityLabel(text = account, tint = movement.accountColor)
             return true

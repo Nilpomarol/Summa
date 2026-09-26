@@ -9,7 +9,7 @@ The SQL files are the field-level authority:
 - `shared/queries/` — canonical finance views/queries;
 - `shared/golden/` — focused procedural finance cases.
 
-The current schema version is `20`.
+The current schema version is `21`.
 
 Android consumes the contract through SQLDelight. The .NET project is currently a validation harness for the same contract.
 
@@ -19,7 +19,7 @@ Android consumes the contract through SQLDelight. The .NET project is currently 
 - Movement `date` is a local calendar date; `*_at` fields are UTC instants.
 - Transfers use different source/destination accounts.
 - Split lines are absolute non-negative amounts and reconcile with their split total. Every split belongs to a movement.
-- An expense has one movement identity whoever paid it. `payer_person_id` is NULL when the owner paid from `account_id`. An expense another person paid names that person, has no account, never recurs, and carries a split whose owner line is what the owner owes the payer.
+- An expense has one movement identity whoever paid it. `payer_person_id` is NULL when the owner paid from `account_id`. An expense another person paid names that person, has no account, never recurs, and carries a split whose owner line is what the owner owes the payer. Who paid is read only from `payer_person_id`, never from a split's shape: an owner line of 0 can also mean the owner paid entirely for someone else.
 - Normal absence uses `archived_at IS NULL`; finance data is normally soft-deleted.
 - Database constraints are the final structural-integrity boundary; app validation should provide clearer Catalan feedback before they are hit.
 

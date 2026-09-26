@@ -161,8 +161,7 @@ fun BudgetsScreen(
     onBack: () -> Unit,
     onOpenCategoryMovements: (CategoryRecord) -> Unit = {},
     contextTripId: String? = null,
-    /** Changes after every movement write; only the Budgets page, which can open the movement
-     * sheet over itself, passes it. */
+    /** Changes after every committed financial write, so the page reloads while it stays visible. */
     dataVersion: Long = 0L,
     onDeleteCommitted: DeleteUndoHandler = {},
     modifier: Modifier = Modifier,

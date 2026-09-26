@@ -47,8 +47,11 @@ class BudgetsViewModel(
     val state: StateFlow<BudgetsUiState> = _state.asStateFlow()
 
     fun onScreenShown(contextTripId: String? = null) {
+        // A trip's budget form opens once, when the page is first shown for that trip; a reload
+        // after a financial write leaves the form as the user left it.
+        val opensContextForm = contextTripId != null && contextTripId != _state.value.contextTripId
         _state.value = _state.value.copy(contextTripId = contextTripId)
-        refresh(openContextForm = contextTripId != null)
+        refresh(openContextForm = opensContextForm)
     }
 
     fun onMonthSelected(month: YearMonth) {

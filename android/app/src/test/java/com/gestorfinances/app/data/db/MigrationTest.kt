@@ -12,6 +12,49 @@ import org.junit.Test
 
 class MigrationTest {
 
+    // Regression: the v20 movement summary inferred a payer from a split whose owner line is 0 and
+    // one person's is the whole amount, so an expense the owner paid entirely for Laura showed as
+    // paid by her. v21 only replaces the view: rows and every canonical figure stay the same.
+    @Test
+    fun `v20 to v21 migration reads the payer only from payer_person_id`() {
+        val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+        driver.execute(null, "PRAGMA foreign_keys = ON", 0)
+        createV19(driver)
+        driver.execute(null, "BEGIN", 0)
+        GestorDatabase.Schema.migrate(driver, 19, 20)
+        driver.execute(null, "COMMIT", 0)
+        val at = "2026-01-01T00:00:00Z"
+        listOf(
+            "INSERT INTO people(id,name,created_at,updated_at) VALUES ('laura','Laura','$at','$at')",
+            "INSERT INTO accounts(id,name,starting_balance_cents,type,ownership_kind,created_at,updated_at) VALUES ('bank','Bank',100000,'bank','personal','$at','$at')",
+            // The owner paid 30 EUR entirely for Laura.
+            "INSERT INTO movements(id,type,amount_cents,date,account_id,name,expense_funding,created_at,updated_at) VALUES ('for-laura','expense',3000,'2026-02-01','bank','Gift','owner','$at','$at')",
+            "INSERT INTO splits(id,movement_id,entry_method,created_at,updated_at) VALUES ('for-laura-split','for-laura','exact','$at','$at')",
+            "INSERT INTO split_lines(id,split_id,participant_kind,person_id,owed_amount_cents,created_at,updated_at) VALUES ('fl-user','for-laura-split','user',NULL,0,'$at','$at'),('fl-laura','for-laura-split','person','laura',3000,'$at','$at')",
+            // Laura paid 15 EUR the owner owes her.
+            "INSERT INTO movements(id,type,amount_cents,date,account_id,name,payer_person_id,created_at,updated_at) VALUES ('laura-paid','expense',1500,'2026-02-02',NULL,'Cinema','laura','$at','$at')",
+            "INSERT INTO splits(id,movement_id,entry_method,created_at,updated_at) VALUES ('laura-paid-split','laura-paid','exact','$at','$at')",
+            "INSERT INTO split_lines(id,split_id,participant_kind,person_id,owed_amount_cents,created_at,updated_at) VALUES ('lp-user','laura-paid-split','user',NULL,1500,'$at','$at')",
+            "INSERT INTO movements(id,type,amount_cents,date,account_id,name,created_at,updated_at) VALUES ('pay','income',50000,'2026-02-03','bank','Salary','$at','$at')",
+        ).forEach { driver.execute(null, it, 0) }
+        val payerSql = "SELECT id, paid_by_person_name FROM v_movement_summary WHERE id IN ('for-laura','laura-paid') ORDER BY id"
+        assertEquals(listOf(listOf("for-laura", "Laura"), listOf("laura-paid", "Laura")), driver.selectRows(payerSql, 2))
+        val rowsSql = "SELECT (SELECT COUNT(*) FROM movements), (SELECT COUNT(*) FROM splits), (SELECT COUNT(*) FROM split_lines)"
+        val rowsBefore = driver.selectRows(rowsSql, 3)
+        val before = FINANCE_FIGURES.associateWith { (sql, columns) -> driver.selectRows(sql, columns) }
+
+        driver.execute(null, "BEGIN", 0)
+        GestorDatabase.Schema.migrate(driver, 20, 21)
+        driver.execute(null, "COMMIT", 0)
+
+        assertEquals("21", driver.selectString("SELECT value FROM meta WHERE key='schema_version'"))
+        assertEquals(listOf(listOf("for-laura", null), listOf("laura-paid", "Laura")), driver.selectRows(payerSql, 2))
+        assertEquals(rowsBefore, driver.selectRows(rowsSql, 3))
+        FINANCE_FIGURES.forEach { query -> assertEquals(query.first, before.getValue(query), driver.selectRows(query.first, query.second)) }
+        // Laura owes the 30 EUR gift and is owed the 15 EUR cinema.
+        assertEquals(1_500L, driver.selectLong("SELECT balance_cents FROM v_person_balance WHERE person_id='laura'"))
+    }
+
     @Test
     fun `v19 to v20 migration turns expenses other people paid into movements without changing any balance`() {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)

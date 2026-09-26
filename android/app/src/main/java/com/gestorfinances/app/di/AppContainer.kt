@@ -20,6 +20,7 @@ import com.gestorfinances.app.data.repository.TagRepository
 import com.gestorfinances.app.data.repository.TemplateRepository
 import com.gestorfinances.app.data.repository.TripAnalysisRepository
 import com.gestorfinances.app.data.repository.TripRepository
+import com.gestorfinances.app.data.FinancialDataRevision
 import com.gestorfinances.app.notifications.FinanceNotificationCoordinator
 import com.gestorfinances.app.notifications.NotificationPreferences
 import com.gestorfinances.app.ui.theme.ThemePreferences
@@ -59,6 +60,9 @@ class AppContainer(context: Context) {
     val metaRepository: MetaRepository by lazy {
         MetaRepository(database.metaQueries)
     }
+
+    /** Advanced after each committed write from an Activity-wide overlay; see [FinancialDataRevision]. */
+    val financialDataRevision = FinancialDataRevision()
 
     val movementRepository: MovementRepository by lazy {
         MovementRepository(database.movementsQueries, database.splitsQueries)

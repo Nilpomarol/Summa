@@ -2,6 +2,7 @@ package com.gestorfinances.app.ui.recurring
 
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import com.gestorfinances.app.R
+import com.gestorfinances.app.data.FinancialDataRevision
 import com.gestorfinances.app.data.db.GestorDatabase
 import com.gestorfinances.app.data.repository.AccountDraft
 import com.gestorfinances.app.data.repository.AccountMemberDraft
@@ -588,6 +589,85 @@ class RecurringViewModelTest {
         assertNull(config.occurrenceSplit(10_000))
         assertTrue(config.previewShares(10_000, emptyList()).isEmpty())
     }
+
+    // Regression: a recurring confirmation wrote a movement but only this view model reloaded, so
+    // a mounted ledger or page kept showing pre-write figures. A committed write advances the one
+    // shared revision exactly once, and consumers reloading on it never advance it themselves.
+    @Test
+    fun confirmingAnOccurrenceAdvancesTheSharedRevisionOnceAndTheLedgerShowsIt() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            store.templates.create(monthlyTemplateDraft("rent", nextDueDate = "2026-01-01"), createdAt = NOW)
+            val revision = FinancialDataRevision()
+            val ledger = movementsViewModel(store, revision)
+            ledger.onScreenShown()
+            val viewModel = viewModel(store, today = LocalDate.parse("2026-01-15"), revision = revision)
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+            assertTrue(ledger.state.value.movements.isEmpty())
+
+            viewModel.onConfirmClicked(viewModel.state.value.duePrompts.single())
+            viewModel.onConfirmSaveClicked()
+            advanceUntilIdle()
+
+            assertEquals(1L, revision.value.value)
+            assertEquals(listOf("rent"), ledger.state.value.movements.map { it.templateId })
+            // Reloading is a read: shown again, neither consumer moves the revision.
+            ledger.onScreenShown()
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+            assertEquals(1L, revision.value.value)
+        }
+    }
+
+    // A template-only write changes projections without any movement, so it advances it too.
+    @Test
+    fun pausingATemplateAdvancesTheSharedRevision() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            store.templates.create(monthlyTemplateDraft("rent", nextDueDate = "2026-02-01"), createdAt = NOW)
+            val revision = FinancialDataRevision()
+            val viewModel = viewModel(store, revision = revision)
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+
+            viewModel.onPauseClicked(viewModel.state.value.templates.single())
+            advanceUntilIdle()
+
+            assertEquals(TemplateStatus.PAUSED, store.templates.getActive("rent")!!.status)
+            assertEquals(1L, revision.value.value)
+        }
+    }
+
+    @Test
+    fun aFailedWriteDoesNotAdvanceTheSharedRevision() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            store.templates.create(customDailyTemplateDraft("ancient", nextDueDate = "1900-01-01"), createdAt = NOW)
+            val revision = FinancialDataRevision()
+            val viewModel = viewModel(store, today = LocalDate.parse("2026-01-15"), revision = revision)
+            val template = store.templates.getActive("ancient")!!
+
+            viewModel.onSkipAllClicked(DuePrompt(template = template, dueDate = template.nextDueDate, pendingCount = 1))
+            advanceUntilIdle()
+
+            assertTrue(viewModel.state.value.errorMessage != null)
+            assertEquals(0L, revision.value.value)
+        }
+    }
+
+    private fun movementsViewModel(store: TestStore, revision: FinancialDataRevision) = MovementsViewModel(
+        movementRepository = store.movements,
+        accountRepository = store.accounts,
+        categoryRepository = store.categories,
+        personRepository = store.people,
+        tripRepository = store.trips,
+        tagRepository = store.tags,
+        splitRepository = store.splits,
+        ioDispatcher = dispatcher,
+        templateRepository = store.templates,
+        financialDataRevision = revision,
+    )
 
     @Test
     fun createMonthlyTemplateViaFormSavesAndLists() = runTest(dispatcher) {
@@ -1707,6 +1787,7 @@ class RecurringViewModelTest {
     private fun viewModel(
         store: TestStore,
         today: LocalDate = LocalDate.parse("2026-01-15"),
+        revision: FinancialDataRevision = FinancialDataRevision(),
     ): RecurringViewModel =
         RecurringViewModel(
             templateRepository = store.templates,
@@ -1719,6 +1800,7 @@ class RecurringViewModelTest {
             personRepository = store.people,
             ioDispatcher = dispatcher,
             today = { today },
+            financialDataRevision = revision,
         )
 
     private fun monthlyTemplateDraft(id: String, nextDueDate: String): TemplateDraft =

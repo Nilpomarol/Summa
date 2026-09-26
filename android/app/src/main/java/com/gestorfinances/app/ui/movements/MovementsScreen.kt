@@ -127,6 +127,7 @@ fun movementsViewModel(appContainer: AppContainer): MovementsViewModel = viewMod
         splitRepository = appContainer.splitRepository,
         notificationRefresher = appContainer.notificationCoordinator,
         templateRepository = appContainer.templateRepository,
+        financialDataRevision = appContainer.financialDataRevision,
     )
 }
 

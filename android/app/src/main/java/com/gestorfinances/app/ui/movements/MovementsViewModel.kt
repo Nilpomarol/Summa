@@ -3,6 +3,7 @@ package com.gestorfinances.app.ui.movements
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gestorfinances.app.R
+import com.gestorfinances.app.data.FinancialDataRevision
 import com.gestorfinances.app.data.repository.AccountRepository
 import com.gestorfinances.app.data.repository.AccountSummary
 import com.gestorfinances.app.data.repository.CategoryNature
@@ -37,6 +38,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.withContext
 
 class MovementsViewModel(
@@ -50,6 +52,7 @@ class MovementsViewModel(
     private val notificationRefresher: NotificationRefresher = NotificationRefresher.NoOp,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val templateRepository: TemplateRepository? = null,
+    private val financialDataRevision: FinancialDataRevision = FinancialDataRevision(),
 ) : ViewModel() {
     private val _state = MutableStateFlow(MovementsUiState())
     val state: StateFlow<MovementsUiState> = _state.asStateFlow()
@@ -68,11 +71,22 @@ class MovementsViewModel(
         templateRepository = templateRepository,
         references = { _state.value },
         onSaved = {
-            refresh(dataChanged = true)
+            financialDataRevision.markChanged()
             refreshNotifications()
         },
-        onPeopleChanged = { people -> _state.value = _state.value.copy(people = people) },
+        onPeopleChanged = { people ->
+            _state.value = _state.value.copy(people = people)
+            // The person exists now, whether or not this movement is ever saved.
+            financialDataRevision.markChanged()
+        },
     )
+
+    init {
+        // Any committed financial write, this view model's own or another overlay's, reloads the ledger.
+        viewModelScope.launch {
+            financialDataRevision.value.drop(1).collect { refresh() }
+        }
+    }
 
     fun onScreenShown() {
         refresh()
@@ -331,7 +345,7 @@ class MovementsViewModel(
             result.fold(
                 onSuccess = {
                     _state.value = _state.value.copy(refundForm = null)
-                    refresh(dataChanged = true)
+                    financialDataRevision.markChanged()
                     refreshNotifications()
                 },
                 onFailure = {
@@ -403,7 +417,7 @@ class MovementsViewModel(
             result.fold(
                 onSuccess = { operation ->
                     _state.value = _state.value.copy(archiveCandidate = null, detailMovement = null)
-                    refresh(dataChanged = true)
+                    financialDataRevision.markChanged()
                     refreshNotifications()
                     onSuccess { undoDelete(operation) }
                 },
@@ -447,7 +461,7 @@ class MovementsViewModel(
             }
             result.fold(
                 onSuccess = {
-                    refresh(dataChanged = true)
+                    financialDataRevision.markChanged()
                     refreshNotifications()
                 },
                 onFailure = { _state.value = _state.value.copy(errorMessage = it.message ?: it.javaClass.simpleName) },
@@ -456,15 +470,10 @@ class MovementsViewModel(
     }
 
 
-    private fun refresh(dataChanged: Boolean = false) {
+    private fun refresh() {
         viewModelScope.launch {
             _state.value = _state.value.copy(isLoading = true, errorMessage = null)
             val result = loadMovementData()
-            val dataVersion = if (dataChanged) {
-                _state.value.dataVersion + 1L
-            } else {
-                _state.value.dataVersion
-            }
             _state.value = result.fold(
                 onSuccess = {
                     _state.value.copy(
@@ -475,14 +484,12 @@ class MovementsViewModel(
                         trips = it.trips,
                         tags = it.tags,
                         isLoading = false,
-                        dataVersion = dataVersion,
                     )
                 },
                 onFailure = {
                     _state.value.copy(
                         isLoading = false,
                         errorMessage = it.message ?: it.javaClass.simpleName,
-                        dataVersion = dataVersion,
                     )
                 },
             )
@@ -528,7 +535,6 @@ data class MovementsUiState(
     val detailSplit: MovementSplitDraft? = null,
     val refundForm: RefundFormState? = null,
     val archiveCandidate: ArchiveCandidate? = null,
-    val dataVersion: Long = 0L,
 ) {
     val visibleMovements: List<MovementSummary>
         get() = movements.filter { filters.matches(it) }

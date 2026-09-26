@@ -3,6 +3,7 @@ package com.gestorfinances.app.ui.recurring
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gestorfinances.app.R
+import com.gestorfinances.app.data.FinancialDataRevision
 import com.gestorfinances.app.data.repository.AccountRepository
 import com.gestorfinances.app.data.repository.AccountOwnershipKind
 import com.gestorfinances.app.data.repository.ExpenseFunding
@@ -67,6 +68,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -82,9 +84,17 @@ class RecurringViewModel(
     private val notificationRefresher: NotificationRefresher = NotificationRefresher.NoOp,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val today: () -> LocalDate = { LocalDate.now() },
+    private val financialDataRevision: FinancialDataRevision = FinancialDataRevision(),
 ) : ViewModel() {
     private val _state = MutableStateFlow(RecurringUiState())
     val state: StateFlow<RecurringUiState> = _state.asStateFlow()
+
+    init {
+        // Any committed financial write, this view model's own or another overlay's, reloads it.
+        viewModelScope.launch {
+            financialDataRevision.value.drop(1).collect { onScreenShown() }
+        }
+    }
 
     /** Set synchronously while a confirmed occurrence is being written, so a repeated tap cannot
      * record the same occurrence twice. */
@@ -218,6 +228,8 @@ class RecurringViewModel(
             }
             result.fold(
                 onSuccess = { people ->
+                    // The person exists now, whether or not this template is ever saved.
+                    financialDataRevision.markChanged()
                     val form = _state.value.form
                     _state.value = _state.value.copy(
                         people = people,
@@ -366,7 +378,7 @@ class RecurringViewModel(
             result.fold(
                 onSuccess = {
                     _state.value = _state.value.copy(confirmPrompt = null)
-                    refresh()
+                    financialDataRevision.markChanged()
                     refreshNotifications()
                 },
                 onFailure = {
@@ -397,7 +409,7 @@ class RecurringViewModel(
             }
             result.fold(
                 onSuccess = {
-                    refresh()
+                    financialDataRevision.markChanged()
                     refreshNotifications()
                 },
                 onFailure = ::showError,
@@ -438,7 +450,7 @@ class RecurringViewModel(
             }
             result.fold(
                 onSuccess = { operation ->
-                    refresh()
+                    financialDataRevision.markChanged()
                     refreshNotifications()
                     onSuccess { undoDelete(operation) }
                 },
@@ -584,7 +596,7 @@ class RecurringViewModel(
             result.fold(
                 onSuccess = {
                     _state.value = _state.value.copy(form = null)
-                    refresh()
+                    financialDataRevision.markChanged()
                     refreshNotifications()
                 },
                 onFailure = {
@@ -604,7 +616,7 @@ class RecurringViewModel(
             }
             result.fold(
                 onSuccess = {
-                    refresh()
+                    financialDataRevision.markChanged()
                     refreshNotifications()
                 },
                 onFailure = ::showError,
@@ -738,7 +750,7 @@ class RecurringViewModel(
                     runCatching { applyDetectionItem(item.candidate, now) }.exceptionOrNull()?.let { item to it }
                 }
             }
-            refresh()
+            if (failures.size < accepted.size) financialDataRevision.markChanged()
             refreshNotifications()
             _state.value = _state.value.copy(
                 detectionReview = if (failures.isEmpty()) {
@@ -809,7 +821,7 @@ class RecurringViewModel(
             }
             result.fold(
                 onSuccess = {
-                    refresh()
+                    financialDataRevision.markChanged()
                     refreshNotifications()
                 },
                 onFailure = ::showError,

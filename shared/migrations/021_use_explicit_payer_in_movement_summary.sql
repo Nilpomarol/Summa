@@ -1,3 +1,10 @@
+-- Summa v20 -> v21 migration.
+-- Who paid a movement is its explicit payer_person_id. The movement summary no longer infers a
+-- payer from a split where the owner's line is 0 and one person's is the whole amount: that is
+-- also an expense the owner paid entirely for someone else, which it then showed as paid by them.
+-- Only the view is replaced; no row changes.
+
+DROP VIEW IF EXISTS v_movement_summary;
 CREATE VIEW v_movement_summary AS
 SELECT
     movements.id,
@@ -132,3 +139,5 @@ LEFT JOIN accounts source_account
 LEFT JOIN people contributor
     ON contributor.id = contribution.person_id
 WHERE contribution.archived_at IS NULL;
+
+UPDATE meta SET value = '21' WHERE key = 'schema_version';

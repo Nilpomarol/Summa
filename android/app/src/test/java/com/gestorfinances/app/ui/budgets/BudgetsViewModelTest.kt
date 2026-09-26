@@ -64,6 +64,11 @@ class BudgetsViewModelTest {
             assertEquals(BudgetScope.TRIP, evaluation.budget.scope)
             assertEquals("mallorca", evaluation.budget.tripId)
             assertEquals(25_000L, evaluation.budget.limitAmountCents)
+
+            // Reloading the same trip's page after a financial write does not reopen the form.
+            viewModel.onScreenShown(contextTripId = "mallorca")
+            advanceUntilIdle()
+            assertNull(viewModel.state.value.form)
         }
     }
 
