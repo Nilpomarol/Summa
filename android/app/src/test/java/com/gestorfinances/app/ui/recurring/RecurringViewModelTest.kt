@@ -14,7 +14,10 @@ import com.gestorfinances.app.data.repository.BudgetPeriod
 import com.gestorfinances.app.data.repository.BudgetRepository
 import com.gestorfinances.app.data.repository.BudgetScope
 import com.gestorfinances.app.data.repository.RepositoryTestSupport
+import com.gestorfinances.app.ui.movements.ExpenseKind
 import com.gestorfinances.app.ui.movements.MovementsViewModel
+import com.gestorfinances.app.ui.movements.SplitEditorState
+import com.gestorfinances.app.ui.movements.USER_PARTICIPANT_ID
 import com.gestorfinances.app.data.repository.CategoryRepository
 import com.gestorfinances.app.data.repository.MovementDraft
 import com.gestorfinances.app.data.repository.MovementRepository
@@ -129,6 +132,9 @@ class RecurringViewModelTest {
             advanceUntilIdle()
 
             viewModel.onEditClicked(viewModel.state.value.templates.single())
+            // The stored allocation is shown as the answer to whose income it is.
+            assertEquals(ExpenseKind.SHARED, viewModel.state.value.form!!.incomeOwner)
+            assertTrue(viewModel.state.value.form!!.incomeSplitEditor != null)
             viewModel.onFormChanged(
                 viewModel.state.value.form!!.copy(
                     name = "Nòmina",
@@ -330,6 +336,240 @@ class RecurringViewModelTest {
             assertEquals(0L, after.pendingRecurringCents)
         }
     }
+
+    // Regression: the template form saved an income into a shared account with no split, so the
+    // whole income silently counted as the owner's although nobody said whose it was.
+    @Test
+    fun aNewSharedAccountIncomeTemplateNeedsToBeToldWhoseIncomeItIs() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.people.create(personDraft("laura"), createdAt = NOW)
+            store.accounts.create(sharedAccountDraft("joint", "laura"), createdAt = NOW)
+            val viewModel = viewModel(store)
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+
+            viewModel.onAddClicked()
+            viewModel.onFormChanged(sharedIncomeForm(viewModel.state.value.form!!))
+            viewModel.onSaveClicked()
+            advanceUntilIdle()
+
+            assertEquals(R.string.movement_validation_income_owner, viewModel.state.value.form!!.errorRes)
+            assertTrue(store.templates.listActive().isEmpty())
+        }
+    }
+
+    // Regression: an allocation between the owner and Laura on account A followed its template to
+    // shared account B, whose members are the owner and Marc.
+    @Test
+    fun anAllocationDoesNotFollowItsTemplateToAnotherSharedAccount() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.people.create(personDraft("laura"), createdAt = NOW)
+            store.people.create(personDraft("marc"), createdAt = NOW)
+            store.accounts.create(sharedAccountDraft("joint", "laura"), createdAt = NOW)
+            store.accounts.create(sharedAccountDraft("house", "marc"), createdAt = NOW)
+            store.templates.create(
+                monthlyTemplateDraft("salary", nextDueDate = "2026-02-01").copy(
+                    type = MovementType.INCOME,
+                    accountId = "joint",
+                    amountCents = 10_000,
+                    splitConfig = incomeAllocation40to60(),
+                ),
+                createdAt = NOW,
+            )
+            val viewModel = viewModel(store)
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+
+            viewModel.onEditClicked(viewModel.state.value.templates.single())
+            viewModel.onFormChanged(viewModel.state.value.form!!.copy(accountId = "house"))
+            viewModel.onSaveClicked()
+            advanceUntilIdle()
+
+            val stored = store.templates.getActive("salary")!!
+            assertEquals("joint", stored.accountId)
+            assertEquals(incomeAllocation40to60(), stored.splitConfig)
+            assertEquals(R.string.template_validation_allocation_kept, viewModel.state.value.form!!.errorRes)
+            // The new account asks whose income it is afresh.
+            assertNull(viewModel.state.value.form!!.incomeOwner)
+
+            viewModel.onIncomeOwnerSelected(ExpenseKind.SHARED)
+            viewModel.onSaveClicked()
+            advanceUntilIdle()
+
+            val moved = store.templates.getActive("salary")!!
+            assertEquals("house", moved.accountId)
+            assertEquals(setOf("user", "marc"), moved.splitConfig!!.lines.map { it.party }.toSet())
+        }
+    }
+
+    // Mine is an explicit answer: no split is stored and the whole occurrence is the owner's income.
+    @Test
+    fun aSharedIncomeTemplateAnsweredMineCountsTheWholeIncomeAsTheOwners() = runTest(dispatcher) {
+        freshStore().use { store ->
+            val viewModel = sharedIncomeTemplateViewModel(store)
+            viewModel.onIncomeOwnerSelected(ExpenseKind.PERSONAL)
+            viewModel.onSaveClicked()
+            advanceUntilIdle()
+
+            val template = store.templates.listActive().single()
+            assertNull(template.splitConfig)
+            confirmFirstOccurrence(viewModel)
+            assertEquals(10_000L, store.analysis.periodTotals(fromDate = "2026-02-01", toDate = "2026-02-02").actualIncomeCents)
+        }
+    }
+
+    // Shared stores the allocation the user sees in the split editor, and its occurrences count the
+    // owner's share as income without making anyone owe anything.
+    @Test
+    fun aSharedIncomeTemplateAnsweredSharedStoresTheAllocationShown() = runTest(dispatcher) {
+        freshStore().use { store ->
+            val viewModel = sharedIncomeTemplateViewModel(store)
+            viewModel.onIncomeOwnerSelected(ExpenseKind.SHARED)
+            viewModel.onIncomeSplitEditorChanged(split40to60(viewModel.state.value.form!!.incomeSplitEditor!!))
+            viewModel.onSaveClicked()
+            advanceUntilIdle()
+
+            val stored = store.templates.listActive().single().splitConfig!!
+            assertEquals(
+                mapOf("user" to 4_000L, "laura" to 6_000L),
+                stored.lines.associate { it.party to it.owedAmountCents },
+            )
+            confirmFirstOccurrence(viewModel)
+            assertEquals(4_000L, store.analysis.periodTotals(fromDate = "2026-02-01", toDate = "2026-02-02").actualIncomeCents)
+            assertEquals(0L, store.people.getActive("laura")!!.balanceCents)
+        }
+    }
+
+    // Another member's income is theirs in full: the owner's share is nothing, and no debt appears.
+    @Test
+    fun aSharedIncomeTemplateAnsweredAnotherMemberNeedsTheMemberAndIsNotTheOwners() = runTest(dispatcher) {
+        freshStore().use { store ->
+            val viewModel = sharedIncomeTemplateViewModel(store)
+            viewModel.onIncomeOwnerSelected(ExpenseKind.FOR_OTHER)
+            viewModel.onSaveClicked()
+            advanceUntilIdle()
+            assertEquals(TemplateFormField.PERSON, viewModel.state.value.form!!.errorField)
+            assertTrue(store.templates.listActive().isEmpty())
+
+            viewModel.onIncomeMemberSelected("laura")
+            viewModel.onSaveClicked()
+            advanceUntilIdle()
+
+            val stored = store.templates.listActive().single().splitConfig!!
+            assertEquals(mapOf("user" to 0L, "laura" to 10_000L), stored.lines.associate { it.party to it.owedAmountCents })
+            confirmFirstOccurrence(viewModel)
+            assertEquals(0L, store.analysis.periodTotals(fromDate = "2026-02-01", toDate = "2026-02-02").actualIncomeCents)
+            assertEquals(0L, store.people.getActive("laura")!!.balanceCents)
+        }
+    }
+
+    // The same answers in the movement form and in the template form store the same split.
+    @Test
+    fun theMovementFormAndTheTemplateFormStoreTheSameSharedIncomeAllocation() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.people.create(personDraft("laura"), createdAt = NOW)
+            store.accounts.create(sharedAccountDraft("joint", "laura"), createdAt = NOW)
+            val movements = MovementsViewModel(
+                movementRepository = store.movements,
+                accountRepository = store.accounts,
+                categoryRepository = store.categories,
+                personRepository = store.people,
+                tripRepository = store.trips,
+                tagRepository = store.tags,
+                splitRepository = store.splits,
+                ioDispatcher = dispatcher,
+                templateRepository = store.templates,
+            )
+            movements.onAddClicked(tripId = null, accountId = "joint")
+            advanceUntilIdle()
+            movements.editor.onFormChanged(
+                movements.editor.form.value!!.copy(
+                    type = MovementType.INCOME,
+                    amount = "100",
+                    date = "2026-01-01",
+                    name = "Nòmina",
+                    isRecurring = true,
+                    recurringFrequency = RecurrenceFrequency.MONTHLY,
+                ),
+            )
+            movements.editor.onSharedToggled(true)
+            movements.editor.onSplitEditorChanged(split40to60(movements.editor.form.value!!.splitEditor!!))
+            movements.editor.onSaveClicked()
+            advanceUntilIdle()
+            val fromMovementForm = store.templates.listActive().single()
+
+            val viewModel = viewModel(store)
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+            viewModel.onAddClicked()
+            viewModel.onFormChanged(sharedIncomeForm(viewModel.state.value.form!!))
+            viewModel.onIncomeOwnerSelected(ExpenseKind.SHARED)
+            viewModel.onIncomeSplitEditorChanged(split40to60(viewModel.state.value.form!!.incomeSplitEditor!!))
+            viewModel.onSaveClicked()
+            advanceUntilIdle()
+            val fromTemplateForm = store.templates.listActive().single { it.id != fromMovementForm.id }
+
+            assertTrue(fromMovementForm.splitConfig != null)
+            assertEquals(fromMovementForm.splitConfig, fromTemplateForm.splitConfig)
+        }
+    }
+
+    // The template write boundary holds the same rule as a movement's: only an income into a
+    // shared account is allocated between members.
+    @Test
+    fun anAllocatedIncomeTemplateIsRefusedOnAPersonalAccount() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.people.create(personDraft("laura"), createdAt = NOW)
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+                store.templates.create(
+                    monthlyTemplateDraft("salary", nextDueDate = "2026-02-01").copy(
+                        type = MovementType.INCOME,
+                        amountCents = 10_000,
+                        splitConfig = incomeAllocation40to60(),
+                    ),
+                    createdAt = NOW,
+                )
+            }
+            assertTrue(store.templates.listActive().isEmpty())
+        }
+    }
+
+    /** A template form for a new 100 EUR monthly income into the shared account "joint" with laura. */
+    private fun kotlinx.coroutines.test.TestScope.sharedIncomeTemplateViewModel(store: TestStore): RecurringViewModel {
+        store.people.create(personDraft("laura"), createdAt = NOW)
+        store.accounts.create(sharedAccountDraft("joint", "laura"), createdAt = NOW)
+        val viewModel = viewModel(store, today = LocalDate.parse("2026-02-01"))
+        viewModel.onScreenShown()
+        advanceUntilIdle()
+        viewModel.onAddClicked()
+        viewModel.onFormChanged(sharedIncomeForm(viewModel.state.value.form!!))
+        return viewModel
+    }
+
+    private fun kotlinx.coroutines.test.TestScope.confirmFirstOccurrence(viewModel: RecurringViewModel) {
+        viewModel.onConfirmClicked(viewModel.state.value.duePrompts.single())
+        viewModel.onConfirmSaveClicked()
+        advanceUntilIdle()
+    }
+
+    private fun split40to60(editor: SplitEditorState): SplitEditorState =
+        editor.withMethod(SplitEntryMethod.PERCENTAGE)
+            .withPercentage(USER_PARTICIPANT_ID, "40")
+            .withPercentage("laura", "60")
+
+    private fun sharedIncomeForm(form: TemplateFormState) = form.copy(
+        type = MovementType.INCOME,
+        amount = "100",
+        accountId = "joint",
+        name = "Nòmina",
+        frequency = RecurrenceFrequency.MONTHLY,
+        dayOfMonth = "1",
+        nextDueDate = "2026-02-01",
+    )
+
+    private fun personDraft(id: String) =
+        PersonDraft(id = id, name = id.replaceFirstChar { it.uppercase() }, avatar = null, color = null, notes = null)
 
     private fun incomeAllocation40to60() = TemplateSplitConfig(
         entryMethod = "exact",

@@ -330,7 +330,7 @@
     <string name="settlement_scope_help">«Només recurrents» aplica el pagament exclusivament al deute generat per plantilles recurrents.</string>
     <string name="template_field_person">Persona</string>
     <string name="template_validation_person_required">Tria una persona.</string>
-    <string name="template_validation_allocation_kept">Aquesta plantilla té un repartiment que aquí no es pot refer. Manté el tipus i un compte del mateix tipus (compartit o personal).</string>
+    <string name="template_validation_allocation_kept">Aquesta plantilla reparteix l’import entre les persones del seu compte. Per canviar-ne el compte o el tipus, torna a triar de qui és l’ingrés o crea una plantilla nova.</string>
 
     <!-- Movements -->
     <string name="movement_list_title">Moviments</string>

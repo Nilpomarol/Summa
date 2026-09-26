@@ -251,3 +251,6 @@ WHERE id = :id
   AND next_due_date = :deleted_due_date
   AND updated_at = :deleted_at
   AND archived_at IS NULL;
+
+accountOwnershipKind:
+SELECT ownership_kind FROM accounts WHERE id = :id;

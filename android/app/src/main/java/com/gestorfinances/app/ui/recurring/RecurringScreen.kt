@@ -189,6 +189,12 @@ fun RecurringScreen(
             onBack = requestFormDismissal,
             onSave = viewModel::onSaveClicked,
             modifier = modifier,
+            incomeOwnership = IncomeOwnershipActions(
+                onOwnerSelected = viewModel::onIncomeOwnerSelected,
+                onMemberSelected = viewModel::onIncomeMemberSelected,
+                onSplitEditorChange = viewModel::onIncomeSplitEditorChanged,
+                onCreatePerson = viewModel::onCreatePersonInIncomeSplit,
+            ),
         )
     } else {
         RecurringContent(

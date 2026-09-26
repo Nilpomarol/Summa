@@ -897,6 +897,31 @@ internal fun AccountSummary.defaultExpenseSplitEditor(): SplitEditorState =
         },
     )
 
+/** A stored split of [amountCents] as the split editor shows it, the owner paying. */
+internal fun MovementSplitDraft.toSplitEditorState(amountCents: Long): SplitEditorState =
+    SplitEditorState(
+        method = entryMethod,
+        selectedPersonIds = lines.filter { it.participantKind == SplitParticipantKind.PERSON }.mapNotNull { it.personId },
+        payerParticipantId = USER_PARTICIPANT_ID,
+        exactAmounts = if (entryMethod == SplitEntryMethod.EXACT) {
+            lines.associate { line ->
+                (line.personId ?: USER_PARTICIPANT_ID) to formatEuroInput(line.owedAmountCents)
+            }
+        } else {
+            emptyMap()
+        },
+        percentages = if (entryMethod == SplitEntryMethod.PERCENTAGE) {
+            lines.associate { line ->
+                val participantId = line.personId ?: USER_PARTICIPANT_ID
+                val percentStr = line.owedPercent?.let { "%.2f".format(it).replace(".", ",") }
+                    ?: if (amountCents > 0) "%.2f".format(line.owedAmountCents.toDouble() * 100.0 / amountCents).replace(".", ",") else ""
+                participantId to percentStr
+            }
+        } else {
+            emptyMap()
+        },
+    )
+
 internal fun MovementSummary.toFormState(
     splitDraft: MovementSplitDraft? = null,
     template: TemplateSummary? = null,
@@ -962,30 +987,7 @@ internal fun MovementSummary.toFormState(
     }
 
     // SHARED (type 2): split exists; PERSONAL (type 1): no split.
-    val splitEditor = splitDraft?.let { draft ->
-        SplitEditorState(
-            method = draft.entryMethod,
-            selectedPersonIds = personLines.mapNotNull { it.personId },
-            payerParticipantId = USER_PARTICIPANT_ID,
-            exactAmounts = if (draft.entryMethod == SplitEntryMethod.EXACT) {
-                draft.lines.associate { line ->
-                    (line.personId ?: USER_PARTICIPANT_ID) to formatEuroInput(line.owedAmountCents)
-                }
-            } else {
-                emptyMap()
-            },
-            percentages = if (draft.entryMethod == SplitEntryMethod.PERCENTAGE) {
-                draft.lines.associate { line ->
-                    val participantId = line.personId ?: USER_PARTICIPANT_ID
-                    val percentStr = line.owedPercent?.let { "%.2f".format(it).replace(".", ",") }
-                        ?: if (amountCents > 0) "%.2f".format(line.owedAmountCents.toDouble() * 100.0 / amountCents).replace(".", ",") else ""
-                    participantId to percentStr
-                }
-            } else {
-                emptyMap()
-            },
-        )
-    }
+    val splitEditor = splitDraft?.toSplitEditorState(amountCents)
 
     val expenseKind = when {
         type != MovementType.EXPENSE && type != MovementType.INCOME -> null

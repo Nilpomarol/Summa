@@ -115,11 +115,21 @@ class TemplateRepository(
     fun getActive(id: String): TemplateSummary? =
         queries.templateById(id, ::mapTemplateSummary).executeAsOneOrNull()
 
+    /** An income is allocated between members only in a shared account; in a personal one it is
+     * the owner's, as [MovementRepository] requires of each occurrence. */
+    private fun validateIncomeAllocation(draft: TemplateDraft) {
+        if (draft.type != MovementType.INCOME || draft.splitConfig == null) return
+        require(queries.accountOwnershipKind(draft.accountId).executeAsOneOrNull() == AccountOwnershipKind.SHARED.dbValue) {
+            "Only an income into a shared account can be allocated between members."
+        }
+    }
+
     fun create(
         draft: TemplateDraft,
         createdAt: String,
     ) {
         validate(draft)
+        validateIncomeAllocation(draft)
         queries.insertTemplate(
             id = draft.id,
             type = draft.type.dbValue,
@@ -157,6 +167,7 @@ class TemplateRepository(
         updatedAt: String,
     ) {
         validate(draft)
+        validateIncomeAllocation(draft)
         queries.updateTemplate(
             id = draft.id,
             type = draft.type.dbValue,

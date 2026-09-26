@@ -53,7 +53,12 @@ import com.gestorfinances.app.ui.common.doneKeyboardActions
 import com.gestorfinances.app.ui.common.nextFieldKeyboardActions
 import com.gestorfinances.app.ui.common.parseIsoDateOrNull
 import com.gestorfinances.app.ui.common.scrollToWhen
+import com.gestorfinances.app.data.repository.AccountOwnershipKind
+import com.gestorfinances.app.ui.common.formatEuroInput
 import com.gestorfinances.app.ui.movements.AccountSelect
+import com.gestorfinances.app.ui.movements.ExpenseKind
+import com.gestorfinances.app.ui.movements.IncomeOwnershipSection
+import com.gestorfinances.app.ui.movements.SplitEditorState
 import com.gestorfinances.app.ui.movements.CategorySelect
 import com.gestorfinances.app.ui.movements.FormDatePicker
 import com.gestorfinances.app.ui.movements.FormSelect
@@ -76,6 +81,7 @@ internal fun RecurringFormScreen(
     onBack: () -> Unit,
     onSave: () -> Unit,
     modifier: Modifier = Modifier,
+    incomeOwnership: IncomeOwnershipActions = IncomeOwnershipActions(),
 ) {
     Column(modifier = modifier.fillMaxSize().imePadding()) {
         PageHeaderRow(
@@ -163,6 +169,7 @@ internal fun RecurringFormScreen(
                     categories = categories,
                     people = people,
                     onFormChange = onFormChange,
+                    incomeOwnership = incomeOwnership,
                 )
             }
 
@@ -236,6 +243,14 @@ private fun AmountField(form: TemplateFormState, onFormChange: (TemplateFormStat
     )
 }
 
+/** How the template form answers whose an income into a shared account is. */
+internal class IncomeOwnershipActions(
+    val onOwnerSelected: (ExpenseKind) -> Unit = {},
+    val onMemberSelected: (String?) -> Unit = {},
+    val onSplitEditorChange: (SplitEditorState) -> Unit = {},
+    val onCreatePerson: (String) -> Unit = {},
+)
+
 @Composable
 private fun RecordingFields(
     form: TemplateFormState,
@@ -243,6 +258,7 @@ private fun RecordingFields(
     categories: List<CategoryRecord>,
     people: List<PersonSummary>,
     onFormChange: (TemplateFormState) -> Unit,
+    incomeOwnership: IncomeOwnershipActions,
 ) {
     val accountError = form.errorField == TemplateFormField.ACCOUNT
     val destinationError = form.errorField == TemplateFormField.DESTINATION_ACCOUNT
@@ -286,6 +302,25 @@ private fun RecordingFields(
             onSelect = { onFormChange(form.copy(categoryId = it)) },
             modifier = Modifier.fillMaxWidth(),
         )
+        val account = accounts.firstOrNull { it.id == form.accountId }
+        if (form.type == MovementType.INCOME && account?.ownershipKind == AccountOwnershipKind.SHARED) {
+            IncomeOwnershipSection(
+                owner = form.incomeOwner,
+                // A variable amount's allocation is entered as shares of 100 EUR.
+                amount = if (form.amountIsVariable) formatEuroInput(VARIABLE_AMOUNT_WEIGHT_CENTS) else form.amount,
+                account = account,
+                people = people,
+                otherPersonId = form.incomeMemberId,
+                splitEditor = form.incomeSplitEditor,
+                ownerErrorText = errorText.takeIf { form.errorField == TemplateFormField.INCOME_OWNER },
+                personErrorText = errorText.takeIf { personError },
+                splitError = form.errorField == TemplateFormField.SPLIT,
+                onOwnerSelected = incomeOwnership.onOwnerSelected,
+                onOtherPersonSelected = incomeOwnership.onMemberSelected,
+                onSplitEditorChange = incomeOwnership.onSplitEditorChange,
+                onCreatePersonInSplit = incomeOwnership.onCreatePerson,
+            )
+        }
     }
 }
 

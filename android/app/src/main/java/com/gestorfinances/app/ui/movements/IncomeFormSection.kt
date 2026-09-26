@@ -108,34 +108,55 @@ internal fun IncomeFormSection(
     val account = accounts.firstOrNull { it.id == form.accountId }
     if (!form.isSettlement && account?.ownershipKind == AccountOwnershipKind.SHARED) {
         IncomeOwnershipSection(
-            form = form,
+            owner = form.expenseKind,
+            amount = form.amount,
             account = account,
             people = people,
-            onFormChange = onFormChange,
-            onSharedToggled = onSharedToggled,
-            onSplitEditorChange = onSplitEditorChange,
+            otherPersonId = form.forOtherPersonId,
+            splitEditor = form.splitEditor,
+            ownerErrorText = form.errorRes?.takeIf { form.errorField == MovementFormField.INCOME_OWNER }?.let { stringResource(it) },
+            personErrorText = form.errorRes?.takeIf { form.errorField == MovementFormField.PERSON }?.let { stringResource(it) },
+            splitError = form.errorField == MovementFormField.SPLIT,
+            onOwnerSelected = { owner ->
+                when (owner) {
+                    ExpenseKind.PERSONAL -> onSharedToggled(false)
+                    // Through the view model, so an income saved as the owner's gets an editor to fill.
+                    ExpenseKind.SHARED -> onSharedToggled(true)
+                    ExpenseKind.FOR_OTHER -> onFormChange(form.copy(expenseKind = ExpenseKind.FOR_OTHER))
+                    ExpenseKind.DEBT -> Unit
+                }
+            },
             onOtherPersonSelected = onOtherPersonSelected,
+            onSplitEditorChange = onSplitEditorChange,
             onCreatePersonInSplit = onCreatePersonInSplit,
         )
     }
 }
 
 /**
- * Whose income a deposit into a shared account is. Nothing is chosen until the user answers, because
- * landing in a shared account never decides it; none of the answers creates debt between members.
+ * Whose income a deposit into a shared account is: the owner's ([ExpenseKind.PERSONAL]), shared
+ * ([ExpenseKind.SHARED], allocated by [splitEditor]), or another member's ([ExpenseKind.FOR_OTHER]).
+ * Nothing is chosen until the user answers, because landing in a shared account never decides it;
+ * none of the answers creates debt between members. The movement form and the recurring template
+ * form both ask it here.
  */
 @Composable
-private fun IncomeOwnershipSection(
-    form: MovementFormState,
+internal fun IncomeOwnershipSection(
+    owner: ExpenseKind?,
+    amount: String,
     account: AccountSummary,
     people: List<PersonSummary>,
-    onFormChange: (MovementFormState) -> Unit,
-    onSharedToggled: (Boolean) -> Unit,
-    onSplitEditorChange: (SplitEditorState) -> Unit,
+    otherPersonId: String?,
+    splitEditor: SplitEditorState?,
+    ownerErrorText: String?,
+    personErrorText: String?,
+    splitError: Boolean,
+    onOwnerSelected: (ExpenseKind) -> Unit,
     onOtherPersonSelected: (String?) -> Unit,
+    onSplitEditorChange: (SplitEditorState) -> Unit,
     onCreatePersonInSplit: (String) -> Unit,
 ) {
-    val ownerError = form.errorField == MovementFormField.INCOME_OWNER
+    val ownerError = ownerErrorText != null
     FormSelect(
         label = stringResource(R.string.movement_income_owner_title),
         options = listOf(
@@ -143,28 +164,20 @@ private fun IncomeOwnershipSection(
             SelectOption(id = ExpenseKind.SHARED.name, label = stringResource(R.string.movement_income_owner_shared)),
             SelectOption(id = ExpenseKind.FOR_OTHER.name, label = stringResource(R.string.movement_income_owner_other)),
         ),
-        selectedId = form.expenseKind?.name,
-        onSelect = { id ->
-            when (id?.let(ExpenseKind::valueOf)) {
-                ExpenseKind.PERSONAL -> onSharedToggled(false)
-                // Through the view model, so an income saved as the owner's gets an editor to fill.
-                ExpenseKind.SHARED -> onSharedToggled(true)
-                ExpenseKind.FOR_OTHER -> onFormChange(form.copy(expenseKind = ExpenseKind.FOR_OTHER))
-                ExpenseKind.DEBT, null -> Unit
-            }
-        },
+        selectedId = owner?.name,
+        onSelect = { id -> id?.let(ExpenseKind::valueOf)?.let(onOwnerSelected) },
         placeholder = stringResource(R.string.movement_income_owner_placeholder),
         modifier = Modifier.scrollToWhen(ownerError),
         isError = ownerError,
-        supportingText = if (ownerError && form.errorRes != null) stringResource(form.errorRes) else null,
+        supportingText = ownerErrorText,
     )
     Text(
         text = stringResource(R.string.movement_income_owner_help),
         style = MaterialTheme.typography.bodySmall,
         color = FinanceTheme.colors.mutedText,
     )
-    val amountCents = parseEuroCents(form.amount, allowNegative = false)
-    when (form.expenseKind) {
+    val amountCents = parseEuroCents(amount, allowNegative = false)
+    when (owner) {
         ExpenseKind.PERSONAL -> if (amountCents != null) {
             Text(
                 text = stringResource(R.string.movement_income_counted, formatEuroCents(amountCents)),
@@ -173,7 +186,7 @@ private fun IncomeOwnershipSection(
         }
         ExpenseKind.FOR_OTHER -> {
             val memberIds = account.members.mapNotNull { it.personId }.toSet()
-            val personError = form.errorField == MovementFormField.PERSON
+            val personError = personErrorText != null
             FormSelect(
                 label = stringResource(R.string.movement_income_owner_member),
                 options = people.filter { it.id in memberIds }.map { person ->
@@ -189,26 +202,26 @@ private fun IncomeOwnershipSection(
                         },
                     )
                 },
-                selectedId = form.forOtherPersonId,
+                selectedId = otherPersonId,
                 onSelect = onOtherPersonSelected,
                 modifier = Modifier.scrollToWhen(personError),
                 isError = personError,
-                supportingText = if (personError && form.errorRes != null) stringResource(form.errorRes) else null,
+                supportingText = personErrorText,
             )
             Text(
                 text = stringResource(R.string.movement_income_counted, formatEuroCents(0L)),
                 style = MaterialTheme.typography.bodySmall,
             )
         }
-        ExpenseKind.SHARED -> form.splitEditor?.let { editor ->
+        ExpenseKind.SHARED -> splitEditor?.let { editor ->
             SplitEditorCard(
                 splitEditor = editor,
                 people = people,
-                amountInput = form.amount,
+                amountInput = amount,
                 onChange = onSplitEditorChange,
                 onCreatePerson = onCreatePersonInSplit,
                 accountIncome = true,
-                modifier = Modifier.scrollToWhen(form.errorField == MovementFormField.SPLIT),
+                modifier = Modifier.scrollToWhen(splitError),
             )
         }
         ExpenseKind.DEBT, null -> Unit
