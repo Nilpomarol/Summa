@@ -15,15 +15,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.filled.AccountBalanceWallet
-import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Groups
-import androidx.compose.material.icons.filled.Savings
-import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -40,8 +35,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.R
@@ -55,35 +48,6 @@ fun ManagementSheet(
     onDismiss: () -> Unit,
 ) {
     var selectedDestination by remember { mutableStateOf<ManagementDestination?>(null) }
-    val sections = listOf(
-        ManagementSection(
-            titleRes = R.string.management_group_setup,
-            destinations = listOf(
-                ManagementDestination.ACCOUNTS,
-                ManagementDestination.CATEGORIES,
-            ),
-        ),
-        ManagementSection(
-            titleRes = R.string.management_group_planning,
-            destinations = listOf(
-                ManagementDestination.BUDGETS,
-                ManagementDestination.GOALS,
-                ManagementDestination.RECURRING,
-            ),
-        ),
-        ManagementSection(
-            titleRes = R.string.management_group_shared,
-            destinations = listOf(
-                ManagementDestination.PEOPLE,
-                ManagementDestination.EVENTS,
-                ManagementDestination.TAGS,
-            ),
-        ),
-        ManagementSection(
-            titleRes = R.string.management_group_app,
-            destinations = listOf(ManagementDestination.SETTINGS),
-        ),
-    )
 
     AppModalBottomSheet(
         onDismissRequest = {
@@ -101,47 +65,24 @@ fun ManagementSheet(
                 .padding(start = 20.dp, top = 4.dp, end = 20.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            sections.forEach { section ->
-                ManagementSection(
-                    section = section,
-                    onDestinationSelected = { selectedDestination = it },
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ManagementSection(
-    section: ManagementSection,
-    onDestinationSelected: (ManagementDestination) -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            text = stringResource(section.titleRes),
-            style = MaterialTheme.typography.labelLarge,
-            color = FinanceTheme.colors.mutedText,
-            modifier = Modifier
-                .padding(horizontal = 4.dp)
-                .semantics { heading() },
-        )
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.large,
-            color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(1.dp, FinanceTheme.colors.cardBorder),
-        ) {
-            Column {
-                section.destinations.forEachIndexed { index, destination ->
-                    ManagementRow(
-                        destination = destination,
-                        onClick = { onDestinationSelected(destination) },
-                    )
-                    if (index < section.destinations.lastIndex) {
-                        HorizontalDivider(
-                            modifier = Modifier.padding(start = 62.dp),
-                            color = MaterialTheme.colorScheme.outlineVariant,
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, FinanceTheme.colors.cardBorder),
+            ) {
+                Column {
+                    ManagementDestination.entries.forEachIndexed { index, destination ->
+                        ManagementRow(
+                            destination = destination,
+                            onClick = { selectedDestination = destination },
                         )
+                        if (index < ManagementDestination.entries.lastIndex) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(start = 62.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant,
+                            )
+                        }
                     }
                 }
             }
@@ -197,17 +138,10 @@ private fun ManagementRow(
 
 @Composable
 private fun ManagementDestination.tintColor() = when (this) {
-    ManagementDestination.ACCOUNTS, ManagementDestination.BUDGETS -> MaterialTheme.colorScheme.primary
-    ManagementDestination.CATEGORIES, ManagementDestination.TAGS -> MaterialTheme.colorScheme.tertiary
+    ManagementDestination.ACCOUNTS -> MaterialTheme.colorScheme.primary
     ManagementDestination.PEOPLE, ManagementDestination.EVENTS -> MaterialTheme.colorScheme.secondary
-    ManagementDestination.RECURRING, ManagementDestination.SETTINGS -> FinanceTheme.colors.mutedText
-    ManagementDestination.GOALS -> MaterialTheme.colorScheme.primary
+    ManagementDestination.SETTINGS -> FinanceTheme.colors.mutedText
 }
-
-private data class ManagementSection(
-    @StringRes val titleRes: Int,
-    val destinations: List<ManagementDestination>,
-)
 
 enum class ManagementDestination(
     @StringRes val titleRes: Int,
@@ -215,12 +149,7 @@ enum class ManagementDestination(
     val icon: ImageVector,
 ) {
     ACCOUNTS(R.string.management_accounts_title, R.string.management_accounts_description, Icons.Filled.AccountBalanceWallet),
-    CATEGORIES(R.string.management_categories_title, R.string.management_categories_description, Icons.Filled.Sell),
     PEOPLE(R.string.management_people_title, R.string.management_people_description, Icons.Filled.Groups),
     EVENTS(R.string.management_events_title, R.string.management_events_description, Icons.Filled.CalendarMonth),
-    TAGS(R.string.management_tags_title, R.string.management_tags_description, Icons.AutoMirrored.Filled.Label),
-    RECURRING(R.string.management_recurring_title, R.string.management_recurring_description, Icons.Filled.Autorenew),
-    BUDGETS(R.string.management_budgets_title, R.string.management_budgets_description, Icons.Filled.Savings),
-    GOALS(R.string.management_goals_title, R.string.management_goals_description, Icons.Filled.Flag),
     SETTINGS(R.string.management_settings_title, R.string.management_settings_description, Icons.Filled.Settings),
 }

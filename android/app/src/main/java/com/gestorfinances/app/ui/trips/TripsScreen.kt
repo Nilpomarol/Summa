@@ -98,7 +98,6 @@ import com.gestorfinances.app.ui.common.movementRowPosition
 import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.NeutralPill
 import com.gestorfinances.app.ui.common.PageHeaderRow
-import com.gestorfinances.app.ui.common.RootPageHeader
 import com.gestorfinances.app.ui.common.PrimaryButton
 import com.gestorfinances.app.ui.common.SectionHeader
 import com.gestorfinances.app.ui.common.SegmentedControl
@@ -143,10 +142,12 @@ fun tripsViewModel(appContainer: AppContainer): TripsViewModel = viewModel {
 
 @Composable
 fun TripsScreen(
+    onBack: () -> Unit,
     viewModel: TripsViewModel,
     /** Changes after every movement write, so the page reloads while it stays visible. */
     dataVersion: Long,
     onOpenDetail: (TripSummary) -> Unit,
+    onManageTags: () -> Unit,
     onDeleteCommitted: DeleteUndoHandler = {},
     modifier: Modifier = Modifier,
 ) {
@@ -178,6 +179,8 @@ fun TripsScreen(
         )
     } else {
         TripsContent(
+            onManageTags = onManageTags,
+            onBack = onBack,
             state = state,
             modifier = modifier,
             onStatusFilter = viewModel::onStatusFilterChanged,
@@ -212,6 +215,8 @@ fun TripsScreen(
 
 @Composable
 private fun TripsContent(
+    onManageTags: () -> Unit,
+    onBack: () -> Unit,
     state: TripsUiState,
     modifier: Modifier,
     onStatusFilter: (TripStatus?) -> Unit,
@@ -227,7 +232,12 @@ private fun TripsContent(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            RootPageHeader(title = stringResource(R.string.trip_list_title))
+            PageHeaderRow(onBack = onBack, title = stringResource(R.string.trip_list_title))
+        }
+        item {
+            TextButton(onClick = onManageTags) {
+                Text(stringResource(R.string.trip_manage_tags))
+            }
         }
 
         state.errorMessage?.let { message ->

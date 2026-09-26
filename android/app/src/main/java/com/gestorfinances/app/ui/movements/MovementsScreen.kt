@@ -137,6 +137,7 @@ fun MovementsScreen(
     modifier: Modifier = Modifier,
     onAdd: () -> Unit = viewModel::onAddClicked,
     onDetail: (MovementSummary) -> Unit = viewModel::onDetailClicked,
+    onViewRecurring: () -> Unit,
 ) {
     val state by viewModel.state.collectAsState()
 
@@ -145,6 +146,7 @@ fun MovementsScreen(
     }
 
     MovementsContent(
+        onViewRecurring = onViewRecurring,
         state = state,
         modifier = modifier,
         onFiltersChange = viewModel::onFiltersChanged,
@@ -157,6 +159,7 @@ fun MovementsScreen(
 
 @Composable
 private fun MovementsContent(
+    onViewRecurring: () -> Unit,
     state: MovementsUiState,
     modifier: Modifier,
     onFiltersChange: (MovementFilters) -> Unit,
@@ -213,6 +216,11 @@ private fun MovementsContent(
             )
         }
 
+        item {
+            TextButton(onClick = onViewRecurring) {
+                Text(stringResource(R.string.recurring_list_title))
+            }
+        }
         state.errorMessage?.let { message ->
             item {
                 InlineFailureBanner(

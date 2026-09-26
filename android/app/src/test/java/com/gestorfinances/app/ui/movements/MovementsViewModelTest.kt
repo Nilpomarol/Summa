@@ -70,6 +70,31 @@ class MovementsViewModelTest {
     }
 
     @Test
+    fun categoryManagementRefreshKeepsTheUnsavedMovementAndLoadsNewPickerOptions() = runTest(dispatcher) {
+        freshStore().use { store ->
+            store.accounts.create(accountDraft("checking"), createdAt = NOW)
+            val viewModel = viewModel(store)
+            viewModel.onAddClicked()
+            advanceUntilIdle()
+            viewModel.editor.onFormChanged(viewModel.form().copy(name = "Sopar", amount = "25,50", notes = "Esborrany"))
+            val draft = viewModel.form()
+
+            store.categories.create(
+                CategoryDraft("food", "Menjar", CategoryKind.EXPENSE, CategoryNature.VARIABLE, null, null, null, 0),
+                createdAt = NOW,
+            )
+            viewModel.onScreenShown()
+            advanceUntilIdle()
+
+            assertEquals(draft, viewModel.form())
+            assertEquals(listOf("food"), viewModel.state.value.categories.map { it.id })
+            assertTrue(store.movements.listActive().isEmpty())
+            viewModel.editor.onFormChanged(draft.copy(categoryId = "food"))
+            assertEquals("food", viewModel.form().categoryId)
+        }
+    }
+
+    @Test
     fun aContributionCanBeDeletedAndRestoredFromItsDetail() = runTest(dispatcher) {
         freshStore().use { store ->
             store.people.create(personDraft("alba"), NOW)

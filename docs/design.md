@@ -20,6 +20,8 @@ The Android visual direction is **Personal Compass**: warm, private, precise, an
 
 The current Android root destinations are `Inici`, `Moviments`, centered new-movement action, `Anàlisi`, and `Més`. Selecting a root destination starts from that destination's normal context; contextual navigation may preserve a Back path.
 
+`Més` contains only `Comptes`, `Persones`, `Viatges`, and `Configuració`. Savings goals are reached from Accounts (all goals or a specific account); tags from Trips; recurring management from Movements; budgets from the dashboard, trip detail, or category detail; and category management from the movement category picker. Management pages show a Back action and contextual visits return to their originating page. Visiting category management preserves the open movement draft and its unsaved-change protection.
+
 This is a current baseline, not a permanent architecture constraint. Change it deliberately when product needs justify it.
 
 ## Movement presentation

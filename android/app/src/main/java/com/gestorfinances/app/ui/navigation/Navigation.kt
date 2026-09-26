@@ -61,20 +61,15 @@ sealed interface Route {
 
 fun ManagementDestination.route(): Route = when (this) {
     ManagementDestination.ACCOUNTS -> Route.Accounts()
-    ManagementDestination.CATEGORIES -> Route.Categories
     ManagementDestination.PEOPLE -> Route.People
     ManagementDestination.EVENTS -> Route.Trips
-    ManagementDestination.TAGS -> Route.Tags
-    ManagementDestination.RECURRING -> Route.Recurring
-    ManagementDestination.BUDGETS -> Route.Budgets()
-    ManagementDestination.GOALS -> Route.Goals()
     ManagementDestination.SETTINGS -> Route.Settings
 }
 
-/** The bottom-bar section a page belongs to; every other page (Més and trip pages) is MANAGEMENT. */
+/** Recurring management belongs to Moviments; the other management pages belong to Més. */
 fun NavDestination?.section(): TopLevelSection = when {
     this == null || hasRoute<Route.Dashboard>() -> TopLevelSection.DASHBOARD
-    hasRoute<Route.Movements>() -> TopLevelSection.MOVEMENTS
+    hasRoute<Route.Movements>() || hasRoute<Route.Recurring>() -> TopLevelSection.MOVEMENTS
     hasRoute<Route.Analysis>() -> TopLevelSection.ANALYSIS
     else -> TopLevelSection.MANAGEMENT
 }
@@ -101,7 +96,11 @@ fun NavController.openSection(section: TopLevelSection) {
  * above that section are replaced, so Back returns to the section.
  */
 fun NavController.openManagement(route: Route) {
-    while (currentDestination.section() == TopLevelSection.MANAGEMENT) {
+    while (currentDestination != null &&
+        currentDestination?.hasRoute<Route.Dashboard>() != true &&
+        currentDestination?.hasRoute<Route.Movements>() != true &&
+        currentDestination?.hasRoute<Route.Analysis>() != true
+    ) {
         if (!popBackStack()) break
     }
     navigate(route)

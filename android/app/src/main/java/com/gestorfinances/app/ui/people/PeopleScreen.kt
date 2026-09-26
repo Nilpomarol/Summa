@@ -87,7 +87,6 @@ import com.gestorfinances.app.ui.common.movementRowPosition
 import com.gestorfinances.app.ui.common.AppModalBottomSheet
 import com.gestorfinances.app.ui.common.DeleteUndoHandler
 import com.gestorfinances.app.ui.common.PageHeaderRow
-import com.gestorfinances.app.ui.common.RootPageHeader
 import com.gestorfinances.app.ui.common.rememberFormDismissGuard
 import com.gestorfinances.app.ui.common.PrimaryButton
 import com.gestorfinances.app.ui.common.NeutralPill
@@ -116,6 +115,7 @@ fun peopleViewModel(appContainer: AppContainer): PeopleViewModel = viewModel {
 
 @Composable
 fun PeopleScreen(
+    onBack: () -> Unit,
     viewModel: PeopleViewModel,
     /** Changes after every movement write, so the page reloads while it stays visible. */
     dataVersion: Long,
@@ -178,6 +178,7 @@ fun PeopleScreen(
         }
         else -> {
             PeopleContent(
+                onBack = onBack,
                 state = state,
                 modifier = modifier,
                 onAdd = viewModel::onAddClicked,
@@ -241,6 +242,7 @@ fun PeopleScreen(
 
 @Composable
 private fun PeopleContent(
+    onBack: () -> Unit,
     state: PeopleUiState,
     modifier: Modifier,
     onAdd: () -> Unit,
@@ -256,7 +258,7 @@ private fun PeopleContent(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            RootPageHeader(title = stringResource(R.string.person_list_title))
+            PageHeaderRow(onBack = onBack, title = stringResource(R.string.person_list_title))
         }
 
         item {

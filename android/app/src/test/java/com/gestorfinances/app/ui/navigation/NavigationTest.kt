@@ -26,7 +26,9 @@ class NavigationTest {
 
         assertEquals(ManagementDestination.entries.size, routes.map { it::class }.distinct().size)
         assertEquals(Route.Accounts(), ManagementDestination.ACCOUNTS.route())
-        assertEquals(Route.Budgets(), ManagementDestination.BUDGETS.route())
-        assertEquals(Route.Goals(), ManagementDestination.GOALS.route())
+        assertEquals(
+            listOf(Route.Accounts(), Route.People, Route.Trips, Route.Settings),
+            routes,
+        )
     }
 }

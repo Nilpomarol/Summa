@@ -22,6 +22,13 @@ sealed interface MovementSheet {
     }
 }
 
+/** A category-management visit temporarily hides the draft, including its original discard guard. */
+data class SuspendedMovementForm(
+    val returnEntryId: String,
+    val sheet: MovementSheet.Form,
+    val form: MovementFormState,
+)
+
 /**
  * Movement detail and create/edit sheets. They own Back so they can animate closed before [sheet]
  * changes. Editing swaps the detail sheet for the form rather than stacking the two.
@@ -33,7 +40,19 @@ fun MovementSheets(
     viewModel: MovementsViewModel,
     onEditContribution: (movementId: String) -> Unit,
     onDeleteCommitted: DeleteUndoHandler,
+    onManageCategories: () -> Unit,
+    suspendedForm: SuspendedMovementForm? = null,
 ) {
+    val formSheet = suspendedForm?.sheet ?: (sheet as? MovementSheet.Form)
+    if (formSheet != null) {
+        MovementFormSheet(
+            sheet = formSheet,
+            onSheetChange = onSheetChange,
+            viewModel = viewModel,
+            onManageCategories = onManageCategories,
+            suspendedSnapshot = suspendedForm?.form,
+        )
+    }
     when (sheet) {
         MovementSheet.Detail -> MovementDetailScreen(
             viewModel = viewModel,
@@ -55,7 +74,9 @@ fun MovementSheets(
             },
             onDeleteCommitted = onDeleteCommitted,
         )
-        is MovementSheet.Form -> MovementFormSheet(sheet, onSheetChange, viewModel)
+        is MovementSheet.Form -> if (suspendedForm != null) {
+            MovementFormSheet(sheet, onSheetChange, viewModel, onManageCategories = null)
+        }
         null -> Unit
     }
 }
@@ -65,6 +86,8 @@ private fun MovementFormSheet(
     sheet: MovementSheet.Form,
     onSheetChange: (MovementSheet?) -> Unit,
     viewModel: MovementsViewModel,
+    onManageCategories: (() -> Unit)?,
+    suspendedSnapshot: MovementFormState? = null,
 ) {
     val state by viewModel.state.collectAsState()
     val editor = viewModel.editor
@@ -75,7 +98,7 @@ private fun MovementFormSheet(
     LaunchedEffect(editorForm) {
         editorForm?.let { retainedForm = it }
     }
-    val form = editorForm ?: retainedForm ?: return
+    val form = suspendedSnapshot ?: editorForm ?: retainedForm ?: return
     val closeMovementForm: () -> Unit = {
         val saved = editorForm == null
         editor.onFormDismissed()
@@ -89,7 +112,10 @@ private fun MovementFormSheet(
         },
         onDiscard = closeMovementForm,
     )
+    // Keep the guard composed while visiting Categories so returning does not reset dirty state.
+    if (suspendedSnapshot != null) return
     MovementFormScreen(
+        onManageCategories = onManageCategories,
         form = form,
         accounts = state.accounts,
         categories = state.categories,

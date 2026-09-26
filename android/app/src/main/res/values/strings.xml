@@ -61,30 +61,15 @@
 
     <!-- Management hub -->
     <string name="management_accounts_title">Comptes</string>
-    <string name="management_categories_title">Categories</string>
+    <string name="category_manage">Gestiona categories</string>
+    <string name="trip_manage_tags">Gestiona etiquetes</string>
     <string name="management_people_title">Persones</string>
     <string name="management_events_title">Viatges</string>
-    <string name="management_tags_title">Etiquetes</string>
-    <string name="management_recurring_title">Recurrents</string>
-    <string name="management_budgets_title">Pressupostos</string>
-    <string name="management_goals_title">Objectius d\'estalvi</string>
     <string name="management_settings_title">Configuració</string>
-    <string name="management_accounts_description">Saldos, tipus i comptes actius</string>
-    <string name="management_categories_description">Classifica els teus ingressos i despeses</string>
+    <string name="management_accounts_description">Saldos i objectius d\'estalvi</string>
     <string name="management_people_description">Despeses compartides i deutes pendents</string>
     <string name="management_events_description">Controla la despesa de cada viatge</string>
-    <string name="management_tags_description">Troba i organitza les etiquetes dels viatges</string>
-    <string name="management_recurring_description">Revisa cobraments i pagaments programats</string>
-    <string name="management_budgets_description">Límits per al mes, les categories i els viatges</string>
-    <string name="management_goals_description">Diners reservats per a allò que vols aconseguir</string>
     <string name="management_settings_description">Còpies, dades i preferències de l’aplicació</string>
-    <string name="management_group_finances">Finances</string>
-    <string name="management_group_organization">Organització</string>
-    <string name="management_group_app">Aplicació</string>
-    <string name="management_group_money">Diners i planificació</string>
-    <string name="management_group_shared">Compartir i viatges</string>
-    <string name="management_group_setup">Comptes i classificació</string>
-    <string name="management_group_planning">Planificació</string>
 
     <!-- Onboarding -->
     <string name="onboarding_loading">Preparant l\'inici...</string>

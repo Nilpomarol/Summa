@@ -92,6 +92,7 @@ import com.gestorfinances.app.ui.goals.GoalsScreen
 import com.gestorfinances.app.ui.goals.goalsViewModel
 import com.gestorfinances.app.ui.management.ManagementDestination
 import com.gestorfinances.app.ui.management.ManagementSheet
+import com.gestorfinances.app.ui.movements.SuspendedMovementForm
 import com.gestorfinances.app.ui.movements.MovementFilters
 import com.gestorfinances.app.ui.movements.MovementSheet
 import com.gestorfinances.app.ui.movements.MovementSheets
@@ -315,9 +316,26 @@ private fun LedgerShell(
     // Mounted pages reload when any Activity-wide overlay commits a financial write.
     val dataVersion by appContainer.financialDataRevision.value.collectAsState()
     val navController = rememberNavController()
-    val currentDestination = navController.currentBackStackEntryAsState().value?.destination
+    val currentEntry = navController.currentBackStackEntryAsState().value
+    val currentDestination = currentEntry?.destination
     var movementSheet by remember { mutableStateOf<MovementSheet?>(null) }
+    var suspendedMovementForm by remember { mutableStateOf<SuspendedMovementForm?>(null) }
     var managementMenuVisible by remember { mutableStateOf(false) }
+
+    LaunchedEffect(currentEntry?.id) {
+        suspendedMovementForm?.let { draft ->
+            if (currentEntry?.id == draft.returnEntryId) {
+                if (draft.sheet.fromDetail) {
+                    movementsViewModel.onDetailDismissed()
+                    draft.form.movementId?.let(movementsViewModel::onDetailSourceClicked)
+                }
+                movementsViewModel.editor.open(draft.form)
+                movementSheet = draft.sheet
+                suspendedMovementForm = null
+                movementsViewModel.onScreenShown()
+            }
+        }
+    }
 
     val coroutineScope = rememberCoroutineScope()
     val deletedMessage = stringResource(R.string.common_deleted)
@@ -374,7 +392,6 @@ private fun LedgerShell(
     }
 
     fun showFromMenu(destination: ManagementDestination) {
-        if (destination == ManagementDestination.RECURRING) recurringViewModel.resetForMenuNavigation()
         navController.openManagement(destination.route())
     }
 
@@ -382,7 +399,7 @@ private fun LedgerShell(
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
-            if (!currentDestination.isFocusedPage() && movementSheet != MovementSheet.Detail) FinanceBottomBar(
+            if (!currentDestination.isFocusedPage() && movementSheet != MovementSheet.Detail && suspendedMovementForm == null) FinanceBottomBar(
                 selectedSection = currentDestination.section(),
                 onSelected = ::showFromMenu,
                 onManagementClick = { managementMenuVisible = true },
@@ -410,7 +427,7 @@ private fun LedgerShell(
                     },
                     onViewTrip = { trip -> navController.navigate(Route.TripDetail(trip.id)) },
                     onAddTripMovement = { trip -> openMovementForm(tripId = trip.id) },
-                    onViewBudgets = { navController.openManagement(Route.Budgets()) },
+                    onViewBudgets = { navController.navigate(Route.Budgets()) },
                     modifier = pageModifier,
                 )
             }
@@ -419,6 +436,10 @@ private fun LedgerShell(
                     viewModel = movementsViewModel,
                     onAdd = { openMovementForm() },
                     onDetail = ::openMovementDetail,
+                    onViewRecurring = {
+                        recurringViewModel.resetForMenuNavigation()
+                        navController.navigate(Route.Recurring)
+                    },
                     modifier = pageModifier,
                 )
             }
@@ -431,6 +452,7 @@ private fun LedgerShell(
             }
             composable<Route.Accounts> { entry ->
                 AccountsScreen(
+                    onBack = { navController.popBackStack() },
                     viewModel = accountsViewModel(appContainer, entry.toRoute()),
                     dataVersion = dataVersion,
                     onViewGoals = { accountId -> navController.navigate(Route.Goals(accountId)) },
@@ -445,13 +467,14 @@ private fun LedgerShell(
             }
             composable<Route.Categories> {
                 CategoriesScreen(
+                    onBack = { navController.popBackStack() },
                     viewModel = categoriesViewModel(appContainer),
                     dataVersion = dataVersion,
                     onViewAnalysis = { categoryId, categoryName ->
                         navController.navigate(Route.Analysis(categoryId = categoryId, categoryName = categoryName))
                     },
                     onDefineBudget = { categoryId ->
-                        navController.openManagement(Route.Budgets(addForCategoryId = categoryId))
+                        navController.navigate(Route.Budgets(addForCategoryId = categoryId))
                     },
                     onMovementDetail = ::openMovementDetail,
                     onDeleteCommitted = showDeleteUndo,
@@ -460,6 +483,7 @@ private fun LedgerShell(
             }
             composable<Route.People> {
                 PeopleScreen(
+                    onBack = { navController.popBackStack() },
                     viewModel = peopleViewModel(appContainer),
                     dataVersion = dataVersion,
                     onOpenDebtSource = { sourceId ->
@@ -479,6 +503,8 @@ private fun LedgerShell(
             }
             composable<Route.Trips> {
                 TripsScreen(
+                    onBack = { navController.popBackStack() },
+                    onManageTags = { navController.navigate(Route.Tags) },
                     viewModel = tripsViewModel(appContainer),
                     dataVersion = dataVersion,
                     onOpenDetail = { trip -> navController.navigate(Route.TripDetail(trip.id)) },
@@ -529,6 +555,7 @@ private fun LedgerShell(
             }
             composable<Route.Goals> { entry ->
                 GoalsScreen(
+                    onBack = { navController.popBackStack() },
                     viewModel = goalsViewModel(appContainer, entry.toRoute<Route.Goals>().accountId),
                     dataVersion = dataVersion,
                     onDeleteCommitted = showDeleteUndo,
@@ -546,6 +573,7 @@ private fun LedgerShell(
             }
             composable<Route.Recurring> {
                 RecurringScreen(
+                    onBack = { navController.popBackStack() },
                     viewModel = recurringViewModel,
                     onMovementDetail = ::openMovementDetail,
                     modifier = pageModifier,
@@ -578,6 +606,17 @@ private fun LedgerShell(
     }
 
     MovementSheets(
+        suspendedForm = suspendedMovementForm,
+        onManageCategories = {
+            val formSheet = movementSheet as? MovementSheet.Form
+            val form = movementForm
+            val returnEntryId = currentEntry?.id
+            if (formSheet != null && form != null && !form.isSaving && returnEntryId != null && suspendedMovementForm == null) {
+                suspendedMovementForm = SuspendedMovementForm(returnEntryId, formSheet, form)
+                movementSheet = null
+                navController.navigate(Route.Categories)
+            }
+        },
         sheet = movementSheet,
         onSheetChange = { movementSheet = it },
         viewModel = movementsViewModel,
@@ -594,7 +633,7 @@ private fun LedgerShell(
     }
     RecurringReminders(
         viewModel = recurringViewModel,
-        otherSheetOpen = movementsState.hasOpenDialog || movementForm != null,
+        otherSheetOpen = movementsState.hasOpenDialog || movementForm != null || suspendedMovementForm != null,
         onDeleteCommitted = showDeleteUndo,
     )
 }

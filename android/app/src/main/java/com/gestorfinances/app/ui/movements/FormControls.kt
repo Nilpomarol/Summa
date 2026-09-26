@@ -129,6 +129,8 @@ internal fun FormSelect(
     placeholder: String = "—",
     isError: Boolean = false,
     supportingText: String? = null,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val selected = options.firstOrNull { it.id == selectedId }
@@ -175,6 +177,15 @@ internal fun FormSelect(
             border = BorderStroke(1.dp, FinanceTheme.colors.cardBorder),
             shadowElevation = 8.dp,
         ) {
+            if (actionLabel != null && onAction != null) {
+                AppDropdownMenuItem(
+                    text = { Text(actionLabel) },
+                    onClick = {
+                        expanded = false
+                        onAction()
+                    },
+                )
+            }
             options.forEach { option ->
                 if (!option.enabled) {
                     AppDropdownSectionHeader(text = option.label)

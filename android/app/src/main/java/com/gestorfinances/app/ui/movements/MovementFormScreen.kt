@@ -76,6 +76,7 @@ fun MovementFormScreen(
     onRecurrenceStopEnd: () -> Unit,
     onRecurrenceStopUnlink: () -> Unit,
     onWarningDismissed: () -> Unit,
+    onManageCategories: (() -> Unit)?,
     dismissRequested: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
@@ -227,6 +228,7 @@ fun MovementFormScreen(
                     supportingText = if (dateError && form.errorRes != null) stringResource(form.errorRes) else null,
                 )
                 CategorySelect(
+                    onManageCategories = onManageCategories.takeUnless { form.isSaving },
                     categories = categories,
                     type = form.type,
                     selectedId = form.categoryId,

@@ -55,7 +55,7 @@ import com.gestorfinances.app.ui.common.InlineBanner
 import com.gestorfinances.app.ui.common.InlineFailureBanner
 import com.gestorfinances.app.ui.common.NeutralPill
 import com.gestorfinances.app.ui.common.PrimaryButton
-import com.gestorfinances.app.ui.common.RootPageHeader
+import com.gestorfinances.app.ui.common.PageHeaderRow
 import com.gestorfinances.app.ui.common.SecondaryButton
 import com.gestorfinances.app.ui.common.SectionHeader
 import com.gestorfinances.app.ui.common.CategoryIconPalette
@@ -86,6 +86,7 @@ fun goalsViewModel(appContainer: AppContainer, accountId: String? = null): Goals
 
 @Composable
 fun GoalsScreen(
+    onBack: () -> Unit,
     viewModel: GoalsViewModel,
     /** Changes after every movement write, so the page reloads while it stays visible. */
     dataVersion: Long,
@@ -99,6 +100,7 @@ fun GoalsScreen(
     }
 
     GoalsContent(
+        onBack = onBack,
         state = state,
         modifier = modifier,
         onAdd = viewModel::onAddClicked,
@@ -191,6 +193,7 @@ fun GoalsScreen(
 
 @Composable
 private fun GoalsContent(
+    onBack: () -> Unit,
     state: GoalsUiState,
     modifier: Modifier,
     onAdd: () -> Unit,
@@ -203,7 +206,8 @@ private fun GoalsContent(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            RootPageHeader(
+            PageHeaderRow(
+                onBack = onBack,
                 title = stringResource(R.string.goal_list_title),
                 trailing = { TextButton(onClick = onAdd) { Text(stringResource(R.string.goal_list_add)) } },
             )

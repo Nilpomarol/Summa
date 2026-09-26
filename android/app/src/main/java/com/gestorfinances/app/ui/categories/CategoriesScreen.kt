@@ -88,7 +88,6 @@ import com.gestorfinances.app.ui.common.MoneyText
 import com.gestorfinances.app.ui.common.MovementListItem
 import com.gestorfinances.app.ui.common.movementRowPosition
 import com.gestorfinances.app.ui.common.PageHeaderRow
-import com.gestorfinances.app.ui.common.RootPageHeader
 import com.gestorfinances.app.ui.common.PrimaryButton
 import com.gestorfinances.app.ui.common.rememberFormDismissGuard
 import com.gestorfinances.app.ui.common.InlineBanner
@@ -118,6 +117,7 @@ fun categoriesViewModel(appContainer: AppContainer): CategoriesViewModel = viewM
 
 @Composable
 fun CategoriesScreen(
+    onBack: () -> Unit,
     viewModel: CategoriesViewModel,
     /** Changes after every movement write, so the page reloads while it stays visible. */
     dataVersion: Long,
@@ -157,6 +157,7 @@ fun CategoriesScreen(
         }
         else -> {
             CategoriesContent(
+                onBack = onBack,
                 state = state,
                 modifier = modifier,
                 onAdd = viewModel::onAddClicked,
@@ -227,6 +228,7 @@ fun CategoriesScreen(
 
 @Composable
 private fun CategoriesContent(
+    onBack: () -> Unit,
     state: CategoriesUiState,
     modifier: Modifier,
     onAdd: () -> Unit,
@@ -270,7 +272,7 @@ private fun CategoriesContent(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            RootPageHeader(title = stringResource(R.string.category_list_title))
+            PageHeaderRow(onBack = onBack, title = stringResource(R.string.category_list_title))
         }
 
         state.errorMessage?.let { message ->

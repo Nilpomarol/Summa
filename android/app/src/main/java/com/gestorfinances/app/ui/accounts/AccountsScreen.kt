@@ -91,7 +91,6 @@ import com.gestorfinances.app.ui.common.NeutralPill
 import com.gestorfinances.app.ui.common.MovementListItem
 import com.gestorfinances.app.ui.common.movementRowPosition
 import com.gestorfinances.app.ui.common.PageHeaderRow
-import com.gestorfinances.app.ui.common.RootPageHeader
 import com.gestorfinances.app.ui.common.DistributionSegment
 import com.gestorfinances.app.ui.common.DeleteUndoHandler
 import com.gestorfinances.app.ui.common.PrimaryButton
@@ -128,13 +127,14 @@ fun accountsViewModel(appContainer: AppContainer, route: Route.Accounts): Accoun
 
 @Composable
 fun AccountsScreen(
+    onBack: () -> Unit,
     viewModel: AccountsViewModel,
     /** Changes after every movement write, so the page reloads while it stays visible. */
     dataVersion: Long,
     onViewAnalysis: (accountId: String, accountName: String) -> Unit = { _, _ -> },
     onMovementDetail: (MovementSummary) -> Unit = {},
     onAddExpense: (accountId: String) -> Unit = {},
-    onViewGoals: (String) -> Unit = {},
+    onViewGoals: (String?) -> Unit = {},
     onDeleteCommitted: DeleteUndoHandler = {},
     modifier: Modifier = Modifier,
 ) {
@@ -212,6 +212,7 @@ fun AccountsScreen(
         }
         else -> {
             AccountsContent(
+                onBack = onBack,
                 state = state,
                 modifier = modifier,
                 onAdd = viewModel::onAddClicked,
@@ -268,10 +269,11 @@ fun AccountsScreen(
 
 @Composable
 private fun AccountsContent(
+    onBack: () -> Unit,
     state: AccountsUiState,
     modifier: Modifier,
     onAdd: () -> Unit,
-    onViewGoals: (String) -> Unit,
+    onViewGoals: (String?) -> Unit,
     onEdit: (AccountSummary) -> Unit,
     onArchive: (AccountSummary) -> Unit,
     onFlow: (AccountSummary) -> Unit,
@@ -286,7 +288,12 @@ private fun AccountsContent(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            RootPageHeader(title = stringResource(R.string.account_list_title))
+            PageHeaderRow(onBack = onBack, title = stringResource(R.string.account_list_title))
+        }
+        item {
+            TextButton(onClick = { onViewGoals(null) }) {
+                Text(stringResource(R.string.goal_list_title))
+            }
         }
 
         item {

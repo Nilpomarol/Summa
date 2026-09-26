@@ -207,6 +207,7 @@ internal fun CategorySelect(
     modifier: Modifier = Modifier,
     isError: Boolean = false,
     supportingText: String? = null,
+    onManageCategories: (() -> Unit)? = null,
 ) {
     val noCategory = stringResource(R.string.common_no_category)
     val options = remember(categories, type, noCategory) {
@@ -222,6 +223,8 @@ internal fun CategorySelect(
         modifier = modifier,
         isError = isError,
         supportingText = supportingText,
+        actionLabel = onManageCategories?.let { stringResource(R.string.category_manage) },
+        onAction = onManageCategories,
     )
 }
 

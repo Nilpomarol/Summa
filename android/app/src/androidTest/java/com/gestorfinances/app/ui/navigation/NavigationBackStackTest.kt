@@ -22,8 +22,8 @@ class NavigationBackStackTest {
         openSection(TopLevelSection.MOVEMENTS)
         openManagement(Route.Accounts())
         // A second Més page replaces the first, so Back still returns to the section.
-        openManagement(Route.Categories)
-        assertStack("Dashboard", "Movements", "Categories")
+        openManagement(Route.People)
+        assertStack("Dashboard", "Movements", "People")
         popBackStack()
         assertStack("Dashboard", "Movements")
 
@@ -65,6 +65,61 @@ class NavigationBackStackTest {
     }
 
     @Test
+    fun relocatedManagementReturnsToItsContext() = onNav {
+        openManagement(Route.Accounts())
+        navigate(Route.Goals())
+        assertStack("Dashboard", "Accounts", "Goals")
+        popBackStack()
+        navigate(Route.Goals(accountId = "a1"))
+        assertEquals("a1", currentBackStackEntry!!.toRoute<Route.Goals>().accountId)
+        popBackStack()
+        assertStack("Dashboard", "Accounts")
+
+        openManagement(Route.Trips)
+        navigate(Route.Tags)
+        assertStack("Dashboard", "Trips", "Tags")
+        popBackStack()
+        assertStack("Dashboard", "Trips")
+
+        openSection(TopLevelSection.MOVEMENTS)
+        navigate(Route.Recurring)
+        assertEquals(TopLevelSection.MOVEMENTS, currentDestination.section())
+        assertStack("Dashboard", "Movements", "Recurring")
+        popBackStack()
+        assertStack("Dashboard", "Movements")
+
+        // The movement sheet's category picker pushes a page above its original context.
+        val formContextId = currentBackStackEntry!!.id
+        navigate(Route.Categories)
+        navigate(Route.Budgets(addForCategoryId = "food"))
+        assertStack("Dashboard", "Movements", "Categories", "Budgets")
+        popBackStack()
+        assertStack("Dashboard", "Movements", "Categories")
+        popBackStack()
+        assertEquals(formContextId, currentBackStackEntry!!.id)
+
+        openSection(TopLevelSection.DASHBOARD)
+        navigate(Route.Budgets())
+        assertStack("Dashboard", "Budgets")
+        popBackStack()
+        assertStack("Dashboard")
+
+        openManagement(Route.Settings)
+        popBackStack()
+        assertStack("Dashboard")
+    }
+
+    @Test
+    fun mesReplacesRecurringRatherThanTreatingItAsARoot() = onNav {
+        openSection(TopLevelSection.MOVEMENTS)
+        navigate(Route.Recurring)
+        openManagement(Route.Accounts())
+        assertStack("Dashboard", "Movements", "Accounts")
+        popBackStack()
+        assertStack("Dashboard", "Movements")
+    }
+
+    @Test
     fun aBottomBarChoiceDropsStaleMesPages() = onNav {
         openManagement(Route.Accounts())
         navigate(Route.Analysis(accountId = "a1", accountName = "Compte"))
@@ -95,10 +150,15 @@ class NavigationBackStackTest {
                         composable<Route.Analysis> {}
                         composable<Route.Accounts> {}
                         composable<Route.Categories> {}
+                        composable<Route.People> {}
                         composable<Route.Trips> {}
                         composable<Route.TripDetail> {}
                         composable<Route.TripBudgets> {}
                         composable<Route.Budgets> {}
+                        composable<Route.Goals> {}
+                        composable<Route.Tags> {}
+                        composable<Route.Recurring> {}
+                        composable<Route.Settings> {}
                     }
                     block()
                 }

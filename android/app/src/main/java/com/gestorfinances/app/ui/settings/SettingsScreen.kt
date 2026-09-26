@@ -50,7 +50,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gestorfinances.app.BuildConfig
 import com.gestorfinances.app.R
-import com.gestorfinances.app.ui.common.RootPageHeader
+import com.gestorfinances.app.ui.common.PageHeaderRow
 import com.gestorfinances.app.data.backup.BackupFileCandidate
 import com.gestorfinances.app.data.backup.PendingBackupRestore
 import com.gestorfinances.app.data.backup.AutoBackupInterval
@@ -111,7 +111,7 @@ fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            RootPageHeader(title = stringResource(R.string.settings_title))
+            PageHeaderRow(onBack = onBack, title = stringResource(R.string.settings_title))
         }
 
         item {

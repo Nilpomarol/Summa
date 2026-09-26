@@ -102,7 +102,6 @@ import com.gestorfinances.app.ui.common.movementRowPosition
 import com.gestorfinances.app.ui.common.NeutralPill
 import com.gestorfinances.app.ui.common.PageHeaderRow
 import com.gestorfinances.app.ui.common.PrimaryButton
-import com.gestorfinances.app.ui.common.RootPageHeader
 import com.gestorfinances.app.ui.common.SectionHeader
 import com.gestorfinances.app.ui.common.TopBarIconButton
 import com.gestorfinances.app.ui.common.DeleteUndoHandler
@@ -144,6 +143,7 @@ fun recurringViewModel(appContainer: AppContainer): RecurringViewModel = viewMod
 
 @Composable
 fun RecurringScreen(
+    onBack: () -> Unit,
     viewModel: RecurringViewModel,
     onMovementDetail: (MovementSummary) -> Unit = {},
     modifier: Modifier = Modifier,
@@ -197,6 +197,7 @@ fun RecurringScreen(
         )
     } else {
         RecurringContent(
+            onBack = onBack,
             state = state,
             modifier = modifier,
             onAdd = viewModel::onAddClicked,
@@ -226,7 +227,7 @@ fun RecurringScreen(
 
 /**
  * App-wide recurring UI, rendered once above every page: surfaces due items proactively (once per
- * app start) instead of requiring a visit to Més > Recurring, plus the dialogs those items open.
+ * app start) instead of requiring a visit to Moviments > Recurrents, plus the dialogs those items open.
  * [otherSheetOpen] keeps the due sheet from stacking on an unrelated movement sheet.
  */
 @Composable
@@ -334,6 +335,7 @@ private fun RecurringOverlays(
 
 @Composable
 private fun RecurringContent(
+    onBack: () -> Unit,
     state: RecurringUiState,
     modifier: Modifier,
     onAdd: () -> Unit,
@@ -366,7 +368,8 @@ private fun RecurringContent(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            RootPageHeader(
+            PageHeaderRow(
+                onBack = onBack,
                 title = stringResource(R.string.recurring_list_title),
                 trailing = {
                     TopBarIconButton(
