@@ -1,0 +1,125 @@
+tripAnalysisSummary:
+WITH actual AS (
+    SELECT COALESCE(SUM(amount_cents), 0) AS actual_cents
+    FROM v_actual_expense
+    WHERE trip_id = :trip_id
+      AND (:exclude_one_time = 0 OR is_one_time = 0)
+),
+outflow AS (
+    SELECT COALESCE(SUM(CASE WHEN f.delta_cents < 0 THEN -f.delta_cents ELSE 0 END), 0) AS flow_cents
+    FROM v_account_flow f
+    JOIN movements m
+        ON m.id = f.movement_id
+    WHERE m.trip_id = :trip_id
+      AND m.archived_at IS NULL
+      AND (:exclude_one_time = 0 OR m.is_one_time = 0)
+)
+SELECT
+    actual.actual_cents,
+    outflow.flow_cents
+FROM actual, outflow;
+
+tripActualByDay:
+SELECT
+    date,
+    SUM(amount_cents) AS actual_cents
+FROM v_actual_expense
+WHERE trip_id = :trip_id
+  AND (:exclude_one_time = 0 OR is_one_time = 0)
+GROUP BY date
+HAVING SUM(amount_cents) <> 0
+ORDER BY date ASC;
+
+tripActualByCategory:
+SELECT
+    CAST(CASE WHEN c.id IS NULL THEN NULL ELSE e.category_id END AS TEXT) AS category_id,
+    c.name AS category_name,
+    c.icon AS category_icon,
+    c.color AS category_color,
+    SUM(e.amount_cents) AS actual_cents
+FROM v_actual_expense e
+LEFT JOIN categories c
+    ON c.id = e.category_id
+   AND c.archived_at IS NULL
+WHERE e.trip_id = :trip_id
+  AND (:exclude_one_time = 0 OR e.is_one_time = 0)
+GROUP BY
+    category_id,
+    category_name,
+    category_icon,
+    category_color
+HAVING SUM(e.amount_cents) <> 0
+ORDER BY ABS(SUM(e.amount_cents)) DESC, lower(COALESCE(category_name, '')) ASC;
+
+tripActualByDayByCategory:
+SELECT
+    e.date,
+    CAST(CASE WHEN c.id IS NULL THEN NULL ELSE e.category_id END AS TEXT) AS category_id,
+    c.name AS category_name,
+    c.color AS category_color,
+    SUM(e.amount_cents) AS actual_cents
+FROM v_actual_expense e
+LEFT JOIN categories c
+    ON c.id = e.category_id
+   AND c.archived_at IS NULL
+WHERE e.trip_id = :trip_id
+  AND (:exclude_one_time = 0 OR e.is_one_time = 0)
+GROUP BY
+    e.date,
+    category_id,
+    category_name,
+    category_color
+HAVING SUM(e.amount_cents) <> 0
+ORDER BY e.date ASC, ABS(SUM(e.amount_cents)) DESC, lower(COALESCE(category_name, '')) ASC;
+
+tripActualByTag:
+SELECT
+    CAST(CASE WHEN t.id IS NULL THEN NULL ELSE e.tag_id END AS TEXT) AS tag_id,
+    t.name AS tag_name,
+    t.color AS tag_color,
+    SUM(e.amount_cents) AS actual_cents
+FROM v_actual_expense e
+LEFT JOIN tags t
+    ON t.id = e.tag_id
+   AND t.archived_at IS NULL
+WHERE e.trip_id = :trip_id
+  AND (:exclude_one_time = 0 OR e.is_one_time = 0)
+GROUP BY
+    tag_id,
+    tag_name,
+    tag_color
+HAVING SUM(e.amount_cents) <> 0
+ORDER BY ABS(SUM(e.amount_cents)) DESC, lower(COALESCE(tag_name, '')) ASC;
+
+-- A tag's own figures, across every trip it was used in.
+tagActualTotal:
+SELECT COALESCE(SUM(amount_cents), 0) AS actual_cents
+FROM v_actual_expense
+WHERE tag_id = :tag_id;
+
+tagActualTotals:
+-- Every tag's actual spend, for the tags list; tags with none are absent.
+SELECT tag_id, SUM(amount_cents) AS actual_cents
+FROM v_actual_expense
+WHERE tag_id IS NOT NULL
+GROUP BY tag_id;
+
+tagActualByTrip:
+SELECT
+    CAST(CASE WHEN t.id IS NULL THEN NULL ELSE e.trip_id END AS TEXT) AS trip_id,
+    t.name AS trip_name,
+    t.type AS trip_type,
+    t.color AS trip_color,
+    SUM(e.amount_cents) AS actual_cents
+FROM v_actual_expense e
+LEFT JOIN trips t
+    ON t.id = e.trip_id
+   AND t.archived_at IS NULL
+WHERE e.tag_id = :tag_id
+GROUP BY
+    trip_id,
+    trip_name,
+    trip_type,
+    trip_color
+HAVING SUM(e.amount_cents) <> 0
+ORDER BY ABS(SUM(e.amount_cents)) DESC, lower(COALESCE(trip_name, '')) ASC;
