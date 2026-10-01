@@ -1,0 +1,47 @@
+{
+  "rule": "duplicate_detection",
+  "description": "A candidate is a likely duplicate of an existing movement iff account_id and amount_cents match, the dates differ by at most one day, and normalized names match (lowercase, trim, collapse whitespace). The result warns and never blocks.",
+  "params": { "amount_tolerance_cents": 0, "date_window_days": 1, "name_match": "normalized_equal" },
+  "cases": [
+    {
+      "name": "duplicate / 1 day apart, name differs only by case + spacing",
+      "input": {
+        "existing":  { "account_id": "acc-1", "amount_cents": 4500, "date": "2026-03-10", "name": "MERCADONA OZONO" },
+        "candidate": { "account_id": "acc-1", "amount_cents": 4500, "date": "2026-03-11", "name": "Mercadona   Ozono" }
+      },
+      "expected": { "is_duplicate": true }
+    },
+    {
+      "name": "not duplicate / different amount",
+      "input": {
+        "existing":  { "account_id": "acc-1", "amount_cents": 4500, "date": "2026-03-10", "name": "MERCADONA OZONO" },
+        "candidate": { "account_id": "acc-1", "amount_cents": 4501, "date": "2026-03-10", "name": "MERCADONA OZONO" }
+      },
+      "expected": { "is_duplicate": false }
+    },
+    {
+      "name": "not duplicate / 2 days apart (just outside ±1 window)",
+      "input": {
+        "existing":  { "account_id": "acc-1", "amount_cents": 4500, "date": "2026-03-10", "name": "MERCADONA OZONO" },
+        "candidate": { "account_id": "acc-1", "amount_cents": 4500, "date": "2026-03-12", "name": "MERCADONA OZONO" }
+      },
+      "expected": { "is_duplicate": false }
+    },
+    {
+      "name": "not duplicate / different account",
+      "input": {
+        "existing":  { "account_id": "acc-1", "amount_cents": 4500, "date": "2026-03-10", "name": "MERCADONA OZONO" },
+        "candidate": { "account_id": "acc-2", "amount_cents": 4500, "date": "2026-03-10", "name": "MERCADONA OZONO" }
+      },
+      "expected": { "is_duplicate": false }
+    },
+    {
+      "name": "not duplicate / different normalized name",
+      "input": {
+        "existing":  { "account_id": "acc-1", "amount_cents": 4500, "date": "2026-03-10", "name": "MERCADONA OZONO" },
+        "candidate": { "account_id": "acc-1", "amount_cents": 4500, "date": "2026-03-10", "name": "LIDL CENTRE" }
+      },
+      "expected": { "is_duplicate": false }
+    }
+  ]
+}
