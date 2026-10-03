@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gestor-finances.local/schemas/templates.split_config.schema.json",
+  "title": "templates.split_config",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["entry_method", "payer", "lines"],
+  "properties": {
+    "entry_method": {
+      "type": "string",
+      "enum": ["equal", "exact", "percentage"]
+    },
+    "payer": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Either 'user' or a person id."
+    },
+    "lines": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["party", "owed_amount_cents"],
+        "properties": {
+          "party": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Either 'user' or a person id."
+          },
+          "owed_amount_cents": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    }
+  }
+}

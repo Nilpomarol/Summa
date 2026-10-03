@@ -1,0 +1,434 @@
+package com.gestorfinances.app.ui.trips
+
+import com.gestorfinances.app.data.repository.withoutRefundRows
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.gestorfinances.ui.resources.Res
+import com.gestorfinances.ui.resources.movement_validation_account_required
+import com.gestorfinances.ui.resources.trip_validation_date_order
+import com.gestorfinances.ui.resources.trip_validation_end_date_invalid
+import com.gestorfinances.ui.resources.trip_validation_name_required
+import com.gestorfinances.ui.resources.trip_validation_start_date_invalid
+import org.jetbrains.compose.resources.StringResource
+import com.gestorfinances.app.data.repository.AccountRepository
+import com.gestorfinances.app.data.repository.AccountSummary
+import com.gestorfinances.app.data.repository.BudgetEvaluation
+import com.gestorfinances.app.data.repository.BudgetRepository
+import com.gestorfinances.app.data.repository.BudgetScope
+import com.gestorfinances.app.data.repository.MovementRepository
+import com.gestorfinances.app.data.repository.MovementSummary
+import com.gestorfinances.app.data.repository.TagRepository
+import com.gestorfinances.app.data.repository.TagSummary
+import com.gestorfinances.app.data.repository.TripAnalysisRepository
+import com.gestorfinances.app.data.repository.TripAnalysisSummary
+import com.gestorfinances.app.data.repository.TripCategoryActual
+import com.gestorfinances.app.data.repository.TripTagActual
+import com.gestorfinances.app.data.repository.TripDailyActual
+import com.gestorfinances.app.data.repository.TripDraft
+import com.gestorfinances.app.data.repository.TripRepository
+import com.gestorfinances.app.data.repository.TripStatus
+import com.gestorfinances.app.data.repository.TripSummary
+import com.gestorfinances.app.data.repository.TripType
+import java.time.Instant
+import java.time.LocalDate
+import java.time.YearMonth
+import java.time.format.DateTimeParseException
+import java.util.UUID
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+class TripsViewModel(
+    private val tripRepository: TripRepository,
+    private val tripAnalysisRepository: TripAnalysisRepository,
+    private val movementRepository: MovementRepository,
+    private val accountRepository: AccountRepository,
+    private val budgetRepository: BudgetRepository,
+    private val tagRepository: TagRepository,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+) : ViewModel() {
+    private val _state = MutableStateFlow(TripsUiState())
+    val state: StateFlow<TripsUiState> = _state.asStateFlow()
+
+    /** A save under way: a second tap on the button must not record it twice. */
+    private var saving = false
+
+    fun onScreenShown() {
+        refresh()
+    }
+
+    fun onAddClicked() {
+        _state.value = _state.value.copy(form = TripFormState())
+    }
+
+    /**
+     * Opens the edit form. Deliberately does *not* clear `detail`: trip detail is a full page
+     * (not a dialog), so it stays visible underneath the form sheet when editing is triggered
+     * from its own header menu.
+     */
+    fun onEditClicked(trip: TripSummary) {
+        _state.value = _state.value.copy(form = trip.toFormState())
+    }
+
+    fun onDetailClicked(trip: TripSummary) {
+        loadDetail(trip = trip, excludeOneTime = false)
+    }
+
+    /**
+     * Opens trip detail from just a [tripId] (e.g. a Dashboard quick-link), without a [TripSummary]
+     * on hand. Reopening the trip already shown (after a movement write) reloads it in place.
+     */
+    fun onDetailOpened(tripId: String) {
+        _state.value.detail?.takeIf { it.trip.id == tripId }?.let { open ->
+            loadDetail(trip = open.trip, excludeOneTime = open.excludeOneTime)
+            return
+        }
+        _state.value.trips.firstOrNull { it.id == tripId }?.let {
+            onDetailClicked(it)
+            return
+        }
+        viewModelScope.launch {
+            val result = withContext(ioDispatcher) {
+                runCatching { tripRepository.getActive(tripId) }
+            }
+            result.fold(
+                onSuccess = { trip ->
+                    if (trip != null) {
+                        onDetailClicked(trip)
+                    }
+                },
+                onFailure = {
+                    _state.value = _state.value.copy(
+                        errorMessage = it.message ?: it.javaClass.simpleName,
+                    )
+                },
+            )
+        }
+    }
+
+    fun onExcludeOneTimeToggled(excludeOneTime: Boolean) {
+        val trip = _state.value.detail?.trip ?: return
+        loadDetail(trip = trip, excludeOneTime = excludeOneTime)
+    }
+
+    private fun loadDetail(trip: TripSummary, excludeOneTime: Boolean) {
+        val shown = _state.value.detail
+        // Reloading what is already shown keeps it on screen until the new figures arrive.
+        val reloadsShownDetail = shown != null && !shown.isLoading && shown.errorMessage == null &&
+            shown.trip.id == trip.id && shown.excludeOneTime == excludeOneTime
+        if (!reloadsShownDetail) {
+            _state.value = _state.value.copy(
+                detail = TripDetailState(trip = trip, excludeOneTime = excludeOneTime, isLoading = true),
+            )
+        }
+        viewModelScope.launch {
+            val result = withContext(ioDispatcher) {
+                runCatching {
+                    TripDetailState(
+                        trip = tripRepository.getActive(trip.id) ?: trip,
+                        excludeOneTime = excludeOneTime,
+                        summary = tripAnalysisRepository.summary(trip.id, excludeOneTime = excludeOneTime),
+                        dailyActual = tripAnalysisRepository.actualByDay(trip.id, excludeOneTime = excludeOneTime),
+                        categoryActual = tripAnalysisRepository.actualByCategory(trip.id, excludeOneTime = excludeOneTime),
+                        tagActual = tripAnalysisRepository.actualByTag(trip.id, excludeOneTime = excludeOneTime),
+                        movements = movementRepository.listActive().withoutRefundRows().filter { it.tripId == trip.id },
+                        budgetEvaluation = tripBudgetEvaluation(trip.id),
+                        tagsById = tagRepository.listActive().associateBy { it.id },
+                    )
+                }
+            }
+            _state.value = result.fold(
+                onSuccess = { _state.value.copy(detail = it) },
+                onFailure = {
+                    _state.value.copy(
+                        detail = TripDetailState(
+                            trip = trip,
+                            excludeOneTime = excludeOneTime,
+                            errorMessage = it.message ?: it.javaClass.simpleName,
+                        ),
+                    )
+                },
+            )
+        }
+    }
+
+    /**
+     * Active TRIP-scope budget for [tripId], evaluated against its whole one-off window.
+     *
+     * [BudgetRepository] ignores the [fromDate]/[toDate] period entirely for TRIP-scope
+     * budgets (they track the trip's whole life, not a calendar period), so the bounds
+     * passed to [BudgetRepository.evaluateAll] here only matter for the CATEGORY-scope
+     * evaluations this call also computes and immediately discards; the current month is
+     * as good a placeholder as any.
+     */
+    private fun tripBudgetEvaluation(tripId: String): BudgetEvaluation? {
+        val month = YearMonth.from(LocalDate.now())
+        return budgetRepository.evaluateAll(
+            fromDate = month.atDay(1).toString(),
+            toDate = month.atEndOfMonth().toString(),
+        ).firstOrNull { it.budget.scope == BudgetScope.TRIP && it.budget.tripId == tripId }
+    }
+
+    /** Opens the archive confirmation. Does not clear `detail` — see [onEditClicked]. */
+    fun onArchiveClicked(trip: TripSummary) {
+        _state.value = _state.value.copy(archiveCandidate = trip)
+    }
+
+    fun onArchiveDismissed() {
+        _state.value = _state.value.copy(archiveCandidate = null)
+    }
+
+    /**
+     * Archives [TripsUiState.archiveCandidate]. [onSuccess] fires only once the archive has
+     * actually completed, so a caller that also navigates away (Trip Detail's own confirm
+     * dialog) can defer that navigation until success instead of racing the coroutine. On
+     * failure, the error is attached to `detail` when the archived trip is the one currently
+     * open (Trip Detail renders `detail.errorMessage` inline, which stays reachable even after
+     * the dialog closes), and to the top-level `errorMessage` otherwise (the Trips list renders
+     * that one).
+     */
+    fun onArchiveConfirmed(onSuccess: (undo: suspend () -> Unit) -> Unit = {}) {
+        val trip = _state.value.archiveCandidate ?: return
+        val now = Instant.now().toString()
+        viewModelScope.launch {
+            val result = withContext(ioDispatcher) {
+                runCatching { tripRepository.archive(trip.id, archivedAt = now) }
+            }
+            result.fold(
+                onSuccess = {
+                    _state.value = _state.value.copy(archiveCandidate = null)
+                    refresh()
+                    onSuccess { undoDelete(trip.id, deletedAt = now) }
+                },
+                onFailure = {
+                    val message = it.message ?: it.javaClass.simpleName
+                    val openDetail = _state.value.detail
+                    _state.value = if (openDetail != null && openDetail.trip.id == trip.id) {
+                        _state.value.copy(
+                            archiveCandidate = null,
+                            detail = openDetail.copy(errorMessage = message),
+                        )
+                    } else {
+                        _state.value.copy(
+                            archiveCandidate = null,
+                            errorMessage = message,
+                        )
+                    }
+                },
+            )
+        }
+    }
+
+    private suspend fun undoDelete(tripId: String, deletedAt: String) {
+        val restoredAt = Instant.now().toString()
+        val result = withContext(ioDispatcher) {
+            runCatching { tripRepository.restore(tripId, deletedAt, restoredAt) }
+        }
+        result.fold(
+            onSuccess = { refresh() },
+            onFailure = { _state.value = _state.value.copy(errorMessage = it.message ?: it.javaClass.simpleName) },
+        )
+    }
+
+    fun onFormChanged(form: TripFormState) {
+        _state.value = _state.value.copy(
+            form = form.copy(errorRes = null, errorField = null, errorMessage = null),
+        )
+    }
+
+    fun onFormDismissed() {
+        _state.value = _state.value.copy(form = null)
+    }
+
+    fun onSaveClicked() {
+        val form = _state.value.form ?: return
+        val name = form.name.trim()
+        val startDate = parseDateOrNull(form.startDate)
+        val endDate = parseDateOrNull(form.endDate)
+        val activeAccountIds = _state.value.accounts.map { it.id }.toSet()
+
+        val (errorRes, errorField) = when {
+            name.isEmpty() -> Res.string.trip_validation_name_required to TripFormField.NAME
+            form.startDate.isNotBlank() && startDate == null ->
+                Res.string.trip_validation_start_date_invalid to TripFormField.START_DATE
+            form.endDate.isNotBlank() && endDate == null ->
+                Res.string.trip_validation_end_date_invalid to TripFormField.END_DATE
+            startDate != null && endDate != null && endDate < startDate ->
+                Res.string.trip_validation_date_order to TripFormField.END_DATE
+            form.defaultAccountId != null && form.defaultAccountId !in activeAccountIds ->
+                Res.string.movement_validation_account_required to TripFormField.ACCOUNT
+            else -> null to null
+        }
+
+        if (errorRes != null) {
+            _state.value = _state.value.copy(form = form.copy(errorRes = errorRes, errorField = errorField))
+            return
+        }
+
+        val now = Instant.now().toString()
+        val draft = TripDraft(
+            id = form.id ?: UUID.randomUUID().toString(),
+            name = name,
+            type = form.type,
+            status = form.status,
+            startDate = startDate?.toString(),
+            endDate = endDate?.toString(),
+            icon = form.icon.trim().ifBlank { null },
+            color = form.color.trim().ifBlank { null },
+            notes = form.notes.trim().ifBlank { null },
+            defaultAccountId = form.defaultAccountId,
+        )
+
+        if (saving) return
+        saving = true
+        viewModelScope.launch {
+            val result = withContext(ioDispatcher) {
+                runCatching {
+                    if (form.id == null) {
+                        tripRepository.create(draft, createdAt = now)
+                    } else {
+                        tripRepository.update(draft, updatedAt = now)
+                    }
+                }
+            }
+            result.fold(
+                onSuccess = {
+                    _state.value = _state.value.copy(form = null)
+                    refresh()
+                    // Trip detail (a full page, not a dialog) stays open across an edit — reload it
+                    // so the header reflects the just-saved name/dates/etc. instead of going stale.
+                    _state.value.detail?.trip?.takeIf { it.id == draft.id }?.let { onDetailClicked(it) }
+                },
+                onFailure = {
+                    _state.value = _state.value.copy(
+                        form = form.copy(errorMessage = it.message ?: it.javaClass.simpleName),
+                    )
+                },
+            )
+        }.invokeOnCompletion { saving = false }
+    }
+
+    private fun refresh() {
+        viewModelScope.launch {
+            // Only a first load shows as loading: a reload keeps the list on screen.
+            _state.value = _state.value.copy(isLoading = _state.value.trips.isEmpty(), errorMessage = null)
+            val result = withContext(ioDispatcher) {
+                runCatching {
+                    val trips = tripRepository.listActive()
+                    val month = YearMonth.now()
+                    LoadedTripData(
+                        trips = trips,
+                        accounts = accountRepository.listActive(),
+                        // TRIP budgets ignore the period; the bounds only matter for category budgets.
+                        budgetByTrip = budgetRepository.evaluateAll(
+                            fromDate = month.atDay(1).toString(),
+                            toDate = month.atEndOfMonth().toString(),
+                        ).filter { it.budget.scope == BudgetScope.TRIP }
+                            .mapNotNull { evaluation -> evaluation.budget.tripId?.let { it to evaluation } }
+                            .toMap(),
+                    )
+                }
+            }
+            _state.value = result.fold(
+                onSuccess = {
+                    _state.value.copy(
+                        trips = it.trips,
+                        accounts = it.accounts,
+                        budgetByTrip = it.budgetByTrip,
+                        isLoading = false,
+                    )
+                },
+                onFailure = {
+                    _state.value.copy(
+                        isLoading = false,
+                        errorMessage = it.message ?: it.javaClass.simpleName,
+                    )
+                },
+            )
+        }
+    }
+}
+
+data class TripsUiState(
+    val trips: List<TripSummary> = emptyList(),
+    val accounts: List<AccountSummary> = emptyList(),
+    /** Each trip's active budget, by trip id, for its card. */
+    val budgetByTrip: Map<String, BudgetEvaluation> = emptyMap(),
+    val isLoading: Boolean = true,
+    val errorMessage: String? = null,
+    val form: TripFormState? = null,
+    val detail: TripDetailState? = null,
+    val archiveCandidate: TripSummary? = null,
+) {
+}
+
+/** Identifies which field a trip-form validation error belongs to. */
+enum class TripFormField {
+    NAME,
+    START_DATE,
+    END_DATE,
+    ACCOUNT,
+}
+
+data class TripFormState(
+    val id: String? = null,
+    val name: String = "",
+    val type: TripType = TripType.TRIP,
+    val status: TripStatus = TripStatus.ACTIVE,
+    val startDate: String = "",
+    val endDate: String = "",
+    val icon: String = "",
+    val color: String = "",
+    val notes: String = "",
+    val defaultAccountId: String? = null,
+    val errorRes: StringResource? = null,
+    val errorField: TripFormField? = null,
+    val errorMessage: String? = null,
+)
+
+data class TripDetailState(
+    val trip: TripSummary,
+    val excludeOneTime: Boolean = false,
+    val summary: TripAnalysisSummary = TripAnalysisSummary(0L, 0L),
+    val dailyActual: List<TripDailyActual> = emptyList(),
+    val categoryActual: List<TripCategoryActual> = emptyList(),
+    val tagActual: List<TripTagActual> = emptyList(),
+    val movements: List<MovementSummary> = emptyList(),
+    val budgetEvaluation: BudgetEvaluation? = null,
+    val tagsById: Map<String, TagSummary> = emptyMap(),
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null,
+)
+
+private data class LoadedTripData(
+    val trips: List<TripSummary>,
+    val accounts: List<AccountSummary>,
+    val budgetByTrip: Map<String, BudgetEvaluation>,
+)
+
+private fun TripSummary.toFormState(): TripFormState =
+    TripFormState(
+        id = id,
+        name = name,
+        type = type,
+        status = status,
+        startDate = startDate.orEmpty(),
+        endDate = endDate.orEmpty(),
+        icon = icon.orEmpty(),
+        color = color.orEmpty(),
+        notes = notes.orEmpty(),
+        defaultAccountId = defaultAccountId,
+    )
+
+private fun parseDateOrNull(raw: String): LocalDate? =
+    raw.trim().takeIf { it.isNotEmpty() }?.let {
+        try {
+            LocalDate.parse(it)
+        } catch (_: DateTimeParseException) {
+            null
+        }
+    }
