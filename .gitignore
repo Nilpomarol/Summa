@@ -1,0 +1,21 @@
+.claude/settings.local.json
+local.properties
+.gradle/
+.kotlin/
+build/
+**/build/
+**/bin/
+**/obj/
+TestResults/
+**/TestResults/
+android/.idea/
+android/gradle/gradle-daemon-jvm.properties
+android/core/src/main/sqldelight/com/gestorfinances/app/data/db/SharedSchema.sq
+android/core/src/main/sqldelight/com/gestorfinances/app/data/db/Analysis.sq
+android/core/src/main/sqldelight/com/gestorfinances/app/data/db/*.sqm
+android/core/src/main/resources/shared_account_integrity.sql
+.aider*
+.preview_tmp/
+
+# Signed release builds
+android/app/release/

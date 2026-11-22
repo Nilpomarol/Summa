@@ -1,0 +1,41 @@
+{
+  "rule": "recurring_advance",
+  "description": "From a template cursor (next_due_date) up to 'today', list due occurrence dates and the new cursor (first occurrence > today). Monthly/yearly clamp to month length from the anchor day each period.",
+  "cases": [
+    {
+      "name": "monthly / day 15",
+      "input": { "frequency": "monthly", "day_of_month": 15, "cursor": "2026-01-15", "today": "2026-03-20" },
+      "expected": { "due": ["2026-01-15", "2026-02-15", "2026-03-15"], "new_cursor": "2026-04-15" }
+    },
+    {
+      "name": "monthly / day 31 clamps to month end, re-derived from anchor",
+      "input": { "frequency": "monthly", "day_of_month": 31, "cursor": "2026-01-31", "today": "2026-04-15" },
+      "expected": { "due": ["2026-01-31", "2026-02-28", "2026-03-31"], "new_cursor": "2026-04-30" }
+    },
+    {
+      "name": "weekly / +7 days",
+      "input": { "frequency": "weekly", "cursor": "2026-01-05", "today": "2026-01-26" },
+      "expected": { "due": ["2026-01-05", "2026-01-12", "2026-01-19", "2026-01-26"], "new_cursor": "2026-02-02" }
+    },
+    {
+      "name": "fortnightly / +14 days",
+      "input": { "frequency": "fortnightly", "cursor": "2026-01-05", "today": "2026-02-10" },
+      "expected": { "due": ["2026-01-05", "2026-01-19", "2026-02-02"], "new_cursor": "2026-02-16" }
+    },
+    {
+      "name": "yearly / Feb 29 anchor clamps in non-leap years",
+      "input": { "frequency": "yearly", "day_of_month": 29, "cursor": "2024-02-29", "today": "2026-06-01" },
+      "expected": { "due": ["2024-02-29", "2025-02-28", "2026-02-28"], "new_cursor": "2027-02-28" }
+    },
+    {
+      "name": "custom / every 10 days",
+      "input": { "frequency": "custom", "interval_count": 10, "custom_unit": "days", "cursor": "2026-01-01", "today": "2026-01-25" },
+      "expected": { "due": ["2026-01-01", "2026-01-11", "2026-01-21"], "new_cursor": "2026-01-31" }
+    },
+    {
+      "name": "not yet due / cursor in the future",
+      "input": { "frequency": "monthly", "day_of_month": 1, "cursor": "2026-05-01", "today": "2026-04-15" },
+      "expected": { "due": [], "new_cursor": "2026-05-01" }
+    }
+  ]
+}

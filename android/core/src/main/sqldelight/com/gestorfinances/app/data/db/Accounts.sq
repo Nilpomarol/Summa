@@ -1,0 +1,162 @@
+hasAnyAccount:
+SELECT EXISTS(SELECT 1 FROM accounts);
+
+activeAccountSummaries:
+SELECT
+    accounts.id,
+    accounts.name,
+    accounts.starting_balance_cents,
+    accounts.type,
+    accounts.icon,
+    accounts.color,
+    accounts.is_default,
+    accounts.display_order,
+    accounts.low_balance_threshold_cents,
+    accounts.ownership_kind,
+    accounts.created_at,
+    accounts.updated_at,
+    accounts.archived_at,
+    v_account_value.physical_balance_cents,
+    v_account_value.owner_ownership_basis_points,
+    v_account_value.owner_value_cents
+FROM accounts
+JOIN v_account_value
+    ON v_account_value.account_id = accounts.id
+WHERE accounts.archived_at IS NULL
+ORDER BY accounts.is_default DESC, accounts.display_order ASC, lower(accounts.name) ASC;
+
+netWorthAsOf:
+-- Net worth as it stood at the end of :as_of_date: each active account's balance up to that day
+-- (starting balance plus canonical flow), valued at the owner's current share with the same
+-- rounding as v_account_value, so it compares directly with today's figure.
+SELECT COALESCE(SUM(
+    CASE
+        WHEN balance_cents < 0 THEN -(((-balance_cents) * owner_basis_points + 5000) / 10000)
+        ELSE (balance_cents * owner_basis_points + 5000) / 10000
+    END
+), 0) AS net_worth_cents
+FROM (
+    SELECT
+        a.starting_balance_cents + COALESCE((
+            SELECT SUM(f.delta_cents)
+            FROM v_account_flow f
+            WHERE f.account_id = a.id
+              AND f.date <= :as_of_date
+        ), 0) AS balance_cents,
+        v.owner_ownership_basis_points AS owner_basis_points
+    FROM accounts a
+    JOIN v_account_value v
+        ON v.account_id = a.id
+    WHERE a.archived_at IS NULL
+);
+
+accountById:
+SELECT
+    accounts.id,
+    accounts.name,
+    accounts.starting_balance_cents,
+    accounts.type,
+    accounts.icon,
+    accounts.color,
+    accounts.is_default,
+    accounts.display_order,
+    accounts.low_balance_threshold_cents,
+    accounts.ownership_kind,
+    accounts.created_at,
+    accounts.updated_at,
+    accounts.archived_at,
+    v_account_value.physical_balance_cents,
+    v_account_value.owner_ownership_basis_points,
+    v_account_value.owner_value_cents
+FROM accounts
+JOIN v_account_value
+    ON v_account_value.account_id = accounts.id
+WHERE accounts.id = :id
+  AND accounts.archived_at IS NULL;
+
+insertAccount:
+INSERT INTO accounts(
+    id,
+    name,
+    starting_balance_cents,
+    type,
+    icon,
+    color,
+    is_default,
+    display_order,
+    low_balance_threshold_cents,
+    ownership_kind,
+    created_at,
+    updated_at
+) VALUES (
+    :id,
+    :name,
+    :starting_balance_cents,
+    :type,
+    :icon,
+    :color,
+    :is_default,
+    :display_order,
+    :low_balance_threshold_cents,
+    :ownership_kind,
+    :created_at,
+    :updated_at
+);
+
+updateAccount:
+UPDATE accounts
+SET
+    name = :name,
+    starting_balance_cents = :starting_balance_cents,
+    type = :type,
+    icon = :icon,
+    color = :color,
+    is_default = :is_default,
+    display_order = :display_order,
+    low_balance_threshold_cents = :low_balance_threshold_cents,
+    ownership_kind = :ownership_kind,
+    updated_at = :updated_at
+WHERE id = :id
+  AND archived_at IS NULL;
+
+setAccountOwnership:
+UPDATE accounts
+SET
+    ownership_kind = :ownership_kind,
+    updated_at = :updated_at
+WHERE id = :id
+  AND archived_at IS NULL;
+
+clearDefaultAccounts:
+UPDATE accounts
+SET
+    is_default = 0,
+    updated_at = :updated_at
+WHERE is_default = 1
+  AND archived_at IS NULL;
+
+archiveAccount:
+UPDATE accounts
+SET
+    archived_at = :archived_at,
+    updated_at = :updated_at,
+    is_default = 0
+WHERE id = :id
+  AND archived_at IS NULL;
+
+restoreAccount:
+UPDATE accounts
+SET
+    archived_at = NULL,
+    updated_at = :updated_at,
+    is_default = CASE
+        WHEN :is_default = 1 AND NOT EXISTS (
+            SELECT 1 FROM accounts current_default
+            WHERE current_default.is_default = 1
+              AND current_default.archived_at IS NULL
+              AND current_default.id <> :id
+        ) THEN 1
+        ELSE 0
+    END
+WHERE id = :id
+  AND archived_at = :archived_at;

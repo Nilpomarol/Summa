@@ -1,0 +1,231 @@
+{
+  "rule": "debt_consumption",
+  "description": "Chronological FIFO debt consumption behind the explainable person-debt message. Items are the per-person balance breakdown rows and use the same signs as v_person_balance: a positive effect means the person owes the user. Sort by (date, debt before settlement, source_id), then fold: a debt item first absorbs any eligible directional credit and the rest stays open; a settlement consumes open items of the opposite sign oldest-first, skipping non-recurring items when its scope is recurring, and any leftover becomes directional credit in its own scope bucket. Residual remainders plus both credit buckets must equal balance_cents, which v_person_balance derives independently.",
+  "cases": [
+    {
+      "name": "partial payment leaves the source item open for its remainder",
+      "input": {
+        "items": [
+          { "source_id": "e1", "type": "user_paid", "date": "2026-01-05", "effect_cents": 2000, "is_recurring": false },
+          { "source_id": "s1", "type": "settlement_in", "date": "2026-01-20", "effect_cents": -1500, "scope": "all" }
+        ]
+      },
+      "expected": {
+        "balance_cents": 500,
+        "residuals": [
+          { "source_id": "e1", "original_cents": 2000, "remaining_cents": 500 }
+        ],
+        "credit_all_cents": 0,
+        "credit_recurring_cents": 0
+      }
+    },
+    {
+      "name": "settlement consumes oldest debt first",
+      "input": {
+        "items": [
+          { "source_id": "e1", "type": "user_paid", "date": "2026-01-05", "effect_cents": 1000, "is_recurring": false },
+          { "source_id": "e2", "type": "user_paid", "date": "2026-02-05", "effect_cents": 2000, "is_recurring": false },
+          { "source_id": "s1", "type": "settlement_in", "date": "2026-03-01", "effect_cents": -1500, "scope": "all" }
+        ]
+      },
+      "expected": {
+        "balance_cents": 1500,
+        "residuals": [
+          { "source_id": "e2", "original_cents": 2000, "remaining_cents": 1500 }
+        ],
+        "credit_all_cents": 0,
+        "credit_recurring_cents": 0
+      }
+    },
+    {
+      "name": "a settlement cannot consume debt that did not exist yet but its excess credit can",
+      "input": {
+        "items": [
+          { "source_id": "e1", "type": "user_paid", "date": "2026-01-05", "effect_cents": 1000, "is_recurring": false },
+          { "source_id": "s1", "type": "settlement_in", "date": "2026-01-20", "effect_cents": -2500, "scope": "all" },
+          { "source_id": "e2", "type": "user_paid", "date": "2026-02-05", "effect_cents": 2000, "is_recurring": false }
+        ]
+      },
+      "expected": {
+        "balance_cents": 500,
+        "residuals": [
+          { "source_id": "e2", "original_cents": 2000, "remaining_cents": 500 }
+        ],
+        "credit_all_cents": 0,
+        "credit_recurring_cents": 0
+      }
+    },
+    {
+      "name": "unconsumed excess settlement stays as directional credit",
+      "input": {
+        "items": [
+          { "source_id": "e1", "type": "user_paid", "date": "2026-01-05", "effect_cents": 1000, "is_recurring": false },
+          { "source_id": "s1", "type": "settlement_in", "date": "2026-01-20", "effect_cents": -2500, "scope": "all" }
+        ]
+      },
+      "expected": {
+        "balance_cents": -1500,
+        "residuals": [],
+        "credit_all_cents": -1500,
+        "credit_recurring_cents": 0
+      }
+    },
+    {
+      "name": "opposite-direction settlement consumes nothing and becomes credit the other way",
+      "input": {
+        "items": [
+          { "source_id": "e1", "type": "user_paid", "date": "2026-01-05", "effect_cents": 10000, "is_recurring": false },
+          { "source_id": "s1", "type": "settlement_out", "date": "2026-01-20", "effect_cents": 5000, "scope": "all" }
+        ]
+      },
+      "expected": {
+        "balance_cents": 15000,
+        "residuals": [
+          { "source_id": "e1", "original_cents": 10000, "remaining_cents": 10000 }
+        ],
+        "credit_all_cents": 5000,
+        "credit_recurring_cents": 0
+      }
+    },
+    {
+      "name": "recurring scope skips non-recurring debt",
+      "input": {
+        "items": [
+          { "source_id": "e1", "type": "user_paid", "date": "2026-01-05", "effect_cents": 3000, "is_recurring": false },
+          { "source_id": "e2", "type": "user_paid", "date": "2026-01-10", "effect_cents": 2000, "is_recurring": true },
+          { "source_id": "s1", "type": "settlement_in", "date": "2026-01-20", "effect_cents": -2000, "scope": "recurring" }
+        ]
+      },
+      "expected": {
+        "balance_cents": 3000,
+        "residuals": [
+          { "source_id": "e1", "original_cents": 3000, "remaining_cents": 3000 }
+        ],
+        "credit_all_cents": 0,
+        "credit_recurring_cents": 0
+      }
+    },
+    {
+      "name": "recurring credit does not leak onto non-recurring debt",
+      "input": {
+        "items": [
+          { "source_id": "e1", "type": "user_paid", "date": "2026-01-05", "effect_cents": 1000, "is_recurring": true },
+          { "source_id": "s1", "type": "settlement_in", "date": "2026-01-20", "effect_cents": -2500, "scope": "recurring" },
+          { "source_id": "e2", "type": "user_paid", "date": "2026-02-05", "effect_cents": 2000, "is_recurring": false },
+          { "source_id": "e3", "type": "user_paid", "date": "2026-03-05", "effect_cents": 800, "is_recurring": true }
+        ]
+      },
+      "expected": {
+        "balance_cents": 1300,
+        "residuals": [
+          { "source_id": "e2", "original_cents": 2000, "remaining_cents": 2000 }
+        ],
+        "credit_all_cents": 0,
+        "credit_recurring_cents": -700
+      }
+    },
+    {
+      "name": "a settlement consumes debt dated the same day",
+      "input": {
+        "items": [
+          { "source_id": "e1", "type": "user_paid", "date": "2026-01-20", "effect_cents": 1200, "is_recurring": false },
+          { "source_id": "s1", "type": "settlement_in", "date": "2026-01-20", "effect_cents": -1200, "scope": "all" }
+        ]
+      },
+      "expected": {
+        "balance_cents": 0,
+        "residuals": [],
+        "credit_all_cents": 0,
+        "credit_recurring_cents": 0
+      }
+    },
+    {
+      "name": "user-side debt from an external split is consumed by a settlement out",
+      "input": {
+        "items": [
+          { "source_id": "x1", "type": "person_paid", "date": "2026-01-05", "effect_cents": -1800, "is_recurring": false },
+          { "source_id": "s1", "type": "settlement_out", "date": "2026-01-20", "effect_cents": 1000, "scope": "all" }
+        ]
+      },
+      "expected": {
+        "balance_cents": -800,
+        "residuals": [
+          { "source_id": "x1", "original_cents": -1800, "remaining_cents": -800 }
+        ],
+        "credit_all_cents": 0,
+        "credit_recurring_cents": 0
+      }
+    },
+    {
+      "name": "without settlements every item stays fully open",
+      "input": {
+        "items": [
+          { "source_id": "e1", "type": "user_paid", "date": "2026-01-05", "effect_cents": 1000, "is_recurring": false },
+          { "source_id": "e2", "type": "user_paid", "date": "2026-02-05", "effect_cents": 500, "is_recurring": false }
+        ]
+      },
+      "expected": {
+        "balance_cents": 1500,
+        "residuals": [
+          { "source_id": "e1", "original_cents": 1000, "remaining_cents": 1000 },
+          { "source_id": "e2", "original_cents": 500, "remaining_cents": 500 }
+        ],
+        "credit_all_cents": 0,
+        "credit_recurring_cents": 0
+      }
+    },
+    {
+      "name": "a zero-share split line is not a debt item",
+      "input": {
+        "items": [
+          { "source_id": "e1", "type": "user_paid", "date": "2026-01-05", "effect_cents": 0, "is_recurring": false },
+          { "source_id": "e2", "type": "user_paid", "date": "2026-01-06", "effect_cents": 500, "is_recurring": false }
+        ]
+      },
+      "expected": {
+        "balance_cents": 500,
+        "residuals": [
+          { "source_id": "e2", "original_cents": 500, "remaining_cents": 500 }
+        ],
+        "credit_all_cents": 0,
+        "credit_recurring_cents": 0
+      }
+    },
+    {
+      "name": "scope all consumes recurring debt as well",
+      "input": {
+        "items": [
+          { "source_id": "e1", "type": "user_paid", "date": "2026-01-05", "effect_cents": 1000, "is_recurring": true },
+          { "source_id": "s1", "type": "settlement_in", "date": "2026-01-20", "effect_cents": -600, "scope": "all" }
+        ]
+      },
+      "expected": {
+        "balance_cents": 400,
+        "residuals": [
+          { "source_id": "e1", "original_cents": 1000, "remaining_cents": 400 }
+        ],
+        "credit_all_cents": 0,
+        "credit_recurring_cents": 0
+      }
+    },
+    {
+      "name": "a recurring settlement and a general settlement each consume their own eligible debt",
+      "input": {
+        "items": [
+          { "source_id": "e1", "type": "user_paid", "date": "2026-01-05", "effect_cents": 1000, "is_recurring": false },
+          { "source_id": "e2", "type": "user_paid", "date": "2026-01-06", "effect_cents": 1500, "is_recurring": true },
+          { "source_id": "s1", "type": "settlement_in", "date": "2026-01-10", "effect_cents": -1500, "scope": "recurring" },
+          { "source_id": "s2", "type": "settlement_in", "date": "2026-01-15", "effect_cents": -600, "scope": "all" }
+        ]
+      },
+      "expected": {
+        "balance_cents": 400,
+        "residuals": [
+          { "source_id": "e1", "original_cents": 1000, "remaining_cents": 400 }
+        ],
+        "credit_all_cents": 0,
+        "credit_recurring_cents": 0
+      }
+    }
+  ]
+}

@@ -1,0 +1,421 @@
+-- Gestor finances shared SQLite schema.
+-- Source of truth: docs/data-contract.md.
+
+PRAGMA foreign_keys = ON;
+PRAGMA journal_mode = WAL;
+
+CREATE TABLE accounts (
+    id                          TEXT    PRIMARY KEY,
+    name                        TEXT    NOT NULL,
+    starting_balance_cents      INTEGER NOT NULL DEFAULT 0,
+    type                        TEXT    NOT NULL CHECK (type IN ('bank','cash','savings','investment','other')),
+    icon                        TEXT,
+    color                       TEXT,
+    is_default                  INTEGER NOT NULL DEFAULT 0 CHECK (is_default IN (0,1)),
+    display_order               INTEGER NOT NULL DEFAULT 0,
+    low_balance_threshold_cents INTEGER,
+    ownership_kind              TEXT    NOT NULL DEFAULT 'personal' CHECK (ownership_kind IN ('personal','shared')),
+    created_at                  TEXT    NOT NULL,
+    updated_at                  TEXT    NOT NULL,
+    archived_at                 TEXT
+);
+
+CREATE UNIQUE INDEX idx_accounts_one_default
+    ON accounts(is_default)
+    WHERE is_default = 1;
+
+CREATE TABLE categories (
+    id            TEXT    PRIMARY KEY,
+    name          TEXT    NOT NULL,
+    kind          TEXT    NOT NULL CHECK (kind IN ('expense','income','both')),
+    nature        TEXT    NOT NULL CHECK (nature IN ('fixed','variable')),
+    parent_id     TEXT    REFERENCES categories(id),
+    icon          TEXT,
+    color         TEXT,
+    display_order INTEGER NOT NULL DEFAULT 0,
+    created_at    TEXT    NOT NULL,
+    updated_at    TEXT    NOT NULL,
+    archived_at   TEXT
+);
+
+CREATE INDEX idx_categories_parent
+    ON categories(parent_id)
+    WHERE parent_id IS NOT NULL;
+
+CREATE TABLE people (
+    id          TEXT PRIMARY KEY,
+    name        TEXT NOT NULL,
+    avatar      TEXT,
+    color       TEXT,
+    notes       TEXT,
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL,
+    archived_at TEXT
+);
+
+CREATE TABLE trips (
+    id                 TEXT PRIMARY KEY,
+    name               TEXT NOT NULL,
+    type               TEXT NOT NULL CHECK (type IN ('trip','celebration','other')),
+    status             TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('planned','active','finished')),
+    start_date         TEXT,
+    end_date           TEXT,
+    icon               TEXT,
+    color              TEXT,
+    notes              TEXT,
+    default_account_id TEXT REFERENCES accounts(id),
+    created_at         TEXT NOT NULL,
+    updated_at         TEXT NOT NULL,
+    archived_at        TEXT
+);
+
+CREATE TABLE tags (
+    id          TEXT PRIMARY KEY,
+    name        TEXT NOT NULL,
+    icon        TEXT,
+    color       TEXT,
+    trip_id     TEXT REFERENCES trips(id),
+    category_id TEXT REFERENCES categories(id),
+    trip_type   TEXT,
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL,
+    archived_at TEXT,
+
+    CHECK ( trip_id IS NULL OR trip_type IS NULL )
+);
+
+CREATE INDEX idx_tags_trip
+    ON tags(trip_id)
+    WHERE trip_id IS NOT NULL;
+
+CREATE TABLE templates (
+    id                     TEXT    PRIMARY KEY,
+    type                   TEXT    NOT NULL CHECK (type IN ('expense','income','transfer','settlement')),
+    amount_cents           INTEGER CHECK (amount_cents IS NULL OR amount_cents > 0),
+    account_id             TEXT    NOT NULL REFERENCES accounts(id),
+    dest_account_id        TEXT    REFERENCES accounts(id),
+    category_id            TEXT    REFERENCES categories(id),
+    tag_id                 TEXT    REFERENCES tags(id),
+    trip_id                TEXT    REFERENCES trips(id),
+    person_id              TEXT    REFERENCES people(id),
+    settlement_direction   TEXT    CHECK (settlement_direction IN ('person_to_user','user_to_person')),
+    settlement_scope       TEXT    CHECK (settlement_scope IN ('all','recurring')),
+    name                   TEXT,
+    payee                  TEXT,
+    notes                  TEXT,
+    split_config           TEXT,
+    frequency              TEXT    NOT NULL CHECK (frequency IN ('weekly','fortnightly','monthly','yearly','custom')),
+    interval_count         INTEGER,
+    custom_unit            TEXT    CHECK (custom_unit IN ('days','weeks','months','years')),
+    day_of_month           INTEGER CHECK (day_of_month BETWEEN 1 AND 31),
+    weekday                INTEGER CHECK (weekday BETWEEN 0 AND 6),
+    next_due_date          TEXT    NOT NULL,
+    amount_is_variable     INTEGER NOT NULL DEFAULT 0 CHECK (amount_is_variable IN (0,1)),
+    amount_flex_cents      INTEGER,
+    date_flex_days         INTEGER,
+    lead_notification_days INTEGER,
+    status                 TEXT    NOT NULL DEFAULT 'active' CHECK (status IN ('active','paused','ended')),
+    created_at             TEXT    NOT NULL,
+    updated_at             TEXT    NOT NULL,
+    archived_at            TEXT,
+
+    CHECK ( (type = 'transfer') = (dest_account_id IS NOT NULL) ),
+    CHECK ( category_id IS NULL OR type IN ('expense','income') ),
+    CHECK ( tag_id IS NULL OR trip_id IS NOT NULL ),
+    CHECK ( (type = 'settlement') = (person_id IS NOT NULL) ),
+    CHECK ( (type = 'settlement') = (settlement_direction IS NOT NULL) ),
+    CHECK ( (type = 'settlement') = (settlement_scope IS NOT NULL) ),
+    CHECK ( type <> 'settlement' OR (trip_id IS NULL AND split_config IS NULL) ),
+    CHECK ( amount_is_variable = 1 OR amount_cents IS NOT NULL ),
+    CHECK ( amount_flex_cents IS NULL OR amount_flex_cents >= 0 ),
+    CHECK ( date_flex_days IS NULL OR date_flex_days >= 0 ),
+    CHECK ( lead_notification_days IS NULL OR lead_notification_days >= 0 ),
+    CHECK (
+        (frequency = 'custom' AND interval_count IS NOT NULL AND custom_unit IS NOT NULL)
+        OR
+        (frequency <> 'custom' AND interval_count IS NULL AND custom_unit IS NULL)
+    ),
+    CHECK ( interval_count IS NULL OR interval_count > 0 )
+);
+
+CREATE INDEX idx_templates_next_due
+    ON templates(next_due_date)
+    WHERE status = 'active';
+
+CREATE TABLE budgets (
+    id                      TEXT    PRIMARY KEY,
+    scope                   TEXT    NOT NULL CHECK (scope IN ('category','overall_month','trip')),
+    category_id             TEXT    REFERENCES categories(id),
+    trip_id                 TEXT    REFERENCES trips(id),
+    period                  TEXT    NOT NULL CHECK (period IN ('monthly','yearly','one_off')),
+    limit_amount_cents      INTEGER NOT NULL CHECK (limit_amount_cents > 0),
+    alert_threshold_percent INTEGER CHECK (alert_threshold_percent BETWEEN 1 AND 100),
+    include_trip_expenses          INTEGER NOT NULL DEFAULT 1 CHECK (include_trip_expenses IN (0,1)),
+    include_extraordinary_expenses INTEGER NOT NULL DEFAULT 1 CHECK (include_extraordinary_expenses IN (0,1)),
+    created_at              TEXT    NOT NULL,
+    updated_at              TEXT    NOT NULL,
+    archived_at             TEXT,
+
+    CHECK (
+        (scope='category'      AND category_id IS NOT NULL AND trip_id IS NULL) OR
+        (scope='trip'          AND trip_id     IS NOT NULL AND category_id IS NULL) OR
+        (scope='overall_month' AND category_id IS NULL     AND trip_id IS NULL)
+    ),
+    CHECK (
+        (scope='category' AND period IN ('monthly','yearly')) OR
+        (scope='trip' AND period = 'one_off') OR
+        (scope='overall_month' AND period = 'monthly')
+    )
+);
+
+-- What the monthly plan had each month: a monthly budget's values from `from_month` on, a NULL
+-- limit meaning it left the plan that month.
+CREATE TABLE budget_versions (
+    budget_id                      TEXT    NOT NULL REFERENCES budgets(id),
+    from_month                     TEXT    NOT NULL CHECK (from_month GLOB '[0-9][0-9][0-9][0-9]-[0-1][0-9]'),
+    category_id                    TEXT    REFERENCES categories(id),
+    limit_amount_cents             INTEGER CHECK (limit_amount_cents IS NULL OR limit_amount_cents > 0),
+    include_trip_expenses          INTEGER NOT NULL DEFAULT 1 CHECK (include_trip_expenses IN (0,1)),
+    include_extraordinary_expenses INTEGER NOT NULL DEFAULT 1 CHECK (include_extraordinary_expenses IN (0,1)),
+
+    PRIMARY KEY (budget_id, from_month)
+);
+
+CREATE TABLE import_batches (
+    id          TEXT    PRIMARY KEY,
+    source_file TEXT,
+    account_id  TEXT    NOT NULL REFERENCES accounts(id),
+    row_count   INTEGER NOT NULL DEFAULT 0,
+    created_at  TEXT    NOT NULL,
+    updated_at  TEXT    NOT NULL,
+    archived_at TEXT
+);
+
+CREATE TABLE meta (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
+CREATE TABLE movements (
+    id                   TEXT    PRIMARY KEY,
+    type                 TEXT    NOT NULL CHECK (type IN ('expense','income','transfer','settlement','refund')),
+    amount_cents         INTEGER NOT NULL CHECK (amount_cents > 0),
+    date                 TEXT    NOT NULL,
+    -- The owner's account the money left or entered, NULL only for an expense another person paid.
+    account_id           TEXT    REFERENCES accounts(id),
+    dest_account_id      TEXT    REFERENCES accounts(id),
+    name                 TEXT,
+    payee                TEXT,
+    notes                TEXT,
+    is_one_time          INTEGER NOT NULL DEFAULT 0 CHECK (is_one_time IN (0,1)),
+    category_id          TEXT    REFERENCES categories(id),
+    tag_id               TEXT    REFERENCES tags(id),
+    trip_id              TEXT    REFERENCES trips(id),
+    template_id          TEXT    REFERENCES templates(id),
+    import_batch_id      TEXT    REFERENCES import_batches(id),
+    person_id            TEXT    REFERENCES people(id),
+    settlement_direction TEXT    CHECK (settlement_direction IN ('person_to_user','user_to_person')),
+    settlement_scope     TEXT    CHECK (settlement_scope IN ('all','recurring')),
+    refunds_expense_id   TEXT    REFERENCES movements(id),
+    actual_refund_cents  INTEGER CHECK (actual_refund_cents IS NULL OR actual_refund_cents >= 0),
+    expense_funding      TEXT    CHECK (expense_funding IN ('owner','shared_account')),
+    shared_split_id      TEXT    REFERENCES splits(id) DEFERRABLE INITIALLY DEFERRED,
+    -- The person who paid an expense, NULL when the app owner paid it from `account_id`.
+    payer_person_id      TEXT    REFERENCES people(id),
+    created_at           TEXT    NOT NULL,
+    updated_at           TEXT    NOT NULL,
+    archived_at          TEXT,
+
+    CHECK ( (type = 'transfer')   = (dest_account_id IS NOT NULL) ),
+    CHECK ( dest_account_id IS NULL OR dest_account_id <> account_id ),
+    CHECK ( category_id IS NULL OR type IN ('expense','income','refund') ),
+    CHECK ( tag_id IS NULL OR trip_id IS NOT NULL ),
+    CHECK ( (type = 'settlement') = (person_id IS NOT NULL) ),
+    CHECK ( (type = 'settlement') = (settlement_direction IS NOT NULL) ),
+    CHECK ( (type = 'settlement') = (settlement_scope IS NOT NULL) ),
+    CHECK ( (type = 'refund')     = (refunds_expense_id IS NOT NULL) ),
+    CHECK ( actual_refund_cents IS NULL OR type = 'refund' ),
+    CHECK ( actual_refund_cents IS NULL OR actual_refund_cents <= amount_cents ),
+    CHECK ( is_one_time = 0 OR type = 'expense' ),
+    CHECK ( (account_id IS NULL) = (payer_person_id IS NOT NULL) ),
+    CHECK ( payer_person_id IS NULL
+            OR (type = 'expense' AND expense_funding IS NULL AND template_id IS NULL) )
+);
+
+CREATE INDEX idx_movements_date
+    ON movements(date);
+
+CREATE INDEX idx_movements_account_date
+    ON movements(account_id, date);
+
+CREATE INDEX idx_movements_dest_account
+    ON movements(dest_account_id)
+    WHERE dest_account_id IS NOT NULL;
+
+CREATE INDEX idx_movements_category_date
+    ON movements(category_id, date)
+    WHERE category_id IS NOT NULL;
+
+CREATE INDEX idx_movements_trip
+    ON movements(trip_id)
+    WHERE trip_id IS NOT NULL;
+
+CREATE INDEX idx_movements_person
+    ON movements(person_id)
+    WHERE person_id IS NOT NULL;
+
+CREATE INDEX idx_movements_payer
+    ON movements(payer_person_id)
+    WHERE payer_person_id IS NOT NULL;
+
+CREATE INDEX idx_movements_template
+    ON movements(template_id)
+    WHERE template_id IS NOT NULL;
+
+CREATE INDEX idx_movements_refunds
+    ON movements(refunds_expense_id)
+    WHERE refunds_expense_id IS NOT NULL;
+
+CREATE INDEX idx_movements_import_batch
+    ON movements(import_batch_id)
+    WHERE import_batch_id IS NOT NULL;
+
+-- Member money entering and leaving a shared account. `direction` says which way it moves, and
+-- `source_account_id` names the app owner's personal account on the other side: the source of an
+-- inward row, the destination of an outward one. Neither direction is income, expense, settlement
+-- or debt, and neither changes ownership percentages.
+CREATE TABLE account_contributions (
+    id                 TEXT    PRIMARY KEY,
+    shared_account_id  TEXT    NOT NULL REFERENCES accounts(id),
+    direction          TEXT    NOT NULL DEFAULT 'in' CHECK (direction IN ('in','out')),
+    contributor_kind   TEXT    NOT NULL CHECK (contributor_kind IN ('user','person')),
+    person_id          TEXT    REFERENCES people(id),
+    source_account_id  TEXT    REFERENCES accounts(id),
+    amount_cents       INTEGER NOT NULL CHECK (amount_cents > 0),
+    date               TEXT    NOT NULL,
+    name               TEXT,
+    notes              TEXT,
+    created_at         TEXT    NOT NULL,
+    updated_at         TEXT    NOT NULL,
+    archived_at        TEXT,
+
+    CHECK ( (contributor_kind = 'user') = (person_id IS NULL) ),
+    CHECK ( contributor_kind = 'user' OR source_account_id IS NULL ),
+    CHECK ( source_account_id IS NULL OR source_account_id <> shared_account_id )
+);
+
+CREATE INDEX idx_account_contributions_shared_date
+    ON account_contributions(shared_account_id, date);
+
+CREATE INDEX idx_account_contributions_source_date
+    ON account_contributions(source_account_id, date)
+    WHERE source_account_id IS NOT NULL;
+
+-- How a movement's amount is allocated between the owner and people. The owner's line is what the
+-- owner bears, and on an expense another person paid it is also what the owner owes that person.
+CREATE TABLE splits (
+    id           TEXT    PRIMARY KEY,
+    movement_id  TEXT    NOT NULL REFERENCES movements(id) ON DELETE CASCADE,
+    entry_method TEXT    NOT NULL CHECK (entry_method IN ('equal','exact','percentage')),
+    created_at   TEXT    NOT NULL,
+    updated_at   TEXT    NOT NULL,
+    archived_at  TEXT
+);
+
+CREATE UNIQUE INDEX idx_splits_movement
+    ON splits(movement_id);
+
+CREATE TABLE split_lines (
+    id                TEXT    PRIMARY KEY,
+    split_id          TEXT    NOT NULL REFERENCES splits(id) ON DELETE CASCADE,
+    participant_kind  TEXT    NOT NULL CHECK (participant_kind IN ('user','person')),
+    person_id         TEXT    REFERENCES people(id),
+    owed_amount_cents INTEGER NOT NULL CHECK (owed_amount_cents >= 0),
+    owed_percent      REAL,
+    created_at        TEXT    NOT NULL,
+    updated_at        TEXT    NOT NULL,
+    archived_at       TEXT,
+
+    CHECK ( (participant_kind = 'user') = (person_id IS NULL) )
+);
+
+CREATE INDEX idx_split_lines_split
+    ON split_lines(split_id);
+
+CREATE INDEX idx_split_lines_person
+    ON split_lines(person_id)
+    WHERE person_id IS NOT NULL;
+
+CREATE UNIQUE INDEX idx_split_lines_one_user
+    ON split_lines(split_id)
+    WHERE participant_kind = 'user' AND archived_at IS NULL;
+
+CREATE UNIQUE INDEX idx_split_lines_one_person
+    ON split_lines(split_id, person_id)
+    WHERE participant_kind = 'person' AND archived_at IS NULL;
+
+CREATE TABLE goals (
+    id                  TEXT    PRIMARY KEY,
+    name                TEXT    NOT NULL,
+    target_amount_cents INTEGER NOT NULL CHECK (target_amount_cents > 0),
+    target_date         TEXT,
+    account_id          TEXT    REFERENCES accounts(id),
+    funding_mode        TEXT    NOT NULL CHECK (funding_mode IN ('dedicated_account','allocations')),
+    status              TEXT    NOT NULL DEFAULT 'active' CHECK (status IN ('active','paused','completed')),
+    icon                TEXT,
+    color               TEXT,
+    display_order       INTEGER NOT NULL DEFAULT 0,
+    notes               TEXT,
+    created_at          TEXT    NOT NULL,
+    updated_at          TEXT    NOT NULL,
+    archived_at         TEXT,
+
+    CHECK ( funding_mode <> 'dedicated_account' OR account_id IS NOT NULL )
+);
+
+CREATE TABLE account_members (
+    id                           TEXT    PRIMARY KEY,
+    account_id                   TEXT    NOT NULL REFERENCES accounts(id),
+    participant_kind             TEXT    NOT NULL CHECK (participant_kind IN ('user','person')),
+    person_id                    TEXT    REFERENCES people(id),
+    ownership_basis_points       INTEGER NOT NULL CHECK (ownership_basis_points BETWEEN 0 AND 10000),
+    default_expense_basis_points INTEGER NOT NULL CHECK (default_expense_basis_points BETWEEN 0 AND 10000),
+    created_at                   TEXT    NOT NULL,
+    updated_at                   TEXT    NOT NULL,
+    archived_at                  TEXT,
+
+    CHECK ( (participant_kind = 'user') = (person_id IS NULL) )
+);
+
+CREATE INDEX idx_account_members_account
+    ON account_members(account_id);
+
+CREATE UNIQUE INDEX idx_account_members_one_user
+    ON account_members(account_id)
+    WHERE participant_kind = 'user' AND archived_at IS NULL;
+
+CREATE UNIQUE INDEX idx_account_members_one_person
+    ON account_members(account_id, person_id)
+    WHERE participant_kind = 'person' AND archived_at IS NULL;
+
+CREATE INDEX idx_goals_account
+    ON goals(account_id)
+    WHERE account_id IS NOT NULL;
+
+CREATE TABLE goal_allocations (
+    id           TEXT    PRIMARY KEY,
+    goal_id      TEXT    NOT NULL REFERENCES goals(id),
+    account_id   TEXT    NOT NULL REFERENCES accounts(id),
+    date         TEXT    NOT NULL,
+    amount_cents INTEGER NOT NULL CHECK (amount_cents <> 0),
+    notes        TEXT,
+    created_at   TEXT    NOT NULL,
+    updated_at   TEXT    NOT NULL,
+    archived_at  TEXT
+);
+
+CREATE INDEX idx_goal_allocations_goal
+    ON goal_allocations(goal_id);
+
+CREATE INDEX idx_goal_allocations_account_date
+    ON goal_allocations(account_id, date);

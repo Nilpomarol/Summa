@@ -1,0 +1,9 @@
+valueForKey:
+SELECT value
+FROM meta
+WHERE key = ?;
+
+updateValueForKey:
+UPDATE meta
+SET value = :value
+WHERE key = :key;

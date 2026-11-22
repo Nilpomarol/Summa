@@ -1,0 +1,48 @@
+-- Android-side readings of the canonical views for the Anàlisi page. Not part of the shared
+-- contract: they only group canonical figures the shared queries already define.
+
+-- The owner's canonical expense over [from_date, to_date), split by how it came about: from a
+-- recurring item (its refunds too), marked as a one-off, or ordinary variable spending.
+analysisSpendingByKind:
+SELECT
+    CASE
+        WHEN recorded.template_id IS NOT NULL OR refunded_expense.template_id IS NOT NULL THEN 'recurring'
+        WHEN actual.is_one_time = 1 THEN 'one_off'
+        ELSE 'variable'
+    END AS kind,
+    COALESCE(SUM(actual.amount_cents), 0) AS expense_cents
+FROM v_actual_expense AS actual
+JOIN movements AS recorded
+    ON recorded.id = actual.source_id
+LEFT JOIN movements AS refunded_expense
+    ON refunded_expense.id = recorded.refunds_expense_id
+WHERE actual.date >= :from_date
+  AND actual.date < :to_date
+  AND (:account_id IS NULL OR recorded.account_id = :account_id)
+GROUP BY kind;
+
+-- The owner's net worth at the end of :as_of: each live account's balance then (today's less
+-- the flow dated after it), at the owner's share of it, rounded as v_account_value rounds.
+-- One account alone when :account_id is set.
+analysisNetWorthAt:
+SELECT COALESCE(SUM(
+    CASE
+        WHEN balance_cents < 0 THEN -(((-balance_cents) * ownership_basis_points + 5000) / 10000)
+        ELSE (balance_cents * ownership_basis_points + 5000) / 10000
+    END
+), 0) AS net_worth_cents
+FROM (
+    SELECT
+        value.owner_ownership_basis_points AS ownership_basis_points,
+        value.physical_balance_cents - COALESCE((
+            SELECT SUM(flow.delta_cents)
+            FROM v_account_flow AS flow
+            WHERE flow.account_id = value.account_id
+              AND flow.date > :as_of
+        ), 0) AS balance_cents
+    FROM v_account_value AS value
+    JOIN accounts AS account
+        ON account.id = value.account_id
+       AND account.archived_at IS NULL
+    WHERE :account_id IS NULL OR value.account_id = :account_id
+);

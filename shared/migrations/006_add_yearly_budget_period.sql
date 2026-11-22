@@ -1,0 +1,42 @@
+-- Gestor finances v5 → v6 migration.
+-- Adds yearly category limits and enforces the valid scope/period combinations for new rows.
+-- SQLite cannot alter CHECK constraints in place, so rebuild budgets while preserving every row.
+
+CREATE TABLE budgets_new (
+    id                      TEXT    PRIMARY KEY,
+    scope                   TEXT    NOT NULL CHECK (scope IN ('category','overall_month','trip')),
+    category_id             TEXT    REFERENCES categories(id),
+    trip_id                 TEXT    REFERENCES trips(id),
+    period                  TEXT    NOT NULL CHECK (period IN ('monthly','yearly','one_off')),
+    limit_amount_cents      INTEGER NOT NULL CHECK (limit_amount_cents > 0),
+    start_date              TEXT,
+    alert_threshold_percent INTEGER CHECK (alert_threshold_percent BETWEEN 1 AND 100),
+    created_at              TEXT    NOT NULL,
+    updated_at              TEXT    NOT NULL,
+    archived_at             TEXT,
+
+    CHECK (
+        (scope='category'      AND category_id IS NOT NULL AND trip_id IS NULL) OR
+        (scope='trip'          AND trip_id     IS NOT NULL AND category_id IS NULL) OR
+        (scope='overall_month' AND category_id IS NULL     AND trip_id IS NULL)
+    ),
+    CHECK (
+        (scope='category' AND period IN ('monthly','yearly')) OR
+        (scope='trip' AND period = 'one_off') OR
+        (scope='overall_month' AND period = 'monthly')
+    )
+);
+
+INSERT INTO budgets_new(
+    id, scope, category_id, trip_id, period, limit_amount_cents, start_date,
+    alert_threshold_percent, created_at, updated_at, archived_at
+)
+SELECT
+    id, scope, category_id, trip_id, period, limit_amount_cents, start_date,
+    alert_threshold_percent, created_at, updated_at, archived_at
+FROM budgets;
+
+DROP TABLE budgets;
+ALTER TABLE budgets_new RENAME TO budgets;
+
+UPDATE meta SET value = '6' WHERE key = 'schema_version';

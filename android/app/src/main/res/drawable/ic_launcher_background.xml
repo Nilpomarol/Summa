@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Forest field behind the Summa mark; matches TokenColor.Forest. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="#063E29" />
+</shape>
